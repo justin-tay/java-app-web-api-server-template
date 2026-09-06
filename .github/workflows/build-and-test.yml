@@ -1,0 +1,84 @@
+name: Build and test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-slim
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Build and test
+        run: bash ./mvnw -B -Dstyle.color=always verify
+
+      - name: Summarize code coverage
+        if: always()
+        shell: bash
+        run: |
+          report=target/site/jacoco/jacoco.csv
+          {
+            echo "## Code coverage"
+            echo
+            if [[ ! -f "$report" ]]; then
+              echo "Coverage is unavailable because JaCoCo did not produce a report."
+            else
+              echo "| Metric | Coverage |"
+              echo "| --- | ---: |"
+              awk -F, '
+                NR > 1 {
+                  instruction_missed += $4; instruction_covered += $5
+                  branch_missed += $6; branch_covered += $7
+                  line_missed += $8; line_covered += $9
+                }
+                function coverage(missed, covered, total) {
+                  total = missed + covered
+                  return total ? sprintf("%.1f%%", (100 * covered) / total) : "N/A"
+                }
+                END {
+                  printf "| Instructions | %s |\\n", coverage(instruction_missed, instruction_covered)
+                  printf "| Lines | %s |\\n", coverage(line_missed, line_covered)
+                  printf "| Branches | %s |\\n", coverage(branch_missed, branch_covered)
+                }
+              ' "$report"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce formatting
+        run: git diff --exit-code
+
+      - name: Upload JaCoCo report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: jacoco-report
+          path: target/site/jacoco
+          if-no-files-found: warn
+
+      - name: Upload Surefire reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: surefire-reports
+          path: target/surefire-reports
+          if-no-files-found: ignore

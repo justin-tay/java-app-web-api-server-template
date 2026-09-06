@@ -1,0 +1,63 @@
+app:
+  jwks: classpath:jwks.json
+logging:
+  structured:
+    ecs:
+      service:
+        environment: production
+    format:
+      console: ecs
+server:
+  port: 8081
+  servlet:
+    session:
+      cookie:
+        name: id
+        http-only: true
+        same-site: lax
+        secure: true
+      tracking-modes:
+      - COOKIE
+      timeout: 15m
+  ssl:
+    bundle: server
+    enabled-protocols:
+    - TLSv1.2
+    - TLSv1.3
+    ciphers:
+    - TLS_AES_256_GCM_SHA384
+    - TLS_AES_128_GCM_SHA256
+    - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+    - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+    - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+    - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+    - TLS_DHE_RSA_WITH_AES_256_GCM_SHA384
+    - TLS_DHE_RSA_WITH_AES_128_GCM_SHA256
+spring:
+  application:
+    name: java-app-web-api-server
+  main:
+    banner-mode: "off"
+  ssl:
+    bundle:
+      pem:
+        server:
+          keystore:
+            certificate: ${CERTIFICATE_PEM:}
+            private-key: ${PRIVATE_KEY_PEM:}
+          truststore:
+            certificate: ${CA_BUNDLE_PEM:}
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            client-id: java-app-web-api-server
+            client-authentication-method: private_key_jwt
+            authorization-grant-type: authorization_code
+            scope:
+            - openid
+        provider:
+          keycloak:
+            issuer-uri: http://localhost:8080/realms/test
+            user-name-attribute: preferred_username

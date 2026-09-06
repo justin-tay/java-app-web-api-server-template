@@ -1,0 +1,12 @@
+server:
+  ssl:
+    enabled: false
+  servlet:
+    session:
+      cookie:
+        secure: false
+logging:
+  structured:
+    ecs:
+      service:
+        environment: test
