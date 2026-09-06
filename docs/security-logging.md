@@ -24,6 +24,10 @@ The field-level contract is in [security-logging-schema.md](security-logging-sch
   outcome, response status, matched route, and duration.
 * `SecurityAuditEventLogger` emits authentication, authorization, and logout
   audit events. `ProblemDetailAccessDeniedHandler` also records CSRF denials.
+* `ApplicationLifecycleEventLogger`, registered before context creation through
+  `spring.factories`, records application starting, started, failed-to-start,
+  and stopped events. It deliberately does not log `ApplicationStartingEvent`,
+  because the logging subsystem is not available at that point.
 * The receiving log collector/SIEM owns transport, retention, access control,
   alerting, and any separation of operational, audit, and security datasets.
 
@@ -57,7 +61,7 @@ search parameters.
 | Log authentication successes and failures. | Implemented | `SecurityAuditEventLogger` records successful and failed logins with outcome, user name, and failure exception type. It deliberately omits exception messages and credentials. |
 | Log authorization failures. | Implemented | Access-denied events use `event.category=[web, api]`, `event.type=[access, denied]`, `event.action=authorize_access`, and `event.outcome=failure`. CSRF denials use `event.action=validate_csrf_token` and separately record path, direct peer address, exception type, and their known 403 response status. |
 | Log session-management failures or suspicious session activity. | Partial | Spring Security manages the configured session/token flows, but the template does not infer suspicious session changes or log session identifiers. Add domain-specific events for session revocation, fixation detection, or account-switching requirements. |
-| Log application and system errors, and start-up/shutdown conditions. | Partial | Unexpected exceptions handled during Spring MVC dispatch emit a structured `ERROR` event with `event.action=process_request`, safe error type, response status, request path, correlation ID, and stack trace. Spring Boot supplies normal start-up logging. Errors before MVC dispatch, shutdown/lifecycle audit events, and logging-sink health remain framework/platform responsibilities; platform monitoring should detect container restarts and missing log flow. |
+| Log application and system errors, and start-up/shutdown conditions. | Partial | `ApplicationLifecycleEventLogger` records structured start, started, failed-to-start, and stopped events. Unexpected exceptions handled during Spring MVC dispatch emit a structured `ERROR` event with `event.action=process_request`, safe error type, response status, request path, correlation ID, and stack trace. Failures before `ApplicationContextInitializedEvent` and logging-sink health remain framework/platform responsibilities; platform monitoring should detect container restarts and missing log flow. |
 | Log higher-risk business actions, data changes, privilege changes, imports/exports, and use of privileged functions. | Not applicable to the base template | There is no business domain in this template. Applications built from it must add auditable, structured events at the business-action boundary, including actor, target, action, outcome, and correlation ID. |
 | Log unexpected HTTP methods, protocol/TLS failures, network failures, and other attacks. | Partial | Every request that reaches the filter has its method and lifecycle logged. Rejected traffic before the application, TLS handshake failures, malformed requests, and WAF detections belong to the load balancer, proxy, WAF, or servlet container logs. No attack-detection rules are shipped by the template. |
 | Log legal, consent, fraud, business-rule, sequencing, and other optional events when relevant. | Not applicable to the base template | These require product-specific definitions and retention rules. Add them as structured domain audit events rather than trying to infer them from access logs. |

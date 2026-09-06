@@ -39,6 +39,10 @@ operational alerts.
 | CSRF denial | `ProblemDetailAccessDeniedHandler` | WARN | `web`, `api` | `access`, `denied` | `validate_csrf_token` | `failure` |
 | Logout success | `SecurityAuditEventLogger` | INFO | `authentication` | `info` | `logout` | `success` |
 | Unexpected application error | `ApiResponseEntityExceptionHandler` | ERROR | `web` | `error` | `process_request` | `failure` |
+| Application starting | `ApplicationLifecycleEventLogger` | INFO | `process` | `start` | `start_application` | `unknown` |
+| Application started | `ApplicationLifecycleEventLogger` | INFO | `process` | `start` | `start_application` | `success` |
+| Application failed to start | `ApplicationLifecycleEventLogger` | ERROR | `process` | `start` | `start_application` | `failure` |
+| Application stopped | `ApplicationLifecycleEventLogger` | INFO | `process` | `end` | `stop_application` | `success` |
 
 ## `event.action` naming and semantics
 
@@ -90,8 +94,8 @@ The same convention explains the current CSRF event:
 
 The [ECS allowed event-category values](https://www.elastic.co/docs/reference/ecs/ecs-allowed-values-event-category)
 describe `event.category` as an array-capable categorization field. This
-application currently emits only ECS allowed values: `web`, `api`, and
-`authentication`. The authorization-denial events use both `web` and `api` to
+application currently emits only ECS allowed values: `web`, `api`, `authentication`, and
+`process`. The authorization-denial events use both `web` and `api` to
 describe an API request denied at the web boundary. This permits the ECS
 expected `access` and `denied` types for `api`, while retaining the web-access
 view for dashboards.
@@ -110,6 +114,7 @@ Every row below also includes the runtime baseline fields: `@timestamp`,
 | `web`, `api` | Denied `authorize_access` | `event.category`, `event.type`, `event.action`, `event.outcome`, `user.name` (uses `anonymous` when no authentication is available); conditional `http.request.id` from MDC. | Both are ECS allowed categories. `api` expects `access` and `denied`, which are emitted together. The final HTTP status is intentionally left to the correlated request-completed event because this listener does not determine it. |
 | `web`, `api` | Failed `validate_csrf_token` | `event.category`, `event.type`, `event.action`, `event.outcome`, `http.response.status_code`, `url.path`, `source.ip`, `error.type`; conditional `http.request.id` from MDC. | Both are ECS allowed categories. The handler itself always writes 403, so this event safely records `http.response.status_code=403`. `source.ip` is the direct peer address, not a proxy-normalized client IP. |
 | `web` | Failed `process_request` | `event.category`, `event.type`, `event.action`, `event.outcome`, `http.response.status_code`, `url.path`, `error.type`, and exception stack trace; conditional `http.request.id` from MDC. | `web` and `error` are ECS allowed values. This event is emitted only for unexpected exceptions handled during Spring MVC dispatch and upstream 5xx `RestClientResponseException` values. |
+| `process` | `start_application` / `stop_application` | `event.category`, `event.type`, `event.action`, `event.outcome`; failed startup also has `error.type` and `error.stack_trace`. | `process`, `start`, and `end` are ECS allowed values. The listener is registered through `spring.factories`, so it observes startup failure before a Spring bean can be created. No application-lifecycle record is possible before logging initializes. |
 
 `http.request.id` is established by `SecurityLoggingContextFilter` and normally
 appears through MDC. It is shown as conditional because security events can be
@@ -132,8 +137,8 @@ present only for the event family where it has meaning.
 | `process.thread.name` | `keyword` | Runtime supplied | Thread emitting the event. |
 | `service.name` | `keyword` | Runtime supplied | Spring application name: `java-app-web-api-server`. |
 | `service.environment` | `keyword` | Runtime supplied | `production` by default; overridden to `local` and `test` by those profiles. |
-| `event.category` | `keyword` (array-capable) | Template events | High-level event family. The template uses only ECS allowed values: `web`, `api`, and `authentication`. |
-| `event.type` | `keyword` (array-capable) | Template events | Lifecycle/subcategory such as `access`, `start`, `end`, `info`, or `denied`. Request events emit an array; audit events emit one value. See the category matrix for expected-value compatibility. |
+| `event.category` | `keyword` (array-capable) | Template events | High-level event family. The template uses only ECS allowed values: `web`, `api`, `authentication`, and `process`. |
+| `event.type` | `keyword` (array-capable) | Template events | Lifecycle/subcategory such as `access`, `start`, `end`, `info`, or `denied`. Every template event emits an array, including events with one type. See the category matrix for expected-value compatibility. |
 | `event.action` | `keyword` | Template events | Stable action identifier listed in the event-family table. |
 | `event.outcome` | `keyword` | Completed/audit events | `success` or `failure`; absent from the received request event. |
 | `event.start` | `date` | Request lifecycle events | UTC instant captured when the request enters `RequestLoggingFilter`. The received and completed events use the same value. |

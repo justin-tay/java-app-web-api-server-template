@@ -26,7 +26,7 @@ class SecurityAuditEventLogger {
 	void onAuthenticationSuccess(InteractiveAuthenticationSuccessEvent event) {
 		LOGGER.atInfo()
 			.addKeyValue("event.category", "authentication")
-			.addKeyValue("event.type", "info")
+			.addKeyValue("event.type", List.of("info"))
 			.addKeyValue("event.action", "login")
 			.addKeyValue("event.outcome", "success")
 			.addKeyValue("user.name", event.getAuthentication().getName())
@@ -37,7 +37,7 @@ class SecurityAuditEventLogger {
 	void onAuthenticationFailure(AbstractAuthenticationFailureEvent event) {
 		LOGGER.atWarn()
 			.addKeyValue("event.category", "authentication")
-			.addKeyValue("event.type", "denied")
+			.addKeyValue("event.type", List.of("denied"))
 			.addKeyValue("event.action", "login")
 			.addKeyValue("event.outcome", "failure")
 			.addKeyValue("user.name", event.getAuthentication().getName())
@@ -60,7 +60,7 @@ class SecurityAuditEventLogger {
 	void onLogoutSuccess(LogoutSuccessEvent event) {
 		LOGGER.atInfo()
 			.addKeyValue("event.category", "authentication")
-			.addKeyValue("event.type", "info")
+			.addKeyValue("event.type", List.of("info"))
 			.addKeyValue("event.action", "logout")
 			.addKeyValue("event.outcome", "success")
 			.addKeyValue("user.name", event.getAuthentication().getName())
