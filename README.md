@@ -36,6 +36,18 @@ node bin/configure-keycloak.js
 The script is idempotent and enables user registration for the realm. It requires a
 Node.js version that provides the global `fetch` API.
 
+Provision the matching development users after the application database has been
+started at least once. This creates `admin`, `test-user`, and `multi-group-user` in
+Keycloak, each with the development-only password `password`. It intentionally does
+not assign Keycloak roles: application access and roles are managed by the local
+database migrations.
+The local username is matched to Keycloak's `preferred_username` claim, so treat
+those Keycloak usernames as immutable after a user has been provisioned.
+
+```shell
+node bin/seed-test-data.js
+```
+
 ### Run the application
 
 For local HTTP development, activate the `local` Maven profile. It disables TLS and

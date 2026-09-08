@@ -36,6 +36,11 @@ server:
 spring:
   application:
     name: java-app-web-api-server
+  jpa:
+    hibernate:
+      ddl-auto: none
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
   main:
     banner-mode: "off"
   ssl:

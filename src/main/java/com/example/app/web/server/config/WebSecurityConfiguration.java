@@ -25,6 +25,7 @@ import org.springframework.security.authentication.event.AbstractAuthenticationF
 import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.configurers.DefaultLoginPageConfigurer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -36,16 +37,10 @@ import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResp
 import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
 import org.springframework.security.oauth2.client.oidc.authentication.OidcIdTokenValidator;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
-import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.client.oidc.web.logout.OidcClientInitiatedLogoutSuccessHandler;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
-import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
-import org.springframework.security.oauth2.core.ClaimAccessor;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
-import org.springframework.security.oauth2.core.oidc.OidcIdToken;
-import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
-import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtDecoderFactory;
@@ -61,6 +56,7 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 import com.example.app.web.server.security.ProblemDetailAccessDeniedHandler;
 import com.example.app.web.server.security.RequestLoggingFilter;
 import com.example.app.web.server.security.SecurityLoggingContextFilter;
+import com.example.app.web.server.security.LocalAuthoritiesOidcUserService;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.KeySourceException;
 import com.nimbusds.jose.jwk.JWK;
@@ -77,6 +73,7 @@ import com.nimbusds.jwt.proc.DefaultJWTProcessor;
  * Web security configuration.
  */
 @Configuration
+@EnableMethodSecurity
 public class WebSecurityConfiguration {
 
 	private static final String CONTENT_SECURITY_POLICY = "base-uri 'none';default-src 'none';form-action 'none';frame-ancestors 'none'";
@@ -117,8 +114,8 @@ public class WebSecurityConfiguration {
 	SecurityFilterChain securityFilterChain(HttpSecurity http, JWKSet jwks,
 			ClientRegistrationRepository clientRegistrationRepository,
 			AuthenticationEventPublisher authenticationEventPublisher,
-			SecurityLoggingContextFilter securityLoggingContextFilter, ApplicationProperties applicationProperties)
-			throws Exception {
+			SecurityLoggingContextFilter securityLoggingContextFilter, ApplicationProperties applicationProperties,
+			LocalAuthoritiesOidcUserService localAuthoritiesOidcUserService) throws Exception {
 		http.getSharedObject(AuthenticationManagerBuilder.class)
 			.authenticationEventPublisher(authenticationEventPublisher);
 		OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient = accessTokenResponseClient(
@@ -135,6 +132,13 @@ public class WebSecurityConfiguration {
 			.exceptionHandling(
 					exceptionHandling -> exceptionHandling.accessDeniedHandler(new ProblemDetailAccessDeniedHandler()))
 			.authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
+				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/admin/users/**"))
+				.hasRole("USER_MANAGE")
+				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/admin/groups/**"))
+				.hasRole("GROUP_MANAGE")
+				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/admin/roles/**"))
+				.hasAuthority("ROLE_ROLE_MANAGE"))
+			.authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
 				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/oauth2/jwks"))
 				.anonymous())
 			.authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
@@ -142,7 +146,8 @@ public class WebSecurityConfiguration {
 				.authenticated())
 			.oauth2Login(oauth2Login -> oauth2Login
 				.tokenEndpoint(tokenEndpoint -> tokenEndpoint.accessTokenResponseClient(accessTokenResponseClient))
-				.userInfoEndpoint(userInfoEndpoint -> userInfoEndpoint.oidcUserService(oidcUserService())))
+				.userInfoEndpoint(
+						userInfoEndpoint -> userInfoEndpoint.oidcUserService(localAuthoritiesOidcUserService)))
 			.oidcLogout(oidcLogout -> oidcLogout.backChannel(withDefaults()))
 			.logout(logout -> logout.logoutSuccessHandler(oidcLogoutSuccessHandler(clientRegistrationRepository)))
 			.with(new DefaultLoginPageConfigurer<>(),
@@ -277,51 +282,5 @@ public class WebSecurityConfiguration {
 	 * authorities.
 	 * @return the oidc user service
 	 */
-	private OAuth2UserService<OidcUserRequest, OidcUser> oidcUserService() {
-		final OidcUserService delegate = new OidcUserService();
-		final JwtDecoderFactory<ClientRegistration> accessTokenDecoderFactory = clientRegistration -> {
-			String issuerUri = clientRegistration.getProviderDetails().getIssuerUri();
-			NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withIssuerLocation(issuerUri).build();
-			jwtDecoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(issuerUri));
-			return jwtDecoder;
-		};
-
-		return (userRequest) -> {
-			OidcUser oidcUser = delegate.loadUser(userRequest);
-
-			Set<GrantedAuthority> authorities = new HashSet<>();
-
-			JwtDecoder jwtDecoder = accessTokenDecoderFactory.createDecoder(userRequest.getClientRegistration());
-			Jwt jwt = jwtDecoder.decode(userRequest.getAccessToken().getTokenValue());
-			addAuthorities(authorities, jwt, "realm_access", "ROLE_");
-
-			OidcIdToken idToken = userRequest.getIdToken();
-			addAuthorities(authorities, idToken, "realm_access", "ROLE_");
-
-			authorities.addAll(oidcUser.getAuthorities());
-
-			return new DefaultOidcUser(authorities, oidcUser.getIdToken(), oidcUser.getUserInfo());
-		};
-	}
-
-	/**
-	 * Add authorities from token.
-	 * @param authorities to add to
-	 * @param token to read from
-	 * @param claim to read from that contains the roles
-	 * @param authorityPrefix the prefix to prepend to the authority name
-	 */
-	private void addAuthorities(Set<GrantedAuthority> authorities, ClaimAccessor token, String claim,
-			String authorityPrefix) {
-		Map<String, Object> realmAccess = token.getClaimAsMap(claim);
-		if (realmAccess != null) {
-			if (realmAccess.get("roles") instanceof Collection<?> roles) {
-				roles.stream()
-					.map(value -> authorityPrefix + value.toString())
-					.map(SimpleGrantedAuthority::new)
-					.forEach(authorities::add);
-			}
-		}
-	}
 
 }
