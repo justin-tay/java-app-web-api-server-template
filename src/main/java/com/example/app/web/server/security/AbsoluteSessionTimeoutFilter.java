@@ -23,16 +23,24 @@ public class AbsoluteSessionTimeoutFilter extends OncePerRequestFilter {
 
 	private final Clock clock;
 
+	private final SessionLifecycleAuditLogger sessionLifecycleAuditLogger;
+
 	public AbsoluteSessionTimeoutFilter(Duration timeout) {
-		this(timeout, Clock.systemUTC());
+		this(timeout, Clock.systemUTC(), new SessionLifecycleAuditLogger());
 	}
 
 	public AbsoluteSessionTimeoutFilter(Duration timeout, Clock clock) {
+		this(timeout, clock, new SessionLifecycleAuditLogger());
+	}
+
+	public AbsoluteSessionTimeoutFilter(Duration timeout, Clock clock,
+			SessionLifecycleAuditLogger sessionLifecycleAuditLogger) {
 		Assert.notNull(timeout, "timeout cannot be null");
 		Assert.isTrue(!timeout.isNegative() && !timeout.isZero(), "timeout must be positive");
 		Assert.notNull(clock, "clock cannot be null");
 		this.timeout = timeout;
 		this.clock = clock;
+		this.sessionLifecycleAuditLogger = sessionLifecycleAuditLogger;
 	}
 
 	@Override
@@ -40,6 +48,7 @@ public class AbsoluteSessionTimeoutFilter extends OncePerRequestFilter {
 			throws ServletException, IOException {
 		HttpSession session = request.getSession(false);
 		if (session != null && hasExpired(session)) {
+			this.sessionLifecycleAuditLogger.logSessionDestroyed(session, "absolute_timeout");
 			session.invalidate();
 		}
 		filterChain.doFilter(request, response);

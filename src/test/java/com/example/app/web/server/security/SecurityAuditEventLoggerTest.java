@@ -29,7 +29,8 @@ import org.springframework.security.core.Authentication;
  */
 class SecurityAuditEventLoggerTest {
 
-	private final SecurityAuditEventLogger securityAuditEventLogger = new SecurityAuditEventLogger();
+	private final SecurityAuditEventLogger securityAuditEventLogger = new SecurityAuditEventLogger(
+			new SessionLifecycleAuditLogger());
 
 	private final Logger logger = (Logger) LoggerFactory.getLogger(SecurityAuditEventLogger.class);
 

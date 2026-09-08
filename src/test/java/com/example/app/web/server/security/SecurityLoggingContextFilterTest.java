@@ -21,12 +21,13 @@ class SecurityLoggingContextFilterTest {
 		request.setRemoteAddr("192.0.2.10");
 		MDC.put("user.name", "stale-user");
 
-		new SecurityLoggingContextFilter(ClientIpResolver.none(), RequestIdResolver.none()).doFilter(request,
-				new MockHttpServletResponse(), (servletRequest, servletResponse) -> {
-					assertThat(MDC.get("source.ip")).isEqualTo("192.0.2.10");
-					assertThat(MDC.get("http.request.id")).isNotBlank();
-					assertThat(MDC.get("user.name")).isNull();
-				});
+		new SecurityLoggingContextFilter(ClientIpResolver.none(), RequestIdResolver.none(),
+				new SessionLifecycleAuditLogger())
+			.doFilter(request, new MockHttpServletResponse(), (servletRequest, servletResponse) -> {
+				assertThat(MDC.get("source.ip")).isEqualTo("192.0.2.10");
+				assertThat(MDC.get("http.request.id")).isNotBlank();
+				assertThat(MDC.get("user.name")).isNull();
+			});
 
 		assertThat(MDC.get("source.ip")).isNull();
 		assertThat(MDC.get("http.request.id")).isNull();
@@ -41,9 +42,9 @@ class SecurityLoggingContextFilterTest {
 
 		ClientIpResolver resolver = new TrustedHeaderClientIpResolver("True-Client-IP",
 				java.util.List.of("192.0.2.0/24"));
-		new SecurityLoggingContextFilter(resolver, RequestIdResolver.none()).doFilter(request,
-				new MockHttpServletResponse(),
-				(servletRequest, servletResponse) -> assertThat(MDC.get("client.ip")).isEqualTo("198.51.100.20"));
+		new SecurityLoggingContextFilter(resolver, RequestIdResolver.none(), new SessionLifecycleAuditLogger())
+			.doFilter(request, new MockHttpServletResponse(),
+					(servletRequest, servletResponse) -> assertThat(MDC.get("client.ip")).isEqualTo("198.51.100.20"));
 	}
 
 	@Test
@@ -54,9 +55,9 @@ class SecurityLoggingContextFilterTest {
 
 		ClientIpResolver resolver = new TrustedHeaderClientIpResolver("True-Client-IP",
 				java.util.List.of("192.0.2.0/24"));
-		new SecurityLoggingContextFilter(resolver, RequestIdResolver.none()).doFilter(request,
-				new MockHttpServletResponse(),
-				(servletRequest, servletResponse) -> assertThat(MDC.get("client.ip")).isNull());
+		new SecurityLoggingContextFilter(resolver, RequestIdResolver.none(), new SessionLifecycleAuditLogger())
+			.doFilter(request, new MockHttpServletResponse(),
+					(servletRequest, servletResponse) -> assertThat(MDC.get("client.ip")).isNull());
 	}
 
 	@Test
@@ -84,9 +85,10 @@ class SecurityLoggingContextFilterTest {
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/accounts");
 		request.addHeader("X-Amz-Cf-Id", "cloudfront-request-id");
 
-		new SecurityLoggingContextFilter(ClientIpResolver.none(), new CloudFrontRequestIdResolver()).doFilter(request,
-				new MockHttpServletResponse(), (servletRequest,
-						servletResponse) -> assertThat(MDC.get("http.request.id")).contains("cloudfront-request-id"));
+		new SecurityLoggingContextFilter(ClientIpResolver.none(), new CloudFrontRequestIdResolver(),
+				new SessionLifecycleAuditLogger())
+			.doFilter(request, new MockHttpServletResponse(), (servletRequest,
+					servletResponse) -> assertThat(MDC.get("http.request.id")).contains("cloudfront-request-id"));
 	}
 
 }

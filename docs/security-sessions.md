@@ -65,7 +65,7 @@ browser `localStorage` or `sessionStorage`.
 | Browser cache and logout cleanup | Partial | Spring Security supplies restrictive cache-control headers for protected responses. `Clear-Site-Data` is not sent on logout; assess it when the application serves sensitive browser content. | **Spring Security default:** protected-response cache headers; **unimplemented:** `Clear-Site-Data` logout handler. |
 | Reauthentication after risk events | Product decision | Define reauthentication/MFA requirements for account recovery, suspicious activity, and sensitive profile or authorization changes with the identity-provider owner. | **Unimplemented:** no application risk-event or reauthentication integration. |
 | Concurrent sessions | Implemented and integration-tested | One concurrent session is permitted per user. A later successful login marks the existing session expired; its next request invalidates it. Browser navigation redirects to `/login?session-expired`; API requests receive a generic 401 Problem Details response. | **Application configuration:** `maximumSessions(1)` with `maxSessionsPreventsLogin(false)` and `ContentNegotiatingSessionExpiredStrategy`; **Spring Session:** `SpringSessionBackedSessionRegistry` finds sessions in JDBC across instances. **Override rationale:** Spring Security's default `ConcurrentSessionFilter` writes a plain-text expiry message without setting a status, leaving HTTP 200; this is unsuitable for browser navigation and API clients. `WebSecurityConfigurationSessionManagementIntegrationTest` verifies both response types and JDBC-session invalidation. |
-| Session anomaly detection and lifecycle logging | Partial | Authentication and logout outcomes are logged without session IDs. Define privacy-preserving detection for unusual session activity and invalid-ID attempts; never log raw IDs, cookies, or tokens. | **Application code:** `SecurityAuditEventLogger` emits redacted ECS audit events; **unimplemented:** anomaly detection. |
+| Session anomaly detection and lifecycle logging | Partial | Lifecycle events are logged for audit-ID initialization, session-fixation renewal, logout, absolute timeout, and concurrent-session expiry. The event's `session.id` is a random application-local identifier, never the cookie or Spring Session ID. JDBC cleanup of an idle session and arbitrary invalid-cookie attempts are not inferred or logged because the application has no reliable, correlated hook. Define anomaly detection, thresholds, and alert routing before adding them. | **Application code:** `SessionLifecycleAuditLogger`, `AbsoluteSessionTimeoutFilter`, `SessionLifecycleLogoutHandler`, and `ContentNegotiatingSessionExpiredStrategy`; **Spring Security:** `SessionFixationProtectionEvent`; **unimplemented:** detection policy and idle-cleanup/invalid-ID telemetry. See [ADR 0007](adr/0007-session-lifecycle-audit-identifiers.md). |
 
 ## Required production decisions
 
@@ -79,6 +79,10 @@ Before production use, the service owner must record and implement decisions for
    tables and their serialized attributes.
 5. Whether `__Host-id` and `Clear-Site-Data` are appropriate after testing the
    deployed HTTPS and OIDC flows.
+6. Whether suspicious IP/user-agent changes, invalid-session attempts, and
+   session-ID guessing are monitored, including trusted data sources, thresholds,
+   alert routing, and privacy/retention controls. Do not use IP or user-agent
+   changes as automatic invalidation criteria without a product decision.
 
 ## Verification
 
@@ -97,7 +101,10 @@ following:
 6. After a second login, an expired session's browser navigation redirects to
    `/login?session-expired`, while its API request receives the generic 401
    `urn:problem:session-expired` response.
-7. Login, logout, timeout, privilege-change, and concurrent-session behavior
+7. Lifecycle logs correlate via the separate audit `session.id`, contain the
+   controlled termination reason where applicable, and never contain a cookie or
+   raw Spring Session ID.
+8. Login, logout, timeout, privilege-change, and concurrent-session behavior
    match the documented production decisions.
 
 Related documentation: [Security authentication](security-authentication.md),

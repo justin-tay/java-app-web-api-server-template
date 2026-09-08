@@ -21,10 +21,17 @@ public class ContentNegotiatingSessionExpiredStrategy implements SessionInformat
 		.formatted(ProblemTypes.SESSION_EXPIRED, HttpStatus.UNAUTHORIZED.getReasonPhrase(),
 				HttpStatus.UNAUTHORIZED.value());
 
+	private final SessionLifecycleAuditLogger sessionLifecycleAuditLogger;
+
+	public ContentNegotiatingSessionExpiredStrategy(SessionLifecycleAuditLogger sessionLifecycleAuditLogger) {
+		this.sessionLifecycleAuditLogger = sessionLifecycleAuditLogger;
+	}
+
 	@Override
 	public void onExpiredSessionDetected(SessionInformationExpiredEvent event) throws IOException {
 		HttpServletRequest request = event.getRequest();
 		HttpServletResponse response = event.getResponse();
+		this.sessionLifecycleAuditLogger.logSessionDestroyed(request.getSession(false), "concurrent_session");
 		if (acceptsHtml(request)) {
 			response.sendRedirect(request.getContextPath() + "/login?session-expired");
 			return;

@@ -22,6 +22,9 @@ fields where available and documents two intentional project extensions.
 | Authorization denial | WARN | `web`, `api` | `access`, `denied` | `authorize_access` | [Event reference](security-logging-event-reference.md#authorization-denied-authorize_access) |
 | CSRF denial | WARN | `web`, `api` | `access`, `denied` | `validate_csrf_token` | [Event reference](security-logging-event-reference.md#csrf-denied-validate_csrf_token) |
 | Logout success | INFO | `authentication` | `info` | `logout` | [Event reference](security-logging-event-reference.md#logout-succeeded-logout) |
+| Session audit ID initialized | INFO | `authentication` | `start` | `create_session` | [Event reference](security-logging-event-reference.md#session-audit-id-initialized-create_session) |
+| Session ID renewed | INFO | `authentication` | `info` | `renew_session` | [Event reference](security-logging-event-reference.md#session-id-renewed-renew_session) |
+| Session destroyed | INFO | `authentication` | `end` | `destroy_session` | [Event reference](security-logging-event-reference.md#session-destroyed-destroy_session) |
 | Unexpected request failure | ERROR | `web` | `error` | `process_request` | [Event reference](security-logging-event-reference.md#request-processing-failed-process_request) |
 | Application starting | INFO | `process` | `start` | `start_application` | [Event reference](security-logging-event-reference.md#application-starting-start_application) |
 | Application started | INFO | `process` | `start` | `start_application` | [Event reference](security-logging-event-reference.md#application-started-start_application) |

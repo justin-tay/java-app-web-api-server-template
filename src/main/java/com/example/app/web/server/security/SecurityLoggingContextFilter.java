@@ -34,9 +34,13 @@ public class SecurityLoggingContextFilter extends OncePerRequestFilter {
 
 	private final RequestIdResolver requestIdResolver;
 
-	public SecurityLoggingContextFilter(ClientIpResolver clientIpResolver, RequestIdResolver requestIdResolver) {
+	private final SessionLifecycleAuditLogger sessionLifecycleAuditLogger;
+
+	public SecurityLoggingContextFilter(ClientIpResolver clientIpResolver, RequestIdResolver requestIdResolver,
+			SessionLifecycleAuditLogger sessionLifecycleAuditLogger) {
 		this.clientIpResolver = clientIpResolver;
 		this.requestIdResolver = requestIdResolver;
+		this.sessionLifecycleAuditLogger = sessionLifecycleAuditLogger;
 	}
 
 	@Override
@@ -67,6 +71,9 @@ public class SecurityLoggingContextFilter extends OncePerRequestFilter {
 			}
 		}
 		finally {
+			if (request.getSession(false) != null) {
+				this.sessionLifecycleAuditLogger.logSessionCreatedIfNeeded(request.getSession(false));
+			}
 			MDC.clear();
 		}
 	}

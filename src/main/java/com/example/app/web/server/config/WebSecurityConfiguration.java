@@ -50,6 +50,7 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
+import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
@@ -66,6 +67,8 @@ import com.example.app.web.server.security.RequestLoggingFilter;
 import com.example.app.web.server.security.AbsoluteSessionTimeoutFilter;
 import com.example.app.web.server.security.SecurityLoggingContextFilter;
 import com.example.app.web.server.security.LocalAuthoritiesOidcUserService;
+import com.example.app.web.server.security.SessionLifecycleAuditLogger;
+import com.example.app.web.server.security.SessionLifecycleLogoutHandler;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.KeySourceException;
 import com.nimbusds.jose.jwk.JWK;
@@ -125,18 +128,19 @@ public class WebSecurityConfiguration {
 			AuthenticationEventPublisher authenticationEventPublisher,
 			SecurityLoggingContextFilter securityLoggingContextFilter, ApplicationProperties applicationProperties,
 			LocalAuthoritiesOidcUserService localAuthoritiesOidcUserService, Clock clock,
-			SessionRegistry sessionRegistry, SessionInformationExpiredStrategy sessionExpiredStrategy)
+			SessionRegistry sessionRegistry, SessionInformationExpiredStrategy sessionExpiredStrategy,
+			SessionLifecycleAuditLogger sessionLifecycleAuditLogger, LogoutHandler sessionLifecycleLogoutHandler)
 			throws Exception {
 		http.getSharedObject(AuthenticationManagerBuilder.class)
 			.authenticationEventPublisher(authenticationEventPublisher);
 		OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient = accessTokenResponseClient(
 				jwks);
 		AbsoluteSessionTimeoutFilter absoluteSessionTimeoutFilter = new AbsoluteSessionTimeoutFilter(
-				applicationProperties.getSession().getAbsoluteTimeout(), clock);
+				applicationProperties.getSession().getAbsoluteTimeout(), clock, sessionLifecycleAuditLogger);
 		RequestLoggingFilter requestLoggingFilter = new RequestLoggingFilter(QUERY_PARAMETER_REDACT_LIST);
-		return http.addFilterBefore(absoluteSessionTimeoutFilter, SecurityContextHolderFilter.class)
-			.addFilterAfter(securityLoggingContextFilter, SecurityContextHolderFilter.class)
-			.addFilterAfter(requestLoggingFilter, SecurityLoggingContextFilter.class)
+		return http.addFilterBefore(securityLoggingContextFilter, SecurityContextHolderFilter.class)
+			.addFilterAfter(absoluteSessionTimeoutFilter, SecurityLoggingContextFilter.class)
+			.addFilterAfter(requestLoggingFilter, SecurityContextHolderFilter.class)
 			.headers(headers -> headers
 				.contentSecurityPolicy(
 						contentSecurityPolicy -> contentSecurityPolicy.policyDirectives(CONTENT_SECURITY_POLICY))
@@ -167,7 +171,8 @@ public class WebSecurityConfiguration {
 				.userInfoEndpoint(
 						userInfoEndpoint -> userInfoEndpoint.oidcUserService(localAuthoritiesOidcUserService)))
 			.oidcLogout(oidcLogout -> oidcLogout.backChannel(withDefaults()))
-			.logout(logout -> logout.logoutSuccessHandler(oidcLogoutSuccessHandler(clientRegistrationRepository)))
+			.logout(logout -> logout.addLogoutHandler(sessionLifecycleLogoutHandler)
+				.logoutSuccessHandler(oidcLogoutSuccessHandler(clientRegistrationRepository)))
 			.with(new DefaultLoginPageConfigurer<>(),
 					defaultLoginPage -> defaultLoginPage.withObjectPostProcessor(new ObjectPostProcessor<Object>() {
 						@Override
@@ -200,8 +205,13 @@ public class WebSecurityConfiguration {
 	 * @return the content-negotiating expiry strategy
 	 */
 	@Bean
-	SessionInformationExpiredStrategy sessionExpiredStrategy() {
-		return new ContentNegotiatingSessionExpiredStrategy();
+	SessionInformationExpiredStrategy sessionExpiredStrategy(SessionLifecycleAuditLogger sessionLifecycleAuditLogger) {
+		return new ContentNegotiatingSessionExpiredStrategy(sessionLifecycleAuditLogger);
+	}
+
+	@Bean
+	LogoutHandler sessionLifecycleLogoutHandler(SessionLifecycleAuditLogger sessionLifecycleAuditLogger) {
+		return new SessionLifecycleLogoutHandler(sessionLifecycleAuditLogger);
 	}
 
 	/**

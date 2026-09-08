@@ -12,6 +12,9 @@ import org.springframework.security.authentication.event.InteractiveAuthenticati
 import org.springframework.security.authentication.event.LogoutSuccessEvent;
 import org.springframework.security.authorization.event.AuthorizationDeniedEvent;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.web.authentication.session.SessionFixationProtectionEvent;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.stereotype.Component;
 
 /**
@@ -21,7 +24,13 @@ import org.springframework.stereotype.Component;
 @Component
 class SecurityAuditEventLogger {
 
+	private final SessionLifecycleAuditLogger sessionLifecycleAuditLogger;
+
 	private static final Logger LOGGER = LoggerFactory.getLogger(SecurityAuditEventLogger.class);
+
+	SecurityAuditEventLogger(SessionLifecycleAuditLogger sessionLifecycleAuditLogger) {
+		this.sessionLifecycleAuditLogger = sessionLifecycleAuditLogger;
+	}
 
 	@EventListener
 	void onAuthenticationSuccess(InteractiveAuthenticationSuccessEvent event) {
@@ -75,6 +84,14 @@ class SecurityAuditEventLogger {
 			.addKeyValue("event.action", "logout")
 			.addKeyValue("event.outcome", "success")
 			.log("User logged out");
+	}
+
+	@EventListener
+	void onSessionFixationProtection(SessionFixationProtectionEvent event) {
+		if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes
+				&& attributes.getRequest().getSession(false) != null) {
+			this.sessionLifecycleAuditLogger.logSessionRenewed(event, attributes.getRequest().getSession(false));
+		}
 	}
 
 	private void updateLoggingContextUser(Authentication authentication) {
