@@ -13,6 +13,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.slf4j.event.KeyValuePair;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.TestingAuthenticationToken;
@@ -43,6 +44,7 @@ class SecurityAuditEventLoggerTest {
 
 	@AfterEach
 	void removeAppender() {
+		MDC.clear();
 		this.logger.detachAppender(this.logEvents);
 		this.logEvents.stop();
 	}
@@ -55,8 +57,8 @@ class SecurityAuditEventLoggerTest {
 			.onAuthenticationSuccess(new InteractiveAuthenticationSuccessEvent(authentication, getClass()));
 
 		assertLog(Level.INFO, "User authenticated", new KeyValuePair("event.category", "authentication"),
-				new KeyValuePair("event.action", "login"), new KeyValuePair("event.outcome", "success"),
-				new KeyValuePair("user.name", "alice"));
+				new KeyValuePair("event.action", "login"), new KeyValuePair("event.outcome", "success"));
+		assertThat(this.logEvents.list.get(0).getMDCPropertyMap()).containsEntry("user.name", "alice");
 	}
 
 	@Test
@@ -68,7 +70,10 @@ class SecurityAuditEventLoggerTest {
 
 		assertLog(Level.WARN, "Authentication failed", new KeyValuePair("event.category", "authentication"),
 				new KeyValuePair("event.action", "login"), new KeyValuePair("event.outcome", "failure"),
-				new KeyValuePair("user.name", "alice"), new KeyValuePair("error.type", "BadCredentialsException"));
+				new KeyValuePair("user.target.name", "alice"),
+				new KeyValuePair("error.type", "BadCredentialsException"));
+		assertThat(this.logEvents.list.get(0).getKeyValuePairs())
+			.doesNotContain(new KeyValuePair("user.name", "alice"));
 		assertThat(this.logEvents.list.get(0).getFormattedMessage()).doesNotContain("secret detail");
 	}
 
@@ -90,8 +95,21 @@ class SecurityAuditEventLoggerTest {
 		this.securityAuditEventLogger.onLogoutSuccess(new LogoutSuccessEvent(authentication("alice")));
 
 		assertLog(Level.INFO, "User logged out", new KeyValuePair("event.category", "authentication"),
-				new KeyValuePair("event.action", "logout"), new KeyValuePair("event.outcome", "success"),
-				new KeyValuePair("user.name", "alice"));
+				new KeyValuePair("event.action", "logout"), new KeyValuePair("event.outcome", "success"));
+		assertThat(this.logEvents.list.get(0).getMDCPropertyMap()).containsEntry("user.name", "alice");
+	}
+
+	@Test
+	void updatesTheLoggingContextWithTheAuthenticationUser() {
+		MDC.put("user.name", "request-user");
+
+		this.securityAuditEventLogger.onLogoutSuccess(new LogoutSuccessEvent(authentication("event-user")));
+
+		assertThat(this.logEvents.list).singleElement()
+			.satisfies(event -> assertThat(event.getKeyValuePairs())
+				.doesNotContain(new KeyValuePair("user.name", "event-user")));
+		assertThat(this.logEvents.list.get(0).getMDCPropertyMap()).containsEntry("user.name", "event-user");
+		assertThat(MDC.get("user.name")).isEqualTo("event-user");
 	}
 
 	private Authentication authentication(String username) {
