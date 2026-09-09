@@ -64,7 +64,7 @@ browser `localStorage` or `sessionStorage`.
 | Logout and server-side invalidation | Partial | OIDC RP-initiated logout and Keycloak back-channel logout are configured. Provide a visible logout control in any browser UI and test server-side invalidation. | **Application configuration:** `WebSecurityConfiguration` configures OIDC logout handlers; UI and integration coverage remain required. |
 | Browser cache and logout cleanup | Partial | Spring Security supplies restrictive cache-control headers for protected responses. `Clear-Site-Data` is not sent on logout; assess it when the application serves sensitive browser content. | **Spring Security default:** protected-response cache headers; **unimplemented:** `Clear-Site-Data` logout handler. |
 | Reauthentication after risk events | Product decision | Define reauthentication/MFA requirements for account recovery, suspicious activity, and sensitive profile or authorization changes with the identity-provider owner. | **Unimplemented:** no application risk-event or reauthentication integration. |
-| Concurrent sessions | Implemented and integration-tested | One concurrent session is permitted per user. A later successful login invalidates the existing session, rather than rejecting the new login. | **Application configuration:** `maximumSessions(1)` with `maxSessionsPreventsLogin(false)`; **Spring Session:** `SpringSessionBackedSessionRegistry` finds sessions in JDBC across instances. `WebSecurityConfigurationSessionManagementIntegrationTest` proves the old session cannot access a protected route after the second login. |
+| Concurrent sessions | Implemented and integration-tested | One concurrent session is permitted per user. A later successful login marks the existing session expired; its next request invalidates it. Browser navigation redirects to `/login?session-expired`; API requests receive a generic 401 Problem Details response. | **Application configuration:** `maximumSessions(1)` with `maxSessionsPreventsLogin(false)` and `ContentNegotiatingSessionExpiredStrategy`; **Spring Session:** `SpringSessionBackedSessionRegistry` finds sessions in JDBC across instances. **Override rationale:** Spring Security's default `ConcurrentSessionFilter` writes a plain-text expiry message without setting a status, leaving HTTP 200; this is unsuitable for browser navigation and API clients. `WebSecurityConfigurationSessionManagementIntegrationTest` verifies both response types and JDBC-session invalidation. |
 | Session anomaly detection and lifecycle logging | Partial | Authentication and logout outcomes are logged without session IDs. Define privacy-preserving detection for unusual session activity and invalid-ID attempts; never log raw IDs, cookies, or tokens. | **Application code:** `SecurityAuditEventLogger` emits redacted ECS audit events; **unimplemented:** anomaly detection. |
 
 ## Required production decisions
@@ -94,7 +94,10 @@ following:
    authenticate again.
 5. Local logout and Keycloak back-channel logout invalidate the session and
    remove access.
-6. Login, logout, timeout, privilege-change, and concurrent-session behavior
+6. After a second login, an expired session's browser navigation redirects to
+   `/login?session-expired`, while its API request receives the generic 401
+   `urn:problem:session-expired` response.
+7. Login, logout, timeout, privilege-change, and concurrent-session behavior
    match the documented production decisions.
 
 Related documentation: [Security authentication](security-authentication.md),

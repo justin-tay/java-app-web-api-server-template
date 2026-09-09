@@ -29,6 +29,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.session.SessionInformationExpiredStrategy;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -67,7 +68,7 @@ class WebSecurityConfigurationSessionManagementIntegrationTest extends RestTestC
 	}
 
 	@Test
-	void secondSuccessfulLoginInvalidatesTheExistingSession() throws Exception {
+	void expiredSessionRequestedByAnApiReceivesUnauthorizedProblemDetail() throws Exception {
 		HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
 		String firstSessionCookie = sessionCookie(authenticate(client, createSession(client)));
 		String firstSessionId = sessionId(firstSessionCookie);
@@ -79,13 +80,38 @@ class WebSecurityConfigurationSessionManagementIntegrationTest extends RestTestC
 		HttpResponse<String> expiredSessionResponse = client
 			.send(HttpRequest.newBuilder(uri("/test/session-security/protected"))
 				.header(HttpHeaders.COOKIE, firstSessionCookie)
+				.header(HttpHeaders.ACCEPT, MediaType.APPLICATION_PROBLEM_JSON_VALUE)
 				.GET()
 				.build(), HttpResponse.BodyHandlers.ofString());
 
-		assertThat(expiredSessionResponse.statusCode()).isEqualTo(HttpStatus.OK.value());
-		assertThat(expiredSessionResponse.body()).contains("This session has been expired");
+		assertThat(expiredSessionResponse.statusCode()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+		assertThat(expiredSessionResponse.headers().firstValue(HttpHeaders.CONTENT_TYPE)).hasValueSatisfying(
+				contentType -> assertThat(contentType).contains(MediaType.APPLICATION_PROBLEM_JSON_VALUE));
+		assertThat(expiredSessionResponse.body()).isEqualTo(
+				"""
+						{"type":"urn:problem:session-expired","title":"Unauthorized","status":401,"detail":"Your session is no longer active. Sign in again."}""");
 		assertThat(sessionCount(firstSessionId)).isZero();
 		assertThat(sessionCount(secondSessionId)).isEqualTo(1);
+	}
+
+	@Test
+	void expiredSessionRequestedByABrowserRedirectsToLogin() throws Exception {
+		HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
+		String firstSessionCookie = sessionCookie(authenticate(client, createSession(client)));
+		String firstSessionId = sessionId(firstSessionCookie);
+		authenticate(client, createSession(client));
+
+		HttpResponse<Void> expiredSessionResponse = client
+			.send(HttpRequest.newBuilder(uri("/test/session-security/protected"))
+				.header(HttpHeaders.COOKIE, firstSessionCookie)
+				.header(HttpHeaders.ACCEPT, MediaType.TEXT_HTML_VALUE)
+				.GET()
+				.build(), HttpResponse.BodyHandlers.discarding());
+
+		assertThat(expiredSessionResponse.statusCode()).isEqualTo(HttpStatus.FOUND.value());
+		assertThat(expiredSessionResponse.headers().firstValue(HttpHeaders.LOCATION))
+			.hasValueSatisfying(location -> assertThat(location).endsWith("/login?session-expired"));
+		assertThat(sessionCount(firstSessionId)).isZero();
 	}
 
 	private String createSession(HttpClient client) throws Exception {
@@ -131,8 +157,8 @@ class WebSecurityConfigurationSessionManagementIntegrationTest extends RestTestC
 
 		@Bean
 		@Order(0)
-		SecurityFilterChain sessionSecurityTestSecurityFilterChain(HttpSecurity http, SessionRegistry sessionRegistry)
-				throws Exception {
+		SecurityFilterChain sessionSecurityTestSecurityFilterChain(HttpSecurity http, SessionRegistry sessionRegistry,
+				SessionInformationExpiredStrategy sessionExpiredStrategy) throws Exception {
 			return http.securityMatcher("/test/session-security/**")
 				.csrf(csrf -> csrf.disable())
 				.authorizeHttpRequests(authorize -> authorize
@@ -143,7 +169,8 @@ class WebSecurityConfigurationSessionManagementIntegrationTest extends RestTestC
 				.authenticationProvider(testAuthenticationProvider())
 				.sessionManagement(sessionManagement -> sessionManagement.maximumSessions(1)
 					.maxSessionsPreventsLogin(false)
-					.sessionRegistry(sessionRegistry))
+					.sessionRegistry(sessionRegistry)
+					.expiredSessionStrategy(sessionExpiredStrategy))
 				.formLogin(formLogin -> formLogin.loginProcessingUrl("/test/session-security/login"))
 				.build();
 		}

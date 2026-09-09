@@ -20,6 +20,8 @@ not created by Spring Boot at runtime.
 The cookie is `HttpOnly`, `SameSite=Lax`, and `Secure` outside local and test
 profiles. Cookie-only tracking is used, with a 15-minute inactivity timeout and
 a 12-hour absolute timeout. One concurrent session is allowed per user; a new
-login invalidates that user's existing session. Changes to the Spring Session
-JDBC schema must be represented by a new Liquibase changeset and remain
-compatible with the library version.
+login invalidates that user's existing session. An expired session redirects a
+browser navigation to login and returns generic 401 Problem Details to API
+clients, replacing Spring Security's default HTTP 200 plain-text response.
+Changes to the Spring Session JDBC schema must be represented by a new
+Liquibase changeset and remain compatible with the library version.

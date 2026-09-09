@@ -53,11 +53,13 @@ import org.springframework.security.web.authentication.logout.LogoutSuccessHandl
 import org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.session.SessionInformationExpiredStrategy;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
 import org.springframework.session.security.SpringSessionBackedSessionRegistry;
 
 import com.example.app.web.server.security.ProblemDetailAccessDeniedHandler;
+import com.example.app.web.server.security.ContentNegotiatingSessionExpiredStrategy;
 import com.example.app.web.server.security.RequestLoggingFilter;
 import com.example.app.web.server.security.AbsoluteSessionTimeoutFilter;
 import com.example.app.web.server.security.SecurityLoggingContextFilter;
@@ -121,7 +123,8 @@ public class WebSecurityConfiguration {
 			AuthenticationEventPublisher authenticationEventPublisher,
 			SecurityLoggingContextFilter securityLoggingContextFilter, ApplicationProperties applicationProperties,
 			LocalAuthoritiesOidcUserService localAuthoritiesOidcUserService, Clock clock,
-			SessionRegistry sessionRegistry) throws Exception {
+			SessionRegistry sessionRegistry, SessionInformationExpiredStrategy sessionExpiredStrategy)
+			throws Exception {
 		http.getSharedObject(AuthenticationManagerBuilder.class)
 			.authenticationEventPublisher(authenticationEventPublisher);
 		OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient = accessTokenResponseClient(
@@ -155,7 +158,8 @@ public class WebSecurityConfiguration {
 				.authenticated())
 			.sessionManagement(sessionManagement -> sessionManagement.maximumSessions(1)
 				.maxSessionsPreventsLogin(false)
-				.sessionRegistry(sessionRegistry))
+				.sessionRegistry(sessionRegistry)
+				.expiredSessionStrategy(sessionExpiredStrategy))
 			.oauth2Login(oauth2Login -> oauth2Login
 				.tokenEndpoint(tokenEndpoint -> tokenEndpoint.accessTokenResponseClient(accessTokenResponseClient))
 				.userInfoEndpoint(
@@ -186,6 +190,16 @@ public class WebSecurityConfiguration {
 	@Bean
 	SessionRegistry sessionRegistry(JdbcIndexedSessionRepository sessionRepository) {
 		return new SpringSessionBackedSessionRegistry<>(sessionRepository);
+	}
+
+	/**
+	 * Provides the response strategy for sessions expired by the concurrent-session
+	 * limit.
+	 * @return the content-negotiating expiry strategy
+	 */
+	@Bean
+	SessionInformationExpiredStrategy sessionExpiredStrategy() {
+		return new ContentNegotiatingSessionExpiredStrategy();
 	}
 
 	/**
