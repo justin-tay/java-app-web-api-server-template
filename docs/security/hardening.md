@@ -95,7 +95,7 @@ image/runtime scan for the actual deployed version.
 
 | CIS ID | CIS intent | Status | Template and deployment comment |
 | --- | --- | --- | --- |
-| 7.1 | Application-specific logging | Configured | ECS structured logging, request lifecycle logging, authentication/authorization events, and safe error logging are documented in [security logging](security-logging.md) and [the logging schema](security-logging-schema.md). Configure durable centralized collection and alerting in production. |
+| 7.1 | Application-specific logging | Configured | ECS structured logging, request lifecycle logging, authentication/authorization events, and safe error logging are documented in [security logging](logging/README.md) and [the logging schema](logging/schema.md). Configure durable centralized collection and alerting in production. |
 | 7.2 | Specify file handlers in `logging.properties` | Not applicable to embedded Tomcat | The template intentionally logs to standard output for platform collection rather than Tomcat JULI file handlers. Ensure the container/orchestrator exports logs durably and protects access. |
 | 7.3 | Set `className` correctly in `context.xml` | Not applicable to embedded Tomcat | This is a Tomcat access-log-valve control. Request logging is provided by `RequestLoggingFilter`; configure ingress/proxy access logs as a complementary boundary record. |
 | 7.4 | Use a secure logging directory in `context.xml` | Not applicable to embedded Tomcat | No Tomcat access-log valve or `context.xml` is configured. Protect the platform log collector, bucket/index, and credentials. |

@@ -81,13 +81,9 @@ the HTTPS endpoint.
 
 ## Integration Details
 
-See [HTTP security headers](docs/security-headers.md) for the configured headers,
-Spring Security defaults, OWASP guidance, and deployment checks.
-See [security logging](docs/security-logging.md) for the OWASP logging-control
-matrix, and [the logging schema](docs/security-logging-schema.md) for the ECS
-field contract and project extensions.
-See [security authentication](docs/security-authentication.md) for the OIDC
-relying-party design, client authentication, token validation, key management,
-logout, and authentication flow.
-See [security authorization](docs/security-authorization.md) for the local
-user, group, role, and Spring Security authority design.
+See the [documentation index](docs/README.md) for security guidance,
+architecture decisions, specifications, and retained standards. The primary
+implementation references are [security headers](docs/security/headers.md),
+[security logging](docs/security/logging/README.md),
+[security authentication](docs/security/authentication.md), and
+[security authorization](docs/security/authorization.md).

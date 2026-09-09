@@ -1,7 +1,7 @@
 # Security logging event reference
 
 This is the event-level contract for the ECS JSON events emitted by this
-application. It complements [security-logging-schema.md](security-logging-schema.md),
+application. It complements [schema.md](schema.md),
 which defines the shared ECS fields, project extensions, redaction rules, and
 field types.
 
@@ -25,7 +25,7 @@ not a claim that every ECS Base field is present.
 | `ecs.version` | ECS formatter | ECS version used to encode the event. | ECS field |
 
 All event sections below include these fields in addition to the listed
-event-specific fields. The [schema document](security-logging-schema.md)
+event-specific fields. The [schema document](schema.md)
 defines their ECS types, project extensions, correlation, and redaction rules.
 
 For request-scoped events, `SecurityLoggingContextFilter` also puts `source.ip`

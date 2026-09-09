@@ -2,7 +2,7 @@
 
 The application writes JSON using Spring Boot's ECS formatter. This document
 defines the shared schema, field sets, extensions, and safety rules. The
-[event reference](security-logging-event-reference.md) is the authoritative
+[event reference](event-reference.md) is the authoritative
 per-event contract: its entries state when each event is generated and every
 field that it emits.
 
@@ -14,22 +14,22 @@ fields where available and documents two intentional project extensions.
 
 | Event | Level | `event.category` | `event.type` | `event.action` | Detailed contract |
 | --- | --- | --- | --- | --- | --- |
-| Request received | INFO | `web` | `access`, `start` | `receive_request` | [Event reference](security-logging-event-reference.md#request-received-receive_request) |
-| Request completed | INFO | `web` | `access`, `end` | `complete_request` | [Event reference](security-logging-event-reference.md#request-completed-complete_request) |
-| Input validation failure | WARN | `web` | `error` | `validate_input` | [Event reference](security-logging-event-reference.md#input-validation-failed-validate_input) |
-| Authentication success | INFO | `authentication` | `info` | `login` | [Event reference](security-logging-event-reference.md#authentication-succeeded-login) |
-| Authentication failure | WARN | `authentication` | `denied` | `login` | [Event reference](security-logging-event-reference.md#authentication-failed-login) |
-| Authorization denial | WARN | `web`, `api` | `access`, `denied` | `authorize_access` | [Event reference](security-logging-event-reference.md#authorization-denied-authorize_access) |
-| CSRF denial | WARN | `web`, `api` | `access`, `denied` | `validate_csrf_token` | [Event reference](security-logging-event-reference.md#csrf-denied-validate_csrf_token) |
-| Logout success | INFO | `authentication` | `info` | `logout` | [Event reference](security-logging-event-reference.md#logout-succeeded-logout) |
-| Session audit ID initialized | INFO | `authentication` | `start` | `create_session` | [Event reference](security-logging-event-reference.md#session-audit-id-initialized-create_session) |
-| Session ID renewed | INFO | `authentication` | `info` | `renew_session` | [Event reference](security-logging-event-reference.md#session-id-renewed-renew_session) |
-| Session destroyed | INFO | `authentication` | `end` | `destroy_session` | [Event reference](security-logging-event-reference.md#session-destroyed-destroy_session) |
-| Unexpected request failure | ERROR | `web` | `error` | `process_request` | [Event reference](security-logging-event-reference.md#request-processing-failed-process_request) |
-| Application starting | INFO | `process` | `start` | `start_application` | [Event reference](security-logging-event-reference.md#application-starting-start_application) |
-| Application started | INFO | `process` | `start` | `start_application` | [Event reference](security-logging-event-reference.md#application-started-start_application) |
-| Application startup failed | ERROR | `process` | `start` | `start_application` | [Event reference](security-logging-event-reference.md#application-startup-failed-start_application) |
-| Application stopped | INFO | `process` | `end` | `stop_application` | [Event reference](security-logging-event-reference.md#application-stopped-stop_application) |
+| Request received | INFO | `web` | `access`, `start` | `receive_request` | [Event reference](event-reference.md#request-received-receive_request) |
+| Request completed | INFO | `web` | `access`, `end` | `complete_request` | [Event reference](event-reference.md#request-completed-complete_request) |
+| Input validation failure | WARN | `web` | `error` | `validate_input` | [Event reference](event-reference.md#input-validation-failed-validate_input) |
+| Authentication success | INFO | `authentication` | `info` | `login` | [Event reference](event-reference.md#authentication-succeeded-login) |
+| Authentication failure | WARN | `authentication` | `denied` | `login` | [Event reference](event-reference.md#authentication-failed-login) |
+| Authorization denial | WARN | `web`, `api` | `access`, `denied` | `authorize_access` | [Event reference](event-reference.md#authorization-denied-authorize_access) |
+| CSRF denial | WARN | `web`, `api` | `access`, `denied` | `validate_csrf_token` | [Event reference](event-reference.md#csrf-denied-validate_csrf_token) |
+| Logout success | INFO | `authentication` | `info` | `logout` | [Event reference](event-reference.md#logout-succeeded-logout) |
+| Session audit ID initialized | INFO | `authentication` | `start` | `create_session` | [Event reference](event-reference.md#session-audit-id-initialized-create_session) |
+| Session ID renewed | INFO | `authentication` | `info` | `renew_session` | [Event reference](event-reference.md#session-id-renewed-renew_session) |
+| Session destroyed | INFO | `authentication` | `end` | `destroy_session` | [Event reference](event-reference.md#session-destroyed-destroy_session) |
+| Unexpected request failure | ERROR | `web` | `error` | `process_request` | [Event reference](event-reference.md#request-processing-failed-process_request) |
+| Application starting | INFO | `process` | `start` | `start_application` | [Event reference](event-reference.md#application-starting-start_application) |
+| Application started | INFO | `process` | `start` | `start_application` | [Event reference](event-reference.md#application-started-start_application) |
+| Application startup failed | ERROR | `process` | `start` | `start_application` | [Event reference](event-reference.md#application-startup-failed-start_application) |
+| Application stopped | INFO | `process` | `end` | `stop_application` | [Event reference](event-reference.md#application-stopped-stop_application) |
 
 ## Shared Base and runtime field sets
 

@@ -17,7 +17,7 @@ state. Spring Session replaces that servlet session with JDBC-backed storage:
 * Spring Boot auto-configures Spring Session JDBC through
   `spring-boot-starter-session-jdbc`. Liquibase owns those tables, and Spring
   Boot's JDBC session-schema initializer is disabled. See
-  [ADR 0001](adr/0001-database-schema-management.md).
+  [ADR 0001](../adr/0001-database-schema-management.md).
 
 The application database account must have only the data-access permissions
 needed by the running service. The CI migration account owns DDL and migration
@@ -65,7 +65,7 @@ browser `localStorage` or `sessionStorage`.
 | Browser cache and logout cleanup | Partial | Spring Security supplies restrictive cache-control headers for protected responses. `Clear-Site-Data` is not sent on logout; assess it when the application serves sensitive browser content. | **Spring Security default:** protected-response cache headers; **unimplemented:** `Clear-Site-Data` logout handler. |
 | Reauthentication after risk events | Product decision | Define reauthentication/MFA requirements for account recovery, suspicious activity, and sensitive profile or authorization changes with the identity-provider owner. | **Unimplemented:** no application risk-event or reauthentication integration. |
 | Concurrent sessions | Implemented and integration-tested | One concurrent session is permitted per user. A later successful login marks the existing session expired; its next request invalidates it. Browser navigation redirects to `/login?session-expired`; API requests receive a generic 401 Problem Details response. | **Application configuration:** `maximumSessions(1)` with `maxSessionsPreventsLogin(false)` and `ContentNegotiatingSessionExpiredStrategy`; **Spring Session:** `SpringSessionBackedSessionRegistry` finds sessions in JDBC across instances. **Override rationale:** Spring Security's default `ConcurrentSessionFilter` writes a plain-text expiry message without setting a status, leaving HTTP 200; this is unsuitable for browser navigation and API clients. `WebSecurityConfigurationSessionManagementIntegrationTest` verifies both response types and JDBC-session invalidation. |
-| Session anomaly detection and lifecycle logging | Partial | Lifecycle events are logged for audit-ID initialization, session-fixation renewal, logout, absolute timeout, and concurrent-session expiry. The event's `session.id` is a random application-local identifier, never the cookie or Spring Session ID. JDBC cleanup of an idle session and arbitrary invalid-cookie attempts are not inferred or logged because the application has no reliable, correlated hook. Define anomaly detection, thresholds, and alert routing before adding them. | **Application code:** `SessionLifecycleAuditLogger`, `AbsoluteSessionTimeoutFilter`, `SessionLifecycleLogoutHandler`, and `ContentNegotiatingSessionExpiredStrategy`; **Spring Security:** `SessionFixationProtectionEvent`; **unimplemented:** detection policy and idle-cleanup/invalid-ID telemetry. See [ADR 0007](adr/0007-session-lifecycle-audit-identifiers.md). |
+| Session anomaly detection and lifecycle logging | Partial | Lifecycle events are logged for audit-ID initialization, session-fixation renewal, logout, absolute timeout, and concurrent-session expiry. The event's `session.id` is a random application-local identifier, never the cookie or Spring Session ID. JDBC cleanup of an idle session and arbitrary invalid-cookie attempts are not inferred or logged because the application has no reliable hook. Define anomaly detection, thresholds, and alert routing before adding them. | **Application code:** `SessionLifecycleAuditLogger`, `AbsoluteSessionTimeoutFilter`, `SessionLifecycleLogoutHandler`, and `ContentNegotiatingSessionExpiredStrategy`; **Spring Security:** `SessionFixationProtectionEvent`; **unimplemented:** detection policy and idle-cleanup/invalid-ID telemetry. See [ADR 0007](../adr/0007-session-lifecycle-audit-identifiers.md). |
 
 ## Required production decisions
 
@@ -107,7 +107,6 @@ following:
 8. Login, logout, timeout, privilege-change, and concurrent-session behavior
    match the documented production decisions.
 
-Related documentation: [Security authentication](security-authentication.md),
-[HTTP security headers](security-headers.md),
-[security logging](security-logging.md), and
-[ADR 0005](adr/0005-jdbc-backed-server-side-sessions.md).
+Related documentation: [Security authentication](authentication.md),
+[HTTP security headers](headers.md), [security logging](logging/README.md), and
+[ADR 0005](../adr/0005-jdbc-backed-server-side-sessions.md).
