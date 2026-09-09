@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.text.ParseException;
+import java.time.Clock;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -55,6 +56,7 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 
 import com.example.app.web.server.security.ProblemDetailAccessDeniedHandler;
 import com.example.app.web.server.security.RequestLoggingFilter;
+import com.example.app.web.server.security.AbsoluteSessionTimeoutFilter;
 import com.example.app.web.server.security.SecurityLoggingContextFilter;
 import com.example.app.web.server.security.LocalAuthoritiesOidcUserService;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -115,13 +117,16 @@ public class WebSecurityConfiguration {
 			ClientRegistrationRepository clientRegistrationRepository,
 			AuthenticationEventPublisher authenticationEventPublisher,
 			SecurityLoggingContextFilter securityLoggingContextFilter, ApplicationProperties applicationProperties,
-			LocalAuthoritiesOidcUserService localAuthoritiesOidcUserService) throws Exception {
+			LocalAuthoritiesOidcUserService localAuthoritiesOidcUserService, Clock clock) throws Exception {
 		http.getSharedObject(AuthenticationManagerBuilder.class)
 			.authenticationEventPublisher(authenticationEventPublisher);
 		OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient = accessTokenResponseClient(
 				jwks);
+		AbsoluteSessionTimeoutFilter absoluteSessionTimeoutFilter = new AbsoluteSessionTimeoutFilter(
+				applicationProperties.getSession().getAbsoluteTimeout(), clock);
 		RequestLoggingFilter requestLoggingFilter = new RequestLoggingFilter(QUERY_PARAMETER_REDACT_LIST);
-		return http.addFilterAfter(securityLoggingContextFilter, SecurityContextHolderFilter.class)
+		return http.addFilterBefore(absoluteSessionTimeoutFilter, SecurityContextHolderFilter.class)
+			.addFilterAfter(securityLoggingContextFilter, SecurityContextHolderFilter.class)
 			.addFilterAfter(requestLoggingFilter, SecurityLoggingContextFilter.class)
 			.headers(headers -> headers
 				.contentSecurityPolicy(
