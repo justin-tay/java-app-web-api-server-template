@@ -21,8 +21,8 @@ class SecurityLoggingContextFilterTest {
 		request.setRemoteAddr("192.0.2.10");
 		MDC.put("user.name", "stale-user");
 
-		new SecurityLoggingContextFilter(ClientIpResolver.none()).doFilter(request, new MockHttpServletResponse(),
-				(servletRequest, servletResponse) -> {
+		new SecurityLoggingContextFilter(ClientIpResolver.none(), RequestIdResolver.none()).doFilter(request,
+				new MockHttpServletResponse(), (servletRequest, servletResponse) -> {
 					assertThat(MDC.get("source.ip")).isEqualTo("192.0.2.10");
 					assertThat(MDC.get("http.request.id")).isNotBlank();
 					assertThat(MDC.get("user.name")).isNull();
@@ -41,7 +41,8 @@ class SecurityLoggingContextFilterTest {
 
 		ClientIpResolver resolver = new TrustedHeaderClientIpResolver("True-Client-IP",
 				java.util.List.of("192.0.2.0/24"));
-		new SecurityLoggingContextFilter(resolver).doFilter(request, new MockHttpServletResponse(),
+		new SecurityLoggingContextFilter(resolver, RequestIdResolver.none()).doFilter(request,
+				new MockHttpServletResponse(),
 				(servletRequest, servletResponse) -> assertThat(MDC.get("client.ip")).isEqualTo("198.51.100.20"));
 	}
 
@@ -53,7 +54,8 @@ class SecurityLoggingContextFilterTest {
 
 		ClientIpResolver resolver = new TrustedHeaderClientIpResolver("True-Client-IP",
 				java.util.List.of("192.0.2.0/24"));
-		new SecurityLoggingContextFilter(resolver).doFilter(request, new MockHttpServletResponse(),
+		new SecurityLoggingContextFilter(resolver, RequestIdResolver.none()).doFilter(request,
+				new MockHttpServletResponse(),
 				(servletRequest, servletResponse) -> assertThat(MDC.get("client.ip")).isNull());
 	}
 
@@ -75,6 +77,16 @@ class SecurityLoggingContextFilterTest {
 
 		assertThat(new CloudFrontViewerAddressClientIpResolver(java.util.List.of("192.0.2.0/24")).resolve(request))
 			.contains("198.51.100.20");
+	}
+
+	@Test
+	void usesCloudFrontRequestIdWhenTheResolverIsSelected() throws Exception {
+		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/accounts");
+		request.addHeader("X-Amz-Cf-Id", "cloudfront-request-id");
+
+		new SecurityLoggingContextFilter(ClientIpResolver.none(), new CloudFrontRequestIdResolver()).doFilter(request,
+				new MockHttpServletResponse(), (servletRequest,
+						servletResponse) -> assertThat(MDC.get("http.request.id")).contains("cloudfront-request-id"));
 	}
 
 }

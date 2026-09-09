@@ -49,7 +49,7 @@ Level: `INFO`. It has no response outcome because processing has not completed.
 | `event.type` | `["access", "start"]` | Access lifecycle start. | `access` is expected; `start` is allowed |
 | `event.action` | `receive_request` | Stable identifier for receiving a request. | ECS field; project-defined action |
 | `event.start` | UTC instant | Time at which the filter received the request. | ECS Event field |
-| `http.request.id` | Conditional | Correlation ID from `SecurityLoggingContextFilter`. | ECS HTTP field |
+| `http.request.id` | Conditional | Correlation ID from `SecurityLoggingContextFilter`, generated as a UUID unless the selected `RequestIdResolver` supplies an upstream ID. | ECS HTTP field |
 | `http.request.method` | Servlet method | Incoming HTTP method. | ECS HTTP field |
 | `source.ip` | Every event | Direct peer address. It may be a proxy rather than the end user. | ECS Source field |
 | `client.ip` | Conditional | Validated end-user client address from the configured `ClientIpResolver`. | ECS Client field |

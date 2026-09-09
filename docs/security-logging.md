@@ -30,6 +30,9 @@ valid values, and field-by-field contract for every emitted event are in
   replace it with `TrustedHeaderClientIpResolver`,
   `XForwardedForClientIpResolver`, `CloudFrontViewerAddressClientIpResolver`,
   or a service-specific resolver with its own trusted-proxy CIDRs.
+* `http.request.id` is generated as a UUID by default. A service can replace
+  the `RequestIdResolver.none()` bean with `CloudFrontRequestIdResolver` or an
+  ingress-specific implementation to retain an upstream correlation ID.
 * `RequestLoggingFilter`, immediately after the context filter, emits
   `receive_request` and `complete_request` events. The latter includes
   outcome, response status, matched route, and duration.
@@ -65,8 +68,8 @@ search parameters.
 | OWASP area and recommendation | Status | Current treatment or rationale |
 | --- | --- | --- |
 | Define security logging use cases and distinguish security, operational, and audit records. | Partial | The events are categorised with ECS `event.category`, `event.type`, `event.action`, and `event.outcome`, so a collector can route them. Authorization denials use the allowed `web` and `api` categories with `access`/`denied` types. The application writes one ECS console stream; distinct retained datasets are a collector/SIEM decision. |
-| Capture events from the application and other relevant layers. | Partial | Application authentication, authorization, CSRF, and request lifecycle events are captured here. Edge/WAF, reverse proxy, TLS terminator, database, and identity-provider logs are outside the process and should be collected separately. CloudFront's `X-Amz-Cf-Id`, when present, is retained only as a correlation ID. |
-| Treat event data from other trust zones as untrusted. | Implemented | Request-derived values are logged as structured field data, not interpolated into message templates. The incoming CloudFront ID is not used for authorization or identity. Operators must still treat all client-provided values as untrusted during analysis. |
+| Capture events from the application and other relevant layers. | Partial | Application authentication, authorization, CSRF, and request lifecycle events are captured here. Edge/WAF, reverse proxy, TLS terminator, database, and identity-provider logs are outside the process and should be collected separately. A service can select `CloudFrontRequestIdResolver` to retain CloudFront's `X-Amz-Cf-Id` as correlation metadata. |
+| Treat event data from other trust zones as untrusted. | Implemented | Request-derived values are logged as structured field data, not interpolated into message templates. An upstream request ID is used only for correlation, never authorization or identity. Operators must still treat all client-provided values as untrusted during analysis. |
 | Use a centralized log collection system and record to stdout where appropriate. | Partial | The application writes JSON to stdout, which is suitable for container/platform collection. Shipping to a central collector, handling collector failure, and monitoring delivery are deployment responsibilities. Local files and databases are intentionally not used by the template. |
 | Use a standard, documented format. | Implemented | Spring Boot ECS JSON is enabled. Shared fields and extensions are documented in [security-logging-schema.md](security-logging-schema.md); individual event contracts are documented in [security-logging-event-reference.md](security-logging-event-reference.md). |
 | Restrict access to logs. | Deployment responsibility | Console access, collector credentials, SIEM roles, and index permissions are not controllable by this application. Grant least privilege and segregate security-log readers from ordinary application users. |
@@ -114,3 +117,7 @@ explicitly:
    header, `XForwardedForClientIpResolver` for a forwarded chain, or
    `CloudFrontViewerAddressClientIpResolver` for CloudFront's address-and-port
    header. Do not use a resolver unless the ingress trust boundary is explicit.
+7. If an upstream request correlation ID is needed, replace the
+   `RequestIdResolver` bean in `WebSecurityConfiguration` with the matching
+   ingress implementation, such as `CloudFrontRequestIdResolver`. Otherwise,
+   retain the generated UUID.

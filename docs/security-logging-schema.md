@@ -52,7 +52,7 @@ fields where available and documents two intentional project extensions.
 | `event.outcome` | `keyword` | `success`, `failure`, or `unknown` where applicable. |
 | `event.start`, `event.end` | `date` | Request lifecycle boundaries. |
 | `event.duration` | `long` | Request duration in nanoseconds. |
-| `http.request.id` | `keyword` | Correlation ID established by `SecurityLoggingContextFilter`; not authentication material. |
+| `http.request.id` | `keyword` | Correlation ID established by `SecurityLoggingContextFilter`; generated as a UUID unless the configured `RequestIdResolver` supplies an upstream ID. It is not authentication material. |
 | `http.request.method` | `keyword` | Incoming servlet request method. |
 | `http.response.status_code` | `long` | Final or handler-known HTTP response status. |
 | `url.scheme`, `url.path`, `url.query` | `keyword`, `wildcard`, `keyword` | Request URL components; query values are redacted before emission. |

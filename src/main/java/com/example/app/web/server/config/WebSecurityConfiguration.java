@@ -61,6 +61,7 @@ import org.springframework.session.security.SpringSessionBackedSessionRegistry;
 import com.example.app.web.server.security.ProblemDetailAccessDeniedHandler;
 import com.example.app.web.server.security.ContentNegotiatingSessionExpiredStrategy;
 import com.example.app.web.server.security.ClientIpResolver;
+import com.example.app.web.server.security.RequestIdResolver;
 import com.example.app.web.server.security.RequestLoggingFilter;
 import com.example.app.web.server.security.AbsoluteSessionTimeoutFilter;
 import com.example.app.web.server.security.SecurityLoggingContextFilter;
@@ -322,6 +323,16 @@ public class WebSecurityConfiguration {
 	@Bean
 	ClientIpResolver clientIpResolver() {
 		return ClientIpResolver.none();
+	}
+
+	/**
+	 * Supplies no upstream request ID by default. Replace with an ingress-specific
+	 * resolver when the deployment provides one.
+	 * @return the safe default request ID resolver
+	 */
+	@Bean
+	RequestIdResolver requestIdResolver() {
+		return RequestIdResolver.none();
 	}
 
 }

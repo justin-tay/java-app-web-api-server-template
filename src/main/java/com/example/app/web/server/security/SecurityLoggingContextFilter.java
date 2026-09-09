@@ -20,8 +20,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 public class SecurityLoggingContextFilter extends OncePerRequestFilter {
 
-	private static final String CLOUDFRONT_REQUEST_ID_HEADER = "X-Amz-Cf-Id";
-
 	private static final String HTTP_REQUEST_ID = "http.request.id";
 
 	private static final String CLIENT_IP = "client.ip";
@@ -34,8 +32,11 @@ public class SecurityLoggingContextFilter extends OncePerRequestFilter {
 
 	private final ClientIpResolver clientIpResolver;
 
-	public SecurityLoggingContextFilter(ClientIpResolver clientIpResolver) {
+	private final RequestIdResolver requestIdResolver;
+
+	public SecurityLoggingContextFilter(ClientIpResolver clientIpResolver, RequestIdResolver requestIdResolver) {
 		this.clientIpResolver = clientIpResolver;
+		this.requestIdResolver = requestIdResolver;
 	}
 
 	@Override
@@ -90,9 +91,7 @@ public class SecurityLoggingContextFilter extends OncePerRequestFilter {
 		if (existingRequestId instanceof String requestId) {
 			return requestId;
 		}
-		String cloudFrontRequestId = request.getHeader(CLOUDFRONT_REQUEST_ID_HEADER);
-		String requestId = (cloudFrontRequestId != null && !cloudFrontRequestId.isBlank()) ? cloudFrontRequestId
-				: UUID.randomUUID().toString();
+		String requestId = this.requestIdResolver.resolve(request).orElseGet(() -> UUID.randomUUID().toString());
 		request.setAttribute(REQUEST_ID_ATTRIBUTE, requestId);
 		return requestId;
 	}
