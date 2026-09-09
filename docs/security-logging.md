@@ -12,7 +12,10 @@ deliberate boundary or remaining application work. `Deployment responsibility`
 means the control belongs to the log platform or runtime rather than this
 application.
 
-The field-level contract is in [security-logging-schema.md](security-logging-schema.md).
+The shared ECS schema, extensions, redaction, and correlation rules are in
+[security-logging-schema.md](security-logging-schema.md). The trigger, source,
+valid values, and field-by-field contract for every emitted event are in
+[security-logging-event-reference.md](security-logging-event-reference.md).
 
 ## Design and ownership
 
@@ -54,7 +57,7 @@ search parameters.
 | Capture events from the application and other relevant layers. | Partial | Application authentication, authorization, CSRF, and request lifecycle events are captured here. Edge/WAF, reverse proxy, TLS terminator, database, and identity-provider logs are outside the process and should be collected separately. CloudFront's `X-Amz-Cf-Id`, when present, is retained only as a correlation ID. |
 | Treat event data from other trust zones as untrusted. | Implemented | Request-derived values are logged as structured field data, not interpolated into message templates. The incoming CloudFront ID is not used for authorization or identity. Operators must still treat all client-provided values as untrusted during analysis. |
 | Use a centralized log collection system and record to stdout where appropriate. | Partial | The application writes JSON to stdout, which is suitable for container/platform collection. Shipping to a central collector, handling collector failure, and monitoring delivery are deployment responsibilities. Local files and databases are intentionally not used by the template. |
-| Use a standard, documented format. | Implemented | Spring Boot ECS JSON is enabled. Standard and project extension fields are documented in [security-logging-schema.md](security-logging-schema.md). |
+| Use a standard, documented format. | Implemented | Spring Boot ECS JSON is enabled. Shared fields and extensions are documented in [security-logging-schema.md](security-logging-schema.md); individual event contracts are documented in [security-logging-event-reference.md](security-logging-event-reference.md). |
 | Restrict access to logs. | Deployment responsibility | Console access, collector credentials, SIEM roles, and index permissions are not controllable by this application. Grant least privilege and segregate security-log readers from ordinary application users. |
 | Log input validation failures. | Partial | Framework and application errors are logged by Spring Boot, but the template has no domain input-validation policy or dedicated validation audit event. Add structured, redacted events for security-significant validation failures in a real application. |
 | Log output validation failures. | Not applicable to the base template | The template has no domain output-validation layer. Applications that validate or transform security-sensitive outbound data should emit a redacted structured event when that control fails, without logging the protected payload. |
