@@ -16,6 +16,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 
+import com.example.app.web.server.api.ProblemTypes;
+
 /**
  * Configures security hardening for the embedded Tomcat server.
  *
@@ -102,7 +104,8 @@ public class TomcatConfiguration {
 
 			HttpStatus status = HttpStatus.resolve(statusCode);
 			String title = (status != null) ? status.getReasonPhrase() : "HTTP Error";
-			String responseBody = "{\"title\":\"" + title + "\",\"status\":" + statusCode + "}";
+			String responseBody = "{\"type\":\"" + ProblemTypes.HTTP_ERROR + "\",\"title\":\"" + title
+					+ "\",\"status\":" + statusCode + "}";
 
 			response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
 			response.setCharacterEncoding("UTF-8");

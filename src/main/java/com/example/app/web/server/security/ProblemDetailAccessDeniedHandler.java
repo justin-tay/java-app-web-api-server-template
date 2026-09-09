@@ -14,6 +14,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.csrf.CsrfException;
 
+import com.example.app.web.server.api.ProblemTypes;
+
 /**
  * Writes Problem Details responses for access-denied requests.
  */
@@ -21,11 +23,12 @@ public class ProblemDetailAccessDeniedHandler implements AccessDeniedHandler {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(ProblemDetailAccessDeniedHandler.class);
 
-	private static final String ACCESS_DENIED_PROBLEM_DETAIL = "{\"title\":\"%s\",\"status\":%d}"
-		.formatted(HttpStatus.FORBIDDEN.getReasonPhrase(), HttpStatus.FORBIDDEN.value());
+	private static final String ACCESS_DENIED_PROBLEM_DETAIL = "{\"type\":\"%s\",\"title\":\"%s\",\"status\":%d}"
+		.formatted(ProblemTypes.ACCESS_DENIED, HttpStatus.FORBIDDEN.getReasonPhrase(), HttpStatus.FORBIDDEN.value());
 
-	private static final String CSRF_PROBLEM_DETAIL = "{\"title\":\"%s\",\"status\":%d,\"detail\":\"The request could not be verified. Refresh the page and try again.\"}"
-		.formatted(HttpStatus.FORBIDDEN.getReasonPhrase(), HttpStatus.FORBIDDEN.value());
+	private static final String CSRF_PROBLEM_DETAIL = "{\"type\":\"%s\",\"title\":\"%s\",\"status\":%d,\"detail\":\"The request could not be verified. Refresh the page and try again.\"}"
+		.formatted(ProblemTypes.CSRF_VALIDATION_FAILED, HttpStatus.FORBIDDEN.getReasonPhrase(),
+				HttpStatus.FORBIDDEN.value());
 
 	@Override
 	public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException exception)

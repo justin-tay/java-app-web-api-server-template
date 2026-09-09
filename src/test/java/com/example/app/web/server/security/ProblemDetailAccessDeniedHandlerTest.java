@@ -46,6 +46,7 @@ class ProblemDetailAccessDeniedHandlerTest {
 		new ProblemDetailAccessDeniedHandler().handle(request, response, new CsrfException("secret detail"));
 
 		assertThat(response.getStatus()).isEqualTo(HttpStatus.FORBIDDEN.value());
+		assertThat(response.getContentAsString()).contains("\"type\":\"urn:problem:csrf-validation-failed\"");
 		Map<String, Object> keyValues = this.logEvents.list.get(0)
 			.getKeyValuePairs()
 			.stream()

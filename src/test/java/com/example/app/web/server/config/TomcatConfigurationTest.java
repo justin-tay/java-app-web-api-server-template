@@ -121,6 +121,7 @@ class TomcatConfigurationTest extends RestTestClientITSupport {
 			.bodyJson()
 			.isLenientlyEqualTo("""
 					{
+					  "type": "urn:problem:http-error",
 					  "title": "Bad Request",
 					  "status": 400
 					}

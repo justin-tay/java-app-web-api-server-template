@@ -71,6 +71,7 @@ public class WebSecurityConfigurationTest extends RestTestClientITSupport {
 			.bodyJson()
 			.isLenientlyEqualTo("""
 					{
+					  "type": "urn:problem:csrf-validation-failed",
 					  "title": "Forbidden",
 					  "status": 403,
 					  "detail": "The request could not be verified. Refresh the page and try again."

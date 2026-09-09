@@ -68,6 +68,7 @@ class ApiResponseEntityExceptionHandlerTest extends MockMvcITSupport {
 			.bodyJson()
 			.isLenientlyEqualTo("""
 					{
+					  "type": "urn:problem:route-not-found",
 					  "status": 404,
 					  "title": "Not Found"
 					}
@@ -82,6 +83,7 @@ class ApiResponseEntityExceptionHandlerTest extends MockMvcITSupport {
 			.bodyJson()
 			.isLenientlyEqualTo("""
 					{
+					  "type": "urn:problem:method-not-allowed",
 					  "status": 405,
 					  "title": "Method Not Allowed"
 					}
@@ -97,6 +99,7 @@ class ApiResponseEntityExceptionHandlerTest extends MockMvcITSupport {
 			.bodyJson()
 			.isLenientlyEqualTo("""
 					{
+					  "type": "urn:problem:upstream-response-failed",
 					  "status": 503,
 					  "title": "Service Unavailable",
 					  "detail": "The request could not be completed."
@@ -114,6 +117,7 @@ class ApiResponseEntityExceptionHandlerTest extends MockMvcITSupport {
 			.bodyJson()
 			.isLenientlyEqualTo("""
 					{
+					  "type": "urn:problem:internal-error",
 					  "status": 500,
 					  "title": "Internal Server Error",
 					  "detail": "The request could not be completed."
