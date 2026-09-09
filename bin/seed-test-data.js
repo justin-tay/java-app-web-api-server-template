@@ -34,6 +34,9 @@ const seedUser = async (headers, username) => {
     body: JSON.stringify({
       enabled: true,
       username,
+      email: `${username}@example.test`,
+      firstName: username,
+      lastName: 'Test User',
       credentials: [{ type: 'password', value: 'password', temporary: false }],
     }),
   });
