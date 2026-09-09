@@ -27,6 +27,9 @@ valid values, and field-by-field contract for every emitted event are in
   outcome, response status, matched route, and duration.
 * `SecurityAuditEventLogger` emits authentication, authorization, and logout
   audit events. `ProblemDetailAccessDeniedHandler` also records CSRF denials.
+* `ApiResponseEntityExceptionHandler` emits a `validate_input` event for each
+  rejected input-validation rule without recording the submitted value or
+  validation message.
 * `ApplicationLifecycleEventLogger`, registered before context creation through
   `spring.factories`, records application starting, started, failed-to-start,
   and stopped events. It deliberately does not log `ApplicationStartingEvent`,
@@ -59,7 +62,7 @@ search parameters.
 | Use a centralized log collection system and record to stdout where appropriate. | Partial | The application writes JSON to stdout, which is suitable for container/platform collection. Shipping to a central collector, handling collector failure, and monitoring delivery are deployment responsibilities. Local files and databases are intentionally not used by the template. |
 | Use a standard, documented format. | Implemented | Spring Boot ECS JSON is enabled. Shared fields and extensions are documented in [security-logging-schema.md](security-logging-schema.md); individual event contracts are documented in [security-logging-event-reference.md](security-logging-event-reference.md). |
 | Restrict access to logs. | Deployment responsibility | Console access, collector credentials, SIEM roles, and index permissions are not controllable by this application. Grant least privilege and segregate security-log readers from ordinary application users. |
-| Log input validation failures. | Partial | Framework and application errors are logged by Spring Boot, but the template has no domain input-validation policy or dedicated validation audit event. Add structured, redacted events for security-significant validation failures in a real application. |
+| Log input validation failures. | Implemented | `ApiResponseEntityExceptionHandler` emits `WARN` events with `event.action=validate_input`, outcome, 400 status, path, validation mechanism, rule code, and (where known) field/parameter path. It emits one event per rejected Bean Validation field or constraint and deliberately omits submitted values, request bodies, exception messages, and validation messages. |
 | Log output validation failures. | Not applicable to the base template | The template has no domain output-validation layer. Applications that validate or transform security-sensitive outbound data should emit a redacted structured event when that control fails, without logging the protected payload. |
 | Log authentication successes and failures. | Implemented | `SecurityAuditEventLogger` records successful and failed logins with outcome, user name, and failure exception type. It deliberately omits exception messages and credentials. |
 | Log authorization failures. | Implemented | Access-denied events use `event.category=[web, api]`, `event.type=[access, denied]`, `event.action=authorize_access`, and `event.outcome=failure`. CSRF denials use `event.action=validate_csrf_token` and separately record path, direct peer address, exception type, and their known 403 response status. |

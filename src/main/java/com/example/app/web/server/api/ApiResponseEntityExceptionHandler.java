@@ -8,6 +8,7 @@ import jakarta.validation.ConstraintViolationException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.spi.LoggingEventBuilder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.HttpHeaders;
@@ -22,6 +23,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.context.request.NativeWebRequest;
 
 import com.example.app.web.server.api.admin.ConflictException;
 import com.example.app.web.server.api.admin.ResourceNotFoundException;
@@ -39,6 +41,10 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 	@Override
 	protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex,
 			HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+		HttpServletRequest servletRequest = ((NativeWebRequest) request).getNativeRequest(HttpServletRequest.class);
+		ex.getBindingResult()
+			.getFieldErrors()
+			.forEach(error -> logInputValidationFailure(servletRequest, ex, error.getCode(), error.getField()));
 		ProblemDetail problemDetail = problemDetail(HttpStatus.BAD_REQUEST, "One or more fields are invalid.",
 				ProblemTypes.VALIDATION_FAILED);
 		problemDetail.setTitle("Validation failed");
@@ -55,6 +61,8 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 	@Override
 	protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException ex,
 			HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+		logInputValidationFailure(((NativeWebRequest) request).getNativeRequest(HttpServletRequest.class), ex,
+				"MalformedRequest", null);
 		ProblemDetail problemDetail = problemDetail(HttpStatus.BAD_REQUEST, "Request content is invalid.",
 				ProblemTypes.MALFORMED_REQUEST);
 		problemDetail.setTitle("Validation failed");
@@ -64,7 +72,12 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 	}
 
 	@ExceptionHandler(ConstraintViolationException.class)
-	public ResponseEntity<ProblemDetail> handleConstraintViolation(ConstraintViolationException ex) {
+	public ResponseEntity<ProblemDetail> handleConstraintViolation(ConstraintViolationException ex,
+			HttpServletRequest request) {
+		ex.getConstraintViolations()
+			.forEach(error -> logInputValidationFailure(request, ex,
+					error.getConstraintDescriptor().getAnnotation().annotationType().getSimpleName(),
+					error.getPropertyPath().toString()));
 		ProblemDetail problemDetail = problemDetail(HttpStatus.BAD_REQUEST, "One or more fields are invalid.",
 				ProblemTypes.VALIDATION_FAILED);
 		problemDetail.setTitle("Validation failed");
@@ -91,7 +104,9 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 	}
 
 	@ExceptionHandler(IllegalArgumentException.class)
-	public ResponseEntity<ProblemDetail> handleIllegalArgument(IllegalArgumentException ex) {
+	public ResponseEntity<ProblemDetail> handleIllegalArgument(IllegalArgumentException ex,
+			HttpServletRequest request) {
+		logInputValidationFailure(request, ex, "InvalidRequest", null);
 		ProblemDetail problemDetail = problemDetail(HttpStatus.BAD_REQUEST, ex.getMessage(),
 				ProblemTypes.VALIDATION_FAILED);
 		problemDetail.setTitle("Validation failed");
@@ -142,6 +157,23 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 			.addKeyValue("error.type", ex.getClass().getName())
 			.setCause(ex)
 			.log("Request processing failed");
+	}
+
+	private void logInputValidationFailure(HttpServletRequest request, Exception exception, String errorCode,
+			String validationField) {
+		LoggingEventBuilder event = LOGGER.atWarn()
+			.addKeyValue("event.category", List.of("web"))
+			.addKeyValue("event.type", List.of("error"))
+			.addKeyValue("event.action", "validate_input")
+			.addKeyValue("event.outcome", "failure")
+			.addKeyValue("http.response.status_code", HttpStatus.BAD_REQUEST.value())
+			.addKeyValue("url.path", request.getRequestURI())
+			.addKeyValue("error.type", exception.getClass().getName())
+			.addKeyValue("error.code", errorCode);
+		if (validationField != null) {
+			event.addKeyValue("validation.field", validationField);
+		}
+		event.log("Input validation failed");
 	}
 
 	private ProblemDetail problemDetail(HttpStatusCode status, String detail, URI type) {

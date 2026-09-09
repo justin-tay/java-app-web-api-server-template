@@ -23,9 +23,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.slf4j.LoggerFactory;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
 
 import com.example.app.web.server.test.MockMvcITSupport;
 
@@ -40,7 +45,8 @@ import com.example.app.web.server.test.MockMvcITSupport;
  * {@code spring.mvc.problemdetails.enabled} property, which only controls Spring Boot's
  * own {@code ProblemDetailsExceptionHandler} auto-configuration bean.
  */
-@Import(ApiResponseEntityExceptionHandlerTest.RestClientResponseExceptionControllerConfiguration.class)
+@Import({ ApiResponseEntityExceptionHandlerTest.RestClientResponseExceptionControllerConfiguration.class,
+		ApiResponseEntityExceptionHandlerTest.ValidationControllerConfiguration.class })
 class ApiResponseEntityExceptionHandlerTest extends MockMvcITSupport {
 
 	private final Logger logger = (Logger) LoggerFactory.getLogger(ApiResponseEntityExceptionHandler.class);
@@ -58,6 +64,35 @@ class ApiResponseEntityExceptionHandlerTest extends MockMvcITSupport {
 	void removeAppender() {
 		this.logger.detachAppender(this.logEvents);
 		this.logEvents.stop();
+	}
+
+	@Test
+	@WithMockUser
+	void validationFailureLogsTheRuleAndFieldButNotTheRejectedValue() {
+		String rejectedValue = "not-a-valid-password";
+		assertThat(this.mockMvc.post()
+			.uri("/test/validation")
+			.with(csrf())
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"password\":\"" + rejectedValue + "\"}")).hasStatus(HttpStatus.BAD_REQUEST);
+
+		assertThat(this.logEvents.list).singleElement().satisfies(event -> {
+			Map<String, Object> keyValues = event.getKeyValuePairs()
+				.stream()
+				.collect(Collectors.toMap(pair -> pair.key, pair -> pair.value));
+			assertThat(event.getLevel()).isEqualTo(Level.WARN);
+			assertThat(keyValues).containsEntry("event.category", List.of("web"))
+				.containsEntry("event.type", List.of("error"))
+				.containsEntry("event.action", "validate_input")
+				.containsEntry("event.outcome", "failure")
+				.containsEntry("http.response.status_code", HttpStatus.BAD_REQUEST.value())
+				.containsEntry("url.path", "/test/validation")
+				.containsEntry("error.type", "org.springframework.web.bind.MethodArgumentNotValidException")
+				.containsEntry("error.code", "Pattern")
+				.containsEntry("validation.field", "password");
+			assertThat(event.getFormattedMessage()).doesNotContain(rejectedValue);
+			assertThat(event.getKeyValuePairs().toString()).doesNotContain(rejectedValue);
+		});
 	}
 
 	@Test
@@ -155,6 +190,16 @@ class ApiResponseEntityExceptionHandlerTest extends MockMvcITSupport {
 
 	}
 
+	@TestConfiguration(proxyBeanMethods = false)
+	static class ValidationControllerConfiguration {
+
+		@Bean
+		ValidationController validationController() {
+			return new ValidationController();
+		}
+
+	}
+
 	@RestController
 	static class RestClientResponseExceptionController {
 
@@ -169,6 +214,18 @@ class ApiResponseEntityExceptionHandlerTest extends MockMvcITSupport {
 			throw new IllegalStateException("secret detail");
 		}
 
+	}
+
+	@RestController
+	static class ValidationController {
+
+		@PostMapping("/test/validation")
+		void validate(@Valid @RequestBody ValidationRequest request) {
+		}
+
+	}
+
+	record ValidationRequest(@Pattern(regexp = "[A-Z]+") String password) {
 	}
 
 }

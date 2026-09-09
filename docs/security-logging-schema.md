@@ -16,6 +16,7 @@ fields where available and documents two intentional project extensions.
 | --- | --- | --- | --- | --- | --- |
 | Request received | INFO | `web` | `access`, `start` | `receive_request` | [Event reference](security-logging-event-reference.md#request-received-receive_request) |
 | Request completed | INFO | `web` | `access`, `end` | `complete_request` | [Event reference](security-logging-event-reference.md#request-completed-complete_request) |
+| Input validation failure | WARN | `web` | `error` | `validate_input` | [Event reference](security-logging-event-reference.md#input-validation-failed-validate_input) |
 | Authentication success | INFO | `authentication` | `info` | `login` | [Event reference](security-logging-event-reference.md#authentication-succeeded-login) |
 | Authentication failure | WARN | `authentication` | `denied` | `login` | [Event reference](security-logging-event-reference.md#authentication-failed-login) |
 | Authorization denial | WARN | `web`, `api` | `access`, `denied` | `authorize_access` | [Event reference](security-logging-event-reference.md#authorization-denied-authorize_access) |
@@ -67,6 +68,7 @@ fields where available and documents two intentional project extensions.
 | --- | --- | --- |
 | `http.route` | `keyword` | Best-matching Spring MVC route, or `UNKNOWN` when unavailable. Useful for aggregation without raw identifier-bearing paths. |
 | `url.query_keys` | `keyword[]` | Query parameter names, including names whose values were redacted. Parameter names must not contain sensitive data. |
+| `validation.field` | `keyword` | Rejected request field or parameter path. It must never contain the rejected value. |
 
 ## Correlation and lifecycle semantics
 
