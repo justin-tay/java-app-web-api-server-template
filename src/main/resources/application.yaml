@@ -43,6 +43,9 @@ spring:
     change-log: classpath:db/changelog/db.changelog-master.yaml
   main:
     banner-mode: "off"
+  session:
+    jdbc:
+      initialize-schema: never
   ssl:
     bundle:
       pem:

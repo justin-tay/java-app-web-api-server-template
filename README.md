@@ -89,3 +89,5 @@ field contract and project extensions.
 See [security authentication](docs/security-authentication.md) for the OIDC
 relying-party design, client authentication, token validation, key management,
 logout, and authentication flow.
+See [security authorization](docs/security-authorization.md) for the local
+user, group, role, and Spring Security authority design.

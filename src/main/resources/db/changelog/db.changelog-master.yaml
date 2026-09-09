@@ -3,3 +3,5 @@ databaseChangeLog:
       file: db/changelog/001-authorisation-schema.sql
   - include:
       file: db/changelog/002-authorisation-seed.sql
+  - include:
+      file: db/changelog/003-spring-session-schema.sql
