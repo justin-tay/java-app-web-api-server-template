@@ -1,4 +1,4 @@
-package com.example.app.web.server.security;
+package com.example.app.web.server.security.session;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;

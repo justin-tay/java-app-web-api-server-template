@@ -1,4 +1,4 @@
-package com.example.app.web.server.security;
+package com.example.app.web.server.security.session;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

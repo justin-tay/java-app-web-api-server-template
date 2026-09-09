@@ -59,16 +59,16 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
 import org.springframework.session.security.SpringSessionBackedSessionRegistry;
 
-import com.example.app.web.server.security.ProblemDetailAccessDeniedHandler;
-import com.example.app.web.server.security.ContentNegotiatingSessionExpiredStrategy;
-import com.example.app.web.server.security.ClientIpResolver;
-import com.example.app.web.server.security.RequestIdResolver;
-import com.example.app.web.server.security.RequestLoggingFilter;
-import com.example.app.web.server.security.AbsoluteSessionTimeoutFilter;
-import com.example.app.web.server.security.SecurityLoggingContextFilter;
-import com.example.app.web.server.security.LocalAuthoritiesOidcUserService;
-import com.example.app.web.server.security.SessionLifecycleAuditLogger;
-import com.example.app.web.server.security.SessionLifecycleLogoutHandler;
+import com.example.app.web.server.logging.RequestLoggingFilter;
+import com.example.app.web.server.logging.SecurityLoggingContextFilter;
+import com.example.app.web.server.logging.client.ClientIpResolver;
+import com.example.app.web.server.logging.request.RequestIdResolver;
+import com.example.app.web.server.security.authentication.oidc.LocalAuthoritiesOidcUserService;
+import com.example.app.web.server.security.authorization.ProblemDetailAccessDeniedHandler;
+import com.example.app.web.server.security.session.AbsoluteSessionTimeoutFilter;
+import com.example.app.web.server.security.session.ContentNegotiatingSessionExpiredStrategy;
+import com.example.app.web.server.security.session.SessionLifecycleAuditLogger;
+import com.example.app.web.server.security.session.SessionLifecycleLogoutHandler;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.KeySourceException;
 import com.nimbusds.jose.jwk.JWK;

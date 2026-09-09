@@ -1,4 +1,4 @@
-package com.example.app.web.server.security;
+package com.example.app.web.server.logging;
 
 import java.util.List;
 
@@ -16,6 +16,8 @@ import org.springframework.security.web.authentication.session.SessionFixationPr
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.stereotype.Component;
+
+import com.example.app.web.server.security.session.SessionLifecycleAuditLogger;
 
 /**
  * Records security-relevant application events without including credentials, tokens,

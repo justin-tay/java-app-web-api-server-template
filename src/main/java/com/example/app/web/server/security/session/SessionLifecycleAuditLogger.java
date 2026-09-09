@@ -1,4 +1,4 @@
-package com.example.app.web.server.security;
+package com.example.app.web.server.security.session;
 
 import java.util.List;
 import java.util.UUID;

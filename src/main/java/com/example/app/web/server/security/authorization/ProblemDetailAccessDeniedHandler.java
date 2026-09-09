@@ -1,4 +1,4 @@
-package com.example.app.web.server.security;
+package com.example.app.web.server.security.authorization;
 
 import java.io.IOException;
 import java.util.List;

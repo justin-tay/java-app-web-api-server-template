@@ -1,4 +1,4 @@
-package com.example.app.web.server.security;
+package com.example.app.web.server.logging;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -7,6 +7,14 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+
+import com.example.app.web.server.logging.client.ClientIpResolver;
+import com.example.app.web.server.logging.client.CloudFrontViewerAddressClientIpResolver;
+import com.example.app.web.server.logging.client.TrustedHeaderClientIpResolver;
+import com.example.app.web.server.logging.client.XForwardedForClientIpResolver;
+import com.example.app.web.server.logging.request.CloudFrontRequestIdResolver;
+import com.example.app.web.server.logging.request.RequestIdResolver;
+import com.example.app.web.server.security.session.SessionLifecycleAuditLogger;
 
 class SecurityLoggingContextFilterTest {
 

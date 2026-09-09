@@ -1,4 +1,4 @@
-package com.example.app.web.server.security;
+package com.example.app.web.server.security.authentication.oidc;
 
 import java.util.HashSet;
 import java.util.Set;

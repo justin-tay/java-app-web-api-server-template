@@ -1,4 +1,4 @@
-package com.example.app.web.server.security;
+package com.example.app.web.server.logging;
 
 import java.io.IOException;
 import java.util.UUID;
@@ -13,6 +13,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+
+import com.example.app.web.server.logging.client.ClientIpResolver;
+import com.example.app.web.server.logging.request.RequestIdResolver;
+import com.example.app.web.server.security.session.SessionLifecycleAuditLogger;
 
 /**
  * Adds request-scoped ECS fields to the logging context.

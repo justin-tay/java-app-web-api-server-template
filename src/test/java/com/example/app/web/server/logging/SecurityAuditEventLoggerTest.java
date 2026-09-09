@@ -1,4 +1,4 @@
-package com.example.app.web.server.security;
+package com.example.app.web.server.logging;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -23,6 +23,8 @@ import org.springframework.security.authentication.event.LogoutSuccessEvent;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.event.AuthorizationDeniedEvent;
 import org.springframework.security.core.Authentication;
+
+import com.example.app.web.server.security.session.SessionLifecycleAuditLogger;
 
 /**
  * Tests the security audit events written to the structured logger.

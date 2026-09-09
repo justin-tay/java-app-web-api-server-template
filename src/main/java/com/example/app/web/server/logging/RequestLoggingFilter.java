@@ -1,4 +1,4 @@
-package com.example.app.web.server.security;
+package com.example.app.web.server.logging;
 
 import java.io.IOException;
 import java.time.Duration;
