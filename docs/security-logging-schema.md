@@ -59,7 +59,8 @@ fields where available and documents two intentional project extensions.
 | `server.address`, `server.port` | `keyword`, `long` | Servlet destination as observed by the application, not necessarily the public host. |
 | `user.name` | `keyword` | Authenticated actor when known. |
 | `user.target.name` | `keyword` | Target account of a failed authentication. |
-| `source.ip` | `ip` | Direct peer address only; it is not proxy-normalized client identity. |
+| `source.ip` | `ip` | Direct peer address from request-scoped MDC. It is not a unique correlation identifier or proxy-normalized client identity. |
+| `client.ip` | `ip` | Validated end-user client address from request-scoped MDC. Present only when the default `ClientIpResolver` bean is replaced with a trusted resolver. |
 | `error.type`, `error.stack_trace` | `keyword`, `wildcard` | Safe exception classification and protected operator stack trace. |
 
 ## Project extension fields

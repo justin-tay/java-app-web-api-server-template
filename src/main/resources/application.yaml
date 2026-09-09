@@ -1,5 +1,6 @@
 app:
   jwks: classpath:jwks.json
+
   session:
     absolute-timeout: 12h
 logging:

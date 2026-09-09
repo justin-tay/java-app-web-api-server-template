@@ -60,6 +60,7 @@ import org.springframework.session.security.SpringSessionBackedSessionRegistry;
 
 import com.example.app.web.server.security.ProblemDetailAccessDeniedHandler;
 import com.example.app.web.server.security.ContentNegotiatingSessionExpiredStrategy;
+import com.example.app.web.server.security.ClientIpResolver;
 import com.example.app.web.server.security.RequestLoggingFilter;
 import com.example.app.web.server.security.AbsoluteSessionTimeoutFilter;
 import com.example.app.web.server.security.SecurityLoggingContextFilter;
@@ -314,9 +315,13 @@ public class WebSecurityConfiguration {
 	}
 
 	/**
-	 * Gets the OAuth2UserService that processes the tokens to add the granted
-	 * authorities.
-	 * @return the oidc user service
+	 * Supplies no end-user client IP by default. Replace with a trusted resolver when the
+	 * deployment ingress provides one.
+	 * @return the safe default client IP resolver
 	 */
+	@Bean
+	ClientIpResolver clientIpResolver() {
+		return ClientIpResolver.none();
+	}
 
 }

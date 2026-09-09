@@ -41,7 +41,6 @@ public class ProblemDetailAccessDeniedHandler implements AccessDeniedHandler {
 				.addKeyValue("event.outcome", "failure")
 				.addKeyValue("http.response.status_code", HttpStatus.FORBIDDEN.value())
 				.addKeyValue("url.path", request.getRequestURI())
-				.addKeyValue("source.ip", request.getRemoteAddr())
 				.addKeyValue("error.type", exception.getClass().getSimpleName())
 				.log("CSRF validation failed");
 		}

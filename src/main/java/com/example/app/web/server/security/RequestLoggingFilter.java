@@ -41,6 +41,10 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
 	private static final String HTTP_REQUEST_ID = "http.request.id";
 
+	private static final String CLIENT_IP = "client.ip";
+
+	private static final String SOURCE_IP = "source.ip";
+
 	private static final String REDACTED_VALUE = "[REDACTED]";
 
 	private final Set<String> queryParameterRedactList;
@@ -65,8 +69,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 			}
 			else {
 				request.getAsyncContext()
-					.addListener(new RequestLoggingAsyncListener(request, response, startedAt, MDC.get(HTTP_REQUEST_ID),
-							username()));
+					.addListener(new RequestLoggingAsyncListener(request, response, startedAt, requestLogContext()));
 			}
 		}
 	}
@@ -89,11 +92,11 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
 	private void logRequestCompleted(HttpServletRequest request, HttpServletResponse response, Instant startedAt,
 			Instant completedAt) {
-		logRequestCompleted(request, response, startedAt, completedAt, MDC.get(HTTP_REQUEST_ID), username());
+		logRequestCompleted(request, response, startedAt, completedAt, requestLogContext());
 	}
 
 	private void logRequestCompleted(HttpServletRequest request, HttpServletResponse response, Instant startedAt,
-			Instant completedAt, String requestId, String username) {
+			Instant completedAt, RequestLogContext context) {
 		LoggingEventBuilder event = LOGGER.atInfo()
 			.addKeyValue("event.category", "web")
 			.addKeyValue("event.type", List.of("access", "end"))
@@ -110,8 +113,10 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 			.addKeyValue("url.path", request.getRequestURI())
 			.addKeyValue("http.route", route(request));
 		addQueryParameters(event, request);
-		addRequestId(event, requestId);
-		addUser(event, username);
+		addRequestId(event, context.requestId());
+		addUser(event, context.username());
+		addSourceIp(event, request.getRemoteAddr());
+		addClientIp(event, context.clientIp());
 		event.log("HTTP request completed");
 	}
 
@@ -156,6 +161,18 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 		}
 	}
 
+	private void addSourceIp(LoggingEventBuilder event, String sourceIp) {
+		if (sourceIp != null && MDC.get(SOURCE_IP) == null) {
+			event.addKeyValue(SOURCE_IP, sourceIp);
+		}
+	}
+
+	private void addClientIp(LoggingEventBuilder event, String clientIp) {
+		if (clientIp != null && MDC.get(CLIENT_IP) == null) {
+			event.addKeyValue(CLIENT_IP, clientIp);
+		}
+	}
+
 	private String route(HttpServletRequest request) {
 		Object pattern = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
 		return (pattern != null) ? pattern.toString() : "UNKNOWN";
@@ -174,6 +191,13 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 		return authentication.getName();
 	}
 
+	private RequestLogContext requestLogContext() {
+		return new RequestLogContext(MDC.get(HTTP_REQUEST_ID), username(), MDC.get(CLIENT_IP));
+	}
+
+	private record RequestLogContext(String requestId, String username, String clientIp) {
+	}
+
 	private final class RequestLoggingAsyncListener implements AsyncListener {
 
 		private final HttpServletRequest request;
@@ -182,23 +206,19 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
 		private final Instant startedAt;
 
-		private final String requestId;
-
-		private final String username;
+		private final RequestLogContext context;
 
 		private RequestLoggingAsyncListener(HttpServletRequest request, HttpServletResponse response, Instant startedAt,
-				String requestId, String username) {
+				RequestLogContext context) {
 			this.request = request;
 			this.response = response;
 			this.startedAt = startedAt;
-			this.requestId = requestId;
-			this.username = username;
+			this.context = context;
 		}
 
 		@Override
 		public void onComplete(AsyncEvent event) {
-			logRequestCompleted(this.request, this.response, this.startedAt, Instant.now(), this.requestId,
-					this.username);
+			logRequestCompleted(this.request, this.response, this.startedAt, Instant.now(), this.context);
 		}
 
 		@Override

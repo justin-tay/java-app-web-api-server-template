@@ -20,8 +20,16 @@ valid values, and field-by-field contract for every emitted event are in
 ## Design and ownership
 
 * Spring Boot's ECS console formatter serializes the events as JSON.
-* `SecurityLoggingContextFilter` establishes the request correlation ID and,
-  where already authenticated, the user name in MDC.
+* `SecurityLoggingContextFilter` establishes the request correlation ID and
+  direct peer address in MDC, plus the user name where already authenticated.
+  The peer address is not a unique correlation ID and may be a proxy rather
+  than the end user. It clears MDC at request entry and exit so a reused
+  servlet thread cannot associate an event with a previous request.
+* `client.ip` is optional request-scoped MDC context. `WebSecurityConfiguration`
+  supplies the safe `ClientIpResolver.none()` bean by default. A service can
+  replace it with `TrustedHeaderClientIpResolver`,
+  `XForwardedForClientIpResolver`, `CloudFrontViewerAddressClientIpResolver`,
+  or a service-specific resolver with its own trusted-proxy CIDRs.
 * `RequestLoggingFilter`, immediately after the context filter, emits
   `receive_request` and `complete_request` events. The latter includes
   outcome, response status, matched route, and duration.
@@ -72,7 +80,7 @@ search parameters.
 | Log unexpected HTTP methods, protocol/TLS failures, network failures, and other attacks. | Partial | Every request that reaches the filter has its method and lifecycle logged. Rejected traffic before the application, TLS handshake failures, malformed requests, and WAF detections belong to the load balancer, proxy, WAF, or servlet container logs. No attack-detection rules are shipped by the template. |
 | Log legal, consent, fraud, business-rule, sequencing, and other optional events when relevant. | Not applicable to the base template | These require product-specific definitions and retention rules. Add them as structured domain audit events rather than trying to infer them from access logs. |
 | Record the “when, where, who, and what” of an event. | Implemented | Events include timestamps, service/environment metadata, request ID, event category/type/action/outcome, method, path, server address/port, user where known, and error type for security failures. Request completion also includes status, route, start/end, and duration. See the schema reference for deliberate omissions. |
-| Include source address, user agent, user identity, targets, and identifiers when useful. | Partial | User identity is logged after authentication; CSRF denials include `source.ip`. The template does not record a generic client IP because proxy-header trust must be configured safely per deployment. It intentionally omits user-agent, headers, bodies, session IDs, and target business objects. |
+| Include source address, user agent, user identity, targets, and identifiers when useful. | Implemented, with deployment configuration | Request-scoped events include the direct peer address as `source.ip`; it is not a proxy-normalized client IP. When the default `ClientIpResolver` bean is replaced with a trusted resolver, they also include the validated `client.ip`. User identity is logged after authentication. The template intentionally omits user-agent, headers, bodies, session IDs, and target business objects. |
 | Exclude or mask secrets, credentials, tokens, keys, session identifiers, sensitive personal data, and payment data. | Implemented, with an operational caveat | Bodies, cookies, authorization headers, passwords, tokens, and session IDs are not logged. Query values are recorded in `url.query` after redacting the hard-coded OAuth/OIDC names in `WebSecurityConfiguration.QUERY_PARAMETER_REDACT_LIST`; the parameter names remain in `url.query_keys`. Review new endpoints for secrets embedded in query values or path segments before release. |
 | De-identify, pseudonymize, or otherwise minimize personal data where required. | Partial | `user.name` is useful for an audit trail but may be personal data. The template does not hash it because that can reduce support and audit usefulness. Configure access, retention, lawful basis, and any pseudonymization in the deployment and product privacy design. |
 | Provide a sufficient default log level; do not permit essential security logging to be disabled casually. | Partial | Security lifecycle and audit events are emitted at `INFO`/`WARN`. A global logging-level change can still suppress them, so production logging configuration must be change-controlled and monitored. The redaction list is source-controlled rather than externally mutable. |
@@ -100,3 +108,9 @@ explicitly:
    in the URL. Prefer credentials in protected request bodies/headers, not URLs.
 5. Add product-specific audit events for privileged actions and sensitive data
    access, and test them as part of the security test plan.
+6. If an end-user client IP is needed, replace the `ClientIpResolver` bean in
+   `WebSecurityConfiguration` with a resolver whose trusted-proxy CIDRs match
+   the deployment. Choose `TrustedHeaderClientIpResolver` for a normalized
+   header, `XForwardedForClientIpResolver` for a forwarded chain, or
+   `CloudFrontViewerAddressClientIpResolver` for CloudFront's address-and-port
+   header. Do not use a resolver unless the ingress trust boundary is explicit.

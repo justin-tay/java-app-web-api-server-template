@@ -13,6 +13,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -43,7 +44,9 @@ class ProblemDetailAccessDeniedHandlerTest {
 		request.setRemoteAddr("192.0.2.10");
 		MockHttpServletResponse response = new MockHttpServletResponse();
 
-		new ProblemDetailAccessDeniedHandler().handle(request, response, new CsrfException("secret detail"));
+		try (MDC.MDCCloseable sourceIp = MDC.putCloseable("source.ip", "192.0.2.10")) {
+			new ProblemDetailAccessDeniedHandler().handle(request, response, new CsrfException("secret detail"));
+		}
 
 		assertThat(response.getStatus()).isEqualTo(HttpStatus.FORBIDDEN.value());
 		assertThat(response.getContentAsString()).contains("\"type\":\"urn:problem:csrf-validation-failed\"");
@@ -57,8 +60,8 @@ class ProblemDetailAccessDeniedHandlerTest {
 			.containsEntry("event.outcome", "failure")
 			.containsEntry("http.response.status_code", HttpStatus.FORBIDDEN.value())
 			.containsEntry("url.path", "/accounts")
-			.containsEntry("source.ip", "192.0.2.10")
 			.containsEntry("error.type", "CsrfException");
+		assertThat(this.logEvents.list.get(0).getMDCPropertyMap()).containsEntry("source.ip", "192.0.2.10");
 		assertThat(this.logEvents.list.get(0).getFormattedMessage()).doesNotContain("secret detail");
 	}
 

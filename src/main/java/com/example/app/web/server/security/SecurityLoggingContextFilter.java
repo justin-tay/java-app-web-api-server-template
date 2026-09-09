@@ -24,23 +24,49 @@ public class SecurityLoggingContextFilter extends OncePerRequestFilter {
 
 	private static final String HTTP_REQUEST_ID = "http.request.id";
 
+	private static final String CLIENT_IP = "client.ip";
+
 	private static final String REQUEST_ID_ATTRIBUTE = SecurityLoggingContextFilter.class.getName() + ".REQUEST_ID";
 
+	private static final String SOURCE_IP = "source.ip";
+
 	private static final String USER_NAME = "user.name";
+
+	private final ClientIpResolver clientIpResolver;
+
+	public SecurityLoggingContextFilter(ClientIpResolver clientIpResolver) {
+		this.clientIpResolver = clientIpResolver;
+	}
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
 			throws ServletException, IOException {
-		try (MDC.MDCCloseable requestId = MDC.putCloseable(HTTP_REQUEST_ID, requestId(request))) {
-			Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-			if (isAuthenticated(authentication)) {
-				try (MDC.MDCCloseable userName = MDC.putCloseable(USER_NAME, authentication.getName())) {
-					filterChain.doFilter(request, response);
+		MDC.clear();
+		try {
+			try (MDC.MDCCloseable requestId = MDC.putCloseable(HTTP_REQUEST_ID, requestId(request));
+					MDC.MDCCloseable sourceIp = MDC.putCloseable(SOURCE_IP, request.getRemoteAddr())) {
+				String clientIp = this.clientIpResolver.resolve(request).orElse(null);
+				if (clientIp != null) {
+					MDC.put(CLIENT_IP, clientIp);
+				}
+				try {
+					Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+					if (isAuthenticated(authentication)) {
+						try (MDC.MDCCloseable userName = MDC.putCloseable(USER_NAME, authentication.getName())) {
+							filterChain.doFilter(request, response);
+						}
+					}
+					else {
+						filterChain.doFilter(request, response);
+					}
+				}
+				finally {
+					MDC.remove(CLIENT_IP);
 				}
 			}
-			else {
-				filterChain.doFilter(request, response);
-			}
+		}
+		finally {
+			MDC.clear();
 		}
 	}
 
