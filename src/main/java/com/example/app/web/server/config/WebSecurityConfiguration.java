@@ -30,6 +30,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.configurers.DefaultLoginPageConfigurer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.authorization.AuthorizationEventPublisher;
 import org.springframework.security.authorization.SpringAuthorizationEventPublisher;
 import org.springframework.security.oauth2.client.endpoint.RestClientAuthorizationCodeTokenResponseClient;
@@ -53,6 +54,8 @@ import org.springframework.security.web.authentication.ui.DefaultLoginPageGenera
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
+import org.springframework.session.security.SpringSessionBackedSessionRegistry;
 
 import com.example.app.web.server.security.ProblemDetailAccessDeniedHandler;
 import com.example.app.web.server.security.RequestLoggingFilter;
@@ -117,7 +120,8 @@ public class WebSecurityConfiguration {
 			ClientRegistrationRepository clientRegistrationRepository,
 			AuthenticationEventPublisher authenticationEventPublisher,
 			SecurityLoggingContextFilter securityLoggingContextFilter, ApplicationProperties applicationProperties,
-			LocalAuthoritiesOidcUserService localAuthoritiesOidcUserService, Clock clock) throws Exception {
+			LocalAuthoritiesOidcUserService localAuthoritiesOidcUserService, Clock clock,
+			SessionRegistry sessionRegistry) throws Exception {
 		http.getSharedObject(AuthenticationManagerBuilder.class)
 			.authenticationEventPublisher(authenticationEventPublisher);
 		OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient = accessTokenResponseClient(
@@ -149,6 +153,9 @@ public class WebSecurityConfiguration {
 			.authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
 				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/**"))
 				.authenticated())
+			.sessionManagement(sessionManagement -> sessionManagement.maximumSessions(1)
+				.maxSessionsPreventsLogin(false)
+				.sessionRegistry(sessionRegistry))
 			.oauth2Login(oauth2Login -> oauth2Login
 				.tokenEndpoint(tokenEndpoint -> tokenEndpoint.accessTokenResponseClient(accessTokenResponseClient))
 				.userInfoEndpoint(
@@ -169,6 +176,16 @@ public class WebSecurityConfiguration {
 						}
 					}))
 			.build();
+	}
+
+	/**
+	 * Provides the session registry used to enforce the concurrent-session limit.
+	 * @param sessionRepository the JDBC-backed session repository
+	 * @return the Spring Session-backed registry
+	 */
+	@Bean
+	SessionRegistry sessionRegistry(JdbcIndexedSessionRepository sessionRepository) {
+		return new SpringSessionBackedSessionRegistry<>(sessionRepository);
 	}
 
 	/**
