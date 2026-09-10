@@ -1,8 +1,8 @@
 # Security authentication
 
 This document describes the template's OpenID Connect (OIDC) relying-party
-configuration. It complements the [Quick Start](../README.md#quick-start), which
-covers local Keycloak provisioning and running the application.
+configuration: the authorization-code flow, JWKS key handling, token
+validation, and logout.
 
 ## Authentication model
 
@@ -11,15 +11,9 @@ authenticated with the authorization-code flow; unauthenticated requests are
 redirected to the configured provider. All application routes require
 authentication except the public `/oauth2/jwks` endpoint.
 
-The template's local Keycloak realm has two clients:
-
-| Client ID | Application URL | Purpose |
-| --- | --- | --- |
-| `java-app-web-api-server` | `http://localhost:8081` | Local HTTP development |
-| `java-app-web-api-server-secure` | `https://localhost:8081` | Local TLS development |
-
-Both clients use `private_key_jwt`, publish the application's public keys
-through `/oauth2/jwks`, and are configured for back-channel logout.
+Each Keycloak client configured for the application uses `private_key_jwt`,
+publishes the application's public keys through `/oauth2/jwks`, and is
+configured for back-channel logout.
 
 ## Client authentication
 
@@ -114,11 +108,9 @@ For each Keycloak client:
 
 * Set **Front channel logout** to **Off**.
 * Set the Backchannel logout URL to
-  `http://localhost:8081/logout/connect/back-channel/keycloak` for local HTTP
-  development.
-
-`keycloak` in the path is the Spring client-registration ID. Use the matching
-public HTTPS URL for the TLS client in environments where TLS is enabled.
+  `{application base URL}/logout/connect/back-channel/{registration-id}`,
+  where `{registration-id}` is the Spring client-registration ID (`keycloak`
+  in this template).
 
 ## Authorization-code flow
 
