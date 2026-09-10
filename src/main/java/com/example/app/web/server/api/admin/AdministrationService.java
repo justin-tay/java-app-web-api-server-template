@@ -1,6 +1,7 @@
 package com.example.app.web.server.api.admin;
 
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
@@ -15,6 +16,7 @@ import com.example.app.web.server.domain.AppRole;
 import com.example.app.web.server.domain.AppRoleRepository;
 import com.example.app.web.server.domain.AppUser;
 import com.example.app.web.server.domain.AppUserRepository;
+import com.example.app.web.server.security.session.SessionRevocationService;
 
 @Service
 @Transactional
@@ -26,10 +28,14 @@ public class AdministrationService {
 
 	private final AppRoleRepository roles;
 
-	public AdministrationService(AppUserRepository users, AppGroupRepository groups, AppRoleRepository roles) {
+	private final SessionRevocationService sessionRevocationService;
+
+	public AdministrationService(AppUserRepository users, AppGroupRepository groups, AppRoleRepository roles,
+			SessionRevocationService sessionRevocationService) {
 		this.users = users;
 		this.groups = groups;
 		this.roles = roles;
+		this.sessionRevocationService = sessionRevocationService;
 	}
 
 	public AppUser createUser(AdminDtos.UserCreateRequest request) {
@@ -42,14 +48,21 @@ public class AdministrationService {
 
 	public AppUser updateUser(String id, AdminDtos.UserUpdateRequest request) {
 		AppUser user = user(id);
+		boolean wasEnabled = user.isEnabled();
+		Set<String> previousGroupIds = user.getGroups().stream().map(AppGroup::getId).collect(Collectors.toSet());
 		user.update(request.displayName(), request.email(), request.enabled());
 		user.getGroups().clear();
 		user.getGroups().addAll(groups(request.groupIds()));
+		if ((wasEnabled && !user.isEnabled()) || !previousGroupIds.equals(request.groupIds())) {
+			this.sessionRevocationService.revoke(user.getUsername(), "privilege_change");
+		}
 		return user;
 	}
 
 	public void deleteUser(String id) {
-		this.users.delete(user(id));
+		AppUser user = user(id);
+		this.sessionRevocationService.revoke(user.getUsername(), "account_deleted");
+		this.users.delete(user);
 	}
 
 	public AppUser user(String id) {

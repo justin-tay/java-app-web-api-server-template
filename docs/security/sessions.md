@@ -57,7 +57,7 @@ browser `localStorage` or `sessionStorage`.
 | Narrow cookie domain and path | Partial / deployment verification | The application does not set `Domain`, so the browser defaults to host-only scope. Confirm the effective `Path` and ensure unrelated applications do not share the production host. | **Spring Session default:** host-only domain and context-root path; **deployment:** verify effective scope. |
 | Avoid persistent browser storage | Implemented | The session cookie has no configured persistence lifetime, and the application does not use browser storage for session secrets. | **Spring Session default:** session cookie has no `Max-Age`; **application:** no browser-storage code. |
 | Rotate ID on authentication | Implemented and integration-tested | Spring Security's default session-fixation protection changes the session ID on authentication unless overridden. This configuration does not override it. | **Spring Security default:** session-fixation strategy; **application:** no override. `WebSecurityConfigurationSessionManagementIntegrationTest` proves a successful authentication replaces the JDBC session ID and removes the old row. |
-| Rotate or terminate on privilege change | Not implemented | Role/group changes and user disablement do not currently define how existing sessions are invalidated or reauthenticated. Define and implement this before managing production users. | **Unimplemented:** no application session-revocation listener, registry, or policy. |
+| Rotate or terminate on privilege change | Partial | Disabling or deleting a user, or changing their own group membership, immediately revokes their session through `SessionRevocationService`. Redefining a group's role set or deleting a role does not cascade to the sessions of every member affected; those changes still take effect only at the next authentication for each affected user. | **Application code:** `SessionRevocationService`, called from `AdministrationService`. |
 | Idle timeout | Implemented | The 15-minute timeout is server-enforced. Confirm it is appropriate for the system's data sensitivity and user workflow. | **Application configuration:** `server.servlet.session.timeout: 15m`; **Spring Boot:** applies it to Spring Session. |
 | Absolute timeout | Implemented | `AbsoluteSessionTimeoutFilter` invalidates a session once it reaches 12 hours, regardless of activity. | **Application code:** `AbsoluteSessionTimeoutFilter`, before `SecurityContextHolderFilter`, uses `app.session.absolute-timeout: 12h` and the shared `Clock`. |
 | Session renewal timeout | Not implemented | Periodic ID renewal is not required for the current 15-minute idle-only model, but reconsider it if a long absolute session lifetime is introduced. | **Unimplemented:** no application renewal filter or scheduler. |
@@ -72,8 +72,10 @@ browser `localStorage` or `sessionStorage`.
 Before production use, the service owner must record and implement decisions for:
 
 1. The rationale for the 15-minute idle and 12-hour absolute timeouts.
-2. How user disablement, group/role changes, and other privilege changes revoke or
-   refresh existing sessions.
+2. Whether redefining a group's role set, or deleting a role, should also revoke
+   the sessions of every member affected, and how any other privilege change not
+   already covered by `SessionRevocationService` should revoke or refresh existing
+   sessions.
 3. Risk events requiring reauthentication or MFA, coordinated with Keycloak.
 4. Database encryption, backups, retention, and access monitoring for session
    tables and their serialized attributes.

@@ -13,7 +13,9 @@ authorisation is owned and enforced by this application.
 - Access requires an enabled local user record.
 - Permissions are granted through organisational groups.
 - Users cannot receive roles directly.
-- Role and membership changes take effect when the user next authenticates.
+- A user's own group membership or account status change revokes their session
+  immediately; a group's role set changing, or a role being deleted, takes effect
+  for its members only when they next authenticate.
 
 ## Authorisation model
 
@@ -98,9 +100,12 @@ groups, roles, and their relationships.
 ## Security behaviour
 
 Authorities are loaded at login and remain associated with the authenticated
-session. A change to group membership or group roles affects a user at their
-next authentication event; it does not retroactively change authorities in an
-existing session.
+session. `SessionRevocationService` immediately revokes a user's session when an
+administrator disables their account, deletes it, or changes their own group
+membership, so those changes take effect without waiting for the session to
+expire. Redefining a group's role set, or deleting a role, does not enumerate and
+revoke the sessions of every member affected; those changes still take effect
+only at each affected user's next authentication event.
 
 This approach separates authentication from application authorisation, keeps
 access grants aligned with organisational responsibilities, and lets

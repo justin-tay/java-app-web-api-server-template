@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.session.MapSession;
 
 class SessionLifecycleAuditLoggerTest {
 
@@ -47,6 +48,30 @@ class SessionLifecycleAuditLoggerTest {
 		assertThat(this.logEvents.list.get(0).getKeyValuePairs().toString()).contains("session.id=");
 		assertThat(this.logEvents.list.get(1).getKeyValuePairs().toString())
 			.contains("session.termination_reason=\"logout\"");
+	}
+
+	@Test
+	void logsDestroyedEventForASpringSessionUsingTheAuditIdentifier() {
+		MapSession session = new MapSession("browser-session-credential");
+		session.setAttribute(SessionLifecycleAuditLogger.AUDIT_SESSION_ID_ATTRIBUTE, "audit-id");
+
+		this.sessionLifecycleAuditLogger.logSessionDestroyed(session, "privilege_change");
+
+		assertThat(this.logEvents.list).singleElement().satisfies(event -> {
+			assertThat(event.getFormattedMessage()).doesNotContain("browser-session-credential");
+			assertThat(event.getKeyValuePairs().toString()).doesNotContain("browser-session-credential")
+				.contains("session.id=\"audit-id\"")
+				.contains("session.termination_reason=\"privilege_change\"");
+		});
+	}
+
+	@Test
+	void doesNotLogASpringSessionWithoutAnEstablishedAuditIdentifier() {
+		MapSession session = new MapSession("browser-session-credential");
+
+		this.sessionLifecycleAuditLogger.logSessionDestroyed(session, "privilege_change");
+
+		assertThat(this.logEvents.list).isEmpty();
 	}
 
 }

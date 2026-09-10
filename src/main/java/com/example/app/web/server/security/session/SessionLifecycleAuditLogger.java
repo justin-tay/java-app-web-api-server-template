@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.web.authentication.session.SessionFixationProtectionEvent;
+import org.springframework.session.Session;
 import org.springframework.stereotype.Component;
 
 /**
@@ -60,6 +61,27 @@ public class SessionLifecycleAuditLogger {
 			return;
 		}
 		String auditSessionId = auditSessionId(session);
+		if (auditSessionId != null) {
+			log("destroy_session", "end", auditSessionId, reason);
+		}
+	}
+
+	/**
+	 * Records an administrative session revocation for a Spring Session {@link Session}
+	 * looked up outside a servlet request, such as when an administrator disables a user
+	 * or changes their group membership. Recorded only when its audit identifier was
+	 * established earlier, for the same reason
+	 * {@link #logSessionDestroyed(HttpSession, String)} guards against logging an unknown
+	 * session credential.
+	 * @param session the Spring Session being invalidated, or null if it could not be
+	 * found
+	 * @param reason the controlled invalidation reason
+	 */
+	public void logSessionDestroyed(Session session, String reason) {
+		if (session == null) {
+			return;
+		}
+		String auditSessionId = session.getAttribute(AUDIT_SESSION_ID_ATTRIBUTE);
 		if (auditSessionId != null) {
 			log("destroy_session", "end", auditSessionId, reason);
 		}
