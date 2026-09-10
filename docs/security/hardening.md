@@ -4,9 +4,9 @@ This document crosswalks the template against the [CIS Apache Tomcat 11 Benchmar
 v1.1.0](https://www.cisecurity.org/benchmark/apache_tomcat). It is a deployment
 planning aid, not a CIS conformance claim.
 
-Its scope is Tomcat hardening. Generic platform concerns—such as runtime-image
+Its scope is Tomcat hardening. Generic platform concerns such as runtime image
 minimization, operating-system permissions, process identity, mount layout, and log
-collector protection—are outside this crosswalk unless needed to explain a residual
+collector protection are outside this crosswalk unless needed to explain a residual
 risk after a Tomcat-specific control is not applicable.
 
 ## Scope and status meanings

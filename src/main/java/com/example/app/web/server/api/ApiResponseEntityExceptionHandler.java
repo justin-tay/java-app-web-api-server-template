@@ -103,14 +103,30 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 			.body(problemDetail(HttpStatus.CONFLICT, ex.getMessage(), ProblemTypes.RESOURCE_CONFLICT));
 	}
 
-	@ExceptionHandler(IllegalArgumentException.class)
-	public ResponseEntity<ProblemDetail> handleIllegalArgument(IllegalArgumentException ex,
-			HttpServletRequest request) {
+	@ExceptionHandler(BadRequestException.class)
+	public ResponseEntity<ProblemDetail> handleBadRequest(BadRequestException ex, HttpServletRequest request) {
 		logInputValidationFailure(request, ex, "InvalidRequest", null);
 		ProblemDetail problemDetail = problemDetail(HttpStatus.BAD_REQUEST, ex.getMessage(),
 				ProblemTypes.VALIDATION_FAILED);
 		problemDetail.setTitle("Validation failed");
 		problemDetail.setProperty("errors", List.of(Map.of("code", "InvalidRequest", "message", ex.getMessage())));
+		return ResponseEntity.badRequest().body(problemDetail);
+	}
+
+	/**
+	 * Handles the JDK's general-purpose "invalid argument" exception. Unlike
+	 * {@link BadRequestException}, an {@link IllegalArgumentException} is not necessarily
+	 * thrown with an external audience in mind. Consistent with every other
+	 * {@code validate_input} event, its message is never logged or included in the
+	 * response; only its exception type is recorded.
+	 */
+	@ExceptionHandler(IllegalArgumentException.class)
+	public ResponseEntity<ProblemDetail> handleIllegalArgument(IllegalArgumentException ex,
+			HttpServletRequest request) {
+		logInputValidationFailure(request, ex, ex.getClass().getSimpleName(), null);
+		ProblemDetail problemDetail = problemDetail(HttpStatus.BAD_REQUEST, GENERIC_ERROR_DETAIL,
+				ProblemTypes.VALIDATION_FAILED);
+		problemDetail.setTitle("Validation failed");
 		return ResponseEntity.badRequest().body(problemDetail);
 	}
 

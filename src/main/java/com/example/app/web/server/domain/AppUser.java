@@ -1,17 +1,12 @@
 package com.example.app.web.server.domain;
 
-import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.UUID;
 
 import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotEmpty;
@@ -22,10 +17,7 @@ import com.example.app.web.server.validation.Username;
 
 @Entity
 @Table(name = "app_user")
-public class AppUser {
-
-	@Id
-	private String id;
+public class AppUser extends AbstractAuditableEntity {
 
 	@Username
 	private String username;
@@ -45,10 +37,6 @@ public class AppUser {
 			inverseJoinColumns = @JoinColumn(name = "group_id"))
 	private Set<AppGroup> groups = new HashSet<>();
 
-	private Instant createdAt;
-
-	private Instant updatedAt;
-
 	protected AppUser() {
 	}
 
@@ -57,22 +45,6 @@ public class AppUser {
 		this.displayName = displayName;
 		this.email = email;
 		this.enabled = enabled;
-	}
-
-	@PrePersist
-	void onCreate() {
-		this.id = UUID.randomUUID().toString();
-		this.createdAt = Instant.now();
-		this.updatedAt = this.createdAt;
-	}
-
-	@PreUpdate
-	void onUpdate() {
-		this.updatedAt = Instant.now();
-	}
-
-	public String getId() {
-		return this.id;
 	}
 
 	public String getUsername() {
@@ -99,7 +71,7 @@ public class AppUser {
 		this.displayName = displayName;
 		this.email = email;
 		this.enabled = enabled;
-		this.updatedAt = Instant.now();
+		touch();
 	}
 
 }
