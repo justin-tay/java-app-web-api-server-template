@@ -17,6 +17,7 @@ fields where available and documents two intentional project extensions.
 | Request received | INFO | `web` | `access`, `start` | `receive_request` | [Event reference](event-reference.md#request-received-receive_request) |
 | Request completed | INFO | `web` | `access`, `end` | `complete_request` | [Event reference](event-reference.md#request-completed-complete_request) |
 | Input validation failure | WARN | `web` | `error` | `validate_input` | [Event reference](event-reference.md#input-validation-failed-validate_input) |
+| Firewall rejection | WARN | `web` | `error` | `reject_request` | [Event reference](event-reference.md#request-rejected-by-the-http-firewall-reject_request) |
 | Authentication success | INFO | `authentication` | `info` | `login` | [Event reference](event-reference.md#authentication-succeeded-login) |
 | Authentication failure | WARN | `authentication` | `denied` | `login` | [Event reference](event-reference.md#authentication-failed-login) |
 | Authorization denial | WARN | `web`, `api` | `access`, `denied` | `authorize_access` | [Event reference](event-reference.md#authorization-denied-authorize_access) |
@@ -80,6 +81,12 @@ One request normally produces a `receive_request` and `complete_request` pair
 sharing `http.request.id` and `event.start`. The completed event's
 `event.duration` is `event.end - event.start` in nanoseconds. The filters retain
 the correlation ID and authenticated user for asynchronous completion.
+
+A request rejected by the HTTP firewall (`reject_request`) is the one
+exception: `SecurityLoggingContextFilter` has not yet run when it is emitted,
+so there is no `receive_request`/`complete_request` pair, no
+`http.request.id`, and no MDC context. `ProblemDetailRequestRejectedHandler`
+adds `source.ip` directly from the servlet request instead of from MDC.
 
 ## Sensitive-data policy
 

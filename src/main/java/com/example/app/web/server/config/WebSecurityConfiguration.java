@@ -27,6 +27,7 @@ import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.annotation.web.configurers.DefaultLoginPageConfigurer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -65,6 +66,7 @@ import com.example.app.web.server.logging.client.ClientIpResolver;
 import com.example.app.web.server.logging.request.RequestIdResolver;
 import com.example.app.web.server.security.authentication.oidc.LocalAuthoritiesOidcUserService;
 import com.example.app.web.server.security.authorization.ProblemDetailAccessDeniedHandler;
+import com.example.app.web.server.security.firewall.ProblemDetailRequestRejectedHandler;
 import com.example.app.web.server.security.session.AbsoluteSessionTimeoutFilter;
 import com.example.app.web.server.security.session.ContentNegotiatingSessionExpiredStrategy;
 import com.example.app.web.server.security.session.SessionLifecycleAuditLogger;
@@ -323,6 +325,18 @@ public class WebSecurityConfiguration {
 		RestClientAuthorizationCodeTokenResponseClient accessTokenResponseClient = new RestClientAuthorizationCodeTokenResponseClient();
 		accessTokenResponseClient.addParametersConverter(parametersConverter);
 		return accessTokenResponseClient;
+	}
+
+	/**
+	 * Logs a request rejected by Spring Security's {@code HttpFirewall} (the default
+	 * {@code StrictHttpFirewall}) in this application's structured logging format and
+	 * returns an RFC 9457 Problem Details response, instead of the framework default of a
+	 * bare {@code sendError(400)} logged at {@code DEBUG} through commons-logging.
+	 * @return the customizer that installs {@link ProblemDetailRequestRejectedHandler}
+	 */
+	@Bean
+	WebSecurityCustomizer requestRejectedHandlerCustomizer() {
+		return web -> web.requestRejectedHandler(new ProblemDetailRequestRejectedHandler());
 	}
 
 	/**
