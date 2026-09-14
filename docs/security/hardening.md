@@ -34,7 +34,7 @@ image/runtime scan for the actual deployed version.
 | CIS ID | CIS intent | Status | Template and deployment comment |
 | --- | --- | --- | --- |
 | 1.1 | Remove extraneous files and directories | Not applicable to embedded Tomcat | Embedded Tomcat does not ship the standalone `docs`, `examples`, Manager, or Host Manager web applications that this control targets. Runtime-image minimization is a separate platform-hardening concern. |
-| 1.2 | Disable unused connectors | Configured | The template configures one embedded HTTPS connector through `server.ssl` and does not add HTTP, AJP, or additional Tomcat connectors. Local and test profiles deliberately disable TLS for development. Expose only the required listener port at the container, firewall, and ingress. |
+| 1.2 | Disable unused connectors | Configured | The template configures one embedded HTTPS connector through `server.ssl` for the application, and does not add AJP or any further Tomcat connector. It does add a second, separate embedded server for the Actuator management port (`management.server.port`, plaintext HTTP); see [Actuator management port](#actuator-management-port) below. Local and test profiles deliberately disable TLS for development. Expose only the required listener ports at the container, firewall, and ingress. |
 
 ## 2. Limit server-platform information leaks
 
@@ -52,8 +52,34 @@ image/runtime scan for the actual deployed version.
 
 | CIS ID | CIS intent | Status | Template and deployment comment |
 | --- | --- | --- | --- |
-| 3.1 | Set a nondeterministic shutdown command | Not applicable to embedded Tomcat | Spring Boot does not use the standalone Catalina shutdown command. Restrict process and orchestration-control-plane access instead. |
-| 3.2 | Disable the shutdown port | Not applicable to embedded Tomcat | There is no standalone Tomcat shutdown port. Do not expose an application-management port unless it is authenticated and network-restricted. |
+| 3.1 | Set a nondeterministic shutdown command | Not applicable to embedded Tomcat | Standalone Tomcat's `server.xml` `<Server>` element has a `shutdown` attribute: a plaintext magic string (default `SHUTDOWN`) that, when received on the shutdown port, stops the server immediately with no authentication. This control asks for that string to be changed to something unguessable. Spring Boot's embedded Tomcat is started programmatically and never registers this listener at all, so there is no command string to harden. |
+| 3.2 | Disable the shutdown port | Not applicable to embedded Tomcat | The companion control to 3.1: the shutdown port itself (traditionally `8005`) should be disabled (`port="-1"` in `server.xml`) or bound to `localhost` only, so the magic-string listener in 3.1 is not reachable over the network even if the command string were ever guessed or leaked. Embedded Tomcat opens no such raw TCP listener, so this is a different mechanism than, and not a substitute for, securing the Spring Boot Actuator management port added separately; see [Actuator management port](#actuator-management-port) below. |
+
+## Actuator management port
+
+Neither of the two Tomcat shutdown-port controls above covers this, because it is a
+Spring Boot-level HTTP surface, not a raw TCP listener: Spring Boot Actuator is added
+with its own embedded server on a separate port (`management.server.port: 8082`),
+distinct from the application port (`8081`). It exists to give an ALB or equivalent
+load balancer an HTTP health check without exposing the rest of the application.
+
+Only `health` is exposed (`management.endpoints.web.exposure.include: health`) and it
+hides all detail (`show-details`/`show-components: never`), so an unauthenticated
+request returns only `{"status":"UP"}`. Endpoints are served under `/app` rather than
+the default `/actuator` base path, so an unauthenticated scan does not immediately
+fingerprint the framework; this is obscurity, not a control, and does not reduce the
+network-restriction requirement below. `/app/health` is the only actuator path
+permitted by `WebSecurityConfiguration`; the port stays plaintext HTTP because
+network restriction, not TLS, is its security boundary.
+
+This is a deployment decision, not a template guarantee: the management port must
+still be network-restricted (security group/NACL) to the load balancer's health-check
+path and any internal ops network, and must never share a listener or target group
+with the application port. Adding any other endpoint (`metrics`, `info`, `env`, etc.)
+needs its own authentication mechanism for the management port first; see
+[ADR 0008](../adr/0008-actuator-management-port.md) for the full rationale, including
+two easy-to-get-backwards behaviors this port has because it shares Spring Security's
+filter chain with the application while running as a separate embedded server.
 
 ## 4. Protect Tomcat configurations
 
@@ -149,3 +175,7 @@ Before production use, the template adopter should at least:
    alerting, and loss detection; do not add secret-bearing request data to logs.
 6. Re-run this crosswalk whenever Spring Boot, the JDK, Tomcat, the container image,
    ingress, or identity-provider topology changes.
+7. Restrict the Actuator management port (`8082`) to the load balancer's health-check
+   path and any internal ops network only; never route it through the same listener
+   or target group as the application port. See
+   [ADR 0008](../adr/0008-actuator-management-port.md).

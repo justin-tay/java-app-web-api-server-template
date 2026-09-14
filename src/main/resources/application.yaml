@@ -3,6 +3,26 @@ app:
 
   session:
     absolute-timeout: 12h
+management:
+  server:
+    # Separate port so the ALB/monitoring health check never shares a listener
+    # with the application. Deployments must restrict this port to the
+    # health-check and internal ops network only; see docs/adr/0008.
+    port: 8082
+  endpoints:
+    web:
+      # Avoid the well-known /actuator prefix so an unauthenticated probe does
+      # not immediately fingerprint the framework; see docs/adr/0008.
+      base-path: /app
+      exposure:
+        # Only health is exposed. Adding any other endpoint (metrics, info,
+        # etc.) requires adding authentication for the management port first;
+        # see docs/adr/0008.
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
 logging:
   structured:
     ecs:

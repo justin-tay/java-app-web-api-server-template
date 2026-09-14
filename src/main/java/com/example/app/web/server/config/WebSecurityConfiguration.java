@@ -162,6 +162,17 @@ public class WebSecurityConfiguration {
 				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/oauth2/jwks"))
 				.anonymous())
 			.authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
+				// The management port (see docs/adr/0008) is a separate embedded server
+				// that nonetheless shares this filter chain, so it goes through these
+				// rules too. Only the health check the ALB/monitoring probes is
+				// unauthenticated; every other actuator endpoint falls through to the
+				// authenticated() rule below, and is also not exposed (see
+				// management.endpoints.web.exposure.include). The path uses the
+				// management.endpoints.web.base-path configured for actuator, not the
+				// /actuator default.
+				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/app/health"))
+				.permitAll())
+			.authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
 				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/**"))
 				.authenticated())
 			.sessionManagement(sessionManagement -> sessionManagement.maximumSessions(1)
