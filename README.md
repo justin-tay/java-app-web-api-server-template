@@ -81,9 +81,6 @@ the HTTPS endpoint.
 
 ## Integration Details
 
-See the [documentation index](docs/README.md) for security guidance,
+See the [documentation index](docs/README.md) for the system design document,
 architecture decisions, specifications, and retained standards. The primary
-implementation references are [security headers](docs/security/headers.md),
-[security logging](docs/security/logging/README.md),
-[security authentication](docs/security/authentication.md), and
-[security authorization](docs/security/authorization.md).
+implementation reference is the [security chapter](docs/system-design/06-security/README.md).

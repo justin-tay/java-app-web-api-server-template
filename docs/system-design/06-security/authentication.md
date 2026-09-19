@@ -167,10 +167,10 @@ sequenceDiagram
 | Multi-factor authentication | Delegated to identity provider, not enabled by default | Keycloak can require OTP or WebAuthn per realm or per user, but the supplied local development realm does not enable it. Enabling MFA is a production identity-provider decision. | External: Keycloak; **unimplemented:** `bin/configure-keycloak.js` provisions no realm MFA policy. |
 | FIDO2/WebAuthn passkeys | Not implemented | Not configured in the supplied realm. | External: Keycloak; product decision. |
 | Security questions or memorable words | Not applicable | The application implements no knowledge-based recovery mechanism. | N/A. |
-| Log authentication successes and failures | Implemented | `SecurityAuditEventLogger` records login success, login failure, and logout, without credentials or tokens. See [security logging](logging/README.md). | **Application code:** `SecurityAuditEventLogger`. |
+| Log authentication successes and failures | Implemented | `SecurityAuditEventLogger` records login success, login failure, and logout, without credentials or tokens. See [security logging](../05-crosscutting-concepts/logging/README.md). | **Application code:** `SecurityAuditEventLogger`. |
 | Use a standard, audited authentication protocol rather than a custom scheme | Implemented | The application delegates authentication to Keycloak through Spring Security's OAuth2 Login/OIDC client rather than a custom credential scheme. | **Application configuration:** `spring.security.oauth2.client`; **Spring Security:** `oauth2Login()`. |
 | Validate ID tokens: issuer, audience, signature, and expiration | Implemented | Described in [ID-token and access-token validation](#id-token-and-access-token-validation) above. | **Application code:** `jwtDecoderFactory()`, `oidcIdTokenValidator()`. |
-| Use well-maintained libraries/SDKs and provider discovery/JWKS | Implemented | Spring Security's OIDC client stack and Nimbus JOSE+JWT are used throughout; keys are discovered through JWKS rather than embedded or hand-rolled cryptography. | **Dependencies:** `spring-boot-starter-oauth2-client`, Nimbus JOSE+JWT. See [ADR 0006](../adr/0006-tls-and-oauth-client-key-management.md). |
+| Use well-maintained libraries/SDKs and provider discovery/JWKS | Implemented | Spring Security's OIDC client stack and Nimbus JOSE+JWT are used throughout; keys are discovered through JWKS rather than embedded or hand-rolled cryptography. | **Dependencies:** `spring-boot-starter-oauth2-client`, Nimbus JOSE+JWT. See [ADR 0006](../../adr/0006-tls-and-oauth-client-key-management.md). |
 | SAML | Not applicable | The template uses OIDC exclusively. | N/A. |
 | Password-manager compatibility (form field types, paste, tab order) | Not applicable to the application | The credential-entry form is Keycloak's hosted login page, not an application-rendered form. | External: Keycloak. |
 | Self-service email-address change process | Not applicable | The local user's `email` field is maintained only through the administration API by an authorised administrator (see [Authorization](authorization.md)), not through a user-initiated self-service flow, so the cheat sheet's confirmation/nonce process does not apply. | **Application code:** administration API; N/A: no self-service flow exists. |
@@ -203,15 +203,15 @@ following:
    login and consent pages.
 3. Login success, login failure, and logout events are recorded by
    `SecurityAuditEventLogger` without credentials or tokens; see
-   [security logging](logging/README.md).
+   [security logging](../05-crosscutting-concepts/logging/README.md).
 4. A tampered, expired, or wrong-audience ID token is rejected.
 5. The provisioned realm's brute-force/lockout policy, and any MFA
    requirement, actually take effect.
 
 Related documentation: [Authorization](authorization.md),
 [Sessions](sessions.md), [HTTP security headers](headers.md),
-[security logging](logging/README.md), [Hardening](hardening.md),
+[security logging](../05-crosscutting-concepts/logging/README.md), [Hardening](hardening.md),
 [Security and API error responses](error-responses.md),
-[ADR 0004](../adr/0004-keycloak-authentication-local-authorisation.md), and
-[ADR 0006](../adr/0006-tls-and-oauth-client-key-management.md).
+[ADR 0004](../../adr/0004-keycloak-authentication-local-authorisation.md), and
+[ADR 0006](../../adr/0006-tls-and-oauth-client-key-management.md).
 

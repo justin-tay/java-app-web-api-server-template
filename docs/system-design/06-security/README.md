@@ -13,7 +13,7 @@ security certification.
 | Error-response disclosure policy | [Error responses](error-responses.md) |
 | Servlet-container and runtime hardening | [Hardening](hardening.md) |
 | OWASP ASVS verification crosswalk | [ASVS crosswalk](asvs.md) |
-| ECS security and request logging | [Logging](logging/README.md) |
+| ECS security and request logging | [Logging](../05-crosscutting-concepts/logging/README.md) |
 
 Durable technical choices are recorded separately in
-[Architecture Decision Records](../adr/README.md).
+[Architecture Decision Records](../../adr/README.md).

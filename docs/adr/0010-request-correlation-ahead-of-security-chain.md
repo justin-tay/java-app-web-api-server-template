@@ -70,6 +70,6 @@ ahead of Spring Security's chain must follow the same pattern: register it as a
 must survive to the end of the request), scope and remove only the MDC keys it adds
 itself rather than blanket-clearing, and add it explicitly to `MockMvcITSupport` rather
 than assuming MockMvc will discover it. Field contract and correlation semantics are
-maintained in [`docs/security/logging/schema.md`](../security/logging/schema.md),
-[`docs/security/logging/event-reference.md`](../security/logging/event-reference.md),
-and [`docs/security/logging/README.md`](../security/logging/README.md).
+maintained in [`docs/system-design/05-crosscutting-concepts/logging/schema.md`](../system-design/05-crosscutting-concepts/logging/schema.md),
+[`docs/system-design/05-crosscutting-concepts/logging/event-reference.md`](../system-design/05-crosscutting-concepts/logging/event-reference.md),
+and [`docs/system-design/05-crosscutting-concepts/logging/README.md`](../system-design/05-crosscutting-concepts/logging/README.md).

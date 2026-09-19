@@ -23,5 +23,5 @@ alerting are deployment-platform responsibilities.
 
 New application audit events must use ECS fields and preserve the redaction
 rules. The detailed field contract and operational guidance are maintained in
-[`docs/security/logging/README.md`](../security/logging/README.md) and
-[`docs/security/logging/schema.md`](../security/logging/schema.md).
+[`docs/system-design/05-crosscutting-concepts/logging/README.md`](../system-design/05-crosscutting-concepts/logging/README.md) and
+[`docs/system-design/05-crosscutting-concepts/logging/schema.md`](../system-design/05-crosscutting-concepts/logging/schema.md).

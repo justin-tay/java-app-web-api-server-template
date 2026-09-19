@@ -60,6 +60,6 @@ with this decision's library-only approach.
 Every log statement with an active sampled span now carries `trace.id`/`span.id`, not
 only ones this application's own filters touch; nothing is exported anywhere today.
 Field contract and correlation semantics are maintained in
-[`docs/security/logging/schema.md`](../security/logging/schema.md),
-[`docs/security/logging/event-reference.md`](../security/logging/event-reference.md),
-and [`docs/security/logging/README.md`](../security/logging/README.md).
+[`docs/system-design/05-crosscutting-concepts/logging/schema.md`](../system-design/05-crosscutting-concepts/logging/schema.md),
+[`docs/system-design/05-crosscutting-concepts/logging/event-reference.md`](../system-design/05-crosscutting-concepts/logging/event-reference.md),
+and [`docs/system-design/05-crosscutting-concepts/logging/README.md`](../system-design/05-crosscutting-concepts/logging/README.md).

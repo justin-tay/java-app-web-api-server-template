@@ -29,4 +29,4 @@ exposed, not on a credential guarding what is. Network restriction of the manage
 port to the load balancer's health-check path and internal ops network remains a
 deployment responsibility this template cannot enforce in code. Implementation detail
 is maintained in
-[`docs/security/hardening.md`](../security/hardening.md#actuator-management-port).
+[`docs/system-design/06-security/hardening.md`](../system-design/06-security/hardening.md#actuator-management-port).

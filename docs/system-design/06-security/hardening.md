@@ -77,7 +77,7 @@ still be network-restricted (security group/NACL) to the load balancer's health-
 path and any internal ops network, and must never share a listener or target group
 with the application port. Adding any other endpoint (`metrics`, `info`, `env`, etc.)
 needs its own authentication mechanism for the management port first; see
-[ADR 0008](../adr/0008-actuator-management-port.md) for the full rationale, including
+[ADR 0008](../../adr/0008-actuator-management-port.md) for the full rationale, including
 two easy-to-get-backwards behaviors this port has because it shares Spring Security's
 filter chain with the application while running as a separate embedded server.
 
@@ -121,7 +121,7 @@ filter chain with the application while running as a separate embedded server.
 
 | CIS ID | CIS intent | Status | Template and deployment comment |
 | --- | --- | --- | --- |
-| 7.1 | Application-specific logging | Configured | ECS structured logging, request lifecycle logging, authentication/authorization events, and safe error logging are documented in [security logging](logging/README.md) and [the logging schema](logging/schema.md). Configure durable centralized collection and alerting in production. |
+| 7.1 | Application-specific logging | Configured | ECS structured logging, request lifecycle logging, authentication/authorization events, and safe error logging are documented in [security logging](../05-crosscutting-concepts/logging/README.md) and [the logging schema](../05-crosscutting-concepts/logging/schema.md). Configure durable centralized collection and alerting in production. |
 | 7.2 | Specify file handlers in `logging.properties` | Not applicable to embedded Tomcat | The template intentionally logs to standard output for platform collection rather than Tomcat JULI file handlers. Ensure the container/orchestrator exports logs durably and protects access. |
 | 7.3 | Set `className` correctly in `context.xml` | Not applicable to embedded Tomcat | This is a Tomcat access-log-valve control. Request logging is provided by `RequestLoggingFilter`; configure ingress/proxy access logs as a complementary boundary record. |
 | 7.4 | Use a secure logging directory in `context.xml` | Not applicable to embedded Tomcat | No Tomcat access-log valve or `context.xml` is configured. Protect the platform log collector, bucket/index, and credentials. |
@@ -178,4 +178,4 @@ Before production use, the template adopter should at least:
 7. Restrict the Actuator management port (`8082`) to the load balancer's health-check
    path and any internal ops network only; never route it through the same listener
    or target group as the application port. See
-   [ADR 0008](../adr/0008-actuator-management-port.md).
+   [ADR 0008](../../adr/0008-actuator-management-port.md).
