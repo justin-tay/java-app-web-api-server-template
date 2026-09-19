@@ -31,3 +31,16 @@ reauthentication) that is independent of infrastructure, and that this
 template does not make on the adopter's behalf.
 _Avoid_: "deployment decision" for this case (that is an infra/ops choice,
 not a business/policy one)
+
+**Control implementation**:
+A document or section that maps an external standard's or catalog's
+requirements (OWASP ASVS, an OWASP cheat sheet, the CIS Tomcat Benchmark) to
+this template's actual implementation status, per requirement. Named after
+OSCAL's Component Definition model, which uses this exact term for a
+component describing how it satisfies a control catalog. See
+[ADR 0014](docs/adr/0014-control-implementation-terminology.md).
+_Avoid_: "crosswalk" (that term properly means mapping two different
+standards to each other, not a standard to an implementation), "OWASP
+review", "recommendation matrix", "requirements traceability matrix" (that
+name is reserved for a separate contractual deliverable, not this project's
+internal documents)
