@@ -1,4 +1,4 @@
-# Session security
+# Sessions
 
 This document records the session-management posture of the application against
 the [OWASP Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html).
@@ -44,7 +44,7 @@ The cookie is non-persistent because no `Max-Age` or `Expires` value is
 configured. No session ID, OAuth token, or credential is deliberately stored in
 browser `localStorage` or `sessionStorage`.
 
-## OWASP review
+## OWASP control implementation
 
 | OWASP area | Status | Current treatment or required action | Implementation |
 | --- | --- | --- | --- |
@@ -109,6 +109,6 @@ following:
 8. Login, logout, timeout, privilege-change, and concurrent-session behavior
    match the documented production decisions.
 
-Related documentation: [Security authentication](authentication.md),
-[HTTP security headers](headers.md), [security logging](../05-crosscutting-concepts/logging/README.md), and
+Related documentation: [Authentication](authentication.md),
+[HTTP security headers](headers.md), [Logging](../05-crosscutting-concepts/logging/README.md), and
 [ADR 0005](../../adr/0005-jdbc-backed-server-side-sessions.md).

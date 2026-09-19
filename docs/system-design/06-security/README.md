@@ -12,7 +12,7 @@ security certification.
 | HTTP response security headers | [Headers](headers.md) |
 | Error-response disclosure policy | [Error responses](error-responses.md) |
 | Servlet-container and runtime hardening | [Hardening](hardening.md) |
-| OWASP ASVS verification crosswalk | [ASVS crosswalk](asvs.md) |
+| OWASP ASVS control implementation | [ASVS](asvs.md) |
 | ECS security and request logging | [Logging](../05-crosscutting-concepts/logging/README.md) |
 
 Durable technical choices are recorded separately in

@@ -1,4 +1,4 @@
-# Security Authorization
+# Authorization
 
 ## Purpose and scope
 

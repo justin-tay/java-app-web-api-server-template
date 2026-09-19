@@ -10,20 +10,21 @@ maintainability, flexibility, safety) and their subcharacteristics. This
 chapter records how the template currently addresses them, so gaps are
 visible rather than implicit.
 
-## Where a crosswalk already exists
+## Where a control implementation already exists
 
 **Security** is the only characteristic with a complete, verification-item
-by verification-item crosswalk: the
-[OWASP ASVS crosswalk](06-security/asvs.md) maps ASVS requirements to what is
+by verification-item control implementation: the
+[OWASP ASVS control implementation](06-security/asvs.md) maps ASVS requirements to what is
 implemented, what is a deployment decision, and what is unimplemented. That
-crosswalk, not this chapter, is the source of truth for the template's
+document, not this chapter, is the source of truth for the template's
 security posture.
 
 ## Other characteristics
 
 The remaining ISO/IEC 25010 characteristics do not yet have an equivalent
-crosswalk in this template. Adding one, following the same pattern as
-[the ASVS crosswalk](06-security/asvs.md) (one row per requirement, a status,
+control implementation in this template. Adding one, following the same
+pattern as
+[the ASVS control implementation](06-security/asvs.md) (one row per requirement, a status,
 and evidence pointing at the responsible code or document), is future work,
 not something this chapter should assert without the underlying assessment
 having actually been done.

@@ -12,8 +12,9 @@ login state, is stored in the `SPRING_SESSION` tables.
 
 Server-side session storage keeps authentication and OAuth2 state out of the
 cookie and permits session persistence to use the application's database
-platform. The session schema is version-controlled in Liquibase under ADR 0001,
-not created by Spring Boot at runtime.
+platform. The session schema is version-controlled in Liquibase under
+[ADR 0001](0001-database-schema-management.md), not created by Spring Boot at
+runtime.
 
 ## Consequences
 

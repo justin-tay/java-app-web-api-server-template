@@ -1,12 +1,13 @@
-# Security hardening crosswalk
+# Hardening
 
-This document crosswalks the template against the [CIS Apache Tomcat 11 Benchmark
-v1.1.0](https://www.cisecurity.org/benchmark/apache_tomcat). It is a deployment
-planning aid, not a CIS conformance claim.
+This document is the CIS Tomcat Benchmark control implementation for the
+template: a mapping against the
+[CIS Apache Tomcat 11 Benchmark v1.1.0](https://www.cisecurity.org/benchmark/apache_tomcat).
+It is a deployment planning aid, not a CIS conformance claim.
 
 Its scope is Tomcat hardening. Generic platform concerns such as runtime image
 minimization, operating-system permissions, process identity, mount layout, and log
-collector protection are outside this crosswalk unless needed to explain a residual
+collector protection are outside this control implementation unless needed to explain a residual
 risk after a Tomcat-specific control is not applicable.
 
 ## Scope and status meanings
@@ -16,7 +17,7 @@ This template instead runs Spring Boot 4 with embedded Tomcat 11. As a
 result, controls referring to `$CATALINA_HOME`, `$CATALINA_BASE`, `server.xml`,
 Tomcat Manager, Catalina scripts, or Tomcat Realms cannot be assessed literally here.
 The supplied CIS benchmark workbook and document are the source for the control set;
-control names below are concise labels to make this crosswalk navigable.
+control names below are concise labels to make this control implementation navigable.
 
 | Status | Meaning |
 | --- | --- |
@@ -121,7 +122,7 @@ filter chain with the application while running as a separate embedded server.
 
 | CIS ID | CIS intent | Status | Template and deployment comment |
 | --- | --- | --- | --- |
-| 7.1 | Application-specific logging | Configured | ECS structured logging, request lifecycle logging, authentication/authorization events, and safe error logging are documented in [security logging](../05-crosscutting-concepts/logging/README.md) and [the logging schema](../05-crosscutting-concepts/logging/schema.md). Configure durable centralized collection and alerting in production. |
+| 7.1 | Application-specific logging | Configured | ECS structured logging, request lifecycle logging, authentication/authorization events, and safe error logging are documented in [Logging](../05-crosscutting-concepts/logging/README.md) and [the logging schema](../05-crosscutting-concepts/logging/schema.md). Configure durable centralized collection and alerting in production. |
 | 7.2 | Specify file handlers in `logging.properties` | Not applicable to embedded Tomcat | The template intentionally logs to standard output for platform collection rather than Tomcat JULI file handlers. Ensure the container/orchestrator exports logs durably and protects access. |
 | 7.3 | Set `className` correctly in `context.xml` | Not applicable to embedded Tomcat | This is a Tomcat access-log-valve control. Request logging is provided by `RequestLoggingFilter`; configure ingress/proxy access logs as a complementary boundary record. |
 | 7.4 | Use a secure logging directory in `context.xml` | Not applicable to embedded Tomcat | No Tomcat access-log valve or `context.xml` is configured. Protect the platform log collector, bucket/index, and credentials. |
@@ -159,9 +160,10 @@ filter chain with the application while running as a separate embedded server.
 | 9.18 | Use `logEffectiveWebXml` and `metadata-complete` in production | Not applicable to embedded Tomcat | Spring Boot intentionally discovers components and security configuration through application code. Do not set `metadata-complete` without a full compatibility review; control component discovery through dependency and source review. |
 | 9.19 | Encrypt Manager application passwords | Not applicable to embedded Tomcat | There is no `tomcat-users.xml` or Manager application. Store all production secrets in the selected secret manager and inject them with least privilege. |
 
-## Deployment checklist
+## Required production decisions
 
-Before production use, the template adopter should at least:
+Before production use, the template adopter must record and implement
+decisions for:
 
 1. Build a minimal, patched, non-root, immutable image; mount only narrowly scoped
    writable paths and protect deployment configuration and secrets.
@@ -173,7 +175,7 @@ Before production use, the template adopter should at least:
    enable client-certificate authentication.
 5. Collect the ECS standard-output logs centrally with protected access, retention,
    alerting, and loss detection; do not add secret-bearing request data to logs.
-6. Re-run this crosswalk whenever Spring Boot, the JDK, Tomcat, the container image,
+6. Re-run this control implementation whenever Spring Boot, the JDK, Tomcat, the container image,
    ingress, or identity-provider topology changes.
 7. Restrict the Actuator management port (`8082`) to the load balancer's health-check
    path and any internal ops network only; never route it through the same listener

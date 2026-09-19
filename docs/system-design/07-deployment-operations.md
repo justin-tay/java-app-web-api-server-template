@@ -49,5 +49,5 @@ deployment environment rather than configuring them itself:
 
 These are also called out individually, with an explicit "Deployment
 decision required" marker, throughout the
-[OWASP ASVS crosswalk](06-security/asvs.md) and
+[OWASP ASVS control implementation](06-security/asvs.md) and
 [Hardening](06-security/hardening.md).

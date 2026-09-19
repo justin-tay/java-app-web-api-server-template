@@ -10,7 +10,8 @@ samples every request (`management.tracing.sampling.probability=1.0`), but expor
 spans anywhere: tracing exists only to add `trace.id`/`span.id` to structured logs.
 `TraceCorrelationJsonMembersCustomizer` renames Micrometer's own `traceId`/`spanId` MDC
 entries to those ECS field names at JSON serialization time, alongside the unchanged
-`http.request.id` (established by `RequestCorrelationContextFilter`; see docs/adr/0010).
+`http.request.id` (established by `RequestCorrelationContextFilter`; see
+[ADR 0010](0010-request-correlation-ahead-of-security-chain.md)).
 
 ## Context
 

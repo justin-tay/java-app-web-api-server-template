@@ -1,4 +1,4 @@
-# Security and API error responses
+# Error responses
 
 The API returns RFC 9457 Problem Details (`application/problem+json`). Clients
 must use the `type` URI as the stable, machine-readable error identifier; the

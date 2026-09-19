@@ -14,7 +14,8 @@ exit. `LoggingContextCleanupFilter`, registered even earlier
 place that clears MDC entirely, once, on exit, as a safety net for a reused servlet
 thread. `AuthenticatedUserLoggingContextFilter` keeps its original chain position and now
 only adds `user.name` post-authentication; session-audit initialization moved to its own
-filter for unrelated reasons (see docs/adr/0011).
+filter for unrelated reasons (see
+[ADR 0011](0011-session-audit-initialization-checked-every-request.md)).
 
 ## Context
 
