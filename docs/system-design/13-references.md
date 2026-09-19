@@ -1,4 +1,4 @@
-# 10. References
+# 13. References
 
 Material that informs this system design but is deliberately not duplicated
 into it. See [Introduction](01-introduction.md#scope) for why these stay
@@ -22,7 +22,7 @@ Currently: `user-authorisation/`.
 kept as reference material rather than paraphrased:
 
 - ISO/IEC 25010:2023 quality characteristics, used in
-  [Quality Requirements](08-quality-requirements.md).
+  [Quality Requirements](10-quality-requirements.md).
 - Singapore's IM8 cybersecurity and digital service standard control
   catalogs, and IM8 risk/impact profiles.
 
@@ -30,5 +30,5 @@ kept as reference material rather than paraphrased:
 
 - [Keycloak](https://github.com/keycloak/keycloak) — the OIDC identity
   provider used for authentication; see
-  [System Context](02-system-context.md) and
-  [Authentication](06-security/authentication.md).
+  [Context and Scope](03-context-and-scope.md) and
+  [Authentication](08-crosscutting-concepts/security/authentication.md).

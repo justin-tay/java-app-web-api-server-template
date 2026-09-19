@@ -1,13 +1,13 @@
-# 2. System Context
+# 3. Context and Scope
 
 ## Actors and external systems
 
 | Actor / system | Relationship |
 | --- | --- |
 | Browser client | The primary consumer. Authenticates via an OIDC login redirect, then calls the API using a server-side session cookie. |
-| Keycloak (OIDC Identity Provider) | The application's one external dependency. Issues identity for authentication; the application never manages passwords itself. See [Authentication](06-security/authentication.md). |
-| Relational database | Stores application data (local users, groups, roles) and server-side session state. Schema is managed exclusively through Liquibase; see [Data Model](04-data-model.md). |
-| Log/metrics/trace collector | The application emits ECS-structured JSON logs to stdout and OpenTelemetry traces; a deployment-provided collector is responsible for shipping, storage, and alerting. See [Logging](05-crosscutting-concepts/logging/README.md). |
+| Keycloak (OIDC Identity Provider) | The application's one external dependency. Issues identity for authentication; the application never manages passwords itself. See [Authentication](08-crosscutting-concepts/security/authentication.md). |
+| Relational database | Stores application data (local users, groups, roles) and server-side session state. Schema is managed exclusively through Liquibase; see [Building Block View](05-building-block-view.md#data-model). |
+| Log/metrics/trace collector | The application emits ECS-structured JSON logs to stdout and OpenTelemetry traces; a deployment-provided collector is responsible for shipping, storage, and alerting. See [Logging](08-crosscutting-concepts/logging/README.md). |
 | CI/CD pipeline | Runs database migrations against the target database using a separate, DDL-privileged account before an application version is deployed. See [ADR 0004](../adr/0004-database-schema-management.md). |
 
 ## Authentication and authorization split
@@ -16,7 +16,7 @@ Identity and authentication are delegated entirely to Keycloak (OIDC).
 Authorization is local: once a user is authenticated, the application looks
 up that user's groups and roles in its own database rather than trusting
 roles asserted by the identity provider. See
-[Authorization](06-security/authorization.md) and
+[Authorization](08-crosscutting-concepts/security/authorization.md) and
 [ADR 0005](../adr/0005-keycloak-authentication-local-authorisation.md) for
 why these are split this way.
 
@@ -35,5 +35,5 @@ configures or runs:
   header (if any) is trusted.
 
 These are called out explicitly, rather than left implicit, throughout
-[Security](06-security/README.md) and
-[Deployment & Operations](07-deployment-operations.md).
+[Security](08-crosscutting-concepts/security/README.md) and
+[Deployment View](07-deployment-view.md).

@@ -8,8 +8,8 @@ starting point for authentication, authorization, sessions, logging, and API
 error handling, rather than have every project rediscover the same decisions.
 It is a template to be forked and adapted, not a finished product: several
 decisions are deliberately left to the adopting deployment (see
-[Deployment & Operations](07-deployment-operations.md) and the "Deployment
-decision required" rows throughout [Security](06-security/README.md)).
+[Deployment View](07-deployment-view.md) and the "Deployment
+decision required" rows throughout [Security](08-crosscutting-concepts/security/README.md)).
 
 ## Audience
 

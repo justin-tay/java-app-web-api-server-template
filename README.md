@@ -83,4 +83,4 @@ the HTTPS endpoint.
 
 See the [documentation index](docs/README.md) for the system design document,
 architecture decisions, specifications, and retained standards. The primary
-implementation reference is the [security chapter](docs/system-design/06-security/README.md).
+implementation reference is the [security documentation](docs/system-design/08-crosscutting-concepts/security/README.md).

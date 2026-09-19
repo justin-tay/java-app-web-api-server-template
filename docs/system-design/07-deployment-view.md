@@ -1,11 +1,11 @@
-# 7. Deployment & Operations
+# 7. Deployment View
 
 ## Ports
 
 | Port | Purpose |
 | --- | --- |
 | `8081` | The application's main HTTP(S) port, serving the API and login flow. |
-| `8082` | The Actuator management port, kept separate from the main application port. See [ADR 0014](../adr/0014-actuator-management-port.md) and [Hardening](06-security/hardening.md#actuator-management-port). |
+| `8082` | The Actuator management port, kept separate from the main application port. See [ADR 0014](../adr/0014-actuator-management-port.md) and [Hardening](08-crosscutting-concepts/security/hardening.md#actuator-management-port). |
 
 ## Local development
 
@@ -43,11 +43,11 @@ deployment environment rather than configuring them itself:
 - **Log and trace collection**: the application only writes ECS-structured
   JSON to stdout and emits OpenTelemetry traces; shipping, storage,
   retention, and alerting are downstream responsibilities. See
-  [Logging](05-crosscutting-concepts/logging/README.md).
+  [Logging](08-crosscutting-concepts/logging/README.md).
 - **Secret management and rotation**, in particular the JWKS signing/
   encryption key pair; see [ADR 0007](../adr/0007-tls-and-oauth-client-key-management.md).
 
 These are also called out individually, with an explicit "Deployment
 decision required" marker, throughout the
-[OWASP ASVS control implementation](06-security/asvs.md) and
-[Hardening](06-security/hardening.md).
+[OWASP ASVS control implementation](08-crosscutting-concepts/security/asvs.md) and
+[Hardening](08-crosscutting-concepts/security/hardening.md).

@@ -57,6 +57,6 @@ entries to those ECS field names at JSON serialization time, alongside the uncha
 Every log statement with an active sampled span now carries `trace.id`/`span.id`, not
 only ones this application's own filters touch; nothing is exported anywhere today.
 Field contract and correlation semantics are maintained in
-[`docs/system-design/05-crosscutting-concepts/logging/schema.md`](../system-design/05-crosscutting-concepts/logging/schema.md),
-[`docs/system-design/05-crosscutting-concepts/logging/event-reference.md`](../system-design/05-crosscutting-concepts/logging/event-reference.md),
-and [`docs/system-design/05-crosscutting-concepts/logging/README.md`](../system-design/05-crosscutting-concepts/logging/README.md).
+[`docs/system-design/08-crosscutting-concepts/logging/schema.md`](../system-design/08-crosscutting-concepts/logging/schema.md),
+[`docs/system-design/08-crosscutting-concepts/logging/event-reference.md`](../system-design/08-crosscutting-concepts/logging/event-reference.md),
+and [`docs/system-design/08-crosscutting-concepts/logging/README.md`](../system-design/08-crosscutting-concepts/logging/README.md).

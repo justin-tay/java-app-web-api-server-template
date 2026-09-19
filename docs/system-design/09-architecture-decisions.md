@@ -1,7 +1,7 @@
 # 9. Architecture Decisions
 
-This is a short, arc42-style summary of the template's most consequential
-architecture decisions. Each row is deliberately brief; the full rationale,
+This is a short summary of the template's most consequential architecture
+decisions. Each row is deliberately brief; the full rationale,
 alternatives considered, and consequences live in the linked ADR, not here.
 Do not duplicate an ADR's content into this table when adding a new one.
 
@@ -22,6 +22,7 @@ Do not duplicate an ADR's content into this table when adding a new one.
 | [ADR 0013](../adr/0013-rfc-9457-problem-details.md) — RFC 9457 Problem Details | API errors use RFC 9457 Problem Details (`application/problem+json`) with a stable `type` URI, not framework-default error pages. |
 | [ADR 0014](../adr/0014-actuator-management-port.md) — Actuator management port | Actuator runs on a separate management port, exposing only a minimal unauthenticated health check publicly. |
 | [ADR 0015](../adr/0015-per-request-local-authority-refresh.md) — Per-request local authority refresh | Authorities are reloaded from the local user/group/role model on every request rather than cached from login, so authorization-relevant changes take effect immediately; `SessionRevocationService` is kept for prompt, audit-visible termination on disable/delete/membership change. |
+| [ADR 0016](../adr/0016-security-documentation-under-crosscutting-concepts.md) — Security documentation under Crosscutting Concepts | Security documents are a subsection of Crosscutting Concepts rather than their own top-level chapter, because they are control implementations (standard-to-status mappings), not an architectural view. |
 
 See [docs/adr/README.md](../adr/README.md) for the criteria used to decide
 whether a change warrants a new ADR.

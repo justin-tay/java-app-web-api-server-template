@@ -28,5 +28,5 @@ Keycloak usernames must be unique and immutable. Renaming one requires a
 coordinated migration. Authorization changes are made through the application's
 local model, while identity lifecycle and credentials remain Keycloak concerns.
 Implementation detail is maintained in
-[`docs/system-design/06-security/authentication.md`](../system-design/06-security/authentication.md) and
-[`docs/system-design/06-security/authorization.md`](../system-design/06-security/authorization.md).
+[`docs/system-design/08-crosscutting-concepts/security/authentication.md`](../system-design/08-crosscutting-concepts/security/authentication.md) and
+[`docs/system-design/08-crosscutting-concepts/security/authorization.md`](../system-design/08-crosscutting-concepts/security/authorization.md).
