@@ -99,13 +99,19 @@ groups, roles, and their relationships.
 
 ## Security behaviour
 
-Authorities are loaded at login and remain associated with the authenticated
-session. `SessionRevocationService` immediately revokes a user's session when an
-administrator disables their account, deletes it, or changes their own group
-membership, so those changes take effect without waiting for the session to
-expire. Redefining a group's role set, or deleting a role, does not enumerate and
-revoke the sessions of every member affected; those changes still take effect
-only at each affected user's next authentication event.
+`LocalAuthorityRefreshFilter` reloads a user's `ROLE_` authorities from the
+local user, group, and role model on every request, rather than trusting the
+authorities computed once at login. Any authorization-relevant change,
+including redefining a group's role set or deleting a role, takes effect on
+the affected user's very next request, not just at their next login.
+
+A local user who has been disabled or deleted since login is deauthenticated
+immediately by the same filter: its session is invalidated and the request is
+treated as unauthenticated. `SessionRevocationService` additionally revokes a
+user's session as soon as an administrator disables their account, deletes
+it, or changes their group membership, so those specific changes take effect
+promptly, with an accurate audit record, rather than only on the user's next
+request.
 
 This approach separates authentication from application authorisation, keeps
 access grants aligned with organisational responsibilities, and lets

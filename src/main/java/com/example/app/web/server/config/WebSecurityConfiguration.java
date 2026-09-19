@@ -63,6 +63,7 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
 import org.springframework.session.security.SpringSessionBackedSessionRegistry;
 
+import com.example.app.web.server.domain.AppUserRepository;
 import com.example.app.web.server.logging.AuthenticatedUserLoggingContextFilter;
 import com.example.app.web.server.logging.LoggingContextCleanupFilter;
 import com.example.app.web.server.logging.RequestCorrelationContextFilter;
@@ -70,6 +71,7 @@ import com.example.app.web.server.logging.RequestLoggingFilter;
 import com.example.app.web.server.logging.client.ClientIpResolver;
 import com.example.app.web.server.logging.request.RequestIdResolver;
 import com.example.app.web.server.security.authentication.oidc.LocalAuthoritiesOidcUserService;
+import com.example.app.web.server.security.authorization.LocalAuthorityRefreshFilter;
 import com.example.app.web.server.security.authorization.ProblemDetailAccessDeniedHandler;
 import com.example.app.web.server.security.firewall.ProblemDetailRequestRejectedHandler;
 import com.example.app.web.server.security.session.AbsoluteSessionTimeoutFilter;
@@ -138,8 +140,8 @@ public class WebSecurityConfiguration {
 			ApplicationProperties applicationProperties,
 			LocalAuthoritiesOidcUserService localAuthoritiesOidcUserService, Clock clock,
 			SessionRegistry sessionRegistry, SessionInformationExpiredStrategy sessionExpiredStrategy,
-			SessionLifecycleAuditLogger sessionLifecycleAuditLogger, LogoutHandler sessionLifecycleLogoutHandler)
-			throws Exception {
+			SessionLifecycleAuditLogger sessionLifecycleAuditLogger, LogoutHandler sessionLifecycleLogoutHandler,
+			AppUserRepository appUserRepository) throws Exception {
 		http.getSharedObject(AuthenticationManagerBuilder.class)
 			.authenticationEventPublisher(authenticationEventPublisher);
 		OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient = accessTokenResponseClient(
@@ -149,10 +151,13 @@ public class WebSecurityConfiguration {
 		RequestLoggingFilter requestLoggingFilter = new RequestLoggingFilter(QUERY_PARAMETER_REDACT_LIST);
 		SessionLifecycleAuditInitializationFilter sessionLifecycleAuditInitializationFilter = new SessionLifecycleAuditInitializationFilter(
 				sessionLifecycleAuditLogger);
+		LocalAuthorityRefreshFilter localAuthorityRefreshFilter = new LocalAuthorityRefreshFilter(appUserRepository,
+				sessionLifecycleAuditLogger);
 		return http.addFilterBefore(authenticatedUserLoggingContextFilter, SecurityContextHolderFilter.class)
 			.addFilterAfter(sessionLifecycleAuditInitializationFilter, AuthenticatedUserLoggingContextFilter.class)
 			.addFilterAfter(absoluteSessionTimeoutFilter, SessionLifecycleAuditInitializationFilter.class)
 			.addFilterAfter(requestLoggingFilter, SecurityContextHolderFilter.class)
+			.addFilterAfter(localAuthorityRefreshFilter, RequestLoggingFilter.class)
 			.headers(headers -> headers
 				.contentSecurityPolicy(
 						contentSecurityPolicy -> contentSecurityPolicy.policyDirectives(CONTENT_SECURITY_POLICY))

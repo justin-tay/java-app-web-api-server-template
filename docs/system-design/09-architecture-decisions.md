@@ -21,6 +21,7 @@ Do not duplicate an ADR's content into this table when adding a new one.
 | [ADR 0012](../adr/0012-request-correlation-ahead-of-security-chain.md) — Request correlation ahead of the security chain | Request correlation fields (`http.request.id`, `source.ip`, `client.ip`) are established by a plain servlet filter registered before the security filter chain, not inside it. |
 | [ADR 0013](../adr/0013-rfc-9457-problem-details.md) — RFC 9457 Problem Details | API errors use RFC 9457 Problem Details (`application/problem+json`) with a stable `type` URI, not framework-default error pages. |
 | [ADR 0014](../adr/0014-actuator-management-port.md) — Actuator management port | Actuator runs on a separate management port, exposing only a minimal unauthenticated health check publicly. |
+| [ADR 0015](../adr/0015-per-request-local-authority-refresh.md) — Per-request local authority refresh | Authorities are reloaded from the local user/group/role model on every request rather than cached from login, so authorization-relevant changes take effect immediately; `SessionRevocationService` is kept for prompt, audit-visible termination on disable/delete/membership change. |
 
 See [docs/adr/README.md](../adr/README.md) for the criteria used to decide
 whether a change warrants a new ADR.
