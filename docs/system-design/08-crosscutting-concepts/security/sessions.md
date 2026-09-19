@@ -1,8 +1,8 @@
 # Sessions
 
-This document records the session-management posture of the application against
-the [OWASP Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html).
-It describes the application configuration; the production deployment must also
+The session-management posture of the application is recorded here against
+the [OWASP Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html),
+describing the application configuration; the production deployment must also
 verify the effective cookie and HTTPS headers at its public edge.
 
 ## Design and ownership
@@ -52,24 +52,27 @@ browser `localStorage` or `sessionStorage`.
 | Opaque, unpredictable server-generated IDs | Implemented by framework | Spring Session generates opaque UUID-style session IDs. The browser receives no user data or authorization data in the cookie. Do not replace this generator with application code. | **Spring Session default:** `JdbcIndexedSessionRepository` generates IDs and `DefaultCookieSerializer` writes the opaque value. |
 | Use cookies only; reject URL session IDs | Implemented | `COOKIE` is the only configured servlet tracking mode. Exercise this with an integration test using a URL `;jsessionid=` value. | **Application configuration:** `server.servlet.session.tracking-modes: COOKIE` in `application.yaml`. |
 | HTTPS for the whole authenticated session | Implemented in application configuration | TLS is configured and the production cookie is `Secure`. Verify redirects, TLS termination, and HSTS at the deployed edge; do not expose authenticated HTTP. | **Application configuration:** `server.ssl` and `server.servlet.session.cookie.secure`; **deployment:** edge verification. |
-| `HttpOnly`, `Secure`, and `SameSite` cookie attributes | Implemented | `HttpOnly=true`, production `Secure=true`, and `SameSite=Lax` are explicit. `Lax` is intentional because `Strict` can prevent the existing cross-site OIDC callback from sending the pre-login session cookie. SameSite complements, rather than replaces, CSRF protection. | **Application configuration:** `server.servlet.session.cookie.*`; **Spring Boot:** maps them to Spring Session's cookie serializer. |
+| `HttpOnly`, `Secure`, and `SameSite` cookie attributes | Implemented | `HttpOnly=true`, production `Secure=true`, and `SameSite=Lax` are explicit. `Lax` is intentional because `Strict` can prevent the existing cross-site OIDC callback from sending the pre-login session cookie. SameSite complements, rather than replaces, CSRF protection. Confirm `Set-Cookie` carries the intended name, `HttpOnly`, `Secure`, and `SameSite=Lax` against the deployed service. | **Application configuration:** `server.servlet.session.cookie.*`; **Spring Boot:** maps them to Spring Session's cookie serializer. |
 | Cookie name prefix | Improvement | OWASP recommends `__Host-` for host-only session cookies. Consider `__Host-id` only after confirming `Secure`, `Path=/`, no `Domain`, and OIDC/local-development behavior at the public edge. | **Unimplemented:** production decision. |
 | Narrow cookie domain and path | Partial / deployment verification | The application does not set `Domain`, so the browser defaults to host-only scope. Confirm the effective `Path` and ensure unrelated applications do not share the production host. | **Spring Session default:** host-only domain and context-root path; **deployment:** verify effective scope. |
-| Avoid persistent browser storage | Implemented | The session cookie has no configured persistence lifetime, and the application does not use browser storage for session secrets. | **Spring Session default:** session cookie has no `Max-Age`; **application:** no browser-storage code. |
-| Rotate ID on authentication | Implemented and integration-tested | Spring Security's default session-fixation protection changes the session ID on authentication unless overridden. This configuration does not override it. | **Spring Security default:** session-fixation strategy; **application:** no override. `WebSecurityConfigurationSessionManagementIntegrationTest` proves a successful authentication replaces the JDBC session ID and removes the old row. |
+| Avoid persistent browser storage | Implemented | The session cookie has no configured persistence lifetime, and the application does not use browser storage for session secrets. Confirm against the deployed service that the cookie carries no persistence lifetime. | **Spring Session default:** session cookie has no `Max-Age`; **application:** no browser-storage code. |
+| Rotate ID on authentication | Implemented and integration-tested | Spring Security's default session-fixation protection changes the session ID on authentication unless overridden. This configuration does not override it. Confirm against the deployed service that the previous session ID cannot access protected resources after rotation. | **Spring Security default:** session-fixation strategy; **application:** no override. `WebSecurityConfigurationSessionManagementIntegrationTest` proves a successful authentication replaces the JDBC session ID and removes the old row. |
 | Rotate or terminate on privilege change | Implemented | Disabling or deleting a user, or changing their own group membership, immediately revokes their session through `SessionRevocationService`. Every other authorization-relevant change (redefining a group's role set, deleting a role) still takes effect on the affected user's very next request, since authorities are reloaded from the database on every request rather than trusted from the session. | **Application code:** `SessionRevocationService`, called from `AdministrationService`; `LocalAuthorityRefreshFilter`. |
-| Idle timeout | Implemented | The 15-minute timeout is server-enforced. Confirm it is appropriate for the system's data sensitivity and user workflow. | **Application configuration:** `server.servlet.session.timeout: 15m`; **Spring Boot:** applies it to Spring Session. |
-| Absolute timeout | Implemented | `AbsoluteSessionTimeoutFilter` invalidates a session once it reaches 12 hours, regardless of activity. | **Application code:** `AbsoluteSessionTimeoutFilter`, before `SecurityContextHolderFilter`, uses `app.session.absolute-timeout: 12h` and the shared `Clock`. |
+| Idle timeout | Implemented | The 15-minute timeout is server-enforced. Confirm it is appropriate for the system's data sensitivity and user workflow, and that the deployed service invalidates the session and requires re-authentication once it elapses. | **Application configuration:** `server.servlet.session.timeout: 15m`; **Spring Boot:** applies it to Spring Session. |
+| Absolute timeout | Implemented | `AbsoluteSessionTimeoutFilter` invalidates a session once it reaches 12 hours, regardless of activity. Confirm against the deployed service that the session is invalidated and the browser must authenticate again. | **Application code:** `AbsoluteSessionTimeoutFilter`, before `SecurityContextHolderFilter`, uses `app.session.absolute-timeout: 12h` and the shared `Clock`. |
 | Session renewal timeout | Not implemented | Periodic ID renewal is not required for the current 15-minute idle-only model, but reconsider it if a long absolute session lifetime is introduced. | **Unimplemented:** no application renewal filter or scheduler. |
-| Logout and server-side invalidation | Partial | OIDC RP-initiated logout and Keycloak back-channel logout are configured. Provide a visible logout control in any browser UI and test server-side invalidation. | **Application configuration:** `WebSecurityConfiguration` configures OIDC logout handlers; UI and integration coverage remain required. |
+| Logout and server-side invalidation | Partial | OIDC RP-initiated logout and Keycloak back-channel logout are configured. Provide a visible logout control in any browser UI. Confirm both local logout and Keycloak back-channel logout invalidate the session and remove access. | **Application configuration:** `WebSecurityConfiguration` configures OIDC logout handlers; UI and integration coverage remain required. |
 | Browser cache and logout cleanup | Partial | Spring Security supplies restrictive cache-control headers for protected responses. `Clear-Site-Data` is not sent on logout; assess it when the application serves sensitive browser content. | **Spring Security default:** protected-response cache headers; **unimplemented:** `Clear-Site-Data` logout handler. |
 | Reauthentication after risk events | Product decision required | Define reauthentication/MFA requirements for account recovery, suspicious activity, and sensitive profile or authorization changes with the identity-provider owner. | **Unimplemented:** no application risk-event or reauthentication integration. |
 | Concurrent sessions | Implemented and integration-tested | One concurrent session is permitted per user. A later successful login marks the existing session expired; its next request invalidates it. Browser navigation redirects to `/login?session-expired`; API requests receive a generic 401 Problem Details response. | **Application configuration:** `maximumSessions(1)` with `maxSessionsPreventsLogin(false)` and `ContentNegotiatingSessionExpiredStrategy`; **Spring Session:** `SpringSessionBackedSessionRegistry` finds sessions in JDBC across instances. **Override rationale:** Spring Security's default `ConcurrentSessionFilter` writes a plain-text expiry message without setting a status, leaving HTTP 200; this is unsuitable for browser navigation and API clients. `WebSecurityConfigurationSessionManagementIntegrationTest` verifies both response types and JDBC-session invalidation. |
-| Session anomaly detection and lifecycle logging | Partial | Lifecycle events are logged for audit-ID initialization, session-fixation renewal, logout, absolute timeout, and concurrent-session expiry. The event's `session.id` is a random application-local identifier, never the cookie or Spring Session ID. JDBC cleanup of an idle session and arbitrary invalid-cookie attempts are not inferred or logged because the application has no reliable hook. Define anomaly detection, thresholds, and alert routing before adding them. | **Application code:** `SessionLifecycleAuditLogger`, `SessionLifecycleAuditInitializationFilter`, `AbsoluteSessionTimeoutFilter`, `SessionLifecycleLogoutHandler`, and `ContentNegotiatingSessionExpiredStrategy`; **Spring Security:** `SessionFixationProtectionEvent`; **unimplemented:** detection policy and idle-cleanup/invalid-ID telemetry. See [ADR 0008](../../../adr/0008-session-lifecycle-audit-identifiers.md). |
+| Session anomaly detection and lifecycle logging | Partial | Lifecycle events are logged for audit-ID initialization, session-fixation renewal, logout, absolute timeout, and concurrent-session expiry. The event's `session.id` is a random application-local identifier, never the cookie or Spring Session ID. JDBC cleanup of an idle session and arbitrary invalid-cookie attempts are not inferred or logged because the application has no reliable hook. Define anomaly detection, thresholds, and alert routing before adding them. Confirm against the deployed service that lifecycle logs correlate via the separate audit `session.id`, contain the controlled termination reason where applicable, and never contain a cookie or raw Spring Session ID. | **Application code:** `SessionLifecycleAuditLogger`, `SessionLifecycleAuditInitializationFilter`, `AbsoluteSessionTimeoutFilter`, `SessionLifecycleLogoutHandler`, and `ContentNegotiatingSessionExpiredStrategy`; **Spring Security:** `SessionFixationProtectionEvent`; **unimplemented:** detection policy and idle-cleanup/invalid-ID telemetry. See [ADR 0008](../../../adr/0008-session-lifecycle-audit-identifiers.md). |
 
 ## Required production decisions
 
-Before production use, the service owner must record and implement decisions for:
+Before production use, the service owner must record and implement decisions
+for the following, then confirm against the deployed service that login,
+logout, timeout, privilege-change, and concurrent-session behavior actually
+match what is decided:
 
 1. The rationale for the 15-minute idle and 12-hour absolute timeouts.
 2. Whether redefining a group's role set, or deleting a role, should also revoke
@@ -85,29 +88,6 @@ Before production use, the service owner must record and implement decisions for
    session-ID guessing are monitored, including trusted data sources, thresholds,
    alert routing, and privacy/retention controls. Do not use IP or user-agent
    changes as automatic invalidation criteria without a product decision.
-
-## Verification
-
-Test the externally deployed service, not just the local profile, for the
-following:
-
-1. `Set-Cookie` has the intended name, `HttpOnly`, `Secure`, `SameSite=Lax`,
-   host-only scope, and no persistence lifetime.
-2. A URL-supplied session ID is not accepted.
-3. The session ID changes after authentication and the previous ID cannot access
-   protected resources.
-4. The idle and 12-hour absolute timeouts invalidate the server-side session and the browser must
-   authenticate again.
-5. Local logout and Keycloak back-channel logout invalidate the session and
-   remove access.
-6. After a second login, an expired session's browser navigation redirects to
-   `/login?session-expired`, while its API request receives the generic 401
-   `urn:problem:session-expired` response.
-7. Lifecycle logs correlate via the separate audit `session.id`, contain the
-   controlled termination reason where applicable, and never contain a cookie or
-   raw Spring Session ID.
-8. Login, logout, timeout, privilege-change, and concurrent-session behavior
-   match the documented production decisions.
 
 Related documentation: [Authentication](authentication.md),
 [HTTP security headers](headers.md), [Logging](../logging/README.md), and

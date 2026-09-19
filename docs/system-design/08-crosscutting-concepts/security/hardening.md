@@ -1,8 +1,7 @@
 # Hardening
 
-This document is the CIS Tomcat Benchmark control implementation for the
-template: a mapping against the
-[CIS Apache Tomcat 11 Benchmark v1.1.0](https://www.cisecurity.org/benchmark/apache_tomcat).
+The CIS Tomcat Benchmark control implementation for the template maps
+against the [CIS Apache Tomcat 11 Benchmark v1.1.0](https://www.cisecurity.org/benchmark/apache_tomcat).
 It is a deployment planning aid, not a CIS conformance claim.
 
 Its scope is Tomcat hardening. Generic platform concerns such as runtime image

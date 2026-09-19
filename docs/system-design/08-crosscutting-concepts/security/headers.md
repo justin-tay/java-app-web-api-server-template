@@ -1,13 +1,16 @@
 # HTTP security headers
 
-This document records the response-header posture of the application as of Spring
-Boot 4.1 / Spring Security 7. It is based on the
+The response-header posture of the application, as of Spring Boot 4.1 /
+Spring Security 7, is recorded here against the
 [OWASP HTTP Security Response Headers Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html).
 
 The effective headers at the public edge can also be changed by a reverse proxy,
-load balancer, CDN, or servlet container. Verify them against a deployed HTTPS
-endpoint, including error and redirect responses; this table records the
-application configuration, not an assertion about infrastructure configuration.
+load balancer, CDN, or servlet container; this table records the application
+configuration, not an assertion about infrastructure configuration. Review
+this matrix whenever `WebSecurityConfiguration`, an application endpoint, the
+browser UI, or edge infrastructure changes, confirming both authenticated and
+unauthenticated responses, redirects, errors, downloads, and the externally
+deployed HTTPS endpoint.
 
 ## OWASP HTTP headers control implementation
 
@@ -63,9 +66,3 @@ decisions for:
    effective value is container/proxy/CDN dependent and not written by the
    application.
 
-## Verification
-
-Review this matrix whenever `WebSecurityConfiguration`, an application endpoint,
-the browser UI, or edge infrastructure changes. Test both authenticated and
-unauthenticated responses, redirects, errors, downloads, and the externally
-deployed HTTPS endpoint.

@@ -18,16 +18,7 @@ find it.
 | Tomcat/CIS hardening | [Hardening's "Required production decisions"](08-crosscutting-concepts/security/hardening.md#required-production-decisions) — image/runtime hardening, TLS termination, connector limits, mTLS, centralized log collection, re-running the control implementation after upgrades, restricting the Actuator management port. |
 | Logging | [Logging's "Required deployment decisions"](08-crosscutting-concepts/logging/README.md#required-deployment-decisions) — central collector, log access/retention, client-IP trust configuration, query-parameter redaction review, product-specific audit events, request-ID trust configuration. |
 | ASVS and CIS control implementations generally | Individual `Deployment decision required` and `Verification required` rows throughout [ASVS](08-crosscutting-concepts/security/asvs.md) and [Hardening](08-crosscutting-concepts/security/hardening.md) are open items in their own right, at requirement granularity finer than the summaries above. |
-
-## Known documentation gap
-
-Authorization has no OWASP control implementation of the kind
-Authentication and Sessions have. Building one against the [OWASP
-Authorization Cheat
-Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
-requires verifying each recommendation against the real codebase and is
-tracked as separate, not-yet-started work; see
-[Authorization](08-crosscutting-concepts/security/authorization.md).
+| Authorization | [Authorization's OWASP control implementation](08-crosscutting-concepts/security/authorization.md#owasp-control-implementation) — the one genuine open item is horizontal privilege separation: an adopter that introduces multi-tenancy or per-user resource ownership must add its own object-level checks, since the current model grants any holder of a management role access to that role's entire resource collection by design. |
 
 ## Beyond security
 

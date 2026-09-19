@@ -1,8 +1,7 @@
-# ASVS
+# Application Security Verification Standard (ASVS)
 
-This document is the OWASP ASVS control implementation for this base
-template: a mapping against the
-[OWASP Application Security Verification Standard (ASVS) 5.0.0](https://github.com/OWASP/ASVS/tree/v5.0.0/5.0).
+The OWASP ASVS control implementation for this base template maps against
+the [OWASP Application Security Verification Standard (ASVS) 5.0.0](https://github.com/OWASP/ASVS/tree/v5.0.0/5.0).
 It is a planning and verification aid, not an ASVS conformance claim.
 
 The table contains all 345 ASVS 5.0.0 requirements. Requirement text is reproduced from OWASP ASVS 5.0.0, which is licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Use version-qualified identifiers such as `v5.0.0-1.1.1` in evidence, tickets, and test cases so future ASVS versions cannot silently change the control being referenced.

@@ -1,10 +1,10 @@
 # Security documentation
 
-These documents describe the template's implemented security posture and the
-deployment or product decisions an adopter must still make. They are not a
+The template's implemented security posture, and the deployment or product
+decisions an adopter must still make, are covered below. This is not a
 security certification.
 
-| Topic | Document |
+| Topic | Where |
 | --- | --- |
 | OIDC authentication, tokens, and logout | [Authentication](authentication.md) |
 | Local users, groups, roles, and authorization | [Authorization](authorization.md) |

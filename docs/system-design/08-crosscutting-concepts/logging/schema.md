@@ -1,7 +1,7 @@
 # Logging schema
 
-The application writes JSON using Spring Boot's ECS formatter. This document
-defines the shared schema, field sets, extensions, and safety rules. The
+The application writes JSON using Spring Boot's ECS formatter; the shared
+schema, field sets, extensions, and safety rules are defined below. The
 [event reference](event-reference.md) is the authoritative
 per-event contract: its entries state when each event is generated and every
 field that it emits.

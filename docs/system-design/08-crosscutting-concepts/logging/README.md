@@ -5,7 +5,7 @@ format. It records request lifecycle events and security audit events without
 recording request bodies, response bodies, cookies, authorization headers, or
 unredacted OAuth/OIDC credentials.
 
-This document maps the implementation to the [OWASP Logging Cheat
+The implementation is mapped below to the [OWASP Logging Cheat
 Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html).
 `Implemented` means the base template does it today. `Partial` identifies a
 deliberate boundary or remaining application work. `Deployment responsibility`
@@ -132,7 +132,7 @@ search parameters.
 | Verify logging during security, functional, and performance testing. | Partial | Automated tests verify the paired request events, redaction, correlation, user propagation, route, outcome, and duration arithmetic. Add tests for product-specific audit events, hostile input, async/error/timeout paths, performance, and collector outage handling. |
 | Protect log collection, transit, storage, and backups against confidentiality, integrity, and availability attacks. | Deployment responsibility | The application emits to stdout only. Use authenticated, encrypted shipping; protected storage and backups; immutable/audited access where required; retention and disposal controls; and monitoring for collector failure or unexpected cessation. |
 | Monitor logs and integrate them with incident response. | Deployment responsibility | The template provides stable fields suitable for detections and correlation but provides no SIEM rules, paging, runbooks, or incident-response workflow. The owning service team must define these before production use. |
-| Document logging and brief support/operations teams. | Implemented | This document, the field reference, code comments, and request correlation behaviour are versioned with the template. Service owners must extend the documentation when they add business events or change privacy/retention obligations. |
+| Document logging and brief support/operations teams. | Implemented | This page, the field reference, code comments, and request correlation behaviour are versioned with the template. Service owners must extend the documentation when they add business events or change privacy/retention obligations. |
 
 ## Required deployment decisions
 

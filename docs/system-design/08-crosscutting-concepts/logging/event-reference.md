@@ -1,9 +1,8 @@
 # Logging event reference
 
-This is the event-level contract for the ECS JSON events emitted by this
-application. It complements [schema.md](schema.md),
-which defines the shared ECS fields, project extensions, redaction rules, and
-field types.
+Each ECS JSON event emitted by this application has an event-level contract,
+defined below. It complements [schema.md](schema.md), which defines the
+shared ECS fields, project extensions, redaction rules, and field types.
 
 ## Runtime and ECS Base fields emitted for every event
 

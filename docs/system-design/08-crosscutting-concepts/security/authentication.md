@@ -1,20 +1,21 @@
 # Authentication
 
-This document records the authentication posture of the application against the
-[OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html).
-It describes the template's OpenID Connect (OIDC) relying-party configuration:
-the authorization-code flow, JWKS key handling, token validation, and logout.
-Credential collection, password policy, storage, brute-force protection, and
-multi-factor authentication are Keycloak's responsibility, not this
-application's; the production identity provider must also be reviewed against
-the cheat sheet.
+The authentication posture of the application is recorded here against the
+[OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html),
+alongside the template's OpenID Connect (OIDC) relying-party configuration:
+JWKS key handling, token validation, and logout. Credential collection,
+password policy, storage, brute-force protection, and multi-factor
+authentication are Keycloak's responsibility, not this application's; the
+production identity provider must also be reviewed against the cheat sheet.
 
 ## Authentication model
 
 The application is an OIDC relying party for Keycloak. Browser requests are
-authenticated with the authorization-code flow; unauthenticated requests are
-redirected to the configured provider. All application routes require
-authentication except the public `/oauth2/jwks` endpoint.
+authenticated with the authorization-code flow (documented as a request
+sequence in [Runtime View](../../06-runtime-view.md#oidc-authorization-code-flow));
+unauthenticated requests are redirected to the configured provider. All
+application routes require authentication except the public `/oauth2/jwks`
+endpoint.
 
 Each Keycloak client configured for the application uses `private_key_jwt`,
 publishes the application's public keys through `/oauth2/jwks`, and is
@@ -117,9 +118,6 @@ For each Keycloak client:
   where `{registration-id}` is the Spring client-registration ID (`keycloak`
   in this template).
 
-The authorization-code flow itself, as a request sequence, is documented in
-[Runtime View](../../06-runtime-view.md#oidc-authorization-code-flow).
-
 ## OWASP control implementation
 
 | OWASP area | Status | Current treatment or required action | Implementation |
@@ -129,17 +127,17 @@ The authorization-code flow itself, as a request sequence, is documented in
 | Password strength, storage, hashing, and safe comparison | Delegated to identity provider | The application never receives, stores, or compares a password; Keycloak owns credential collection, password policy, hashing, and verification. | External: Keycloak. |
 | Secure password recovery | Delegated to identity provider | Password reset is a Keycloak realm flow. The application has no forgot-password endpoint. | External: Keycloak. |
 | Change password requires an active session and current password | Delegated to identity provider | Handled by Keycloak's account console, not the application. | External: Keycloak. |
-| Transmit credentials over TLS | Implemented in application configuration | Credential entry occurs on Keycloak's hosted login page, outside this application. Token exchange and every authenticated application route are TLS-protected by this application's own listener. See [Hardening](hardening.md) sections 6.2-6.5. | **Application configuration:** `server.ssl`; **external:** Keycloak's own TLS configuration. |
+| Transmit credentials over TLS | Implemented in application configuration | Credential entry occurs on Keycloak's hosted login page, outside this application. Token exchange and every authenticated application route are TLS-protected by this application's own listener. See [Hardening](hardening.md) sections 6.2-6.5. Confirm against the deployed service that TLS protects the whole authenticated session, including Keycloak's own login and consent pages. | **Application configuration:** `server.ssl`; **external:** Keycloak's own TLS configuration. |
 | Require re-authentication for sensitive features and after risk events | Not implemented | No step-up or re-authentication requirement is defined for sensitive administration actions (user, group, or role management) or for risk events such as an IP or device change. This mirrors the equivalent open item in [Sessions](sessions.md). | **Unimplemented:** no product decision recorded. |
 | TLS client authentication (mTLS) / per-transaction step-up authentication | Not implemented | The application authenticates its own back-channel calls to Keycloak with `private_key_jwt`, not mTLS, and defines no per-transaction second factor. See [Hardening](hardening.md) section 6.1 for the mTLS deployment decision. | **Unimplemented:** no mTLS or transaction-level second factor. |
 | Generic authentication error messages | Partial | A failed Keycloak login is handled entirely by Keycloak's own login page. Once Keycloak issues a successful authentication, `LocalAuthoritiesOidcUserService` rejects a missing claim, an unknown local user, and a disabled local user with the same generic `local_user_not_authorized` OAuth2 error, and Spring Security's default failure handler redirects to a generic `/login?error` page. Verify the rendered error page never distinguishes these outcomes from each other or from a Keycloak-side rejection. | **Application code:** `LocalAuthoritiesOidcUserService.unauthorized()`; **Spring Security default:** OAuth2 login failure handling. |
-| Protect against automated attacks (brute force, credential stuffing, password spraying) | Delegated to identity provider | The application never sees a submitted password, so it cannot throttle or lock out credential-guessing attempts itself. Login throttling, account lockout, and any CAPTCHA are entirely a Keycloak realm policy. See [Hardening](hardening.md) section 5.2. | External: Keycloak; **not applicable in this template:** there is no application-rendered login form to throttle. |
-| Multi-factor authentication | Delegated to identity provider, not enabled by default | Keycloak can require OTP or WebAuthn per realm or per user, but the supplied local development realm does not enable it. Enabling MFA is a production identity-provider decision. | External: Keycloak; **unimplemented:** `bin/configure-keycloak.js` provisions no realm MFA policy. |
+| Protect against automated attacks (brute force, credential stuffing, password spraying) | Delegated to identity provider | The application never sees a submitted password, so it cannot throttle or lock out credential-guessing attempts itself. Login throttling, account lockout, and any CAPTCHA are entirely a Keycloak realm policy. See [Hardening](hardening.md) section 5.2. Confirm the provisioned realm's brute-force/lockout policy actually takes effect. | External: Keycloak; **not applicable in this template:** there is no application-rendered login form to throttle. |
+| Multi-factor authentication | Delegated to identity provider, not enabled by default | Keycloak can require OTP or WebAuthn per realm or per user, but the supplied local development realm does not enable it. Enabling MFA is a production identity-provider decision. If enabled, confirm the requirement actually takes effect for the intended users or realms. | External: Keycloak; **unimplemented:** `bin/configure-keycloak.js` provisions no realm MFA policy. |
 | FIDO2/WebAuthn passkeys | Not implemented | Not configured in the supplied realm. | External: Keycloak; product decision. |
 | Security questions or memorable words | Not applicable | The application implements no knowledge-based recovery mechanism. | N/A. |
-| Log authentication successes and failures | Implemented | `SecurityAuditEventLogger` records login success, login failure, and logout, without credentials or tokens. See [Logging](../logging/README.md). | **Application code:** `SecurityAuditEventLogger`. |
+| Log authentication successes and failures | Implemented | `SecurityAuditEventLogger` records login success, login failure, and logout, without credentials or tokens. See [Logging](../logging/README.md). Confirm in the deployed service that these events appear without credentials or tokens. | **Application code:** `SecurityAuditEventLogger`. |
 | Use a standard, audited authentication protocol rather than a custom scheme | Implemented | The application delegates authentication to Keycloak through Spring Security's OAuth2 Login/OIDC client rather than a custom credential scheme. | **Application configuration:** `spring.security.oauth2.client`; **Spring Security:** `oauth2Login()`. |
-| Validate ID tokens: issuer, audience, signature, and expiration | Implemented | Described in [ID-token and access-token validation](#id-token-and-access-token-validation) above. | **Application code:** `jwtDecoderFactory()`, `oidcIdTokenValidator()`. |
+| Validate ID tokens: issuer, audience, signature, and expiration | Implemented | Described in [ID-token and access-token validation](#id-token-and-access-token-validation) above. Confirm a tampered, expired, or wrong-audience ID token is rejected. | **Application code:** `jwtDecoderFactory()`, `oidcIdTokenValidator()`. |
 | Use well-maintained libraries/SDKs and provider discovery/JWKS | Implemented | Spring Security's OIDC client stack and Nimbus JOSE+JWT are used throughout; keys are discovered through JWKS rather than embedded or hand-rolled cryptography. | **Dependencies:** `spring-boot-starter-oauth2-client`, Nimbus JOSE+JWT. See [ADR 0007](../../../adr/0007-tls-and-oauth-client-key-management.md). |
 | SAML | Not applicable | The template uses OIDC exclusively. | N/A. |
 | Password-manager compatibility (form field types, paste, tab order) | Not applicable to the application | The credential-entry form is Keycloak's hosted login page, not an application-rendered form. | External: Keycloak. |
@@ -161,22 +159,6 @@ Before production use, the service owner must record and implement decisions for
    [Hardening](hardening.md) section 6.1.
 6. Password-recovery, account-lockout communication, and any self-service
    profile-change policy configured in the Keycloak realm.
-
-## Verification
-
-Test the externally deployed service, not just the local profile, for the
-following:
-
-1. A login attempt for a missing local user, a disabled local user, and
-   Keycloak-rejected credentials all produce the same generic error response.
-2. TLS protects the whole authenticated session, including Keycloak's own
-   login and consent pages.
-3. Login success, login failure, and logout events are recorded by
-   `SecurityAuditEventLogger` without credentials or tokens; see
-   [Logging](../logging/README.md).
-4. A tampered, expired, or wrong-audience ID token is rejected.
-5. The provisioned realm's brute-force/lockout policy, and any MFA
-   requirement, actually take effect.
 
 Related documentation: [Authorization](authorization.md),
 [Sessions](sessions.md), [HTTP security headers](headers.md),
