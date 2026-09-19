@@ -33,6 +33,11 @@ valid values, and field-by-field contract for every emitted event are in
 * `http.request.id` is generated as a UUID by default. A service can replace
   the `RequestIdResolver.none()` bean with `CloudFrontRequestIdResolver` or an
   ingress-specific implementation to retain an upstream correlation ID.
+* `TracingLoggingContextFilter`, immediately after `SecurityLoggingContextFilter`,
+  adds `trace.id`/`span.id` to MDC by reading the active span from Micrometer
+  Tracing's `Tracer`, so ECS logs carry OpenTelemetry-native correlation
+  identifiers alongside `http.request.id`. No span is exported anywhere; see
+  docs/adr/0009.
 * `RequestLoggingFilter`, immediately after the context filter, emits
   `receive_request` and `complete_request` events. The latter includes
   outcome, response status, matched route, and duration.
@@ -59,6 +64,11 @@ Each request produces correlated `receive_request` and `complete_request` ECS
 events. They include the scheme, host, port, path, matched route, method, status,
 and duration. The request ID allows support staff to locate the pair and identify
 requests that have started without completing.
+
+When tracing samples a request, `receive_request` and `complete_request` also
+carry `trace.id`/`span.id`, correlating this application's structured logs
+with a distributed trace, including one propagated by an external caller such
+as AWS Bedrock AgentCore, without this template exporting any span itself.
 
 Query parameter values are logged in `url.query`, except names in the redaction
 list, whose values are replaced with `[REDACTED]`. All supplied names are also

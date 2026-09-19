@@ -23,6 +23,12 @@ management:
     health:
       show-details: never
       show-components: never
+  tracing:
+    sampling:
+      # No exporter is configured, so nothing is sent anywhere and 100%
+      # sampling has no export-volume cost; it only guarantees every log
+      # line carries trace.id/span.id. See docs/adr/0009.
+      probability: 1.0
 logging:
   structured:
     ecs:

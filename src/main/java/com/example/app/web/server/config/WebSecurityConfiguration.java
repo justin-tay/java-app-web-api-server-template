@@ -62,6 +62,7 @@ import org.springframework.session.security.SpringSessionBackedSessionRegistry;
 
 import com.example.app.web.server.logging.RequestLoggingFilter;
 import com.example.app.web.server.logging.SecurityLoggingContextFilter;
+import com.example.app.web.server.logging.TracingLoggingContextFilter;
 import com.example.app.web.server.logging.client.ClientIpResolver;
 import com.example.app.web.server.logging.request.RequestIdResolver;
 import com.example.app.web.server.security.authentication.oidc.LocalAuthoritiesOidcUserService;
@@ -128,7 +129,8 @@ public class WebSecurityConfiguration {
 	SecurityFilterChain securityFilterChain(HttpSecurity http, JWKSet jwks,
 			ClientRegistrationRepository clientRegistrationRepository,
 			AuthenticationEventPublisher authenticationEventPublisher,
-			SecurityLoggingContextFilter securityLoggingContextFilter, ApplicationProperties applicationProperties,
+			SecurityLoggingContextFilter securityLoggingContextFilter,
+			TracingLoggingContextFilter tracingLoggingContextFilter, ApplicationProperties applicationProperties,
 			LocalAuthoritiesOidcUserService localAuthoritiesOidcUserService, Clock clock,
 			SessionRegistry sessionRegistry, SessionInformationExpiredStrategy sessionExpiredStrategy,
 			SessionLifecycleAuditLogger sessionLifecycleAuditLogger, LogoutHandler sessionLifecycleLogoutHandler)
@@ -141,7 +143,8 @@ public class WebSecurityConfiguration {
 				applicationProperties.getSession().getAbsoluteTimeout(), clock, sessionLifecycleAuditLogger);
 		RequestLoggingFilter requestLoggingFilter = new RequestLoggingFilter(QUERY_PARAMETER_REDACT_LIST);
 		return http.addFilterBefore(securityLoggingContextFilter, SecurityContextHolderFilter.class)
-			.addFilterAfter(absoluteSessionTimeoutFilter, SecurityLoggingContextFilter.class)
+			.addFilterAfter(tracingLoggingContextFilter, SecurityLoggingContextFilter.class)
+			.addFilterAfter(absoluteSessionTimeoutFilter, TracingLoggingContextFilter.class)
 			.addFilterAfter(requestLoggingFilter, SecurityContextHolderFilter.class)
 			.headers(headers -> headers
 				.contentSecurityPolicy(
