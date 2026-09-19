@@ -12,3 +12,6 @@ Records use the established `NNNN-short-title.md` naming convention. Keep them
 small and land them with the change they explain. A merged ADR is accepted; when
 a decision changes, add a new ADR that links to the earlier one rather than
 rewriting history.
+
+See [ADR 0013](0013-adr-template.md) for the exact template and section order
+to use.

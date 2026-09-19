@@ -19,6 +19,7 @@ Do not duplicate an ADR's content into this table when adding a new one.
 | [ADR 0010](../adr/0010-request-correlation-ahead-of-security-chain.md) — Request correlation ahead of the security chain | Request correlation fields (`http.request.id`, `source.ip`, `client.ip`) are established by a plain servlet filter registered before the security filter chain, not inside it. |
 | [ADR 0011](../adr/0011-session-audit-initialization-checked-every-request.md) — Session audit initialization checked every request | Session-creation auditing uses an idempotent, unconditional per-request check rather than a single trigger event, because no single Spring event covers every way a session can be created. |
 | [ADR 0012](../adr/0012-system-design-document.md) — System design document | Introduces this document under `docs/system-design/`, relocates `docs/security/` and its logging content into it, and defers an AsciiDoc/PDF export pipeline. |
+| [ADR 0013](../adr/0013-adr-template.md) — ADR template | Records this repository's existing five-part ADR shape (Nygard's Title/Status/Context/Decision/Consequences, decision-first) as the deliberate template, rather than a lighter one some tooling defaults to. |
 
 See [docs/adr/README.md](../adr/README.md) for the criteria used to decide
 whether a change warrants a new ADR.
