@@ -10,12 +10,22 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.web.context.WebApplicationContext;
 
+import com.example.app.web.server.logging.LoggingContextCleanupFilter;
+import com.example.app.web.server.logging.RequestCorrelationContextFilter;
+
 /**
  * Support for MVC integration tests that use an in-memory servlet environment.
  *
  * <p>
  * This does not start an embedded server, so it cannot verify container-managed behavior
  * such as emitted session cookies. Use {@link RestTestClientITSupport} for those tests.
+ * <p>
+ * {@link LoggingContextCleanupFilter} and {@link RequestCorrelationContextFilter} are
+ * added explicitly because they are registered as plain top-level
+ * {@code FilterRegistrationBean}s (see docs/adr/0010) rather than through
+ * {@code HttpSecurity}, and {@code MockMvcTester}/{@code springSecurity()} do not
+ * reliably include arbitrary container-level filter registrations the way a real servlet
+ * container does.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -29,7 +39,11 @@ public abstract class MockMvcITSupport {
 
 	@BeforeEach
 	void setUp() {
-		this.mockMvc = MockMvcTester.from(this.context, builder -> builder.apply(springSecurity()).build());
+		this.mockMvc = MockMvcTester.from(this.context,
+				builder -> builder.addFilter(this.context.getBean(LoggingContextCleanupFilter.class))
+					.addFilter(this.context.getBean(RequestCorrelationContextFilter.class))
+					.apply(springSecurity())
+					.build());
 	}
 
 }

@@ -62,8 +62,8 @@ class ProblemDetailRequestRejectedHandlerTest {
 			.containsEntry("http.response.status_code", HttpStatus.BAD_REQUEST.value())
 			.containsEntry("http.request.method", "GET")
 			.containsEntry("url.path", "/admin/users/../secrets")
-			.containsEntry("source.ip", "192.0.2.10")
 			.containsEntry("error.type", "RequestRejectedException");
+		assertThat(keyValues).doesNotContainKey("source.ip");
 		assertThat(this.logEvents.list.get(0).getFormattedMessage())
 			.doesNotContain("The request was rejected because the URL was not normalized.");
 	}

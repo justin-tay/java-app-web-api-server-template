@@ -36,6 +36,11 @@ logging:
         environment: production
     format:
       console: ecs
+    json:
+      # Renames Micrometer Tracing's traceId/spanId MDC keys to ECS's trace.id/
+      # span.id field names; see docs/adr/0009.
+      customizer:
+      - com.example.app.web.server.logging.TraceCorrelationJsonMembersCustomizer
 server:
   port: 8081
   servlet:

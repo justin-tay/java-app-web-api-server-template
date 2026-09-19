@@ -20,11 +20,20 @@ valid values, and field-by-field contract for every emitted event are in
 ## Design and ownership
 
 * Spring Boot's ECS console formatter serializes the events as JSON.
-* `SecurityLoggingContextFilter` establishes the request correlation ID and
-  direct peer address in MDC, plus the user name where already authenticated.
-  The peer address is not a unique correlation ID and may be a proxy rather
-  than the end user. It clears MDC at request entry and exit so a reused
-  servlet thread cannot associate an event with a previous request.
+* `LoggingContextCleanupFilter` is the outermost filter in the application
+  (registered directly with the servlet container, ahead of even Micrometer
+  Tracing's observation filter). Its only job is one unconditional
+  `MDC.clear()` after the rest of the chain returns, so a reused servlet
+  thread cannot associate a later, unrelated event with this request,
+  regardless of what any inner filter or library left behind. See docs/adr/0010.
+* `RequestCorrelationContextFilter` establishes the request correlation ID and
+  direct peer address in MDC. It is registered directly with the servlet
+  container ahead of Spring Security's filter chain, not through
+  `HttpSecurity`, so these fields are present even on a request the HTTP
+  firewall rejects; see docs/adr/0010. The peer address is not a unique
+  correlation ID and may be a proxy rather than the end user. It scopes and
+  removes only these fields itself; it does not blanket-clear MDC, since that
+  is `LoggingContextCleanupFilter`'s job.
 * `client.ip` is optional request-scoped MDC context. `WebSecurityConfiguration`
   supplies the safe `ClientIpResolver.none()` bean by default. A service can
   replace it with `TrustedHeaderClientIpResolver`,
@@ -33,11 +42,22 @@ valid values, and field-by-field contract for every emitted event are in
 * `http.request.id` is generated as a UUID by default. A service can replace
   the `RequestIdResolver.none()` bean with `CloudFrontRequestIdResolver` or an
   ingress-specific implementation to retain an upstream correlation ID.
-* `TracingLoggingContextFilter`, immediately after `SecurityLoggingContextFilter`,
-  adds `trace.id`/`span.id` to MDC by reading the active span from Micrometer
-  Tracing's `Tracer`, so ECS logs carry OpenTelemetry-native correlation
-  identifiers alongside `http.request.id`. No span is exported anywhere; see
-  docs/adr/0009.
+* `AuthenticatedUserLoggingContextFilter`, positioned where `RequestCorrelationContextFilter`
+  used to be (immediately before `SecurityContextHolderFilter`), adds
+  `user.name` once authentication has resolved.
+* `SessionLifecycleAuditInitializationFilter`, immediately after the context
+  filter, checks unconditionally after each request whether the session (if
+  any) already has an audit identifier and stamps one if not. It is not tied
+  to a specific "session created" event, since a session can come into
+  existence through more than one path (login, CSRF token establishment,
+  session-fixation renewal); the underlying check is idempotent, so the
+  repeated per-request call is cheap and safe. See docs/adr/0011.
+* `TraceCorrelationJsonMembersCustomizer` renames Micrometer Tracing's own
+  `traceId`/`spanId` MDC entries to `trace.id`/`span.id` at JSON serialization
+  time, so ECS logs carry OpenTelemetry-native correlation identifiers
+  alongside `http.request.id`, on every log statement with an active sampled
+  span, not only ones this application's own filters touch. No span is
+  exported anywhere; see docs/adr/0009.
 * `RequestLoggingFilter`, immediately after the context filter, emits
   `receive_request` and `complete_request` events. The latter includes
   outcome, response status, matched route, and duration.
@@ -47,10 +67,12 @@ valid values, and field-by-field contract for every emitted event are in
   rejected input-validation rule without recording the submitted value or
   validation message.
 * `ProblemDetailRequestRejectedHandler` emits a `reject_request` event when
-  Spring Security's `HttpFirewall` rejects a request before any filter or
-  `DispatcherServlet` sees it. It runs ahead of `SecurityLoggingContextFilter`,
-  so it has no `http.request.id` and reads `source.ip` directly from the
-  request instead of MDC.
+  Spring Security's `HttpFirewall` rejects a request before Spring Security's
+  own internal filter chain or `DispatcherServlet` sees it. `http.request.id`,
+  `source.ip`, `client.ip`, `trace.id`, and `span.id` are all present, since
+  `RequestCorrelationContextFilter` and Micrometer Tracing's observation
+  filter both run ahead of the firewall check; only `user.name` is
+  unavailable, since authentication never runs. See docs/adr/0010.
 * `ApplicationLifecycleEventLogger`, registered before context creation through
   `spring.factories`, records application starting, started, failed-to-start,
   and stopped events. It deliberately does not log `ApplicationStartingEvent`,

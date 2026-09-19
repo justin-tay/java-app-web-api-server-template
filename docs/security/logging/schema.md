@@ -56,17 +56,17 @@ fields where available and documents two intentional project extensions.
 | `event.outcome` | `keyword` | `success`, `failure`, or `unknown` where applicable. |
 | `event.start`, `event.end` | `date` | Request lifecycle boundaries. |
 | `event.duration` | `long` | Request duration in nanoseconds. |
-| `http.request.id` | `keyword` | Correlation ID established by `SecurityLoggingContextFilter`; generated as a UUID unless the configured `RequestIdResolver` supplies an upstream ID. It is not authentication material. |
-| `trace.id` | `keyword` | OpenTelemetry trace identifier for the request, added by `TracingLoggingContextFilter` from Micrometer Tracing's active span. Present on every sampled request; see docs/adr/0009. |
-| `span.id` | `keyword` | OpenTelemetry identifier for the request's server span, added alongside `trace.id`. |
+| `http.request.id` | `keyword` | Correlation ID established by `RequestCorrelationContextFilter`; generated as a UUID unless the configured `RequestIdResolver` supplies an upstream ID. It is not authentication material. |
+| `trace.id` | `keyword` | OpenTelemetry trace identifier, renamed from Micrometer Tracing's `traceId` MDC entry by `TraceCorrelationJsonMembersCustomizer`. Present whenever the log statement has an active sampled span; see docs/adr/0009. |
+| `span.id` | `keyword` | OpenTelemetry identifier for the active server span, renamed alongside `trace.id`. |
 | `http.request.method` | `keyword` | Incoming servlet request method. |
 | `http.response.status_code` | `long` | Final or handler-known HTTP response status. |
 | `url.scheme`, `url.path`, `url.query` | `keyword`, `wildcard`, `keyword` | Request URL components; query values are redacted before emission. |
 | `server.address`, `server.port` | `keyword`, `long` | Servlet destination as observed by the application, not necessarily the public host. |
 | `user.name` | `keyword` | Authenticated actor when known. |
 | `user.target.name` | `keyword` | Target account of a failed authentication. |
-| `source.ip` | `ip` | Direct peer address from request-scoped MDC. It is not a unique correlation identifier or proxy-normalized client identity. |
-| `client.ip` | `ip` | Validated end-user client address from request-scoped MDC. Present only when the default `ClientIpResolver` bean is replaced with a trusted resolver. |
+| `source.ip` | `ip` | Direct peer address from request-scoped MDC, established by `RequestCorrelationContextFilter`. It is not a unique correlation identifier or proxy-normalized client identity. |
+| `client.ip` | `ip` | Validated end-user client address from request-scoped MDC, established by `RequestCorrelationContextFilter`. Present only when the default `ClientIpResolver` bean is replaced with a trusted resolver. |
 | `error.type`, `error.stack_trace` | `keyword`, `wildcard` | Safe exception classification and protected operator stack trace. |
 
 ## Project extension fields
@@ -84,18 +84,23 @@ sharing `http.request.id` and `event.start`. The completed event's
 `event.duration` is `event.end - event.start` in nanoseconds. The filters retain
 the correlation ID and authenticated user for asynchronous completion.
 
-A request rejected by the HTTP firewall (`reject_request`) is the one
-exception: `SecurityLoggingContextFilter` has not yet run when it is emitted,
-so there is no `receive_request`/`complete_request` pair, no
-`http.request.id`, and no MDC context. `ProblemDetailRequestRejectedHandler`
-adds `source.ip` directly from the servlet request instead of from MDC.
+`http.request.id`, `source.ip`, `client.ip`, `trace.id`, and `span.id` are all
+established ahead of Spring Security's filter chain — `RequestCorrelationContextFilter`
+and Micrometer Tracing's observation filter are both registered directly with the
+servlet container at an order below Spring Security's own (see docs/adr/0010) — so
+all five are present even on a request the HTTP firewall rejects (`reject_request`),
+before Spring Security's own internal filter chain, including
+`AuthenticatedUserLoggingContextFilter`, is ever invoked. `user.name` remains the one field
+conditional on that later chain having run: a firewall rejection is the one case
+with no `receive_request`/`complete_request` pair and no `user.name`, since
+authentication never occurs for a request that never reaches `DispatcherServlet`.
 
-`trace.id`/`span.id`, added by `TracingLoggingContextFilter` immediately after
-`SecurityLoggingContextFilter`, are a second, OpenTelemetry-native correlation
-pair layered alongside `http.request.id`: they are read directly from the
-active `Tracer` span rather than copied from `http.request.id`'s MDC entry, and
-are unavailable on `reject_request` for the same reason `http.request.id` is
-unavailable there. No span is exported anywhere; they exist to correlate this
+`trace.id`/`span.id` are a second, OpenTelemetry-native correlation pair layered
+alongside `http.request.id`. Unlike `http.request.id`, they are not added by a
+filter in this application; Micrometer Tracing's own observation filter
+populates `traceId`/`spanId` MDC entries directly, and
+`TraceCorrelationJsonMembersCustomizer` renames them to ECS field names at JSON
+serialization time. No span is exported anywhere; they exist to correlate this
 application's own logs and, for an external caller that propagates W3C trace
 context (see docs/adr/0009), with that caller's own logs or traces.
 

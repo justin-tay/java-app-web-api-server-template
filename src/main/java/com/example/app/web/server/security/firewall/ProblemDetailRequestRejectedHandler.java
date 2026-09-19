@@ -21,10 +21,13 @@ import com.example.app.web.server.api.ProblemTypes;
  * {@code StrictHttpFirewall} unless replaced).
  * <p>
  * The firewall rejects a request, for example a path-traversal attempt, an encoded slash,
- * or a control character in a header field, before it reaches any filter this application
- * registers or {@code DispatcherServlet}. {@code SecurityLoggingContextFilter} has not
- * yet run, so no correlation ID or MDC context exists; this handler adds
- * {@code source.ip} directly from the request instead. Because
+ * or a control character in a header field, before it reaches any filter registered
+ * through Spring Security or {@code DispatcherServlet}, so {@code user.name} is never
+ * available here. {@code http.request.id}, {@code source.ip}, and {@code client.ip} are
+ * available, though: {@code RequestCorrelationContextFilter} runs ahead of the firewall
+ * check and puts them in MDC, so this handler must not add them itself, since that would
+ * duplicate the MDC-sourced fields and fail structured logging's duplicate-key check; see
+ * docs/adr/0010. Because
  * {@code com.example.app.web.server.api.ApiResponseEntityExceptionHandler} only sees
  * exceptions thrown from within {@code DispatcherServlet}'s handler invocation, this is
  * the only place a firewall rejection is recorded. The exception's message is never
@@ -50,7 +53,6 @@ public class ProblemDetailRequestRejectedHandler implements RequestRejectedHandl
 			.addKeyValue("http.response.status_code", HttpStatus.BAD_REQUEST.value())
 			.addKeyValue("http.request.method", request.getMethod())
 			.addKeyValue("url.path", request.getRequestURI())
-			.addKeyValue("source.ip", request.getRemoteAddr())
 			.addKeyValue("error.type", requestRejectedException.getClass().getSimpleName())
 			.log("Request rejected by the HTTP firewall");
 		if (response.isCommitted()) {

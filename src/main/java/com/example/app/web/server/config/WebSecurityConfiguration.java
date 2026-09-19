@@ -16,9 +16,12 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
+import jakarta.servlet.DispatcherType;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.security.authentication.AuthenticationEventPublisher;
 import org.springframework.security.authentication.DefaultAuthenticationEventPublisher;
@@ -60,9 +63,10 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
 import org.springframework.session.security.SpringSessionBackedSessionRegistry;
 
+import com.example.app.web.server.logging.AuthenticatedUserLoggingContextFilter;
+import com.example.app.web.server.logging.LoggingContextCleanupFilter;
+import com.example.app.web.server.logging.RequestCorrelationContextFilter;
 import com.example.app.web.server.logging.RequestLoggingFilter;
-import com.example.app.web.server.logging.SecurityLoggingContextFilter;
-import com.example.app.web.server.logging.TracingLoggingContextFilter;
 import com.example.app.web.server.logging.client.ClientIpResolver;
 import com.example.app.web.server.logging.request.RequestIdResolver;
 import com.example.app.web.server.security.authentication.oidc.LocalAuthoritiesOidcUserService;
@@ -70,6 +74,7 @@ import com.example.app.web.server.security.authorization.ProblemDetailAccessDeni
 import com.example.app.web.server.security.firewall.ProblemDetailRequestRejectedHandler;
 import com.example.app.web.server.security.session.AbsoluteSessionTimeoutFilter;
 import com.example.app.web.server.security.session.ContentNegotiatingSessionExpiredStrategy;
+import com.example.app.web.server.security.session.SessionLifecycleAuditInitializationFilter;
 import com.example.app.web.server.security.session.SessionLifecycleAuditLogger;
 import com.example.app.web.server.security.session.SessionLifecycleLogoutHandler;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -129,8 +134,8 @@ public class WebSecurityConfiguration {
 	SecurityFilterChain securityFilterChain(HttpSecurity http, JWKSet jwks,
 			ClientRegistrationRepository clientRegistrationRepository,
 			AuthenticationEventPublisher authenticationEventPublisher,
-			SecurityLoggingContextFilter securityLoggingContextFilter,
-			TracingLoggingContextFilter tracingLoggingContextFilter, ApplicationProperties applicationProperties,
+			AuthenticatedUserLoggingContextFilter authenticatedUserLoggingContextFilter,
+			ApplicationProperties applicationProperties,
 			LocalAuthoritiesOidcUserService localAuthoritiesOidcUserService, Clock clock,
 			SessionRegistry sessionRegistry, SessionInformationExpiredStrategy sessionExpiredStrategy,
 			SessionLifecycleAuditLogger sessionLifecycleAuditLogger, LogoutHandler sessionLifecycleLogoutHandler)
@@ -142,9 +147,11 @@ public class WebSecurityConfiguration {
 		AbsoluteSessionTimeoutFilter absoluteSessionTimeoutFilter = new AbsoluteSessionTimeoutFilter(
 				applicationProperties.getSession().getAbsoluteTimeout(), clock, sessionLifecycleAuditLogger);
 		RequestLoggingFilter requestLoggingFilter = new RequestLoggingFilter(QUERY_PARAMETER_REDACT_LIST);
-		return http.addFilterBefore(securityLoggingContextFilter, SecurityContextHolderFilter.class)
-			.addFilterAfter(tracingLoggingContextFilter, SecurityLoggingContextFilter.class)
-			.addFilterAfter(absoluteSessionTimeoutFilter, TracingLoggingContextFilter.class)
+		SessionLifecycleAuditInitializationFilter sessionLifecycleAuditInitializationFilter = new SessionLifecycleAuditInitializationFilter(
+				sessionLifecycleAuditLogger);
+		return http.addFilterBefore(authenticatedUserLoggingContextFilter, SecurityContextHolderFilter.class)
+			.addFilterAfter(sessionLifecycleAuditInitializationFilter, AuthenticatedUserLoggingContextFilter.class)
+			.addFilterAfter(absoluteSessionTimeoutFilter, SessionLifecycleAuditInitializationFilter.class)
 			.addFilterAfter(requestLoggingFilter, SecurityContextHolderFilter.class)
 			.headers(headers -> headers
 				.contentSecurityPolicy(
@@ -351,6 +358,42 @@ public class WebSecurityConfiguration {
 	@Bean
 	WebSecurityCustomizer requestRejectedHandlerCustomizer() {
 		return web -> web.requestRejectedHandler(new ProblemDetailRequestRejectedHandler());
+	}
+
+	/**
+	 * Registers {@link LoggingContextCleanupFilter} as the outermost filter (the lowest
+	 * order of any filter in this application), so its MDC cleanup is the last thing that
+	 * runs before control returns to the servlet container, regardless of what any inner
+	 * filter or library left behind. See docs/adr/0010.
+	 * @param filter the filter to register
+	 * @return the registration
+	 */
+	@Bean
+	FilterRegistrationBean<LoggingContextCleanupFilter> loggingContextCleanupFilterRegistration(
+			LoggingContextCleanupFilter filter) {
+		FilterRegistrationBean<LoggingContextCleanupFilter> registration = new FilterRegistrationBean<>(filter);
+		registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+		registration.setDispatcherTypes(DispatcherType.REQUEST, DispatcherType.ASYNC);
+		return registration;
+	}
+
+	/**
+	 * Registers {@link RequestCorrelationContextFilter} ahead of Spring Security's own
+	 * filter chain (order {@code -100}; see
+	 * {@code SecurityProperties.DEFAULT_FILTER_ORDER}), so
+	 * {@code http.request.id}/{@code source.ip}/{@code client.ip} are present even when
+	 * the {@code HttpFirewall} rejects a request before Spring Security's internal filter
+	 * list is ever invoked. See docs/adr/0010.
+	 * @param filter the filter to register
+	 * @return the registration
+	 */
+	@Bean
+	FilterRegistrationBean<RequestCorrelationContextFilter> requestCorrelationContextFilterRegistration(
+			RequestCorrelationContextFilter filter) {
+		FilterRegistrationBean<RequestCorrelationContextFilter> registration = new FilterRegistrationBean<>(filter);
+		registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
+		registration.setDispatcherTypes(DispatcherType.REQUEST, DispatcherType.ASYNC);
+		return registration;
 	}
 
 	/**

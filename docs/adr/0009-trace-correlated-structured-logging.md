@@ -7,17 +7,34 @@
 The application adds Micrometer Tracing with the OpenTelemetry bridge
 (`micrometer-tracing-bridge-otel`, `spring-boot-micrometer-tracing-opentelemetry`) and
 samples every request (`management.tracing.sampling.probability=1.0`), but exports no
-spans anywhere: tracing exists only to add `trace.id`/`span.id` to structured logs, read
-from the active `Tracer` span by `TracingLoggingContextFilter`, alongside the unchanged
-`http.request.id` from `SecurityLoggingContextFilter`.
+spans anywhere: tracing exists only to add `trace.id`/`span.id` to structured logs.
+`TraceCorrelationJsonMembersCustomizer` renames Micrometer's own `traceId`/`spanId` MDC
+entries to those ECS field names at JSON serialization time, alongside the unchanged
+`http.request.id` (established by `RequestCorrelationContextFilter`; see docs/adr/0010).
 
 ## Context
 
 Spring Boot's ECS structured log formatter passes MDC entries through verbatim; it does
 not rename Micrometer Tracing's own `traceId`/`spanId` MDC keys to ECS's
-`trace.id`/`span.id`. `TracingLoggingContextFilter` reads the active span from `Tracer`
-directly and adds it under ECS's field names instead, immediately after
-`SecurityLoggingContextFilter` in the filter chain (see docs/adr/0002).
+`trace.id`/`span.id`. Spring Boot's own `logging.structured.json` correlation mechanism
+already documents that, with Micrometer Tracing present, `traceId`/`spanId` land in MDC
+on every log statement with an active span, not only ones reached through this
+application's own filters, so a `StructuredLoggingJsonMembersCustomizer`
+(`logging.structured.json.customizer`) is the natural place to rename them: it needs no
+`Tracer` injection (these customizers are reflection-instantiated outside the Spring
+`ApplicationContext`, accepting only `Environment`/`ThrowableProxyConverter` constructor
+parameters) and needs no filter-chain wiring. A member name containing a dot is not
+automatically nested by `Members.add(String, Extractor)`; nesting requires the value
+itself to be a `Map`, so each field is added as a single-entry `Map` (`{"id": ...}`)
+rather than as a literally dotted member name.
+
+An earlier version of this decision added a `TracingLoggingContextFilter` that read
+`Tracer.currentSpan()` directly and wrote `trace.id`/`span.id` into MDC itself,
+positioned immediately after `AuthenticatedUserLoggingContextFilter`. That was replaced by the
+customizer once testing confirmed Micrometer's own `traceId`/`spanId` MDC population
+already covers every log statement with an active span, including ones the filter never
+touched (audit and session lifecycle events), making the extra filter and its `Tracer`
+dependency unnecessary.
 
 Getting a working `Tracer` bean in Spring Boot 4.1 also required
 `spring-boot-micrometer-tracing-opentelemetry`, a dedicated autoconfiguration module
@@ -40,8 +57,9 @@ with this decision's library-only approach.
 
 ## Consequences
 
-Every sampled request now carries `trace.id`/`span.id` on its structured logs; nothing
-is exported anywhere today. Field contract and correlation semantics are maintained in
+Every log statement with an active sampled span now carries `trace.id`/`span.id`, not
+only ones this application's own filters touch; nothing is exported anywhere today.
+Field contract and correlation semantics are maintained in
 [`docs/security/logging/schema.md`](../security/logging/schema.md),
 [`docs/security/logging/event-reference.md`](../security/logging/event-reference.md),
 and [`docs/security/logging/README.md`](../security/logging/README.md).
