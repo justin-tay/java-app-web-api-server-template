@@ -37,10 +37,7 @@ unrelated side effect from a filter whose name and Javadoc now describe only MDC
 `SessionLifecycleAuditInitializationFilter` (`security.session` package) checks,
 unconditionally on every request, whether the current session (if any) already has an
 audit identifier, and stamps one via `SessionLifecycleAuditLogger.logSessionCreatedIfNeeded`
-if not. It is not triggered by a specific "session created" event. It was extracted from
-`AuthenticatedUserLoggingContextFilter` (formerly `SecurityLoggingContextFilter`), which
-previously ran this same check from an unrelated `finally` block, alongside adding
-`user.name` to MDC.
+if not. It is not triggered by a specific "session created" event.
 
 ## Consequences
 

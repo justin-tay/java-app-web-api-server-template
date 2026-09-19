@@ -7,9 +7,9 @@ Do not duplicate an ADR's content into this table when adding a new one.
 
 | Decision | Summary |
 | --- | --- |
-| [ADR 0001](../adr/0001-adr-template.md) — ADR template | Records this repository's existing five-part ADR shape (Nygard's Title/Status/Context/Decision/Consequences, decision-first) as the deliberate template, rather than a lighter one some tooling defaults to. |
-| [ADR 0002](../adr/0002-system-design-document.md) — System design document | Introduces this document under `docs/system-design/`, relocates `docs/security/` and its logging content into it, and defers an AsciiDoc/PDF export pipeline. |
-| [ADR 0003](../adr/0003-control-implementation-terminology.md) — "Control implementation" terminology | Standard-to-status mapping documents use OSCAL's "control implementation" term, not "crosswalk" (too loose) or "requirements traceability matrix" (collides with an existing deliverable). |
+| [ADR 0001](../adr/0001-adr-template.md) — ADR template | Records Nygard's canonical five-part ADR shape (Title/Status/Context/Decision/Consequences) as this repository's deliberate template, rather than a lighter one some tooling defaults to. |
+| [ADR 0002](../adr/0002-system-design-document.md) — System design document | Introduces this document under `docs/system-design/`, sharded by chapter with the shard files as the source of truth, and defers an AsciiDoc/PDF export pipeline. |
+| [ADR 0003](../adr/0003-control-implementation-terminology.md) — "Control implementation" terminology | Standard-to-status mapping documents use OSCAL's "control implementation" term, matching how this template is architecturally closer to an OSCAL component than a full System Security Plan. |
 | [ADR 0004](../adr/0004-database-schema-management.md) — Database schema management | Liquibase is the sole owner of schema; the application's runtime database account has no DDL privileges, migrations run as a separate CI step. |
 | [ADR 0005](../adr/0005-keycloak-authentication-local-authorisation.md) — Keycloak authentication, local authorisation | Keycloak is the identity/credential authority via OIDC; authorization (groups/roles) is looked up locally rather than trusted from identity-provider claims. |
 | [ADR 0006](../adr/0006-jdbc-backed-server-side-sessions.md) — JDBC-backed server-side sessions | Sessions are server-side and JDBC-backed via Spring Session; the browser holds only an opaque session ID cookie. |

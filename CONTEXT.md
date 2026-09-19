@@ -41,6 +41,4 @@ component describing how it satisfies a control catalog. See
 [ADR 0003](docs/adr/0003-control-implementation-terminology.md).
 _Avoid_: "crosswalk" (that term properly means mapping two different
 standards to each other, not a standard to an implementation), "OWASP
-review", "recommendation matrix", "requirements traceability matrix" (that
-name is reserved for a separate contractual deliverable, not this project's
-internal documents)
+review", "recommendation matrix"

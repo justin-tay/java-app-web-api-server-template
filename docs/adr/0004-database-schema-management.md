@@ -36,8 +36,6 @@ executes the changelog against the target database before the application is
 released. The application runtime never creates, updates, or seeds database
 objects.
 
-## Delivery contract
-
 The CI migration job must:
 
 1. Use the Liquibase changelog from the exact application revision being

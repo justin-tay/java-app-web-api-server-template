@@ -45,16 +45,11 @@ Accepted
 - **Status** is its own `##` heading, with the status word as the section's
   only content, matching the canonical template exactly. `Accepted` is the
   only status used to date; a superseding ADR should say so explicitly in
-  its own Context and update the superseded ADR to note it, per
-  [docs/adr/README.md](README.md).
+  its own Context.
 - **Context**, **Decision**, and **Consequences** appear in that order,
   matching Nygard's own ordering exactly; this repository does not reverse
-  it.
-- An optional **Delivery contract** section may appear between Decision and
-  Consequences, only when a decision imposes a concrete, checkable rollout
-  or delivery process that isn't itself a consequence (used by
-  [ADR 0004](0004-database-schema-management.md), which specifies what a CI
-  migration job must do). Most ADRs will not need it.
+  it. There is no separate section for a rollout or delivery checklist; that
+  belongs inside Decision, as part of what is being decided.
 
 For guidance on writing a good ADR beyond this shape (keeping each ADR to one
 decision, writing timestamped and immutable records, what makes a good
