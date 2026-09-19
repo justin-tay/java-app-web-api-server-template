@@ -1,17 +1,8 @@
-# ADR 0001: Database schema management
+# ADR 0004: Database schema management
 
-**Status:** Accepted
+## Status
 
-## Decision
-
-Liquibase is the sole owner of application and Spring Session schema and reference
-data. Every schema or data change is an ordered, version-controlled Liquibase
-changeset in `src/main/resources/db/changelog`.
-
-A dedicated CI migration job, using the same revision that will be deployed,
-executes the changelog against the target database before the application is
-released. The application runtime never creates, updates, or seeds database
-objects.
+Accepted
 
 ## Context
 
@@ -33,6 +24,17 @@ is disabled. Hibernate DDL generation is also disabled.
 
 Liquibase's own `DATABASECHANGELOG` and `DATABASECHANGELOGLOCK` tables are the
 only framework-managed metadata tables.
+
+## Decision
+
+Liquibase is the sole owner of application and Spring Session schema and reference
+data. Every schema or data change is an ordered, version-controlled Liquibase
+changeset in `src/main/resources/db/changelog`.
+
+A dedicated CI migration job, using the same revision that will be deployed,
+executes the changelog against the target database before the application is
+released. The application runtime never creates, updates, or seeds database
+objects.
 
 ## Delivery contract
 

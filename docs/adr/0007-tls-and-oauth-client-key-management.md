@@ -1,13 +1,8 @@
-# ADR 0006: TLS and OAuth client key management
+# ADR 0007: TLS and OAuth client key management
 
-**Status:** Accepted
+## Status
 
-## Decision
-
-Production traffic uses TLS 1.2 or TLS 1.3 with the configured strong cipher
-suites. The OAuth2 client authenticates to Keycloak with `private_key_jwt`;
-Keycloak obtains the corresponding public key from the application's public
-JWKS endpoint.
+Accepted
 
 ## Context
 
@@ -15,6 +10,13 @@ TLS protects traffic in transit. Asymmetric client authentication avoids a
 long-lived client secret shared between the application and identity provider.
 Private key material is supplied through protected deployment configuration, not
 embedded in source or exposed through the JWKS endpoint.
+
+## Decision
+
+Production traffic uses TLS 1.2 or TLS 1.3 with the configured strong cipher
+suites. The OAuth2 client authenticates to Keycloak with `private_key_jwt`;
+Keycloak obtains the corresponding public key from the application's public
+JWKS endpoint.
 
 ## Consequences
 

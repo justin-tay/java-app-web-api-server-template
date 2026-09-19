@@ -8,7 +8,7 @@ on this index.
 
 Individual chapter files are the source of truth. If a single-file or PDF
 form of this document is ever generated (see chapter 9 and
-[ADR 0012](../adr/0012-system-design-document.md)), it is assembled from
+[ADR 0002](../adr/0002-system-design-document.md)), it is assembled from
 these files and is not itself hand-edited.
 
 | Chapter | Content |

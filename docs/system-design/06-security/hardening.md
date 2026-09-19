@@ -78,7 +78,7 @@ still be network-restricted (security group/NACL) to the load balancer's health-
 path and any internal ops network, and must never share a listener or target group
 with the application port. Adding any other endpoint (`metrics`, `info`, `env`, etc.)
 needs its own authentication mechanism for the management port first; see
-[ADR 0008](../../adr/0008-actuator-management-port.md) for the full rationale, including
+[ADR 0014](../../adr/0014-actuator-management-port.md) for the full rationale, including
 two easy-to-get-backwards behaviors this port has because it shares Spring Security's
 filter chain with the application while running as a separate embedded server.
 
@@ -180,4 +180,4 @@ decisions for:
 7. Restrict the Actuator management port (`8082`) to the load balancer's health-check
    path and any internal ops network only; never route it through the same listener
    or target group as the application port. See
-   [ADR 0008](../../adr/0008-actuator-management-port.md).
+   [ADR 0014](../../adr/0014-actuator-management-port.md).

@@ -1,20 +1,22 @@
-# ADR 0005: JDBC-backed server-side sessions
+# ADR 0006: JDBC-backed server-side sessions
 
-**Status:** Accepted
+## Status
 
-## Decision
-
-The application uses Spring Session with JDBC-backed server-side sessions. The
-browser receives only the `id` session cookie; session state, including OAuth2
-login state, is stored in the `SPRING_SESSION` tables.
+Accepted
 
 ## Context
 
 Server-side session storage keeps authentication and OAuth2 state out of the
 cookie and permits session persistence to use the application's database
 platform. The session schema is version-controlled in Liquibase under
-[ADR 0001](0001-database-schema-management.md), not created by Spring Boot at
+[ADR 0004](0004-database-schema-management.md), not created by Spring Boot at
 runtime.
+
+## Decision
+
+The application uses Spring Session with JDBC-backed server-side sessions. The
+browser receives only the `id` session cookie; session state, including OAuth2
+login state, is stored in the `SPRING_SESSION` tables.
 
 ## Consequences
 

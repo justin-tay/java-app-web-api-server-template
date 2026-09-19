@@ -8,7 +8,7 @@
 | Application framework | Spring Boot (`spring-boot-starter-parent`) |
 | Web layer | Spring MVC (`spring-boot-starter-web`), embedded Tomcat |
 | Security | Spring Security, OIDC client (`spring-boot-starter-oauth2-client`) |
-| Sessions | Server-side, JDBC-backed (`spring-boot-starter-session-jdbc`); see [ADR 0005](../adr/0005-jdbc-backed-server-side-sessions.md) |
+| Sessions | Server-side, JDBC-backed (`spring-boot-starter-session-jdbc`); see [ADR 0006](../adr/0006-jdbc-backed-server-side-sessions.md) |
 | Persistence | Spring Data JPA (`spring-boot-starter-data-jpa`) |
 | Schema management | Liquibase (`spring-boot-starter-liquibase`); see [Data Model](04-data-model.md) |
 | Observability | Micrometer Tracing with the OpenTelemetry bridge, Spring Boot Actuator |
@@ -41,7 +41,7 @@ authentication/session/authorization filter chain, then Spring MVC
 controllers in `api`. Errors at any stage are normalized to RFC 9457 Problem
 Details rather than leaking stack traces or framework-specific error pages;
 see [Error responses](06-security/error-responses.md) for the full mapping and
-[ADR 0003](../adr/0003-rfc-9457-problem-details.md) for why.
+[ADR 0013](../adr/0013-rfc-9457-problem-details.md) for why.
 
 This is a deliberately conventional layered structure for a single
 deployable service, not a set of independently deployable modules; there is

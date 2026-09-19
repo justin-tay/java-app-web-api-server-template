@@ -38,7 +38,7 @@ requirements (OWASP ASVS, an OWASP cheat sheet, the CIS Tomcat Benchmark) to
 this template's actual implementation status, per requirement. Named after
 OSCAL's Component Definition model, which uses this exact term for a
 component describing how it satisfies a control catalog. See
-[ADR 0014](docs/adr/0014-control-implementation-terminology.md).
+[ADR 0003](docs/adr/0003-control-implementation-terminology.md).
 _Avoid_: "crosswalk" (that term properly means mapping two different
 standards to each other, not a standard to an implementation), "OWASP
 review", "recommendation matrix", "requirements traceability matrix" (that

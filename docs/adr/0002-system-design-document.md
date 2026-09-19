@@ -1,36 +1,8 @@
-# ADR 0012: System design document under docs/system-design
+# ADR 0002: System design document under docs/system-design
 
-**Status:** Accepted
+## Status
 
-## Decision
-
-`docs/system-design/` holds the template's System Design Document, sharded
-into one Markdown file per chapter with `docs/system-design/index.md` as the
-table of contents. Each shard file is numeric-prefixed
-(`01-introduction.md`, `02-system-context.md`, ...) so a plain directory
-listing already reflects reading order, without relying on `index.md` to
-establish it. The shard files are the only hand-maintained source; any future
-single-file "master" document assembled from them (for example to feed an
-AsciiDoc/PDF export) is a generated build artifact, never edited directly.
-
-`docs/security/` moves to `docs/system-design/06-security/` as a nested
-subfolder, keeping its existing internal structure (its own `README.md`
-index and topic files) unchanged. `docs/security/logging/` moves out
-separately, to `docs/system-design/05-crosscutting-concepts/logging/`, since
-logging is a cross-cutting concern rather than a security-specific one. Both
-directories carry the same numeric-prefix convention as the single-file
-chapters, so that the ordering property above holds for the whole chapter
-set, not just the files.
-
-`docs/adr/`, `docs/specifications/`, and `docs/standards/` are unchanged and
-stay outside `docs/system-design/`. The system design document references
-them (an arc42-style "Architecture Decisions" chapter links to individual ADRs; a
-"References" chapter links to specifications and standards) rather than
-absorbing their content.
-
-An AsciiDoc-based conversion to PDF, for a human-readable deliverable form of
-the document, is a desired future step but is explicitly out of scope for
-this change: no conversion tooling is introduced here.
+Accepted
 
 ## Context
 
@@ -77,6 +49,36 @@ added churn without benefit. Logging is split out to its own
 `crosscutting-concepts/` chapter because it is not itself a security
 control; it happened to live under `docs/security/` only because there was
 previously no more suitable home for it.
+
+## Decision
+
+`docs/system-design/` holds the template's System Design Document, sharded
+into one Markdown file per chapter with `docs/system-design/index.md` as the
+table of contents. Each shard file is numeric-prefixed
+(`01-introduction.md`, `02-system-context.md`, ...) so a plain directory
+listing already reflects reading order, without relying on `index.md` to
+establish it. The shard files are the only hand-maintained source; any future
+single-file "master" document assembled from them (for example to feed an
+AsciiDoc/PDF export) is a generated build artifact, never edited directly.
+
+`docs/security/` moves to `docs/system-design/06-security/` as a nested
+subfolder, keeping its existing internal structure (its own `README.md`
+index and topic files) unchanged. `docs/security/logging/` moves out
+separately, to `docs/system-design/05-crosscutting-concepts/logging/`, since
+logging is a cross-cutting concern rather than a security-specific one. Both
+directories carry the same numeric-prefix convention as the single-file
+chapters, so that the ordering property above holds for the whole chapter
+set, not just the files.
+
+`docs/adr/`, `docs/specifications/`, and `docs/standards/` are unchanged and
+stay outside `docs/system-design/`. The system design document references
+them (an arc42-style "Architecture Decisions" chapter links to individual ADRs; a
+"References" chapter links to specifications and standards) rather than
+absorbing their content.
+
+An AsciiDoc-based conversion to PDF, for a human-readable deliverable form of
+the document, is a desired future step but is explicitly out of scope for
+this change: no conversion tooling is introduced here.
 
 ## Consequences
 

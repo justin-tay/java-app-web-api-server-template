@@ -57,7 +57,7 @@ fields where available and documents two intentional project extensions.
 | `event.start`, `event.end` | `date` | Request lifecycle boundaries. |
 | `event.duration` | `long` | Request duration in nanoseconds. |
 | `http.request.id` | `keyword` | Correlation ID established by `RequestCorrelationContextFilter`; generated as a UUID unless the configured `RequestIdResolver` supplies an upstream ID. It is not authentication material. |
-| `trace.id` | `keyword` | OpenTelemetry trace identifier, renamed from Micrometer Tracing's `traceId` MDC entry by `TraceCorrelationJsonMembersCustomizer`. Present whenever the log statement has an active sampled span; see [ADR 0009](../../../adr/0009-trace-correlated-structured-logging.md). |
+| `trace.id` | `keyword` | OpenTelemetry trace identifier, renamed from Micrometer Tracing's `traceId` MDC entry by `TraceCorrelationJsonMembersCustomizer`. Present whenever the log statement has an active sampled span; see [ADR 0011](../../../adr/0011-trace-correlated-structured-logging.md). |
 | `span.id` | `keyword` | OpenTelemetry identifier for the active server span, renamed alongside `trace.id`. |
 | `http.request.method` | `keyword` | Incoming servlet request method. |
 | `http.response.status_code` | `long` | Final or handler-known HTTP response status. |
@@ -87,7 +87,7 @@ the correlation ID and authenticated user for asynchronous completion.
 `http.request.id`, `source.ip`, `client.ip`, `trace.id`, and `span.id` are all
 established ahead of Spring Security's filter chain — `RequestCorrelationContextFilter`
 and Micrometer Tracing's observation filter are both registered directly with the
-servlet container at an order below Spring Security's own (see [ADR 0010](../../../adr/0010-request-correlation-ahead-of-security-chain.md)) — so
+servlet container at an order below Spring Security's own (see [ADR 0012](../../../adr/0012-request-correlation-ahead-of-security-chain.md)) — so
 all five are present even on a request the HTTP firewall rejects (`reject_request`),
 before Spring Security's own internal filter chain, including
 `AuthenticatedUserLoggingContextFilter`, is ever invoked. `user.name` remains the one field
@@ -102,7 +102,7 @@ populates `traceId`/`spanId` MDC entries directly, and
 `TraceCorrelationJsonMembersCustomizer` renames them to ECS field names at JSON
 serialization time. No span is exported anywhere; they exist to correlate this
 application's own logs and, for an external caller that propagates W3C trace
-context (see [ADR 0009](../../../adr/0009-trace-correlated-structured-logging.md)), with that caller's own logs or traces.
+context (see [ADR 0011](../../../adr/0011-trace-correlated-structured-logging.md)), with that caller's own logs or traces.
 
 ## Sensitive-data policy
 

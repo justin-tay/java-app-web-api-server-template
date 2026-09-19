@@ -1,13 +1,8 @@
-# ADR 0007: Separate session lifecycle audit identifiers
+# ADR 0008: Separate session lifecycle audit identifiers
 
-**Status:** Accepted
+## Status
 
-## Decision
-
-Session-security lifecycle logs use a randomly generated, application-local
-audit identifier stored as a server-side Spring Session attribute. It is emitted
-as ECS `session.id`; the browser's `id` cookie value and Spring Session's raw
-session ID are never logged.
+Accepted
 
 ## Context
 
@@ -16,6 +11,13 @@ renewal, logout, absolute-timeout, and concurrent-session expiry events. The
 session credential is authentication material and must not enter logs. A shared
 HMAC-based correlation value would require every downstream system to hold the
 same secret, which is not appropriate for this template.
+
+## Decision
+
+Session-security lifecycle logs use a randomly generated, application-local
+audit identifier stored as a server-side Spring Session attribute. It is emitted
+as ECS `session.id`; the browser's `id` cookie value and Spring Session's raw
+session ID are never logged.
 
 ## Consequences
 

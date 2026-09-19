@@ -36,7 +36,7 @@ When `WebSecurityConfiguration` is changed to supply a trusted
 normalized header, an `X-Forwarded-For` chain, and CloudFront's address-and-port
 header; each rejects an untrusted immediate peer. This filter, along with
 `http.request.id`, is registered directly with the servlet container at an
-order below Spring Security's own filter chain (see [ADR 0010](../../../adr/0010-request-correlation-ahead-of-security-chain.md)), so these
+order below Spring Security's own filter chain (see [ADR 0012](../../../adr/0012-request-correlation-ahead-of-security-chain.md)), so these
 fields are present on every event below, including `reject_request`.
 
 Micrometer Tracing puts its own `traceId`/`spanId` in MDC on every log
@@ -44,7 +44,7 @@ statement with an active sampled span; `TraceCorrelationJsonMembersCustomizer`
 renames them to `trace.id`/`span.id` at JSON serialization time, not through
 any filter in this application. Its observation filter is registered at a
 similarly low order, so `trace.id`/`span.id` share the same broad availability
-as `http.request.id`/`source.ip`/`client.ip` (see [ADR 0009](../../../adr/0009-trace-correlated-structured-logging.md)).
+as `http.request.id`/`source.ip`/`client.ip` (see [ADR 0011](../../../adr/0011-trace-correlated-structured-logging.md)).
 
 ## Request lifecycle
 
@@ -147,7 +147,7 @@ authentication never runs. `http.request.id`, `source.ip`, `client.ip`,
 `trace.id`, and `span.id` are all present, though: `RequestCorrelationContextFilter`
 and Micrometer Tracing's observation filter are both registered directly with
 the servlet container, ahead of Spring Security's filter chain, so they have
-already run by the time the firewall rejects the request (see [ADR 0010](../../../adr/0010-request-correlation-ahead-of-security-chain.md),
+already run by the time the firewall rejects the request (see [ADR 0012](../../../adr/0012-request-correlation-ahead-of-security-chain.md),
 confirmed against a real rejected request by
 `TraceCorrelationJsonMembersCustomizerIntegrationTest`). The firewall
 exception's message is never logged or returned, consistent with

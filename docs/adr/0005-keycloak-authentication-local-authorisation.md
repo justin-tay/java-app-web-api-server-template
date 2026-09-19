@@ -1,6 +1,16 @@
-# ADR 0004: Keycloak authentication and local authorisation
+# ADR 0005: Keycloak authentication and local authorisation
 
-**Status:** Accepted
+## Status
+
+Accepted
+
+## Context
+
+Separating authentication from application authorization lets the application
+manage its own access model without duplicating identity credentials or coupling
+its permissions to Keycloak role administration. A valid Keycloak login alone
+does not grant application access: the matching local user must exist and be
+enabled.
 
 ## Decision
 
@@ -11,14 +21,6 @@ then determines access from its own local user, group, and role model.
 Local usernames correspond to Keycloak `preferred_username` values. Keycloak
 realm and client roles are not used as application authorities, and the
 application neither stores passwords nor manages Keycloak credentials.
-
-## Context
-
-Separating authentication from application authorization lets the application
-manage its own access model without duplicating identity credentials or coupling
-its permissions to Keycloak role administration. A valid Keycloak login alone
-does not grant application access: the matching local user must exist and be
-enabled.
 
 ## Consequences
 

@@ -25,12 +25,12 @@ valid values, and field-by-field contract for every emitted event are in
   Tracing's observation filter). Its only job is one unconditional
   `MDC.clear()` after the rest of the chain returns, so a reused servlet
   thread cannot associate a later, unrelated event with this request,
-  regardless of what any inner filter or library left behind. See [ADR 0010](../../../adr/0010-request-correlation-ahead-of-security-chain.md).
+  regardless of what any inner filter or library left behind. See [ADR 0012](../../../adr/0012-request-correlation-ahead-of-security-chain.md).
 * `RequestCorrelationContextFilter` establishes the request correlation ID and
   direct peer address in MDC. It is registered directly with the servlet
   container ahead of Spring Security's filter chain, not through
   `HttpSecurity`, so these fields are present even on a request the HTTP
-  firewall rejects; see [ADR 0010](../../../adr/0010-request-correlation-ahead-of-security-chain.md). The peer address is not a unique
+  firewall rejects; see [ADR 0012](../../../adr/0012-request-correlation-ahead-of-security-chain.md). The peer address is not a unique
   correlation ID and may be a proxy rather than the end user. It scopes and
   removes only these fields itself; it does not blanket-clear MDC, since that
   is `LoggingContextCleanupFilter`'s job.
@@ -51,13 +51,13 @@ valid values, and field-by-field contract for every emitted event are in
   to a specific "session created" event, since a session can come into
   existence through more than one path (login, CSRF token establishment,
   session-fixation renewal); the underlying check is idempotent, so the
-  repeated per-request call is cheap and safe. See [ADR 0011](../../../adr/0011-session-audit-initialization-checked-every-request.md).
+  repeated per-request call is cheap and safe. See [ADR 0009](../../../adr/0009-session-audit-initialization-checked-every-request.md).
 * `TraceCorrelationJsonMembersCustomizer` renames Micrometer Tracing's own
   `traceId`/`spanId` MDC entries to `trace.id`/`span.id` at JSON serialization
   time, so ECS logs carry OpenTelemetry-native correlation identifiers
   alongside `http.request.id`, on every log statement with an active sampled
   span, not only ones this application's own filters touch. No span is
-  exported anywhere; see [ADR 0009](../../../adr/0009-trace-correlated-structured-logging.md).
+  exported anywhere; see [ADR 0011](../../../adr/0011-trace-correlated-structured-logging.md).
 * `RequestLoggingFilter`, immediately after the context filter, emits
   `receive_request` and `complete_request` events. The latter includes
   outcome, response status, matched route, and duration.
@@ -72,7 +72,7 @@ valid values, and field-by-field contract for every emitted event are in
   `source.ip`, `client.ip`, `trace.id`, and `span.id` are all present, since
   `RequestCorrelationContextFilter` and Micrometer Tracing's observation
   filter both run ahead of the firewall check; only `user.name` is
-  unavailable, since authentication never runs. See [ADR 0010](../../../adr/0010-request-correlation-ahead-of-security-chain.md).
+  unavailable, since authentication never runs. See [ADR 0012](../../../adr/0012-request-correlation-ahead-of-security-chain.md).
 * `ApplicationLifecycleEventLogger`, registered before context creation through
   `spring.factories`, records application starting, started, failed-to-start,
   and stopped events. It deliberately does not log `ApplicationStartingEvent`,

@@ -1,21 +1,8 @@
-# ADR 0010: Request correlation fields established ahead of the security chain
+# ADR 0012: Request correlation fields established ahead of the security chain
 
-**Status:** Accepted
+## Status
 
-## Decision
-
-`http.request.id`, `source.ip`, and `client.ip` are established by
-`RequestCorrelationContextFilter`, a plain servlet filter registered directly with the
-container ahead of `springSecurityFilterChain` (order `Ordered.HIGHEST_PRECEDENCE + 10`,
-lower than Spring Security's own `-100`), rather than through `HttpSecurity`. It scopes
-and removes only the three MDC entries it itself adds; it does not clear MDC on entry or
-exit. `LoggingContextCleanupFilter`, registered even earlier
-(`Ordered.HIGHEST_PRECEDENCE`, the outermost filter in the application), is the single
-place that clears MDC entirely, once, on exit, as a safety net for a reused servlet
-thread. `AuthenticatedUserLoggingContextFilter` keeps its original chain position and now
-only adds `user.name` post-authentication; session-audit initialization moved to its own
-filter for unrelated reasons (see
-[ADR 0011](0011-session-audit-initialization-checked-every-request.md)).
+Accepted
 
 ## Context
 
@@ -59,6 +46,21 @@ Three problems surfaced while making this change, all now covered by regression 
   correctly. `MockMvcITSupport` now adds `LoggingContextCleanupFilter` and
   `RequestCorrelationContextFilter` to the builder explicitly rather than relying on
   Spring Boot's MockMvc auto-configuration to discover them.
+
+## Decision
+
+`http.request.id`, `source.ip`, and `client.ip` are established by
+`RequestCorrelationContextFilter`, a plain servlet filter registered directly with the
+container ahead of `springSecurityFilterChain` (order `Ordered.HIGHEST_PRECEDENCE + 10`,
+lower than Spring Security's own `-100`), rather than through `HttpSecurity`. It scopes
+and removes only the three MDC entries it itself adds; it does not clear MDC on entry or
+exit. `LoggingContextCleanupFilter`, registered even earlier
+(`Ordered.HIGHEST_PRECEDENCE`, the outermost filter in the application), is the single
+place that clears MDC entirely, once, on exit, as a safety net for a reused servlet
+thread. `AuthenticatedUserLoggingContextFilter` keeps its original chain position and now
+only adds `user.name` post-authentication; session-audit initialization moved to its own
+filter for unrelated reasons (see
+[ADR 0009](0009-session-audit-initialization-checked-every-request.md)).
 
 ## Consequences
 

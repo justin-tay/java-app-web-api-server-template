@@ -1,13 +1,8 @@
-# ADR 0003: RFC 9457 Problem Details API errors
+# ADR 0013: RFC 9457 Problem Details API errors
 
-**Status:** Accepted
+## Status
 
-## Decision
-
-HTTP API errors use RFC 9457 Problem Details with the
-`application/problem+json` media type. The `type` URI is the stable,
-machine-readable error identifier; HTTP status, title, detail, and permitted
-extensions provide supporting information.
+Accepted
 
 ## Context
 
@@ -15,6 +10,13 @@ A standard error format gives clients one predictable contract for validation,
 authorization, routing, domain, upstream, and unexpected failures. It avoids
 endpoint-specific error envelopes and prevents internal implementation details
 from being returned to callers.
+
+## Decision
+
+HTTP API errors use RFC 9457 Problem Details with the
+`application/problem+json` media type. The `type` URI is the stable,
+machine-readable error identifier; HTTP status, title, detail, and permitted
+extensions provide supporting information.
 
 ## Consequences
 

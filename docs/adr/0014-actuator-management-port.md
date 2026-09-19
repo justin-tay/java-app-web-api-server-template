@@ -1,13 +1,8 @@
-# ADR 0008: Actuator on a separate, minimally exposed management port
+# ADR 0014: Actuator on a separate, minimally exposed management port
 
-**Status:** Accepted
+## Status
 
-## Decision
-
-Spring Boot Actuator runs on a separate management port from the application,
-exposing only a minimal, unauthenticated health check for the load balancer. No
-other actuator endpoint is enabled, and the endpoints are not served under the
-default `/actuator` path.
+Accepted
 
 ## Context
 
@@ -19,6 +14,13 @@ the template needed independent verification rather than being assumed to carry 
 and it still shares one Spring Security filter chain with the application, so the
 health path needed an explicit permit rule rather than being reachable automatically.
 `ActuatorManagementPortTest` covers both.
+
+## Decision
+
+Spring Boot Actuator runs on a separate management port from the application,
+exposing only a minimal, unauthenticated health check for the load balancer. No
+other actuator endpoint is enabled, and the endpoints are not served under the
+default `/actuator` path.
 
 ## Consequences
 

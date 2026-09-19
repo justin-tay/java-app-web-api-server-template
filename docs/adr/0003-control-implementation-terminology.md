@@ -1,6 +1,28 @@
-# ADR 0014: "Control implementation" terminology for standard-to-status mappings
+# ADR 0003: "Control implementation" terminology for standard-to-status mappings
 
-**Status:** Accepted
+## Status
+
+Accepted
+
+## Context
+
+These documents originally used "crosswalk," inherited from common (if
+imprecise) industry usage. On review, "crosswalk" has an established, more
+specific meaning: it names a mapping between two different standards or
+frameworks to each other (for example, NIST 800-53 to ISO/IEC 27001), not a
+mapping from one standard to a system's own implementation. NIST itself
+publishes such crosswalks in that stricter sense. Continuing to call these
+documents "crosswalks" would use the term loosely rather than accurately,
+even though the loose usage is common enough in vendor and consulting
+material that it would not have been actively misleading.
+
+The choice matters beyond precision because this project is expected to
+follow Singapore's IM8 reform, whose own control catalog
+(`docs/standards/im8-reform-cybersecurity-control-catalog.md`) is explicitly
+OSCAL/Trestle-inspired. Adopting OSCAL's own vocabulary here, rather than a
+generic compliance-industry term or a name that collides with an existing
+deliverable, keeps this project's documentation vocabulary aligned with the
+direction it is already committed to.
 
 ## Decision
 
@@ -26,26 +48,6 @@ JSON/XML format; these documents remain Markdown.
 already names a separate, existing contractual deliverable for this project.
 Reusing it here for a different artifact would create exactly the kind of
 naming collision this project has been actively removing elsewhere.
-
-## Context
-
-These documents originally used "crosswalk," inherited from common (if
-imprecise) industry usage. On review, "crosswalk" has an established, more
-specific meaning: it names a mapping between two different standards or
-frameworks to each other (for example, NIST 800-53 to ISO/IEC 27001), not a
-mapping from one standard to a system's own implementation. NIST itself
-publishes such crosswalks in that stricter sense. Continuing to call these
-documents "crosswalks" would use the term loosely rather than accurately,
-even though the loose usage is common enough in vendor and consulting
-material that it would not have been actively misleading.
-
-The choice matters beyond precision because this project is expected to
-follow Singapore's IM8 reform, whose own control catalog
-(`docs/standards/im8-reform-cybersecurity-control-catalog.md`) is explicitly
-OSCAL/Trestle-inspired. Adopting OSCAL's own vocabulary here, rather than a
-generic compliance-industry term or a name that collides with an existing
-deliverable, keeps this project's documentation vocabulary aligned with the
-direction it is already committed to.
 
 ## Consequences
 

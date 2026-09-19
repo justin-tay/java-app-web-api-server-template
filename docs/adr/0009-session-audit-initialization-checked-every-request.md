@@ -1,16 +1,8 @@
-# ADR 0011: Session audit initialization checked on every request
+# ADR 0009: Session audit initialization checked on every request
 
-**Status:** Accepted
+## Status
 
-## Decision
-
-`SessionLifecycleAuditInitializationFilter` (`security.session` package) checks,
-unconditionally on every request, whether the current session (if any) already has an
-audit identifier, and stamps one via `SessionLifecycleAuditLogger.logSessionCreatedIfNeeded`
-if not. It is not triggered by a specific "session created" event. It was extracted from
-`AuthenticatedUserLoggingContextFilter` (formerly `SecurityLoggingContextFilter`), which
-previously ran this same check from an unrelated `finally` block, alongside adding
-`user.name` to MDC.
+Accepted
 
 ## Context
 
@@ -39,6 +31,16 @@ happened to wrap the right scope. Splitting it into its own filter, in the
 `logging` package, gives it a home consistent with its siblings and removes an
 unrelated side effect from a filter whose name and Javadoc now describe only MDC
 `user.name` handling.
+
+## Decision
+
+`SessionLifecycleAuditInitializationFilter` (`security.session` package) checks,
+unconditionally on every request, whether the current session (if any) already has an
+audit identifier, and stamps one via `SessionLifecycleAuditLogger.logSessionCreatedIfNeeded`
+if not. It is not triggered by a specific "session created" event. It was extracted from
+`AuthenticatedUserLoggingContextFilter` (formerly `SecurityLoggingContextFilter`), which
+previously ran this same check from an unrelated `finally` block, alongside adding
+`user.name` to MDC.
 
 ## Consequences
 

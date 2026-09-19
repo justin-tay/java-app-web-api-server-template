@@ -1,17 +1,8 @@
-# ADR 0009: Trace-correlated structured logging
+# ADR 0011: Trace-correlated structured logging
 
-**Status:** Accepted
+## Status
 
-## Decision
-
-The application adds Micrometer Tracing with the OpenTelemetry bridge
-(`micrometer-tracing-bridge-otel`, `spring-boot-micrometer-tracing-opentelemetry`) and
-samples every request (`management.tracing.sampling.probability=1.0`), but exports no
-spans anywhere: tracing exists only to add `trace.id`/`span.id` to structured logs.
-`TraceCorrelationJsonMembersCustomizer` renames Micrometer's own `traceId`/`spanId` MDC
-entries to those ECS field names at JSON serialization time, alongside the unchanged
-`http.request.id` (established by `RequestCorrelationContextFilter`; see
-[ADR 0010](0010-request-correlation-ahead-of-security-chain.md)).
+Accepted
 
 ## Context
 
@@ -55,6 +46,17 @@ that later: an ADOT Collector sidecar at `localhost:4318` (Spring Boot's OTLP de
 or direct export to `https://xray.<region>.amazonaws.com/v1/traces`, which needs AWS
 SigV4 request signing that only the ADOT Java agent provides out of the box, conflicting
 with this decision's library-only approach.
+
+## Decision
+
+The application adds Micrometer Tracing with the OpenTelemetry bridge
+(`micrometer-tracing-bridge-otel`, `spring-boot-micrometer-tracing-opentelemetry`) and
+samples every request (`management.tracing.sampling.probability=1.0`), but exports no
+spans anywhere: tracing exists only to add `trace.id`/`span.id` to structured logs.
+`TraceCorrelationJsonMembersCustomizer` renames Micrometer's own `traceId`/`spanId` MDC
+entries to those ECS field names at JSON serialization time, alongside the unchanged
+`http.request.id` (established by `RequestCorrelationContextFilter`; see
+[ADR 0012](0012-request-correlation-ahead-of-security-chain.md)).
 
 ## Consequences
 

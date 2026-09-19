@@ -1,12 +1,8 @@
-# ADR 0002: ECS structured logging
+# ADR 0010: ECS structured logging
 
-**Status:** Accepted
+## Status
 
-## Decision
-
-The application emits structured JSON logs to standard output using Elastic Common
-Schema (ECS) fields. Request lifecycle, security audit, and application lifecycle
-events include a request correlation ID where applicable.
+Accepted
 
 ## Context
 
@@ -18,6 +14,12 @@ Sensitive request content is excluded: bodies, cookies, authorization headers,
 credentials, tokens, and session IDs are not logged. Known sensitive query
 parameter values are redacted. Log collection, retention, access control, and
 alerting are deployment-platform responsibilities.
+
+## Decision
+
+The application emits structured JSON logs to standard output using Elastic Common
+Schema (ECS) fields. Request lifecycle, security audit, and application lifecycle
+events include a request correlation ID where applicable.
 
 ## Consequences
 
