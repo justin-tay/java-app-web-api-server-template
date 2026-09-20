@@ -29,6 +29,8 @@ public final class ProblemTypes {
 
 	public static final URI SESSION_EXPIRED = type("session-expired");
 
+	public static final URI UNAUTHENTICATED = type("unauthenticated");
+
 	public static final URI UPSTREAM_RESPONSE_FAILED = type("upstream-response-failed");
 
 	public static final URI VALIDATION_FAILED = type("validation-failed");

@@ -70,6 +70,7 @@ import com.example.app.web.server.logging.RequestCorrelationContextFilter;
 import com.example.app.web.server.logging.RequestLoggingFilter;
 import com.example.app.web.server.logging.client.ClientIpResolver;
 import com.example.app.web.server.logging.request.RequestIdResolver;
+import com.example.app.web.server.security.authentication.ProblemDetailAuthenticationEntryPoint;
 import com.example.app.web.server.security.authentication.oidc.LocalAuthoritiesOidcUserService;
 import com.example.app.web.server.security.authorization.LocalAuthorityRefreshFilter;
 import com.example.app.web.server.security.authorization.ProblemDetailAccessDeniedHandler;
@@ -99,6 +100,15 @@ import com.nimbusds.jwt.proc.DefaultJWTProcessor;
 public class WebSecurityConfiguration {
 
 	private static final String CONTENT_SECURITY_POLICY = "base-uri 'none';default-src 'none';form-action 'none';frame-ancestors 'none'";
+
+	/**
+	 * The default OAuth2 login entry point URI Spring Security would otherwise derive
+	 * automatically for this application's single client registration (see
+	 * {@code spring.security.oauth2.client.registration.keycloak} in application.yaml).
+	 * {@link ProblemDetailAuthenticationEntryPoint} uses this to preserve that exact
+	 * browser redirect while adding a Problem Details response for non-browser clients.
+	 */
+	private static final String OAUTH2_AUTHORIZATION_REQUEST_URI = "/oauth2/authorization/keycloak";
 
 	private static final String PERMISSIONS_POLICY = "camera=(), geolocation=(), microphone=(), payment=(), usb=()";
 
@@ -164,8 +174,9 @@ public class WebSecurityConfiguration {
 				.referrerPolicy(referrerPolicy -> referrerPolicy
 					.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
 				.permissionsPolicyHeader(permissionsPolicy -> permissionsPolicy.policy(PERMISSIONS_POLICY)))
-			.exceptionHandling(
-					exceptionHandling -> exceptionHandling.accessDeniedHandler(new ProblemDetailAccessDeniedHandler()))
+			.exceptionHandling(exceptionHandling -> exceptionHandling
+				.accessDeniedHandler(new ProblemDetailAccessDeniedHandler())
+				.authenticationEntryPoint(new ProblemDetailAuthenticationEntryPoint(OAUTH2_AUTHORIZATION_REQUEST_URI)))
 			.authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
 				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/admin/users/**"))
 				.hasRole("USER_MANAGE")

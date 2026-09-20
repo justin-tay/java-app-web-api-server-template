@@ -11,6 +11,7 @@ import org.springframework.security.web.session.SessionInformationExpiredEvent;
 import org.springframework.security.web.session.SessionInformationExpiredStrategy;
 
 import com.example.app.web.server.api.ProblemTypes;
+import com.example.app.web.server.security.ContentNegotiation;
 
 /**
  * Returns an appropriate response when a concurrent-session limit expires a session.
@@ -32,7 +33,7 @@ public class ContentNegotiatingSessionExpiredStrategy implements SessionInformat
 		HttpServletRequest request = event.getRequest();
 		HttpServletResponse response = event.getResponse();
 		this.sessionLifecycleAuditLogger.logSessionDestroyed(request.getSession(false), "concurrent_session");
-		if (acceptsHtml(request)) {
+		if (ContentNegotiation.acceptsHtml(request)) {
 			response.sendRedirect(request.getContextPath() + "/login?session-expired");
 			return;
 		}
@@ -40,11 +41,6 @@ public class ContentNegotiatingSessionExpiredStrategy implements SessionInformat
 		response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
 		response.setCharacterEncoding("UTF-8");
 		response.getWriter().write(SESSION_EXPIRED_PROBLEM_DETAIL);
-	}
-
-	private boolean acceptsHtml(HttpServletRequest request) {
-		String accept = request.getHeader("Accept");
-		return accept != null && accept.contains(MediaType.TEXT_HTML_VALUE);
 	}
 
 }

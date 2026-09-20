@@ -6,7 +6,9 @@ import java.time.Instant;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -44,23 +46,39 @@ public class WebSecurityConfigurationTest extends RestTestClientITSupport {
 
 	@Test
 	void unauthenticatedRequestCreatesIdSessionCookie() {
-		assertThat(RestTestClientResponse.from(this.restTestClient.get().uri("/account").exchange()))
-			.hasStatus3xxRedirection()
-			.cookies()
-			.containsCookie("id")
-			.doesNotContainCookie("JSESSIONID");
+		assertThat(RestTestClientResponse.from(this.restTestClient.get()
+			.uri("/account")
+			.header(HttpHeaders.ACCEPT, MediaType.TEXT_HTML_VALUE)
+			.exchange())).hasStatus3xxRedirection().cookies().containsCookie("id").doesNotContainCookie("JSESSIONID");
 	}
 
 	@Test
 	void idSessionCookieIsNonPersistentHttpOnlyAndSameSiteLax() {
-		assertThat(RestTestClientResponse.from(this.restTestClient.get().uri("/account").exchange()))
-			.hasStatus3xxRedirection()
-			.cookies()
-			.hasCookieSatisfying("id", cookie -> {
+		assertThat(RestTestClientResponse.from(this.restTestClient.get()
+			.uri("/account")
+			.header(HttpHeaders.ACCEPT, MediaType.TEXT_HTML_VALUE)
+			.exchange())).hasStatus3xxRedirection().cookies().hasCookieSatisfying("id", cookie -> {
 				assertThat(cookie.getMaxAge()).isEqualTo(-1);
 				assertThat(cookie.isHttpOnly()).isTrue();
 				assertThat(cookie.getAttribute("SameSite")).isEqualTo("Lax");
 			});
+	}
+
+	@Test
+	void unauthenticatedApiRequestReturnsProblemDetail() {
+		assertThat(RestTestClientResponse.from(this.restTestClient.get()
+			.uri("/account")
+			.header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+			.exchange())).hasStatus(HttpStatus.UNAUTHORIZED)
+			.hasContentTypeCompatibleWith("application/problem+json")
+			.bodyJson()
+			.isLenientlyEqualTo("""
+					{
+					  "type": "urn:problem:unauthenticated",
+					  "title": "Unauthorized",
+					  "status": 401
+					}
+					""");
 	}
 
 	@Test

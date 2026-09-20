@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.client.assertj.RestTestClientResponse;
 
@@ -45,6 +46,7 @@ class AbsoluteSessionTimeoutIntegrationTest extends RestTestClientITSupport {
 		assertThat(RestTestClientResponse.from(this.restTestClient.get()
 			.uri("/account")
 			.header(HttpHeaders.COOKIE, "id=" + cookieValue(sessionId))
+			.header(HttpHeaders.ACCEPT, MediaType.TEXT_HTML_VALUE)
 			.exchange())).hasStatus3xxRedirection();
 		assertThat(this.jdbcTemplate.queryForObject("SELECT COUNT(*) FROM SPRING_SESSION WHERE PRIMARY_ID = ?",
 				Integer.class, primaryId))

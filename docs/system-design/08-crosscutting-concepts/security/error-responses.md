@@ -18,6 +18,7 @@ type after a client can consume it.
 | `urn:problem:upstream-response-failed` | Upstream status | An upstream HTTP dependency returned an error. The response does not expose its detail. | [`ApiResponseEntityExceptionHandler:133`](../../../src/main/java/com/example/app/web/server/api/ApiResponseEntityExceptionHandler.java#L133) |
 | `urn:problem:internal-error` | 500 | An unexpected application failure occurred. Internal details are logged but never returned. | [`ApiResponseEntityExceptionHandler:145`](../../../src/main/java/com/example/app/web/server/api/ApiResponseEntityExceptionHandler.java#L145) |
 | `urn:problem:session-expired` | 401 | A session expired after another login for the same user. The generic detail does not disclose device, location, or login timing. Returned to non-browser/API clients; browser navigation redirects to `/login?session-expired`. | [`ContentNegotiatingSessionExpiredStrategy:18`](../../../src/main/java/com/example/app/web/server/security/session/ContentNegotiatingSessionExpiredStrategy.java#L18) |
+| `urn:problem:unauthenticated` | 401 | The request carries no authentication at all. Returned to non-browser/API clients; browser navigation redirects to the OAuth2 authorization endpoint, exactly as Spring Security's own default entry point would. | [`ProblemDetailAuthenticationEntryPoint:29`](../../../src/main/java/com/example/app/web/server/security/authentication/ProblemDetailAuthenticationEntryPoint.java#L29) |
 | `urn:problem:access-denied` | 403 | The authenticated request is not authorized for the operation. | [`ProblemDetailAccessDeniedHandler:26`](../../../src/main/java/com/example/app/web/server/security/authorization/ProblemDetailAccessDeniedHandler.java#L26) |
 | `urn:problem:csrf-validation-failed` | 403 | The CSRF token could not be verified; the client can refresh and retry. | [`ProblemDetailAccessDeniedHandler:29`](../../../src/main/java/com/example/app/web/server/security/authorization/ProblemDetailAccessDeniedHandler.java#L29) |
 | `urn:problem:http-error` | 4xx or 5xx | Tomcat rejected or failed the request before Spring Security or Spring MVC could produce a more specific response. | [`TomcatProblemDetailErrorReportValve:95`](../../../src/main/java/com/example/app/web/server/config/TomcatConfiguration.java#L95) |
@@ -34,3 +35,11 @@ rejecting a request that reached the filter chain but is still considered
 unsafe to dispatch to a controller (for example a path-traversal attempt or a
 disallowed HTTP method). Both run ahead of `ApiResponseEntityExceptionHandler`
 and so cannot carry a specific `errors` extension.
+
+[`ProblemDetailErrorController`](../../../src/main/java/com/example/app/web/server/api/ProblemDetailErrorController.java)
+replaces Spring Boot's default `BasicErrorController`, so a dispatch that
+somehow bypasses every handler above still returns one of the types in this
+table (mapped from the forwarded status, falling back to `internal-error`)
+instead of Boot's default, non-Problem-Details error JSON. Reaching it at all
+is unexpected and logged as such; every error path exercised in practice is
+already handled earlier.

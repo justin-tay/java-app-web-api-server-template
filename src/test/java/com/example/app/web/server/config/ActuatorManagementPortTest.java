@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.test.web.servlet.client.assertj.RestTestClientResponse;
 import org.springframework.boot.test.web.server.LocalManagementPort;
@@ -52,8 +53,10 @@ class ActuatorManagementPortTest extends RestTestClientITSupport {
 	 */
 	@Test
 	void endpointsNotOnTheExposureListAreNotAvailableOnTheManagementPort() {
-		RestTestClientResponse response = RestTestClientResponse
-			.from(this.managementRestTestClient.get().uri("/app/env").exchange());
+		RestTestClientResponse response = RestTestClientResponse.from(this.managementRestTestClient.get()
+			.uri("/app/env")
+			.header(HttpHeaders.ACCEPT, MediaType.TEXT_HTML_VALUE)
+			.exchange());
 
 		assertThat(response).hasStatus3xxRedirection();
 	}
