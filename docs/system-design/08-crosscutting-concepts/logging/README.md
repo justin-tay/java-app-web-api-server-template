@@ -7,10 +7,6 @@ unredacted OAuth/OIDC credentials.
 
 The implementation is mapped below to the [OWASP Logging Cheat
 Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html).
-`Implemented` means the base template does it today. `Partial` identifies a
-deliberate boundary or remaining application work. `Deployment responsibility`
-means the control belongs to the log platform or runtime rather than this
-application.
 
 The shared ECS schema, extensions, redaction, and correlation rules are in
 [schema.md](schema.md). The trigger, source,
@@ -102,7 +98,19 @@ search parameters.
 
 ## OWASP control implementation
 
-| OWASP area and recommendation | Status | Current treatment or rationale |
+### Status meanings
+
+| Status | Meaning |
+| --- | --- |
+| Implemented | The base template does this today. |
+| Implemented for known application causes | Implemented for every session-lifecycle cause the application itself can detect; causes outside the application's visibility, such as JDBC idle cleanup, are not covered. |
+| Implemented, with an operational caveat | Implemented, but only holds if a stated operational condition, such as change-controlled logging configuration, is also true. |
+| Implemented, with deployment configuration | Implemented, but the effective behavior depends on a deployment-supplied resolver or configuration choice. |
+| Partial | Identifies a deliberate boundary or remaining application work. |
+| Not applicable to the base template | The base template has no business domain or capability the recommendation addresses; an adopter building on the template must add it. |
+| Deployment responsibility | The control belongs to the log platform, collector, or runtime rather than this application. |
+
+| OWASP area | Status | Implementation Statement |
 | --- | --- | --- |
 | Define security logging use cases and distinguish security, operational, and audit records. | Partial | The events are categorised with ECS `event.category`, `event.type`, `event.action`, and `event.outcome`, so a collector can route them. Authorization denials use the allowed `web` and `api` categories with `access`/`denied` types. The application writes one ECS console stream; distinct retained datasets are a collector/SIEM decision. |
 | Capture events from the application and other relevant layers. | Partial | Application authentication, authorization, CSRF, request lifecycle, and HTTP firewall rejection events are captured here. Edge/WAF, reverse proxy, TLS terminator, database, identity-provider, and Tomcat connector/container logs are outside the process and should be collected separately. A service can select `CloudFrontRequestIdResolver` to retain CloudFront's `X-Amz-Cf-Id` as correlation metadata. |

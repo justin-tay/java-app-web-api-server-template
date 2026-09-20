@@ -22,7 +22,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V1: Encoding and Sanitization
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V1.1.1 | 2 | Verify that input is decoded or unescaped into a canonical form only once, it is only decoded when encoded data in that form is expected, and that this is done before processing the input further, for example it is not performed after input validation or sanitization. | Verify framework behavior | Query-string and path decoding is performed once by the servlet container and Spring MVC, following the platform's URL-decoding rules; the application performs no custom or repeated decoding of its own. Spring Security's firewall rejects a doubly-encoded path outright rather than letting it be decoded twice; see `WebSecurityConfigurationTest.rejectsDoublyEncodedPathInsteadOfDecodingTwice`. |
 | V1.1.2 | 2 | Verify that the application performs output encoding and escaping either as a final step before being used by the interpreter for which it is intended or by the interpreter itself. | Verify framework behavior | The only output-encoding surface is Jackson's JSON serialization, applied as the final step when writing the response body; the application writes no output through any other interpreter. No dedicated test is warranted: every existing test that asserts a JSON response body already exercises this encoding as a side effect, so a standalone test would be redundant. |
@@ -57,7 +57,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V2: Validation and Business Logic
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V2.1.1 | 1 | Verify that the application's documentation defines input validation rules for how to check the validity of data items against an expected structure. This could be common data formats such as credit card numbers, email addresses, telephone numbers, or it could be an internal data format. | Configured | The admin API's input fields are documented by self-describing Bean Validation annotations: `@Username`, `@DisplayName`, and `@ResourceName` (blank/length rules) and `@Email` (email format), applied to both the request DTOs and the JPA entities. |
 | V2.1.2 | 2 | Verify that the application's documentation defines how to validate the logical and contextual consistency of combined data items, such as checking that suburb and ZIP code match. | Not applicable to this template | The admin API's fields (username, display name, email, group/role membership) have no cross-field consistency rule to define. Reassess if a domain model with related fields is added. |
@@ -75,7 +75,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V3: Web Frontend Security
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V3.1.1 | 3 | Verify that application documentation states the expected security features that browsers using the application must support (such as HTTPS, HTTP Strict Transport Security (HSTS), Content Security Policy (CSP), and other relevant HTTP security mechanisms). It must also define how the application must behave when some of these features are not available (such as warning the user or blocking access). | Verification required | `headers.md` documents the expected security-feature values (HTTPS, HSTS, CSP, and the other headers below), but the application defines no behavior for a browser that does not support them; as a JSON API it has no rendered page to show a warning on. An adopter with a browser UI must decide and implement that behavior. |
 | V3.2.1 | 1 | Verify that security controls are in place to prevent browsers from rendering content or functionality in HTTP responses in an incorrect context (e.g., when an API, a user-uploaded file or other resource is requested directly). Possible controls could include: not serving the content unless HTTP request header fields (such as Sec-Fetch-\*) indicate it is the correct context, using the sandbox directive of the Content-Security-Policy header field or using the attachment disposition type in the Content-Disposition header field. | Configured | Every response is `application/json` or `application/problem+json`, `X-Content-Type-Options: nosniff` is set (see `headers.md`), and the application serves no user-uploaded or dynamically rendered file content that could be requested out of context. |
@@ -111,7 +111,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V4: API and Web Service
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V4.1.1 | 1 | Verify that every HTTP response with a message body contains a Content-Type header field that matches the actual content of the response, including the charset parameter to specify safe character encoding (e.g., UTF-8, ISO-8859-1) according to IANA Media Types, such as "text/", "/+xml" and "/xml". | Configured | Spring's message converters set `Content-Type: application/json` (or `application/problem+json`) on every response body, matching the actual JSON content; JSON's own specification (RFC 8259) mandates UTF-8, so no separate charset parameter is needed. |
 | V4.1.2 | 2 | Verify that only user-facing endpoints (intended for manual web-browser access) automatically redirect from HTTP to HTTPS, while other services or endpoints do not implement transparent redirects. This is to avoid a situation where a client is erroneously sending unencrypted HTTP requests, but since the requests are being automatically redirected to HTTPS, the leakage of sensitive data goes undiscovered. | Deployment decision required | Whether and how plain HTTP requests are redirected to HTTPS, and whether that differs between browser-facing and other endpoints, is decided by the reverse proxy or load balancer terminating TLS in front of this application; the application's own connector does not implement such a redirect. |
@@ -132,7 +132,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V5: File Handling
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V5.1.1 | 2 | Verify that the documentation defines the permitted file types, expected file extensions, and maximum size (including unpacked size) for each upload feature. Additionally, ensure that the documentation specifies how files are made safe for end-users to download and process, such as how the application behaves when a malicious file is detected. | Not applicable to this template | The application has no file upload or download capability of any kind; no controller accepts `multipart/form-data` or serves a file response. Reassess before adding a file-handling feature. |
 | V5.2.1 | 1 | Verify that the application will only accept files of a size which it can process without causing a loss of performance or a denial of service attack. | Not applicable to this template | The application has no file upload or download capability of any kind; no controller accepts `multipart/form-data` or serves a file response. Reassess before adding a file-handling feature. |
@@ -150,7 +150,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V6: Authentication
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V6.1.1 | 1 | Verify that application documentation defines how controls such as rate limiting, anti-automation, and adaptive response, are used to defend against attacks such as credential stuffing and password brute force. The documentation must make clear how these controls are configured and prevent malicious account lockout. | Deployment decision required | Authentication is delegated to Keycloak. Configure and verify this requirement in the identity provider and its operational procedures. |
 | V6.1.2 | 2 | Verify that a list of context-specific words is documented in order to prevent their use in passwords. The list could include permutations of organization names, product names, system identifiers, project codenames, department or role names, and similar. | Deployment decision required | Authentication is delegated to Keycloak. Configure and verify this requirement in the identity provider and its operational procedures. |
@@ -202,7 +202,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V7: Session Management
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V7.1.1 | 2 | Verify that the user's session inactivity timeout and absolute maximum session lifetime are documented, are appropriate in combination with other controls, and that the documentation includes justification for any deviations from NIST SP 800-63B re-authentication requirements. | Verification required | The 15-minute idle timeout and 12-hour absolute timeout are documented in [Sessions](sessions.md#current-configuration). A written justification for these specific values, including any deviation from NIST SP 800-63B re-authentication requirements, is not yet recorded; see [Sessions](sessions.md#required-production-decisions) item 1. |
 | V7.1.2 | 2 | Verify that the documentation defines how many concurrent (parallel) sessions are allowed for one account as well as the intended behaviors and actions to be taken when the maximum number of active sessions is reached. | Configured | [Sessions](sessions.md#owasp-control-implementation) documents the concurrent-session policy: one session per account, with a later login expiring the existing session. `WebSecurityConfiguration` configures `maximumSessions(1)` with `maxSessionsPreventsLogin(false)` and `ContentNegotiatingSessionExpiredStrategy`; `WebSecurityConfigurationSessionManagementIntegrationTest` verifies the behavior. |
@@ -226,7 +226,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V8: Authorization
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V8.1.1 | 1 | Verify that authorization documentation defines rules for restricting function-level and data-specific access based on consumer permissions and resource attributes. | Verification required | [Authorization](authorization.md) documents function-level rules for the template's own admin API (its "Management authority boundary" table), but the template defines no data-specific or resource-attribute rules, because its administered resources (users, groups, roles) are not owned by individual callers. An adopter who adds a domain model needing per-record or attribute-based access rules must define and implement those rules themselves. |
 | V8.1.2 | 2 | Verify that authorization documentation defines rules for field-level access restrictions (both read and write) based on consumer permissions and resource attributes. Note that these rules might depend on other attribute values of the relevant data object, such as state or status. | Verification required | The template requires authentication but does not define product authorization rules. Implement and test policy at the service and data layers. |
@@ -244,7 +244,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V9: Self-contained Tokens
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V9.1.1 | 1 | Verify that self-contained tokens are validated using their digital signature or MAC to protect against tampering before accepting the token's contents. | Configured | The template validates ID-token signatures before accepting claims. Assess any additional self-contained token use separately. |
 | V9.1.2 | 1 | Verify that only algorithms on an allowlist can be used to create and verify self-contained tokens, for a given context. The allowlist must include the permitted algorithms, ideally only either symmetric or asymmetric algorithms, and must not include the 'None' algorithm. If both symmetric and asymmetric must be supported, additional controls will be needed to prevent key confusion. | Configured | The ID-token decoder explicitly selects RS256. Assess any additional self-contained token use separately. |
@@ -256,7 +256,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V10: OAuth and OIDC
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V10.1.1 | 2 | Verify that tokens are only sent to components that strictly need them. For example, when using a backend-for-frontend pattern for browser-based JavaScript applications, access and refresh tokens shall only be accessible for the backend. | Configured | Access and refresh tokens are held only in the server-side, JDBC-backed session via Spring Security's default `OAuth2AuthorizedClientRepository`; the browser receives only the opaque session cookie. See [Sessions](sessions.md#design-and-ownership). No component other than this backend ever receives the tokens. |
 | V10.1.2 | 2 | Verify that the client only accepts values from the authorization server (such as the authorization code or ID Token) if these values result from an authorization flow that was initiated by the same user agent session and transaction. This requires that client-generated secrets, such as the proof key for code exchange (PKCE) 'code_verifier', 'state' or OIDC 'nonce', are not guessable, are specific to the transaction, and are securely bound to both the client and the user agent session in which the transaction was started. | Verify framework behavior | Spring Security's OAuth2 client stores the pending authorization request, including `state` and the OIDC `nonce`, in the same JDBC-backed session used for authentication, generated by the framework and bound to the user agent's session. This client authenticates as a confidential client (`private_key_jwt`), so Spring Security does not add PKCE, which it reserves for public clients. Verify this behavior after a Spring Security upgrade. |
@@ -297,7 +297,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V11: Cryptography
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V11.1.1 | 2 | Verify that there is a documented policy for management of cryptographic keys and a cryptographic key lifecycle that follows a key management standard such as NIST SP 800-57. This should include ensuring that keys are not overshared (for example, with more than two entities for shared secrets and more than one entity for private keys). | Verification required | The one cryptographic asset this application manages directly, the JWKS signing/encryption key pair used for `private_key_jwt`, has documented handling rules: [ADR 0007](../../../adr/0007-tls-and-oauth-client-key-management.md) and [Authentication](authentication.md) require production key material to be supplied through protected deployment configuration, never embedded in source, and rotated in coordination with Keycloak. This is not framed against a formal standard such as NIST SP 800-57, and TLS certificate/private-key lifecycle is a separate deployment decision. |
 | V11.1.2 | 2 | Verify that a cryptographic inventory is performed, maintained, regularly updated, and includes all cryptographic keys, algorithms, and certificates used by the application. It must also document where keys can and cannot be used in the system, and the types of data that can and cannot be protected using the keys. | Verification required | The application's cryptographic surface is documented, but not consolidated into one inventory: the JWKS signing (`ES512`) and encryption (`RSA-OAEP-256`) keys and their handling rules are in [Authentication](authentication.md); the TLS protocol versions and cipher suites are in `application.yaml` and [Hardening](hardening.md). An adopter should consolidate these into a single inventory before a formal audit. |
@@ -326,7 +326,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V12: Secure Communication
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V12.1.1 | 1 | Verify that only the latest recommended versions of the TLS protocol are enabled, such as TLS 1.2 and TLS 1.3. The latest version of the TLS protocol must be the preferred option. | Configured | The production profile enables TLS 1.2 and TLS 1.3 only. Local and test profiles intentionally differ and must not be deployed. |
 | V12.1.2 | 2 | Verify that only recommended cipher suites are enabled, with the strongest cipher suites set as preferred. L3 applications must only support cipher suites which provide forward secrecy. | Configured | `application.yaml` explicitly configures modern AEAD cipher suites. Reassess against the deployed JDK and organizational baseline. |
@@ -343,7 +343,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V13: Configuration
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V13.1.1 | 2 | Verify that all communication needs for the application are documented. This must include external services which the application relies upon and cases where an end user might be able to provide an external location to which the application will then connect. | Configured | The application's one external dependency, Keycloak, is documented in [Authentication](authentication.md) and [ADR 0005](../../../adr/0005-keycloak-authentication-local-authorisation.md). No feature lets a user supply an arbitrary external destination for the application to connect to. |
 | V13.1.2 | 3 | Verify that for each service the application uses, the documentation defines the maximum number of concurrent connections (e.g., connection pool limits) and how the application behaves when that limit is reached, including any fallback or recovery mechanisms, to prevent denial of service conditions. | Deployment decision required | Connection-pool limits for the database and behavior when they are exhausted are Spring Boot/HikariCP defaults, not documented or tuned by the template; this is an operational decision for the deployment. |
@@ -369,7 +369,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V14: Data Protection
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V14.1.1 | 2 | Verify that all sensitive data created and processed by the application has been identified and classified into protection levels. This includes data that is only encoded and therefore easily decoded, such as Base64 strings or the plaintext payload inside a JWT. Protection levels need to take into account any data protection and privacy regulations and standards which the application is required to comply with. | Verification required | No sensitive-data classification exists for this base template; the fields it does manage (username, display name, email in the local user directory; OIDC claims held in the session) are not yet classified into protection levels. An adopter must classify the data their domain model introduces. |
 | V14.1.2 | 2 | Verify that all sensitive data protection levels have a documented set of protection requirements. This must include (but not be limited to) requirements related to general encryption, integrity verification, retention, how the data is to be logged, access controls around sensitive data in logs, database-level encryption, privacy and privacy-enhancing technologies to be used, and other confidentiality requirements. | Verification required | Protection requirements depend on the classification at V14.1.1, which does not yet exist. |
@@ -387,7 +387,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V15: Secure Coding and Architecture
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V15.1.1 | 1 | Verify that application documentation defines risk based remediation time frames for 3rd party component versions with vulnerabilities and for updating libraries in general, to minimize the risk from these components. | Deployment decision required | No risk-based remediation timeframe for vulnerable or outdated dependencies is documented; this is an organizational patching policy decision, not something the template's code can decide. |
 | V15.1.2 | 2 | Verify that an inventory catalog, such as software bill of materials (SBOM), is maintained of all third-party libraries in use, including verifying that components come from pre-defined, trusted, and continually maintained repositories. | Verification required | No formal software bill of materials is generated; `pom.xml` declares every direct dependency with a version managed by the Spring Boot BOM, and Maven resolves them from the default, trusted Maven Central repository. An adopter should add SBOM generation (for example `cyclonedx-maven-plugin`) for a formal inventory. |
@@ -413,7 +413,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V16: Security Logging and Error Handling
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V16.1.1 | 2 | Verify that an inventory exists documenting the logging performed at each layer of the application's technology stack, what events are being logged, log formats, where that logging is stored, how it is used, how access to it is controlled, and for how long logs are kept. | Configured | [Logging](../logging/README.md), [schema](../logging/schema.md), and [event reference](../logging/event-reference.md) together are the inventory: what is logged, its format, and where responsibility shifts to the deployment (storage, access control, retention) are documented in `../logging/README.md`'s recommendation matrix and "Required deployment decisions". |
 | V16.2.1 | 2 | Verify that each log entry includes necessary metadata (such as when, where, who, what) that would allow for a detailed investigation of the timeline when an event happens. | Configured | Every event carries a timestamp, service/environment metadata, request ID, `event.category`/`type`/`action`/`outcome`, method, path, and user where known; see `../logging/README.md` ("Record the 'when, where, who, and what' of an event") and `../logging/schema.md`. |
@@ -435,7 +435,7 @@ For the template's related evidence, see [Authentication](authentication.md), [s
 
 ## V17: WebRTC
 
-| ASVS ID | L | Requirement | Status | Template and deployment comment |
+| ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V17.1.1 | 2 | Verify that the Traversal Using Relays around NAT (TURN) service only allows access to IP addresses that are not reserved for special purposes (e.g., internal networks, broadcast, loopback). Note that this applies to both IPv4 and IPv6 addresses. | Not applicable to this template | The template does not implement WebRTC. Reassess this chapter before adding WebRTC capabilities. |
 | V17.1.2 | 3 | Verify that the Traversal Using Relays around NAT (TURN) service is not susceptible to resource exhaustion when legitimate users attempt to open a large number of ports on the TURN server. | Not applicable to this template | The template does not implement WebRTC. Reassess this chapter before adding WebRTC capabilities. |
