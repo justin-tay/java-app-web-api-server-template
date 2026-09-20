@@ -129,6 +129,19 @@ and also add `error.type`/`error.message`/`error.stack_trace` as key-values on
 the same event: both paths write those fields, and the formatter throws when
 the same field is written twice, silently dropping the log line.
 
+Some code needs a stack trace's class names and frames for debugging but,
+like the client-driven failures above, cannot vouch for the exception's
+message: `ProblemDetailErrorController`'s last-resort `process_request` event
+is reached from a forward outside any handler's control, so the exception
+reaching it has not been reviewed the way the exceptions
+`ApiResponseEntityExceptionHandler` catches have been.
+`com.example.app.web.server.logging.MessageRedactedStackTraces` renders a
+stack trace in the same format `Throwable.printStackTrace()` would, with the
+message of the exception, every cause, and every suppressed exception
+replaced with nothing, and adds it as `error.stack_trace` by hand alongside
+`error.type`, the same way that field is added without `setCause()` elsewhere
+in this section.
+
 ## Consumer guidance
 
 Use `http.request.id` to join request lifecycle and in-request audit events;
