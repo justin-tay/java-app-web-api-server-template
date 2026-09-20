@@ -93,6 +93,30 @@ public class WebSecurityConfigurationTest extends RestTestClientITSupport {
 			.hasHeader("Permissions-Policy", "camera=(), geolocation=(), microphone=(), payment=(), usb=()");
 	}
 
+	@Test
+	void responseHasSpringSecurityDefaultHeaders() {
+		assertThat(RestTestClientResponse.from(this.restTestClient.get().uri("/oauth2/jwks").exchange())).hasStatusOk()
+			.hasHeader("X-Frame-Options", "DENY")
+			.hasHeader("X-XSS-Protection", "0")
+			.hasHeader("X-Content-Type-Options", "nosniff")
+			.hasHeader("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate")
+			.hasHeader("Pragma", "no-cache")
+			.hasHeader("Expires", "0")
+			.doesNotContainHeader("X-Powered-By");
+	}
+
+	@Test
+	void rejectsDoublyEncodedPathInsteadOfDecodingTwice() {
+		// If the path were decoded twice, "%252e%252e%252f" would resolve to "../" and
+		// could
+		// escape the "/admin/users/" prefix. Instead, Spring Security's firewall rejects
+		// the
+		// doubly-encoded sequence outright, so it is never decoded a second time.
+		assertThat(RestTestClientResponse
+			.from(this.restTestClient.get().uri("/admin/users/%252e%252e%252fadmin").exchange()))
+			.hasStatus(HttpStatus.BAD_REQUEST);
+	}
+
 	private ClientRegistration clientRegistration() {
 		return ClientRegistration.withRegistrationId("test")
 			.clientId("client-id")
