@@ -174,8 +174,7 @@ class ApiResponseEntityExceptionHandlerTest extends MockMvcITSupport {
 				.containsEntry("event.action", "process_request")
 				.containsEntry("event.outcome", "failure")
 				.containsEntry("http.response.status_code", statusCode)
-				.containsEntry("url.path", path)
-				.containsEntry("error.type", exceptionType.getName());
+				.containsEntry("url.path", path);
 			assertThat(event.getMDCPropertyMap()).containsKey("http.request.id");
 		});
 	}

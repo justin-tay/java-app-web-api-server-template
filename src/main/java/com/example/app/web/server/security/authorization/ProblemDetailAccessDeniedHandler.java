@@ -41,6 +41,11 @@ public class ProblemDetailAccessDeniedHandler implements AccessDeniedHandler {
 				.addKeyValue("event.outcome", "failure")
 				.addKeyValue("http.response.status_code", HttpStatus.FORBIDDEN.value())
 				.addKeyValue("url.path", request.getRequestURI())
+				// setCause(exception) is deliberately not used here: a CSRF rejection is
+				// an expected control outcome, not a bug, so a stack trace is noise, and
+				// the exception message is withheld like every other security failure;
+				// see docs/system-design/08-crosscutting-concepts/logging/schema.md,
+				// "Sensitive-data policy".
 				.addKeyValue("error.type", exception.getClass().getSimpleName())
 				.log("CSRF validation failed");
 		}

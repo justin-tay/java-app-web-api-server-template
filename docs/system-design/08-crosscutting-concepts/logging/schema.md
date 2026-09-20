@@ -116,6 +116,19 @@ bodies, headers, cookies, session IDs, passwords, keys, tokens, client secrets,
 or exception messages from security failures. `url.full` and `url.original` are
 also omitted to avoid preserving an unreviewed raw URL.
 
+SLF4J's `setCause(throwable)` is the default way to attach an exception to a log
+event: Spring Boot's ECS formatter derives `error.type`, `error.message`, and
+`error.stack_trace` from it automatically, so new ERROR-level code reporting an
+unexpected failure (a bug) should use it rather than adding `error.type` by
+hand. Code that logs an expected, client-driven failure (input validation,
+CSRF, access denied, firewall rejection, authentication failure) deliberately
+does not call `setCause()`: the exception's message could echo rejected
+request content, and a stack trace is noise for a routine control outcome, so
+only a safe `error.type` is added as a plain key-value. Never call `setCause()`
+and also add `error.type`/`error.message`/`error.stack_trace` as key-values on
+the same event: both paths write those fields, and the formatter throws when
+the same field is written twice, silently dropping the log line.
+
 ## Consumer guidance
 
 Use `http.request.id` to join request lifecycle and in-request audit events;

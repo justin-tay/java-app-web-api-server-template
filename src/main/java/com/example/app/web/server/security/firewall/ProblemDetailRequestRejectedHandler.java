@@ -32,7 +32,10 @@ import com.example.app.web.server.api.ProblemTypes;
  * exceptions thrown from within {@code DispatcherServlet}'s handler invocation, this is
  * the only place a firewall rejection is recorded. The exception's message is never
  * logged or returned, consistent with every other {@code validate_input}-style event,
- * since it can echo the rejected request content.
+ * since it can echo the rejected request content. For that reason {@code setCause()} is
+ * deliberately not used below: it would add the withheld message (and an unnecessary
+ * stack trace for this expected, client-driven outcome) as {@code error.message}/
+ * {@code error.stack_trace}.
  */
 public class ProblemDetailRequestRejectedHandler implements RequestRejectedHandler {
 

@@ -40,6 +40,11 @@ public class ProblemDetailErrorController implements ErrorController {
 			.addKeyValue("event.outcome", "failure")
 			.addKeyValue("http.response.status_code", status.value())
 			.addKeyValue("url.path", String.valueOf(request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI)))
+			// setCause() is deliberately not used here: RequestDispatcher.ERROR_EXCEPTION
+			// (the actual Throwable, if any) is not read, since this last-resort path is
+			// reached from a forward outside any handler's control, and the underlying
+			// cause has not been reviewed for message content safe to log; only the
+			// class name from ERROR_EXCEPTION_TYPE is used.
 			.addKeyValue("error.type", String.valueOf(request.getAttribute(RequestDispatcher.ERROR_EXCEPTION_TYPE)))
 			.log("Request dispatch reached the last-resort error handler");
 		ProblemDetail problemDetail = ProblemDetail.forStatus(status);

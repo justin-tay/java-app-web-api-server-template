@@ -56,6 +56,11 @@ class SecurityAuditEventLogger {
 			// authenticated actor.
 			// See https://github.com/elastic/integrations/issues/20105.
 			.addKeyValue("user.target.name", event.getAuthentication().getName())
+			// setCause(event.getException()) is deliberately not used here: a failed
+			// login attempt is expected, not a bug, so a stack trace is noise, and the
+			// exception message can echo submitted credentials/username content; see
+			// docs/system-design/08-crosscutting-concepts/logging/schema.md,
+			// "Sensitive-data policy".
 			.addKeyValue("error.type", event.getException().getClass().getSimpleName())
 			.log("Authentication failed");
 	}

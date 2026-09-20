@@ -170,7 +170,6 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 			.addKeyValue("event.outcome", "failure")
 			.addKeyValue("http.response.status_code", responseStatusCode)
 			.addKeyValue("url.path", request.getRequestURI())
-			.addKeyValue("error.type", ex.getClass().getName())
 			.setCause(ex)
 			.log("Request processing failed");
 	}
@@ -184,6 +183,11 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 			.addKeyValue("event.outcome", "failure")
 			.addKeyValue("http.response.status_code", HttpStatus.BAD_REQUEST.value())
 			.addKeyValue("url.path", request.getRequestURI())
+			// setCause(exception) is deliberately not used here: this is an expected,
+			// client-driven failure, not a bug, so a stack trace is noise, and the
+			// exception message can echo rejected request content (see
+			// docs/system-design/08-crosscutting-concepts/logging/schema.md,
+			// "Sensitive-data policy").
 			.addKeyValue("error.type", exception.getClass().getName())
 			.addKeyValue("error.code", errorCode);
 		if (validationField != null) {
