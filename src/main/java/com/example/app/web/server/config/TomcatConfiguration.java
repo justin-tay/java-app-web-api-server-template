@@ -76,8 +76,7 @@ public class TomcatConfiguration {
 	 * Adds Tomcat's JRE memory-leak-prevention listener to the Server before it is
 	 * initialized. The listener must be attached to a Server, rather than a Context.
 	 */
-	private static final class JreMemoryLeakPreventionTomcatServletWebServerFactory
-			extends TomcatServletWebServerFactory {
+	static final class JreMemoryLeakPreventionTomcatServletWebServerFactory extends TomcatServletWebServerFactory {
 
 		@Override
 		protected Tomcat createTomcat(TempDirs tempDirs) {
