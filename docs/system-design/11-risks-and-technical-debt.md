@@ -1,28 +1,25 @@
 # 11. Risks and Technical Debt
 
-This chapter is an index into open items already recorded elsewhere in this
-document, not a new risk assessment. Each control-implementation document
-already tracks its own gaps as "Required production decisions," "Required
-deployment decisions," or per-row status such as `Unimplemented`, `Partial`,
-or `Deployment decision required`. Re-deriving that assessment here would
-duplicate it and risk it going stale; this chapter only surfaces where to
-find it.
+## Risks
 
-## Security
+<!-- arc42-generated -->
+| # | Risk | Priority | Impact | Probability | Mitigation |
+| --- | --- | --- | --- | --- | --- |
+| 1 | The management port (8082) exposes Actuator's `/app/health` without authentication; if network-level restriction to the health-check/internal ops network is misconfigured at deploy time, this becomes an unauthenticated, internet-reachable endpoint. | High | Low (single endpoint, minimal detail) if reached | Medium (depends entirely on deployer network configuration, not enforced by the application) | Restrict the management port at the network layer (security group, firewall, ingress rule); see [ADR 0014](../adr/0014-actuator-management-port.md). Confirmed per deployment, not something the codebase can verify. |
+| 2 | JDBC-backed sessions add a database round trip to every authenticated request (session read, and now also `LocalAuthorityRefreshFilter`'s authority reload). Under database latency or an outage, this directly degrades or blocks all authenticated traffic. | Medium | High (single point of failure for all authenticated requests) | Low under normal operation | Accepted trade-off in [ADR 0006](../adr/0006-jdbc-backed-server-side-sessions.md) and [ADR 0015](../adr/0015-per-request-local-authority-refresh.md) in exchange for stateless horizontal scaling and immediate authorization changes. No caching layer or read replica strategy is defined. |
+| 3 | No production datasource, Keycloak realm, or TLS termination point is fixed in the codebase; every environment beyond local development is a deployment decision required that this document cannot verify was made correctly. | Medium | Medium | Medium (depends on adopter discipline) | Track via [Deployment View](07-deployment-view.md) and require the manual placeholders there to be filled in before go-live. |
+| 4 | GraalVM native image support depends on `ApplicationRuntimeHints` staying in sync with actual reflection/resource usage; a future change that adds unregistered reflection will fail native compilation silently until someone runs `mvn -Pnative native:compile`, which is not part of the default CI pipeline. | Low | Medium | Medium as the codebase grows | Add a native-image build/smoke-test step to CI, or document that native builds are verified manually before release. |
+<!-- /arc42-generated -->
 
-| Area | Open items are recorded in |
-| --- | --- |
-| Authentication | [Authentication's "Required production decisions"](08-crosscutting-concepts/security/authentication.md#required-production-decisions) — realm/client topology, MFA, brute-force policy, step-up/re-authentication, mTLS, password-recovery policy. |
-| Sessions | [Sessions' "Required production decisions"](08-crosscutting-concepts/security/sessions.md#required-production-decisions) — timeout rationale, privilege-change revocation coverage, reauthentication for risk events, session-table protection, cookie-prefix and `Clear-Site-Data` adoption, anomaly detection. |
-| HTTP headers | [Headers' "Required production decisions"](08-crosscutting-concepts/security/headers.md#required-production-decisions) — `Strict-Transport-Security` tuning, removing/normalizing the `Server` header at the edge. |
-| Tomcat/CIS hardening | [Hardening's "Required production decisions"](08-crosscutting-concepts/security/hardening.md#required-production-decisions) — image/runtime hardening, TLS termination, connector limits, mTLS, centralized log collection, re-running the control implementation after upgrades, restricting the Actuator management port. |
-| Logging | [Logging's "Required deployment decisions"](08-crosscutting-concepts/logging/README.md#required-deployment-decisions) — central collector, log access/retention, client-IP trust configuration, query-parameter redaction review, product-specific audit events, request-ID trust configuration. |
-| ASVS and CIS control implementations generally | Individual `Deployment decision required` and `Verification required` rows throughout [ASVS](08-crosscutting-concepts/security/asvs.md) and [Hardening](08-crosscutting-concepts/security/hardening.md) are open items in their own right, at requirement granularity finer than the summaries above. |
-| Authorization | [Authorization's OWASP control implementation](08-crosscutting-concepts/security/authorization.md#owasp-control-implementation) — the one genuine open item is horizontal privilege separation: an adopter that introduces multi-tenancy or per-user resource ownership must add its own object-level checks, since the current model grants any holder of a management role access to that role's entire resource collection by design. |
+## Technical Debt
 
-## Beyond security
+<!-- arc42-generated -->
+| # | Debt Item | Priority | Impact | Source | Remediation Plan |
+| --- | --- | --- | --- | --- | --- |
+| 1 | JaCoCo coverage is reported on every pull request but no minimum threshold is enforced; coverage can regress without failing CI. | Low | Medium | `pom.xml` (`jacoco-maven-plugin` has no `check` goal configured), `.github/workflows/build-and-test.yml` | Add a JaCoCo `check` execution with a minimum instruction/branch coverage rule if coverage regression becomes a real concern. |
+| 2 | No container image build (Dockerfile) or deployment manifest exists in the repository; deployment automation is entirely undocumented in code. | Low (by design, this is a template) | Low | Repository-wide scan: no `Dockerfile`, `docker-compose.yml`, or Kubernetes manifests found | Adopting projects add these when they choose a concrete deployment target; out of scope for the template itself. |
+| 3 | An AsciiDoc/PDF export pipeline for this system design document has been discussed but remains undesigned; no ADR tracks it. | Low | Low | `docs/system-design/` sharded-file structure | Record a fresh ADR if and when a converter/pipeline is actually chosen. |
+<!-- /arc42-generated -->
 
-| Item | Recorded in |
-| --- | --- |
-| Only Security has a complete, requirement-by-requirement control implementation | [Quality Requirements](10-quality-requirements.md) — the other ISO/IEC 25010:2023 characteristics have no equivalent assessment yet. |
-| Production database product not yet chosen | [Building Block View](05-building-block-view.md#schema-ownership) — the template does not prescribe one; H2 is test-scope only. |
+<!-- arc42-manual: Add risks known to the team but not visible in the codebase (e.g. planned Keycloak version upgrades, known capacity limits of a specific deployment target, vendor lock-in concerns). -->
+<!-- /arc42-manual -->

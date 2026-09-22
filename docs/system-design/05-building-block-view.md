@@ -1,123 +1,143 @@
 # 5. Building Block View
 
-## Technology stack
+## 5.1 Whitebox Overall System (Level 1)
 
-| Concern | Choice |
-| --- | --- |
-| Language / runtime | Java 17 |
-| Application framework | Spring Boot (`spring-boot-starter-parent`) |
-| Web layer | Spring MVC (`spring-boot-starter-web`), embedded Tomcat |
-| Security | Spring Security, OIDC client (`spring-boot-starter-oauth2-client`) |
-| Sessions | Server-side, JDBC-backed (`spring-boot-starter-session-jdbc`); see [ADR 0006](../adr/0006-jdbc-backed-server-side-sessions.md) |
-| Persistence | Spring Data JPA (`spring-boot-starter-data-jpa`) |
-| Schema management | Liquibase (`spring-boot-starter-liquibase`); see [Data model](#data-model) below |
-| Observability | Micrometer Tracing with the OpenTelemetry bridge, Spring Boot Actuator |
-| Validation | Bean Validation (`spring-boot-starter-validation`) |
-| Test database | H2 (test scope only; the template does not prescribe a production database) |
+<!-- arc42-generated -->
+```mermaid
+flowchart TB
+    subgraph system ["com.example.app.web.server"]
+        api["api\nREST controllers, error handling"]
+        admin["api.admin\nUser/group/role administration"]
+        config["config\nSpring configuration, security filter chain"]
+        domain["domain\nJPA entities and repositories"]
+        security["security\nAuthentication, authorization, session filters"]
+        logging["logging\nRequest correlation, audit, structured logging support"]
+        validation["validation\nBean Validation constraints"]
+    end
+    api --> domain
+    admin --> domain
+    config --> security
+    config --> logging
+    security --> domain
+    security --> logging
+    api --> validation
+```
 
-## Code organization
+**Motivation:** The codebase is a single deployable unit organized by
+technical concern rather than by feature module, appropriate for a
+template of this size. `config` wires everything together;
+`api`/`api.admin` expose HTTP; `security` and `logging` are the
+crosscutting filter chains described in
+[Crosscutting Concepts](08-crosscutting-concepts/README.md); `domain` is
+the only package with JPA/database awareness.
 
-The application lives under `com.example.app.web.server`, split by concern
-rather than by feature:
+### Contained Building Blocks
 
-| Package | Responsibility |
-| --- | --- |
-| `config` | Cross-cutting Spring configuration: web security wiring, Tomcat, async, REST client, application properties, time. |
-| `security.authentication` | OIDC login integration with Keycloak. |
-| `security.authorization` | Local user/group/role lookup and enforcement. |
-| `security.session` | Server-side session lifecycle: creation, timeout, expiry, fixation renewal, logout, and their audit logging. |
-| `security.firewall` | Rejection handling for requests Spring Security's `HttpFirewall` blocks before they reach the application. |
-| `logging` | Request correlation and structured (ECS) logging context. |
-| `domain` | JPA entities and repositories for local users, groups, and roles. |
-| `api` | HTTP endpoints and API-wide error handling (`ApiResponseEntityExceptionHandler`, RFC 9457 problem types). |
-| `api.admin` | Administrative endpoints. |
-| `validation` | Custom Bean Validation constraints. |
+| Building Block | Responsibility | Interfaces | Code Location |
+| --- | --- | --- | --- |
+| `api` | Public, non-administrative REST endpoints: login-user claims, Keycloak account proxy, JWKS publication, RFC 9457 error handling | `GET /login-user`, `GET /account`, `GET /oauth2/jwks`, exception handling for all endpoints | `src/main/java/com/example/app/web/server/api/` |
+| `api.admin` | Administration REST API for users, groups, and roles | `/admin/users/**`, `/admin/groups/**`, `/admin/roles/**` (each individually role-gated) | `src/main/java/com/example/app/web/server/api/admin/` |
+| `config` | Spring `@Configuration` classes: security filter chain assembly, Tomcat/TLS setup, async execution, REST client, application properties binding, lifecycle event logging | N/A (wiring only) | `src/main/java/com/example/app/web/server/config/` |
+| `domain` | JPA entities (`AppUser`, `AppGroup`, `AppRole`) and Spring Data repositories | Repository interfaces consumed by `api.admin` and `security` | `src/main/java/com/example/app/web/server/domain/` |
+| `security.authentication` | Converts Spring Security authentication failures into RFC 9457 Problem Details; local-authority-aware OIDC user loading | `ProblemDetailAuthenticationEntryPoint`, `LocalAuthoritiesOidcUserService` | `src/main/java/com/example/app/web/server/security/authentication/` |
+| `security.authorization` | Per-request local authority refresh; RFC 9457 access-denied responses | `LocalAuthorityRefreshFilter`, `ProblemDetailAccessDeniedHandler` | `src/main/java/com/example/app/web/server/security/authorization/` |
+| `security.session` | Session lifecycle: absolute timeout, concurrent-session eviction, audit logging, revocation on authority change | `AbsoluteSessionTimeoutFilter`, `SessionLifecycleAuditLogger`, `SessionRevocationService`, `SessionLifecycleAuditInitializationFilter` | `src/main/java/com/example/app/web/server/security/session/` |
+| `security.firewall` | RFC 9457 response for requests Spring Security's `HttpFirewall` rejects | `ProblemDetailRequestRejectedHandler` | `src/main/java/com/example/app/web/server/security/firewall/` |
+| `logging` | Request correlation, ECS/trace field customization, request-boundary logging, MDC cleanup | `RequestCorrelationContextFilter`, `RequestLoggingFilter`, `AuthenticatedUserLoggingContextFilter`, `LoggingContextCleanupFilter`, `TraceCorrelationJsonMembersCustomizer` | `src/main/java/com/example/app/web/server/logging/` |
+| `logging.client` / `logging.request` | Pluggable client-IP and upstream-request-ID resolution (safe no-op defaults; deployment supplies a real resolver for its ingress) | `ClientIpResolver`, `RequestIdResolver` | `src/main/java/com/example/app/web/server/logging/client/`, `.../logging/request/` |
+| `validation` | Reusable Bean Validation constraints for domain input | `@Username`, `@DisplayName`, `@ResourceName` | `src/main/java/com/example/app/web/server/validation/` |
 
-This is a deliberately conventional layered structure for a single
-deployable service, not a set of independently deployable modules; there is
-one Spring Boot application (`Application.java`), one database, and one
-build artifact. See [Runtime View](06-runtime-view.md) for how a request
-actually moves through these packages.
+Full detail on the `security` and `logging` packages' crosscutting
+behavior is documented once, not duplicated here: see
+[Security](08-crosscutting-concepts/security/README.md) and
+[Logging](08-crosscutting-concepts/logging/README.md).
+<!-- /arc42-generated -->
 
-## Components: authentication and authorization
+## 5.2 Level 2
+
+<!-- arc42-generated -->
+### Administration API (White Box)
+
+```mermaid
+flowchart TB
+    subgraph adminApi ["api.admin"]
+        UserAdmin["UserAdminController\n/admin/users/**\nROLE_USER_MANAGE"]
+        GroupAdmin["GroupAdminController\n/admin/groups/**\nROLE_GROUP_MANAGE"]
+        RoleAdmin["RoleAdminController\n/admin/roles/**\nROLE_ROLE_MANAGE"]
+        Service["AdministrationService"]
+    end
+    UserAdmin --> Service
+    GroupAdmin --> Service
+    RoleAdmin --> Service
+    Service --> Repos["AppUserRepository /\nAppGroupRepository /\nAppRoleRepository"]
+```
 
 | Component | Responsibility |
 | --- | --- |
-| Identity provider (Keycloak) | Authenticates users and provides OIDC identity claims. |
-| Local OIDC user service | Resolves the local user and derives effective authorities. |
-| Local user, group, and role model | Stores organisational membership and role grants. |
-| Spring Security | Enforces resolved authorities at the application boundary. |
-| Administration API | Maintains the local authorisation model; the sole mechanism for creating, updating, or deleting local users, groups, roles, and their relationships. |
+| `UserAdminController` / `GroupAdminController` / `RoleAdminController` | Thin REST controllers; each is annotated `@PreAuthorize` (or matched in the security filter chain) with a distinct management authority, so a caller with only `USER_MANAGE` cannot administer groups or roles. |
+| `AdministrationService` | Application-layer orchestration for create/update/list/disable operations; translates domain conflicts (duplicate name) into `ConflictException`, missing resources into `ResourceNotFoundException`. |
+| `AdminDtos` | Request/response DTOs, including `PageResponse` for paginated listings. |
 
-Authorization is independent of identity-provider realm and client roles: a
-user's local groups and roles determine what they can do, not any role
-Keycloak itself asserts. See [Authentication](08-crosscutting-concepts/security/authentication.md)
-and [Authorization](08-crosscutting-concepts/security/authorization.md) for
-how each component enforces this in practice, and
-[ADR 0005](../adr/0005-keycloak-authentication-local-authorisation.md) for
-why authentication and authorization are split this way.
+### Domain Model
 
-## Data model
+```mermaid
+erDiagram
+    APP_USER ||--o{ APP_USER_GROUP : "belongs to"
+    APP_GROUP ||--o{ APP_USER_GROUP : "has members"
+    APP_GROUP ||--o{ APP_GROUP_ROLE : "grants"
+    APP_ROLE ||--o{ APP_GROUP_ROLE : "granted via"
 
-Local authorization data lives under `domain`:
-
-| Entity | Purpose |
-| --- | --- |
-| `AppUser` | A local user, matched to Keycloak's `preferred_username` claim. Authentication is delegated to Keycloak; this entity exists so authorization does not have to trust the identity provider's own role claims. |
-| `AppGroup` | A group a user belongs to. |
-| `AppRole` | A role, granted through group membership. |
-| `AbstractAuditableEntity` | Common auditing fields (created/modified metadata) shared by the auditable entities above. |
-
-### Authorization model
-
-```text
-User  * ── * Group  * ── * Role  ──> Spring Security authority
+    APP_USER {
+        char36 id PK
+        varchar username UK
+        varchar display_name
+        varchar email
+        boolean enabled
+    }
+    APP_GROUP {
+        char36 id PK
+        varchar name UK
+    }
+    APP_ROLE {
+        char36 id PK
+        varchar name UK
+    }
 ```
 
-A user may belong to one or more groups. A group represents an
-organisational position or responsibility and contains the roles required
-for that position. A user's effective permissions are the union of the
-roles assigned to every group to which they belong. The model deliberately
-does not support direct user-to-role grants: this keeps permissions
-understandable through group membership and prevents exceptions from
-becoming an alternative access-control mechanism.
+Users are assigned to groups, and groups are granted roles; a user's
+effective authorities are the union of the roles of all of their groups.
+There is no direct user-to-role assignment. All three entities extend
+`AbstractAuditableEntity` (`created_at`/`updated_at`). The Keycloak
+`preferred_username` claim is matched against `app_user.username`, which
+is why usernames are treated as immutable once a user is provisioned (see
+`README.md`). Schema defined in
+`src/main/resources/db/changelog/001-authorisation-schema.sql`, seed data
+in `002-authorisation-seed.sql`; Spring Session's own tables are added in
+`003-spring-session-schema.sql`.
 
-`AppUser` and `AppGroup` have a many-to-many relationship; a user must
-belong to at least one group. `AppGroup` and `AppRole` also have a
-many-to-many relationship. The model preserves these invariants:
+### Security Filter Chain (White Box)
 
-- Local usernames are immutable after creation.
-- Deleting a user removes its group memberships.
-- A group with users cannot be deleted.
-- A role assigned to a group cannot be deleted.
-- A role can be assigned to multiple groups and is granted once even if
-  several memberships provide it.
+```mermaid
+flowchart LR
+    RequestCorrelation["RequestCorrelationContextFilter\n(order: HIGHEST_PRECEDENCE+10,\nahead of Security filter chain)"] --> SecurityChain
+    subgraph SecurityChain ["Security filter chain"]
+        direction LR
+        AuthLogging["AuthenticatedUserLoggingContextFilter"] --> AuditInit["SessionLifecycleAuditInitializationFilter"]
+        AuditInit --> AbsTimeout["AbsoluteSessionTimeoutFilter"]
+        AbsTimeout --> ReqLogging["RequestLoggingFilter"]
+        ReqLogging --> AuthorityRefresh["LocalAuthorityRefreshFilter"]
+        AuthorityRefresh --> AuthZ["Authorization rules\n(role/authority per path)"]
+    end
+    SecurityChain --> Cleanup["LoggingContextCleanupFilter\n(outermost, HIGHEST_PRECEDENCE)"]
+```
 
-How this model is actually enforced at request time, including how a
-Spring Security authority is derived from a stored role, is described in
-[Authorization](08-crosscutting-concepts/security/authorization.md).
+`WebSecurityConfiguration` assembles this chain explicitly; filter order
+is deliberate and documented inline (see source references in
+[ADR 0010](../adr/0010-ecs-structured-logging.md) and
+[ADR 0012](../adr/0012-request-correlation-ahead-of-security-chain.md)).
+<!-- /arc42-generated -->
 
-### Session state
+## 5.3 Level 3
 
-Server-side sessions are persisted in the database via Spring Session JDBC,
-in the `SPRING_SESSION` and `SPRING_SESSION_ATTRIBUTES` tables. This is
-schema Liquibase owns explicitly (`003-spring-session-schema.sql`); Spring
-Boot's own JDBC-session schema initializer is disabled. See
-[Sessions](08-crosscutting-concepts/security/sessions.md) and
-[ADR 0006](../adr/0006-jdbc-backed-server-side-sessions.md).
-
-### Schema ownership
-
-Liquibase is the sole owner of both application and Spring Session schema
-and reference data. Every schema or data change is an ordered,
-version-controlled changeset in `src/main/resources/db/changelog`, applied
-by a dedicated CI migration job using a database account with DDL
-privileges. The application's own runtime database account has only
-data-access permissions and never creates, alters, or drops schema; Hibernate
-DDL generation is disabled. See [ADR 0004](../adr/0004-database-schema-management.md)
-for the full rationale and the delivery contract this imposes on CI.
-
-The template does not prescribe a specific production database product; H2
-is used only for the test scope. Choosing and configuring the production
-database, and the CI migration job that applies changesets to it, are
-deployment decisions.
+<!-- arc42-manual: Further decompose individual filters or services only if a future change makes one of them complex enough to warrant its own diagram (for example, if the local authority model grows beyond group-to-role mapping). -->
+<!-- /arc42-manual -->

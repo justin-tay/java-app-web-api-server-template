@@ -6,19 +6,19 @@ separate.
 
 ## Architecture decisions
 
-[docs/adr/](../adr/README.md) — the full, chronological log of durable
+[docs/adr/](../adr/README.md), the full, chronological log of durable
 technical decisions. [Architecture Decisions](09-architecture-decisions.md) summarizes each one
 with a link back here; read the ADR itself for context and consequences.
 
 ## Feature specifications
 
-[docs/specifications/](../specifications/) — requirements, design, and task
+[docs/specifications/](../specifications/), requirements, design, and task
 breakdowns for individual features, at a finer grain than this document.
 Currently: `user-authorisation/`.
 
 ## Retained external standards
 
-[docs/standards/](../standards/) — external standards and control catalogs
+[docs/standards/](../standards/), external standards and control catalogs
 kept as reference material rather than paraphrased:
 
 - ISO/IEC 25010:2023 quality characteristics, used in
@@ -28,7 +28,7 @@ kept as reference material rather than paraphrased:
 
 ## External systems
 
-- [Keycloak](https://github.com/keycloak/keycloak) — the OIDC identity
+- [Keycloak](https://github.com/keycloak/keycloak), the OIDC identity
   provider used for authentication; see
   [Context and Scope](03-context-and-scope.md) and
   [Authentication](08-crosscutting-concepts/security/authentication.md).

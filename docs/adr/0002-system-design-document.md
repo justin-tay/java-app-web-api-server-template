@@ -6,54 +6,59 @@ Accepted
 
 ## Context
 
-The chapter structure borrows from arc42 (docs.arc42.org), the most concrete,
-freely available, section-by-section template at application scale. Other
-candidates were considered and rejected:
-
-| Alternative | What it is | Why not chosen |
-| --- | --- | --- |
-| IEEE/ISO 42010 | A conceptual meta-model (stakeholders, concerns, viewpoints) | No prescribed headings; nothing to fill out directly |
-| C4 model | A diagramming notation | Not a document structure; usually paired with a template like arc42, not a replacement for one |
-| Kruchten's 4+1 / RUP Software Architecture Document | A view-based template coupled to RUP, a specific development process | Some sections (e.g. Use-Case View) presuppose RUP's own process artifacts this project doesn't follow; RUP itself is largely superseded by agile practice |
-| TOGAF Architecture Definition Document | An enterprise architecture framework artifact | Enterprise-wide scope, disproportionate to a single service |
-
-arc42 itself is explicitly designed to be tailored: its own guidance sanctions
-adopting only the sections a project needs rather than all twelve verbatim,
-which is the approach taken here. Where a section name is borrowed directly,
-it uses arc42's canonical wording verbatim (`crosscutting-concepts`, matching
-arc42 section 8's actual title, "Crosscutting Concepts") rather than a
-plausible-looking paraphrase.
-
-BMad-Method's `shard-doc` convention supplied the folder/file naming pattern
-(a folder named after the document, with a generated `index.md`), but not its
-source-of-truth direction. BMad hand-maintains one master file and treats the
-sharded folder as a one-time, one-directional export that can silently go
-stale relative to the master (BMad's own issue tracker documents this: when
-both the master document and its shard folder exist, the master takes
-precedence, and shards are not automatically regenerated). That is the
-opposite of what this project needs: since the shards are read directly by
-both humans and AI agents day to day, they must never be a second, staler
-copy of some other authoritative source. Making the shard files themselves
-the source of truth, and treating any single-file assembly as a disposable
-build output, avoids that failure mode entirely.
+A project needs somewhere to document its architecture that doesn't
+reinvent structure from scratch, isn't tied to one team's private habits,
+and gives contributors, human or AI, a known shape to fill in and a known
+shape to read. arc42 (docs.arc42.org) is a freely available, section-by-
+section template built for exactly that: twelve named sections covering
+introduction and goals, constraints, context and scope, solution strategy,
+building blocks, runtime behavior, deployment, crosscutting concerns,
+architecture decisions, quality requirements, risks and technical debt, and
+a glossary. It is explicitly designed to be tailored, adopting only the
+sections a project needs, rather than treated as a fixed form every project
+must fill out in full.
 
 ## Decision
 
-`docs/system-design/` holds the template's System Design Document, sharded
-into one Markdown file per chapter with `docs/system-design/index.md` as the
-table of contents. Chapters are numeric-prefixed so a plain directory
-listing reflects reading order without relying on `index.md`. The shard
-files are the only hand-maintained source; any future single-file "master"
-document assembled from them (for example to feed an AsciiDoc/PDF export) is
-a generated build artifact, never edited directly.
+This project takes arc42's full twelve sections rather than a smaller
+subset: it has enough architecturally significant ground to cover, security
+and operational controls foremost among it, that no section is safe to skip
+up front. `docs/system-design/` holds the system design document sharded
+into one numeric-prefixed Markdown file per chapter (`01-introduction.md`
+through `12-glossary.md`, plus `13-references.md`), with
+`docs/system-design/index.md` as the table of contents. Numeric prefixes
+let a plain directory listing reflect reading order without relying on
+`index.md`.
 
-An AsciiDoc-based conversion to PDF is a desired future step, explicitly out
-of scope for this change: no conversion tooling is introduced here.
+Section 8, Crosscutting Concepts, is itself sharded further by topic rather
+than kept as one file, since its subject matter, domain concepts,
+architecture patterns, development concepts, operational concepts, logging,
+and security, does not share a single narrative. `logging/` and `security/`
+hold detailed control-implementation mappings (standard to status),
+hand-authored rather than generated from the codebase; `domain/`,
+`architecture/`, `development/`, and `operational/` cover the remaining
+topics. Each subdirectory has its own `README.md`, and
+`08-crosscutting-concepts/README.md` indexes them by topic, one row per
+subdirectory, the same pattern `index.md` uses one level up.
+
+Section 9, Architecture Decisions, links to the ADRs under `docs/adr/` by a
+one-line summary table rather than restating their Context, Decision, and
+Consequences. An ADR's content lives in exactly one place: `docs/adr/` is
+the durable, timestamped record of decisions as they were made, and
+`docs/system-design/` is the current, regeneratable view built on top of
+it.
 
 ## Consequences
 
-A future contributor adding to the system design document should add a new
-numeric-prefixed shard file and an `index.md` entry, not grow an existing
-chapter past the point it stops being one topic. The deferred AsciiDoc/PDF
-export remains an open, undesigned piece of work; it should get its own ADR
-once a converter and pipeline are chosen.
+A future contributor adding to the system design document adds a new
+numeric-prefixed shard file and an `index.md` entry, not a chapter grown
+past the point it stops being one topic. Adding a new Crosscutting Concepts
+topic follows the same pattern one level down: a new subdirectory and a row
+in `08-crosscutting-concepts/README.md`.
+
+Regenerating a section from a codebase analysis must preserve any file or
+subdirectory containing hand-authored content the analysis did not itself
+produce, leaving it untouched rather than folding it back into a generic
+template. `logging/` and `security/` are examples of such content; any
+future subdirectory a contributor hand-writes directly is subject to the
+same rule.

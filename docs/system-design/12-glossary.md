@@ -1,25 +1,22 @@
 # 12. Glossary
 
-Terms this document uses that a reader needs defined. This is a reader's
-glossary of domain and technical concepts, built only from what the rest of
-this document already says about them.
-
-For the project's canonical wording on concepts that were worded
-inconsistently across the documentation (for example, the different flavors
-of "deployment decision"), see [CONTEXT.md](../../CONTEXT.md) at the repo
-root instead — that document exists for a different purpose than this one
-and is not duplicated here.
-
+<!-- arc42-generated -->
 | Term | Definition |
 | --- | --- |
-| Relying party | The role this application plays in OIDC: it delegates authentication to Keycloak and consumes the resulting identity, rather than collecting credentials itself. See [Authentication](08-crosscutting-concepts/security/authentication.md). |
-| Authorization-code flow | The OIDC login sequence the application uses: the browser is redirected to Keycloak, authenticates there, and returns with a code the application exchanges for tokens. See [Runtime View](06-runtime-view.md#oidc-authorization-code-flow). |
-| `private_key_jwt` | The client-authentication method the application uses when exchanging an authorization code with Keycloak: it signs a JWT assertion with its own private key instead of sending a shared client secret. See [Authentication](08-crosscutting-concepts/security/authentication.md#client-authentication). |
-| JWKS | JSON Web Key Set: the published set of public keys (`/oauth2/jwks`) Keycloak uses to verify the application's signed client assertions and, if enabled, encrypt ID tokens to it. See [Authentication](08-crosscutting-concepts/security/authentication.md#application-jwks-and-key-handling). |
-| Authority | A Spring Security permission string (for example `ROLE_USER_MANAGE`), derived from a local user's group and role memberships and reloaded on every request rather than cached at login. See [Authorization](08-crosscutting-concepts/security/authorization.md). |
-| Audit identifier (`session.id` in logs) | A random, server-side identifier used only in session lifecycle log events, deliberately distinct from the actual session cookie or Spring Session ID so log output never carries a value that could be replayed. See [Sessions](08-crosscutting-concepts/security/sessions.md) and [ADR 0008](../adr/0008-session-lifecycle-audit-identifiers.md). |
-| Correlation ID (`http.request.id`) | A per-request identifier attached to every log event for that request, generated as a UUID by default or supplied by an ingress-specific resolver. See [Logging](08-crosscutting-concepts/logging/README.md). |
-| ECS | Elastic Common Schema: the structured JSON log field schema this application emits to stdout. See [Logging](08-crosscutting-concepts/logging/README.md) and [ADR 0010](../adr/0010-ecs-structured-logging.md). |
-| Problem Details | The RFC 9457 (`application/problem+json`) error-response format this application's API uses for every error, identified by a stable `type` URI. See [Error responses](08-crosscutting-concepts/security/error-responses.md) and [ADR 0013](../adr/0013-rfc-9457-problem-details.md). |
-| ASVS | OWASP's Application Security Verification Standard: the requirement catalog [ASVS](08-crosscutting-concepts/security/asvs.md) maps against, at requirement granularity. |
-| CIS Benchmark | Here, the CIS Apache Tomcat 11 Benchmark: the control catalog [Hardening](08-crosscutting-concepts/security/hardening.md) maps against. |
+| AppUser / AppGroup / AppRole | The three local authorization entities. A user belongs to groups; a group is granted roles; a user's effective authorities are the union of the roles of all their groups. There is no direct user-to-role assignment. |
+| Control implementation | A document or section that maps an external standard's or catalog's requirements (OWASP ASVS, a cheat sheet, IM8 catalogs) to this template's actual implementation status, per requirement. Named after OSCAL's Component Definition model. See [ADR 0003](../adr/0003-control-implementation-terminology.md). |
+| Delegated to \<system\> | A capability the application never implements at all; a specific external system (currently only Keycloak) owns it entirely, and there is no decision left for the application or its deployer to make. |
+| Deployment decision required | A one-time infrastructure, topology, or configuration choice that the team deploying this application must actively make; the template deliberately leaves it unset (for example, the production database product or TLS termination point). |
+| Deployment responsibility | An ongoing operational duty the deploying environment must carry out continuously (for example, restricting the management port to the health-check network, shipping stdout logs), as distinct from a one-time deployment decision. |
+| Product decision required | A business or feature-policy choice (for example, when to require reauthentication) that is independent of infrastructure, and that this template does not make on the adopter's behalf. |
+| ECS (Elastic Common Schema) | The structured logging field schema this application emits as JSON to stdout. See [ADR 0010](../adr/0010-ecs-structured-logging.md) and [Logging](08-crosscutting-concepts/logging/schema.md). |
+| `private_key_jwt` | An OAuth2 client authentication method where the client proves its identity with a signed JWT (backed by the JWKS at `app.jwks`) instead of a shared client secret. See [ADR 0007](../adr/0007-tls-and-oauth-client-key-management.md). |
+| Problem Details (RFC 9457) | The standardized `application/problem+json` error response shape this API uses for every error condition (validation, authentication, authorization, firewall rejection). See [ADR 0013](../adr/0013-rfc-9457-problem-details.md). |
+| Session lifecycle audit identifier | A random, application-local identifier assigned to a session for audit logging, distinct from the session ID itself, so audit trails do not double as a session-hijacking target. See [ADR 0008](../adr/0008-session-lifecycle-audit-identifiers.md). |
+| Local authority refresh | The per-request reload of a user's authorities from the local database, replacing any cached value from login, so authorization changes take effect immediately. See [ADR 0015](../adr/0015-per-request-local-authority-refresh.md). |
+| Management port | The separate embedded server port (8082, base path `/app`) that exposes only an unauthenticated health check, kept apart from the application port (8081) that serves all business traffic. See [ADR 0014](../adr/0014-actuator-management-port.md). |
+| OIDC back-channel logout | Server-to-server logout notification from Keycloak to this application, used when a session must be terminated without a browser round trip (for example, an administrator forcing logout in Keycloak). |
+<!-- /arc42-generated -->
+
+<!-- arc42-manual: Add domain terms specific to an adopting project's business domain once this template is extended beyond its current user/group/role scope. -->
+<!-- /arc42-manual -->
