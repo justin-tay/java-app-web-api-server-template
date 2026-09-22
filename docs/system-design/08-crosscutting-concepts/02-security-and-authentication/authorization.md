@@ -1,4 +1,4 @@
-# Authorization
+﻿# Authorization
 
 Authorization converts an authenticated OpenID Connect (OIDC) identity into
 local application permissions. Authentication is the responsibility of the
@@ -90,23 +90,80 @@ Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.
 | Status | Meaning |
 | --- | --- |
 | Implemented | The application's own code and configuration fulfill the recommendation. |
-| Implemented (vertical); not applicable (horizontal) | The recommendation is satisfied for vertical (role-based) access control; there is no horizontal (per-owner/per-tenant) dimension for it to apply to, because the template is single-tenant. |
+| Partial | The recommendation is only partly satisfied; the remainder is explained in the same row. |
 | Deviates from the recommendation, by design | The template makes a deliberate, documented trade-off against the OWASP recommendation rather than an oversight. |
-| Not applicable to this template | The template has no capability or use case the recommendation addresses. |
+| Not applicable | The template has no capability or use case the recommendation addresses. |
 
-| OWASP recommendation | Status | Implementation Statement |
-| --- | --- | --- |
-| Enforce least privilege | Implemented (vertical); not applicable (horizontal) | Each administration path requires the specific management authority for that resource family, not a general "admin" grant: `/admin/users/**` requires `ROLE_USER_MANAGE`, `/admin/groups/**` requires `ROLE_GROUP_MANAGE`, `/admin/roles/**` requires `ROLE_ROLE_MANAGE`. There is no per-owner or per-tenant resource boundary to separate horizontally, because the template has no multi-tenancy; any holder of a management role administers the entire corresponding collection by design. An adopter that introduces multi-tenancy or per-user resource ownership must add its own horizontal checks. **Application configuration:** `WebSecurityConfiguration.securityFilterChain()` (`.hasRole("USER_MANAGE")`, `.hasRole("GROUP_MANAGE")`, `.hasAuthority("ROLE_ROLE_MANAGE")`); **application code:** `@PreAuthorize` on `UserAdminController`, `GroupAdminController`, `RoleAdminController`. |
-| Deny by default | Implemented | Every request not explicitly permitted requires authentication (`.requestMatchers("/**").authenticated()`), and every administration path additionally requires its specific authority; nothing is reachable by an unauthenticated or under-privileged request unless a rule explicitly allows it. **Application configuration:** `WebSecurityConfiguration.securityFilterChain()`. |
-| Validate permissions on every request | Implemented | Authorization is not decided once and cached: `@PreAuthorize`/`authorizeHttpRequests` re-evaluate on every request, and the user's `ROLE_` authorities themselves are reloaded from the database on every request rather than trusted from login, so a role or group change also takes effect immediately. Confirm against the deployed service that a group's role set change, a role deletion, or a user's own group membership or enabled-status change takes effect on that user's very next request, without requiring re-login. **Application code:** `LocalAuthorityRefreshFilter`; **Spring Security:** method security and `authorizeHttpRequests`. See [ADR 0015](../../../adr/0015-per-request-local-authority-refresh.md). |
-| Thoroughly review the authorization logic of chosen tools, implementing custom logic where needed | Implemented | The template does not use Spring Security's `hasRole()` uncritically: the stored `ROLE_MANAGE` role name already begins with `ROLE`, so `hasRole()`'s automatic `ROLE_` prefixing would double it. `RoleAdminController` and `WebSecurityConfiguration` instead use `hasAuthority("ROLE_ROLE_MANAGE")` for that one case, with the reasoning recorded in code. **Application code:** `RoleAdminController` (comment above its `@PreAuthorize`), `WebSecurityConfiguration.securityFilterChain()`. |
-| Prefer attribute- or relationship-based access control over role-based access control | Deviates from the recommendation, by design | The template uses a role-based model (user → group → role → Spring Security authority; see [Building Block View](../../05-building-block-view.md#authorization-model)) rather than ABAC or ReBAC. This is a deliberate simplicity trade-off for a single-tenant administration model: direct user-to-role grants are intentionally unsupported to keep permissions understandable through group membership. An adopter needing fine-grained, relationship-, or attribute-based access control must extend or replace this model. **Application code:** `AppUser`/`AppGroup`/`AppRole` and `LocalAuthoritiesOidcUserService`. |
-| Ensure lookup IDs cannot be guessed or tampered with, and enforce access control on every specific object request | Implemented | Every entity ID is a randomly generated UUID (`AbstractAuditableEntity`), not a sequential or otherwise guessable value, and every per-object lookup (`AdministrationService.user()`/`group()`/`role()`) is reached only after the path-level role check already gated the whole resource family. There is no per-object ownership check beyond that role gate, because the template has no concept of one user "owning" a subset of another management role's resources; see the least-privilege row above for the multi-tenant caveat. **Application code:** `AbstractAuditableEntity` (UUID generation), `AdministrationService`. |
-| Enforce authorization checks on static resources | Not applicable to this template | The application serves no static resources or files of any kind; there is no `WebMvcConfigurer` resource handler and no bundled frontend. Reassess if static content is ever added. |
-| Verify that authorization checks are performed server-side | Implemented | All authorization is enforced by the Spring Security filter chain and `@PreAuthorize` method security running on the server; the application has no client-side code that could perform or be relied on for an authorization decision. **Spring Security:** `authorizeHttpRequests`, method security. |
-| Exit safely when authorization checks fail | Implemented | Access-denied and CSRF failures are handled by one centralized handler that returns a generic RFC 9457 Problem Details response with no internal detail; a missing or conflicting resource is likewise handled centrally rather than by ad hoc per-endpoint logic. Confirm access-denied and CSRF-failure responses never disclose which specific check failed or any internal detail. **Application code:** `ProblemDetailAccessDeniedHandler`, `ApiResponseEntityExceptionHandler`. See [Error responses](error-responses.md). |
-| Implement appropriate logging | Implemented | Authorization denials are recorded as structured ECS audit events (`event.category=[web, api]`, `event.type=[access, denied]`, `event.action=authorize_access`, `event.outcome=failure`), the same mechanism used for authentication and CSRF audit events. Confirm these events are recorded without credentials or tokens. **Application code:** `SecurityAuditEventLogger.onAuthorizationDenied()`. See [Logging](../06-logging-and-monitoring/README.md). |
-| Create unit and integration test cases for authorization logic | Implemented | `AdminControllerTest` asserts that each administration endpoint returns 403 for a caller without the required authority and succeeds for one with it, across the user, group, and role management paths. **Test code:** `AdminControllerTest`. |
+This section follows the Cheat Sheet's own "Recommendations" subsection
+headings, in its own order. "Introduction" and the "References" subsection
+are skipped as non-normative: the former is motivational, the latter a
+bibliography, neither has a testable claim.
+
+### Enforce Least Privileges
+
+| Status | Implementation Statement |
+| --- | --- |
+| Partial | **Vertically (role-based):** each administration path requires the specific management authority for that resource family, not a general "admin" grant: `/admin/users/**` requires `ROLE_USER_MANAGE`, `/admin/groups/**` requires `ROLE_GROUP_MANAGE`, `/admin/roles/**` requires `ROLE_ROLE_MANAGE`.<br><br>**Horizontally (per-owner/per-tenant):** not applicable today. There is no per-owner or per-tenant resource boundary to separate, because the template has no multi-tenancy; any holder of a management role administers the entire corresponding collection by design. An adopter that introduces multi-tenancy or per-user resource ownership must add its own horizontal checks.<br><br>**Application configuration:** `WebSecurityConfiguration.securityFilterChain()` (`.hasRole("USER_MANAGE")`, `.hasRole("GROUP_MANAGE")`, `.hasAuthority("ROLE_ROLE_MANAGE")`); **application code:** `@PreAuthorize` on `UserAdminController`, `GroupAdminController`, `RoleAdminController`. |
+
+### Deny by Default
+
+| Status | Implementation Statement |
+| --- | --- |
+| Implemented | Every request not explicitly permitted requires authentication (`.requestMatchers("/**").authenticated()`), and every administration path additionally requires its specific authority; nothing is reachable by an unauthenticated or under-privileged request unless a rule explicitly allows it.<br><br>**Application configuration:** `WebSecurityConfiguration.securityFilterChain()`. |
+
+### Validate the Permissions on Every Request
+
+| Status | Implementation Statement |
+| --- | --- |
+| Implemented | Authorization is not decided once and cached: `@PreAuthorize`/`authorizeHttpRequests` re-evaluate on every request, and the user's `ROLE_` authorities themselves are reloaded from the database on every request rather than trusted from login, so a role or group change also takes effect immediately. Confirm against the deployed service that a group's role set change, a role deletion, or a user's own group membership or enabled-status change takes effect on that user's very next request, without requiring re-login.<br><br>**Application code:** `LocalAuthorityRefreshFilter`; **Spring Security:** method security and `authorizeHttpRequests`. See [ADR 0015](../../../adr/0015-per-request-local-authority-refresh.md). |
+
+### Thoroughly Review the Authorization Logic of Chosen Tools and Technologies, Implementing Custom Logic if Necessary
+
+| Status | Implementation Statement |
+| --- | --- |
+| Implemented | The template does not use Spring Security's `hasRole()` uncritically: the stored `ROLE_MANAGE` role name already begins with `ROLE`, so `hasRole()`'s automatic `ROLE_` prefixing would double it. `RoleAdminController` and `WebSecurityConfiguration` instead use `hasAuthority("ROLE_ROLE_MANAGE")` for that one case, with the reasoning recorded in code.<br><br>**Application code:** `RoleAdminController` (comment above its `@PreAuthorize`), `WebSecurityConfiguration.securityFilterChain()`. |
+
+### Prefer Attribute and Relationship Based Access Control over RBAC
+
+| Status | Implementation Statement |
+| --- | --- |
+| Deviates from the recommendation, by design | The template uses a role-based model (user → group → role → Spring Security authority; see [Building Block View](../../05-building-block-view.md#authorization-model)) rather than ABAC or ReBAC. This is a deliberate simplicity trade-off for a single-tenant administration model: direct user-to-role grants are intentionally unsupported to keep permissions understandable through group membership. An adopter needing fine-grained, relationship-, or attribute-based access control must extend or replace this model.<br><br>**Application code:** `AppUser`/`AppGroup`/`AppRole` and `LocalAuthoritiesOidcUserService`. |
+
+### Ensure Lookup IDs are Not Accessible Even When Guessed or Cannot Be Tampered With
+
+| Status | Implementation Statement |
+| --- | --- |
+| Implemented | Every entity ID is a randomly generated UUID (`AbstractAuditableEntity`), not a sequential or otherwise guessable value, and every per-object lookup (`AdministrationService.user()`/`group()`/`role()`) is reached only after the path-level role check already gated the whole resource family. There is no per-object ownership check beyond that role gate, because the template has no concept of one user "owning" a subset of another management role's resources; see the least-privilege row above for the multi-tenant caveat.<br><br>**Application code:** `AbstractAuditableEntity` (UUID generation), `AdministrationService`. |
+
+### Enforce Authorization Checks on Static Resources
+
+| Status | Implementation Statement |
+| --- | --- |
+| Not applicable | The application serves no static resources or files of any kind; there is no `WebMvcConfigurer` resource handler and no bundled frontend. Reassess if static content is ever added. |
+
+### Verify that Authorization Checks are Performed in the Right Location
+
+| Status | Implementation Statement |
+| --- | --- |
+| Implemented | All authorization is enforced by the Spring Security filter chain and `@PreAuthorize` method security running on the server; the application has no client-side code that could perform or be relied on for an authorization decision.<br><br>**Spring Security:** `authorizeHttpRequests`, method security. |
+
+### Exit Safely when Authorization Checks Fail
+
+| Status | Implementation Statement |
+| --- | --- |
+| Implemented | Access-denied and CSRF failures are handled by one centralized handler that returns a generic RFC 9457 Problem Details response with no internal detail; a missing or conflicting resource is likewise handled centrally rather than by ad hoc per-endpoint logic. Confirm access-denied and CSRF-failure responses never disclose which specific check failed or any internal detail.<br><br>**Application code:** `ProblemDetailAccessDeniedHandler`, `ApiResponseEntityExceptionHandler`. See [Error responses](error-responses.md). |
+
+### Implement Appropriate Logging
+
+| Status | Implementation Statement |
+| --- | --- |
+| Implemented | Authorization denials are recorded as structured ECS audit events (`event.category=[web, api]`, `event.type=[access, denied]`, `event.action=authorize_access`, `event.outcome=failure`), the same mechanism used for authentication and CSRF audit events. Confirm these events are recorded without credentials or tokens.<br><br>**Application code:** `SecurityAuditEventLogger.onAuthorizationDenied()`. See [Logging](../06-logging-and-monitoring/README.md). |
+
+### Create Unit and Integration Test Cases for Authorization Logic
+
+| Status | Implementation Statement |
+| --- | --- |
+| Implemented | `AdminControllerTest` asserts that each administration endpoint returns 403 for a caller without the required authority and succeeds for one with it, across the user, group, and role management paths.<br><br>**Test code:** `AdminControllerTest`. |
 
 Related documentation: [Building Block View](../../05-building-block-view.md#components-authentication-and-authorization),
 [Authentication](authentication.md),

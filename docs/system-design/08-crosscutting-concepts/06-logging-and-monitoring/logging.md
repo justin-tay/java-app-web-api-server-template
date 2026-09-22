@@ -63,10 +63,10 @@ and, for the overlapping ASVS V16 mapping, [ASVS](../02-security-and-authenticat
 | --- | --- | --- |
 | Record the date and time of the event, in a consistent, unambiguous format. | Implemented | ECS emits `@timestamp` in UTC by construction; see [Logging schema](schema.md). |
 | Record an identifier that lets related events be linked together. | Implemented | `http.request.id` correlates every event produced during one request; `trace.id`/`span.id` additionally correlate across this application's own log lines and, for a caller that propagates W3C trace context, with that caller's; see [README](README.md#correlation-ahead-of-the-security-chain) and [ADR 0011](../../../adr/0011-trace-correlated-structured-logging.md). |
-| Record source address and, where authenticated, user identity. | Implemented, with deployment configuration | `source.ip` is always the direct peer address. `client.ip` is only populated once a deployment wires up a trusted `ClientIpResolver` for its actual proxy chain; the default resolver trusts nothing. `user.name` is added once authentication resolves. |
+| Record source address and, where authenticated, user identity. | Implemented | `source.ip` is always the direct peer address. `client.ip` is only populated once a deployment wires up a trusted `ClientIpResolver` for its actual proxy chain; the default resolver trusts nothing. `user.name` is added once authentication resolves. |
 | Record the entry point (URL, HTTP method) and result status. | Implemented | `receive_request`/`complete_request` carry `url.path`, `http.request.method`, `http.response.status_code`, and `event.outcome`; see [Logging schema](schema.md). |
 | Classify the event (category, type, action, severity) so it can be queried and routed. | Implemented | Every event carries a fixed ECS `event.category`/`event.type`/`event.action`, documented per event in the [event reference](event-reference.md); severity is the SLF4J log level the event is emitted at. |
-| Capture extended detail (stack trace, system error) for unexpected failures. | Implemented, with a redaction rule | An unexpected exception is attached with SLF4J's `setCause()`, letting the ECS formatter derive `error.type`/`error.message`/`error.stack_trace` automatically; an expected, client-driven failure instead gets a hand-added `error.type` with no message or trace, since the exception message could echo rejected request content. See [README](README.md#what-never-reaches-a-log-line). |
+| Capture extended detail (stack trace, system error) for unexpected failures. | Implemented | An unexpected exception is attached with SLF4J's `setCause()`, letting the ECS formatter derive `error.type`/`error.message`/`error.stack_trace` automatically; an expected, client-driven failure instead gets a hand-added `error.type` with no message or trace, since the exception message could echo rejected request content. See [README](README.md#what-never-reaches-a-log-line). |
 
 ## Data to Exclude
 
@@ -144,13 +144,13 @@ and, for the overlapping ASVS V16 mapping, [ASVS](../02-security-and-authenticat
 
 | Recommendation | Status | Implementation Statement |
 | --- | --- | --- |
-| Prevent unauthorized access to logs and exfiltration of secrets or PII through them. | Implemented, with deployment configuration | The application-side control is not logging secrets or PII in the first place (see Data to Exclude above); who can read the resulting stdout stream once collected is a deployment access-control decision. |
+| Prevent unauthorized access to logs and exfiltration of secrets or PII through them. | Implemented | The application-side control is not logging secrets or PII in the first place (see Data to Exclude above); who can read the resulting stdout stream once collected is a deployment access-control decision. |
 
 ## Integrity
 
 | Recommendation | Status | Implementation Statement |
 | --- | --- | --- |
-| Control authorization to modify logs; prevent payload injection through them. | Implemented, with deployment configuration | Structured, key-value logging prevents an attacker from injecting a forged log record through request data (see Event Collection above); protecting the collected log stream itself from modification is a deployment concern. |
+| Control authorization to modify logs; prevent payload injection through them. | Implemented | Structured, key-value logging prevents an attacker from injecting a forged log record through request data (see Event Collection above); protecting the collected log stream itself from modification is a deployment concern. |
 
 ## Availability
 

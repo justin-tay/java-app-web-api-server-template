@@ -1,4 +1,4 @@
-# Authentication
+﻿# Authentication
 
 The authentication posture of the application is recorded here against the
 [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html),
@@ -124,38 +124,78 @@ For each Keycloak client:
 
 | Status | Meaning |
 | --- | --- |
-| Implemented | The application's own code fulfills the recommendation, or it is satisfied by verified framework/dependency behavior. |
-| Implemented in application configuration | Satisfied by an explicit application configuration setting rather than code or an inherited default. |
+| Implemented | The application's own code or configuration fulfills the recommendation, or it is satisfied by verified framework/dependency behavior; how is explained in the same row. |
 | Partial | The recommendation is only partly satisfied; the remainder is explained in the same row. |
 | Not implemented | No application or identity-provider mechanism currently satisfies the recommendation. |
-| Not applicable to the application | The recommendation is satisfied or owned outside the application, typically by Keycloak, so there is nothing for the application itself to implement. |
 | Not applicable | The recommendation does not apply to this template at all; no mechanism, internal or external, is expected to address it. |
-| Delegated to identity provider | Keycloak, not the application, owns this behavior; the production identity provider must be reviewed against the cheat sheet separately. |
+| Delegated to identity provider | Keycloak, not the application, owns this behavior, whether because the recommendation is satisfied outside the application or because there is simply nothing for the application itself to implement; the production identity provider must be reviewed against the cheat sheet separately. |
 | Delegated to identity provider, not enabled by default | Keycloak can provide this capability, but the supplied realm configuration does not enable it. |
 | Deployment decision required | The application cannot safely choose the value; it depends on infrastructure, identity-provider topology, or an operational decision the deployer must make. |
 
-| OWASP area | Status | Implementation Statement |
+This section follows the [Authentication Cheat
+Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)'s
+own subsection headings, in its own order, "Introduction" excepted since it
+is motivational rather than actionable. Illustrative sub-examples nested
+under a recommendation (such as the sample login/recovery/account-creation
+error text under "Authentication and Error Messages", or the "References"
+lists) are folded into the parent row rather than given their own row,
+since they carry no separate testable claim.
+
+### Authentication General Guidelines
+
+| OWASP recommendation | Status | Implementation Statement |
 | --- | --- | --- |
-| User IDs and usernames | Not applicable to the application | Keycloak issues and stores the authenticating identity. The application only consumes the resulting `preferred_username` claim as an immutable local lookup key; it does not mint or manage login usernames itself. See [Authorization](authorization.md). |
-| Segregate authentication for sensitive/internal accounts | Deployment decision required | The application does not distinguish an internal/service-account population from browser users. Ensure the Keycloak realm and client used by end users are not also used to authenticate backend, database, or administrative accounts. |
-| Password strength, storage, hashing, and safe comparison | Delegated to identity provider | The application never receives, stores, or compares a password; Keycloak owns credential collection, password policy, hashing, and verification. |
-| Secure password recovery | Delegated to identity provider | Password reset is a Keycloak realm flow. The application has no forgot-password endpoint. |
-| Change password requires an active session and current password | Delegated to identity provider | Handled by Keycloak's account console, not the application. |
-| Transmit credentials over TLS | Implemented in application configuration | Credential entry occurs on Keycloak's hosted login page, outside this application. Token exchange and every authenticated application route are TLS-protected by this application's own listener. See [Hardening](hardening.md) sections 6.2-6.5. Confirm against the deployed service that TLS protects the whole authenticated session, including Keycloak's own login and consent pages. **Application configuration:** `server.ssl`; **external:** Keycloak's own TLS configuration. |
-| Require re-authentication for sensitive features and after risk events | Not implemented | No step-up or re-authentication requirement is defined for sensitive administration actions (user, group, or role management) or for risk events such as an IP or device change. This mirrors the equivalent open item in [Sessions](sessions.md). |
-| TLS client authentication (mTLS) / per-transaction step-up authentication | Not implemented | The application authenticates its own back-channel calls to Keycloak with `private_key_jwt`, not mTLS, and defines no per-transaction second factor. See [Hardening](hardening.md) section 6.1 for the mTLS deployment decision. |
-| Generic authentication error messages | Partial | A failed Keycloak login is handled entirely by Keycloak's own login page. Once Keycloak issues a successful authentication, `LocalAuthoritiesOidcUserService` rejects a missing claim, an unknown local user, and a disabled local user with the same generic `local_user_not_authorized` OAuth2 error, and Spring Security's default failure handler redirects to a generic `/login?error` page. Verify the rendered error page never distinguishes these outcomes from each other or from a Keycloak-side rejection. **Application code:** `LocalAuthoritiesOidcUserService.unauthorized()`; **Spring Security default:** OAuth2 login failure handling. |
-| Protect against automated attacks (brute force, credential stuffing, password spraying) | Delegated to identity provider | The application never sees a submitted password, so it cannot throttle or lock out credential-guessing attempts itself; there is no application-rendered login form to throttle. Login throttling, account lockout, and any CAPTCHA are entirely a Keycloak realm policy. See [Hardening](hardening.md) section 5.2. Confirm the provisioned realm's brute-force/lockout policy actually takes effect. |
-| Multi-factor authentication | Delegated to identity provider, not enabled by default | Keycloak can require OTP or WebAuthn per realm or per user, but the supplied local development realm does not enable it. Enabling MFA is a production identity-provider decision. If enabled, confirm the requirement actually takes effect for the intended users or realms. `bin/configure-keycloak.js` provisions no realm MFA policy. |
-| FIDO2/WebAuthn passkeys | Not implemented | Not configured in the supplied realm. |
-| Security questions or memorable words | Not applicable | The application implements no knowledge-based recovery mechanism. |
-| Log authentication successes and failures | Implemented | `SecurityAuditEventLogger` records login success, login failure, and logout, without credentials or tokens. See [Logging](../06-logging-and-monitoring/README.md). Confirm in the deployed service that these events appear without credentials or tokens. |
-| Use a standard, audited authentication protocol rather than a custom scheme | Implemented | The application delegates authentication to Keycloak through Spring Security's OAuth2 Login/OIDC client rather than a custom credential scheme. **Application configuration:** `spring.security.oauth2.client`; **Spring Security:** `oauth2Login()`. |
-| Validate ID tokens: issuer, audience, signature, and expiration | Implemented | Described in [ID-token and access-token validation](#id-token-and-access-token-validation) above. Confirm a tampered, expired, or wrong-audience ID token is rejected. **Application code:** `jwtDecoderFactory()`, `oidcIdTokenValidator()`. |
-| Use well-maintained libraries/SDKs and provider discovery/JWKS | Implemented | Spring Security's OIDC client stack and Nimbus JOSE+JWT are used throughout; keys are discovered through JWKS rather than embedded or hand-rolled cryptography. **Dependencies:** `spring-boot-starter-oauth2-client`, Nimbus JOSE+JWT. See [ADR 0007](../../../adr/0007-tls-and-oauth-client-key-management.md). |
+| User IDs | Partial | The local `AppUser` record (the application's own authorization identity) has a randomly generated UUID primary key that never changes and is never reused, per `AbstractAuditableEntity`. The upstream Keycloak identity's own internal ID is entirely Keycloak's responsibility.<br><br>**Application code:** `AbstractAuditableEntity`, `AppUser`. |
+| Usernames | Delegated to identity provider | The application resolves the OIDC `preferred_username` claim to the immutable local `username` field (validated by the `@Username` constraint on `AppUser`/`UserCreateRequest`) as a lookup key; it does not accept, register, or validate a username as a login credential itself, so the cheat sheet's case-sensitivity/format guidance for a login form does not apply. See [Authorization](authorization.md). |
+| Authentication Solution and Sensitive Accounts | Deployment decision required | The application does not distinguish an internal/service-account population from browser users. Ensure the Keycloak realm and client used by end users are not also used to authenticate backend, database, or administrative accounts. |
+| Implement Proper Password Strength Controls | Delegated to identity provider | The application never receives, renders, or validates a password field; Keycloak's realm password policy owns strength rules. `WebSecurityConfiguration` defines no credential input of its own. |
+| Implement Secure Password Recovery Mechanism | Delegated to identity provider | Password reset is a Keycloak realm flow (`bin/configure-keycloak.js` provisions no custom recovery flow); the application exposes no forgot-password endpoint. |
+| Store Passwords in a Secure Fashion | Delegated to identity provider | The application has no password column, hash, or credential store of any kind; `AppUser` carries only `username`, `displayName`, and `email`. Keycloak owns hashing and storage. |
+| Compare Password Hashes Using Safe Functions | Delegated to identity provider | Password comparison never occurs in application code; there is no such code path to review. |
+| Change Password Feature | Delegated to identity provider | Handled entirely by Keycloak's account console, outside this application's routes and controllers. |
+| Transmit Passwords Only Over TLS or Other Strong Transport | Implemented | Credential entry occurs on Keycloak's hosted login page, outside this application. Token exchange and every authenticated application route are TLS-protected by this application's own listener. See [Hardening](hardening.md) sections 6.2-6.5. Confirm against the deployed service that TLS protects the whole authenticated session, including Keycloak's own login and consent pages.<br><br>**Application configuration:** `server.ssl`. |
+| Require Re-authentication for Sensitive Features | Not implemented | No step-up or re-authentication requirement is defined for sensitive administration actions (user, group, or role management). This mirrors the equivalent open item in [Sessions](sessions.md). |
+| Re-authentication After Risk Events | Not implemented | No device, IP, or behavioral risk signal triggers re-authentication; see "Adaptive or Risk Based Authentication" below, which covers the same gap. |
+| Consider Strong Transaction Authentication | Not implemented | The application authenticates its own back-channel calls to Keycloak with `private_key_jwt` (TLS client authentication is not used for this), and defines no per-transaction second factor for any administration action. See [Hardening](hardening.md) section 6.1 for the mTLS deployment decision. |
+| Authentication and Error Messages | Partial | A failed Keycloak login is handled entirely by Keycloak's own login page. Once Keycloak issues a successful authentication, `LocalAuthoritiesOidcUserService.unauthorized()` rejects a missing claim, an unknown local user, and a disabled local user with the same generic `local_user_not_authorized` OAuth2 error, and Spring Security's default failure handler redirects to a generic `/login?error` page. Verify the rendered error page never distinguishes these outcomes from each other or from a Keycloak-side rejection.<br><br>**Application code:** `LocalAuthoritiesOidcUserService.unauthorized()`; **Spring Security default:** OAuth2 login failure handling. |
+| Multi-Factor Authentication | Delegated to identity provider, not enabled by default | Keycloak can require OTP or WebAuthn per realm or per user, but the supplied local development realm does not enable it; `bin/configure-keycloak.js` provisions no realm MFA policy. Enabling MFA is a production identity-provider decision. FIDO2/WebAuthn passkeys specifically are also not configured in the supplied realm. |
+| Login Throttling | Delegated to identity provider | The application never sees a submitted password, so it cannot throttle or lock out credential-guessing attempts itself, and there is no application-rendered login form to throttle. Login throttling and account lockout are entirely a Keycloak realm policy. See [Hardening](hardening.md) section 5.2. Confirm the provisioned realm's brute-force/lockout threshold, observation window, and lockout duration actually take effect. |
+| CAPTCHA | Delegated to identity provider | Any CAPTCHA challenge would be rendered on Keycloak's hosted login page, not by the application; the supplied realm configuration does not enable one. |
+| Security Questions and Memorable Words | Not applicable | The application implements no knowledge-based recovery mechanism of its own. |
+
+### Logging and Monitoring
+
+| OWASP recommendation | Status | Implementation Statement |
+| --- | --- | --- |
+| Log authentication successes and failures | Implemented | `SecurityAuditEventLogger` records `login` with outcome, user name, and (on failure) exception type, never credentials or tokens. See [Logging](../06-logging-and-monitoring/README.md). Confirm in the deployed service that these events appear without credentials or tokens. |
+
+### Use of authentication protocols that require no password
+
+| OWASP recommendation | Status | Implementation Statement |
+| --- | --- | --- |
+| OAuth 2.0 and 2.1 | Not applicable | The application uses OpenID Connect, not bare OAuth 2.0/2.1, for authentication; see OpenID Connect (OIDC) below. |
+| OpenID Connect (OIDC) | Implemented | The application delegates authentication to Keycloak through Spring Security's OAuth2 Login/OIDC client (`spring.security.oauth2.client`, `oauth2Login()`) rather than a custom credential scheme, using well-maintained libraries (`spring-boot-starter-oauth2-client`, Nimbus JOSE+JWT) and provider discovery/JWKS rather than embedded cryptography. ID tokens are validated for issuer, audience, signature, and expiration; see [ID-token and access-token validation](#id-token-and-access-token-validation) above. Confirm a tampered, expired, or wrong-audience ID token is rejected.<br><br>**Application code:** `jwtDecoderFactory()`, `oidcIdTokenValidator()`. See [ADR 0007](../../../adr/0007-tls-and-oauth-client-key-management.md). |
 | SAML | Not applicable | The template uses OIDC exclusively. |
-| Password-manager compatibility (form field types, paste, tab order) | Not applicable to the application | The credential-entry form is Keycloak's hosted login page, not an application-rendered form. |
-| Self-service email-address change process | Not applicable | The local user's `email` field is maintained only through the administration API by an authorised administrator (see [Authorization](authorization.md)), not through a user-initiated self-service flow, so the cheat sheet's confirmation/nonce process does not apply. |
+| FIDO | Not implemented | FIDO2/WebAuthn passkeys are not configured in the supplied Keycloak realm. |
+
+### Password Managers
+
+| OWASP recommendation | Status | Implementation Statement |
+| --- | --- | --- |
+| Password-manager compatibility (form field types, paste, tab order) | Delegated to identity provider | The credential-entry form is Keycloak's hosted login page, not an application-rendered form; the application renders no form for a password manager to interact with. |
+
+### Changing A User's Registered Email Address
+
+| OWASP recommendation | Status | Implementation Statement |
+| --- | --- | --- |
+| Recommended Process If the User HAS Multifactor Authentication Enabled | Not applicable | There is no self-service email-change flow to apply this to; see Notes below. |
+| Recommended Process If the User DOES NOT HAVE Multifactor Authentication Enabled | Not applicable | There is no self-service email-change flow to apply this to; see Notes below. |
+| Notes on the Above Processes | Not applicable | The local user's `email` field is maintained only through the administration API by an authorised holder of `ROLE_USER_MANAGE` (see [Authorization](authorization.md)), not through a user-initiated self-service flow, so the cheat sheet's confirmation/nonce process does not apply.<br><br>**Application code:** `UserAdminController`, `AdministrationService`. |
+
+### Adaptive or Risk Based Authentication
+
+| OWASP recommendation | Status | Implementation Statement |
+| --- | --- | --- |
 | Adaptive or risk-based authentication | Not implemented | No device, geolocation, or behavioural risk signal influences the authentication or session outcome. |
 
 ## Required production decisions
