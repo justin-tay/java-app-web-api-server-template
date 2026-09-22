@@ -48,6 +48,6 @@ same pattern:
 - Add it explicitly to `MockMvcITSupport` rather than assuming MockMvc will discover it.
 
 Field contract and correlation semantics are maintained in
-[`docs/system-design/08-crosscutting-concepts/logging/schema.md`](../system-design/08-crosscutting-concepts/logging/schema.md),
-[`docs/system-design/08-crosscutting-concepts/logging/event-reference.md`](../system-design/08-crosscutting-concepts/logging/event-reference.md),
-and [`docs/system-design/08-crosscutting-concepts/logging/README.md`](../system-design/08-crosscutting-concepts/logging/README.md).
+[`docs/system-design/08-crosscutting-concepts/06-logging-and-monitoring/schema.md`](../system-design/08-crosscutting-concepts/06-logging-and-monitoring/schema.md),
+[`docs/system-design/08-crosscutting-concepts/06-logging-and-monitoring/event-reference.md`](../system-design/08-crosscutting-concepts/06-logging-and-monitoring/event-reference.md),
+and [`docs/system-design/08-crosscutting-concepts/06-logging-and-monitoring/README.md`](../system-design/08-crosscutting-concepts/06-logging-and-monitoring/README.md).

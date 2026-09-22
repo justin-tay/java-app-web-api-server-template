@@ -24,5 +24,5 @@ Local and test profiles may disable TLS only for local HTTP tooling. Production
 deployments must provide certificate, trust, and private-key material securely,
 and rotate OAuth client signing keys in coordination with Keycloak. The local
 JWKS fixture is for development and tests only. See
-[`docs/system-design/08-crosscutting-concepts/security/authentication.md`](../system-design/08-crosscutting-concepts/security/authentication.md) for
+[`docs/system-design/08-crosscutting-concepts/02-security-and-authentication/authentication.md`](../system-design/08-crosscutting-concepts/02-security-and-authentication/authentication.md) for
 operational details.

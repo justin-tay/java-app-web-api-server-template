@@ -186,7 +186,7 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 			// setCause(exception) is deliberately not used here: this is an expected,
 			// client-driven failure, not a bug, so a stack trace is noise, and the
 			// exception message can echo rejected request content (see
-			// docs/system-design/08-crosscutting-concepts/logging/schema.md,
+			// docs/system-design/08-crosscutting-concepts/06-logging-and-monitoring/schema.md,
 			// "Sensitive-data policy").
 			.addKeyValue("error.type", exception.getClass().getName())
 			.addKeyValue("error.code", errorCode);

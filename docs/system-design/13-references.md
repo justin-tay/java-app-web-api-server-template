@@ -31,4 +31,4 @@ kept as reference material rather than paraphrased:
 - [Keycloak](https://github.com/keycloak/keycloak), the OIDC identity
   provider used for authentication; see
   [Context and Scope](03-context-and-scope.md) and
-  [Authentication](08-crosscutting-concepts/security/authentication.md).
+  [Authentication](08-crosscutting-concepts/02-security-and-authentication/authentication.md).

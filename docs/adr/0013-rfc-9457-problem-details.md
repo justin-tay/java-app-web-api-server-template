@@ -24,4 +24,4 @@ Existing problem type URIs are public compatibility contracts and must not be
 renamed after clients consume them. New error mappings must use a defined type
 and must not expose stack traces, credentials, or upstream response details.
 The type catalogue is maintained in
-[`docs/system-design/08-crosscutting-concepts/security/error-responses.md`](../system-design/08-crosscutting-concepts/security/error-responses.md).
+[`docs/system-design/08-crosscutting-concepts/02-security-and-authentication/error-responses.md`](../system-design/08-crosscutting-concepts/02-security-and-authentication/error-responses.md).

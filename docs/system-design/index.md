@@ -19,7 +19,7 @@ for the deferred export-pipeline item).
 | [05. Building Block View](05-building-block-view.md) | Codebase decomposition, domain model, and the security filter chain. | Draft | 2026-09-22 |
 | [06. Runtime View](06-runtime-view.md) | How a request moves through the system: login, authority refresh, logout, error handling. | Draft | 2026-09-22 |
 | [07. Deployment View](07-deployment-view.md) | How the application is configured, run, and operated. | Draft | 2026-09-22 |
-| [08. Crosscutting Concepts](08-crosscutting-concepts/README.md) | Concerns that cut across components: [logging and observability](08-crosscutting-concepts/logging/README.md) and [security](08-crosscutting-concepts/security/README.md). | Thorough | (unchanged) |
+| [08. Crosscutting Concepts](08-crosscutting-concepts/README.md) | Concerns that cut across components: [logging and observability](08-crosscutting-concepts/06-logging-and-monitoring/README.md) and [security](08-crosscutting-concepts/02-security-and-authentication/README.md). | Thorough | (unchanged) |
 | [09. Architecture Decisions](09-architecture-decisions.md) | Summary of the most consequential architecture decisions, linking to the full ADRs. | Draft | 2026-09-22 |
 | [10. Quality Requirements](10-quality-requirements.md) | Non-functional requirements and how the template addresses them. | Draft | 2026-09-22 |
 | [11. Risks and Technical Debt](11-risks-and-technical-debt.md) | Identified risks and technical debt items. | Draft | 2026-09-22 |

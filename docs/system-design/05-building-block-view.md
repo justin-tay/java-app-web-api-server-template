@@ -49,8 +49,8 @@ the only package with JPA/database awareness.
 
 Full detail on the `security` and `logging` packages' crosscutting
 behavior is documented once, not duplicated here: see
-[Security](08-crosscutting-concepts/security/README.md) and
-[Logging](08-crosscutting-concepts/logging/README.md).
+[Security](08-crosscutting-concepts/02-security-and-authentication/README.md) and
+[Logging](08-crosscutting-concepts/06-logging-and-monitoring/README.md).
 <!-- /arc42-generated -->
 
 ## 5.2 Level 2

@@ -48,5 +48,5 @@ flowchart LR
 | Application to Keycloak | HTTPS, OpenID Connect (authorization code grant, `private_key_jwt` client auth, back-channel logout) | JWT (ID token), JSON (userinfo, JWKS) | `spring.security.oauth2.client.provider.keycloak.issuer-uri` is `http://localhost:8080/realms/test` for local development; production issuer is a deployment decision required. |
 | Application to Keycloak account API | HTTPS, bearer token via `RestClient` | JSON | Proxied through `GET /account` (`AccountController`), using the same OAuth2-authorized client as login. |
 | Load balancer / monitoring to application | HTTP | Plain text/JSON (Actuator health) | Separate management port (`8082`), base path `/app` (not the `/actuator` default), unauthenticated only for `/app/health`; see [ADR 0014](../adr/0014-actuator-management-port.md). |
-| Application to log collector | stdout | ECS-structured JSON | No network log shipping is configured by the application itself; collection is a deployment responsibility. See [Logging](08-crosscutting-concepts/logging/README.md). |
+| Application to log collector | stdout | ECS-structured JSON | No network log shipping is configured by the application itself; collection is a deployment responsibility. See [Logging](08-crosscutting-concepts/06-logging-and-monitoring/README.md). |
 <!-- /arc42-generated -->

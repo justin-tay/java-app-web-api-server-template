@@ -12,7 +12,7 @@ structure exists to document. A Maven `local` profile adds the H2 dependency
 at `runtime` scope, paired with the Spring `local` profile
 (`application-local.yaml`) that disables TLS and the `Secure` cookie
 attribute for local development; see
-[Configuration management](../operational/README.md#configuration-management).
+[Configuration management](../05-operational-concepts/README.md#configuration-management).
 
 ## Code formatting
 

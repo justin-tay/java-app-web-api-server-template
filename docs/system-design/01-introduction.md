@@ -34,8 +34,8 @@ requirements breakdown of individual features (currently
 <!-- arc42-generated -->
 | # | Quality Goal | Motivation | Scenario |
 | --- | --- | --- | --- |
-| 1 | Security | The template's entire reason to exist is to give adopters a secure-by-default starting point (authentication, session handling, headers, error responses) rather than a bare Spring Boot skeleton. | An unauthenticated request to any endpoint other than the health check or JWKS is rejected with a Problem Details response, never a stack trace or framework default page. See [Security](08-crosscutting-concepts/security/README.md). |
-| 2 | Observability | Production incidents must be diagnosable from logs alone, with every log line traceable to the request and user that produced it. | Every request-scoped log line carries `http.request.id`, `trace.id`, `span.id`, and, once authenticated, the acting user, in ECS-structured JSON. See [Logging](08-crosscutting-concepts/logging/README.md). |
+| 1 | Security | The template's entire reason to exist is to give adopters a secure-by-default starting point (authentication, session handling, headers, error responses) rather than a bare Spring Boot skeleton. | An unauthenticated request to any endpoint other than the health check or JWKS is rejected with a Problem Details response, never a stack trace or framework default page. See [Security](08-crosscutting-concepts/02-security-and-authentication/README.md). |
+| 2 | Observability | Production incidents must be diagnosable from logs alone, with every log line traceable to the request and user that produced it. | Every request-scoped log line carries `http.request.id`, `trace.id`, `span.id`, and, once authenticated, the acting user, in ECS-structured JSON. See [Logging](08-crosscutting-concepts/06-logging-and-monitoring/README.md). |
 | 3 | Auditability | Session-security-relevant events (login, logout, concurrent-session eviction, absolute timeout, authority change) must be reconstructable after the fact, independent of the session ID itself. | Each session lifecycle event is logged with a random, application-local audit identifier distinct from the session ID (ADR 0008), and authority changes take effect on the very next request (ADR 0015). |
 | 4 | Maintainability | As a template other services are forked from, conventions must be explicit and enforced automatically rather than left to reviewer memory. | CI (`build-and-test.yml`) fails the build on formatting drift (`spring-javaformat`) and reports JaCoCo coverage on every pull request. |
 | 5 | Portability | The template targets both a conventional JVM deployment and a GraalVM native image, and must not silently rely on reflection Spring cannot see. | `mvn -Pnative native:compile` succeeds using the runtime hints registered in `ApplicationRuntimeHints`. |
@@ -47,7 +47,7 @@ requirements breakdown of individual features (currently
 | Role | Contact | Expectations |
 | --- | --- | --- |
 | Adopting development team | (project-specific) | A template they can fork and extend without re-deriving authentication, session, logging, and error-handling concerns. |
-| Security / compliance reviewer | (project-specific) | Evidence that the template's security posture maps to recognized standards; see [ASVS control implementation](08-crosscutting-concepts/security/asvs.md) and the [IM8 component definitions](../standards/). |
+| Security / compliance reviewer | (project-specific) | Evidence that the template's security posture maps to recognized standards; see [ASVS control implementation](08-crosscutting-concepts/02-security-and-authentication/asvs.md) and the [IM8 component definitions](../standards/). |
 | Operations / platform team | (project-specific) | A clear deployment contract: what the deployer must supply (database, TLS material, reverse proxy) versus what the application owns outright. See [Deployment View](07-deployment-view.md). |
 <!-- /arc42-generated -->
 

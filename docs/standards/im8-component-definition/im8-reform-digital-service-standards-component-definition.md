@@ -165,7 +165,7 @@ Every control in this group evaluates content the template does not render (see 
 | WU-7 | Consistent Navigation | Not applicable | The template has no navigation UI of its own. |
 | WU-8 | Consistent Identification | Not applicable | The template has no repeated UI components of its own. |
 | WU-9 | Consistent Help | Not applicable | The template has no UI of its own to place help mechanisms in. |
-| WU-10 | Error Identification | Not applicable | The template returns RFC 9457 Problem Details as structured API errors, not a visually/audibly identified form error; see [Error responses](../../system-design/08-crosscutting-concepts/security/error-responses.md). |
+| WU-10 | Error Identification | Not applicable | The template returns RFC 9457 Problem Details as structured API errors, not a visually/audibly identified form error; see [Error responses](../../system-design/08-crosscutting-concepts/02-security-and-authentication/error-responses.md). |
 | WU-11 | Error Suggestion | Not applicable | The template returns structured Problem Details error responses for API consumers, not plain-language messages for an end user reading a page. |
 | WU-12 | Error Prevention | Not applicable | The template has no submission review UI of its own. |
 | WU-13 | Redundant Entry | Not applicable | The template has no multi-step form UI of its own. |

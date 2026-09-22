@@ -28,7 +28,7 @@ The five statuses below carry the same meaning as OSCAL's `implementation-status
 | Planned | The control is one this template's own codebase or CI pipeline could reasonably satisfy, but does not yet; treated as a gap rather than a permanent exclusion. |
 | Not applicable | The control addresses a concern outside this component's boundary: an organisational process, physical or cloud infrastructure, or a choice that belongs entirely to the adopter's deployment, identity provider, or repository configuration. |
 
-For the underlying evidence, see [Authentication](../../system-design/08-crosscutting-concepts/security/authentication.md), [Authorization](../../system-design/08-crosscutting-concepts/security/authorization.md), [Sessions](../../system-design/08-crosscutting-concepts/security/sessions.md), [Headers](../../system-design/08-crosscutting-concepts/security/headers.md), [CIS Tomcat Benchmark control implementation](../../system-design/08-crosscutting-concepts/security/hardening.md), [Logging](../../system-design/08-crosscutting-concepts/logging/README.md), [Error responses](../../system-design/08-crosscutting-concepts/security/error-responses.md), and [ASVS control implementation](../../system-design/08-crosscutting-concepts/security/asvs.md).
+For the underlying evidence, see [Authentication](../../system-design/08-crosscutting-concepts/02-security-and-authentication/authentication.md), [Authorization](../../system-design/08-crosscutting-concepts/02-security-and-authentication/authorization.md), [Sessions](../../system-design/08-crosscutting-concepts/02-security-and-authentication/sessions.md), [Headers](../../system-design/08-crosscutting-concepts/02-security-and-authentication/headers.md), [CIS Tomcat Benchmark control implementation](../../system-design/08-crosscutting-concepts/02-security-and-authentication/hardening.md), [Logging](../../system-design/08-crosscutting-concepts/06-logging-and-monitoring/README.md), [Error responses](../../system-design/08-crosscutting-concepts/02-security-and-authentication/error-responses.md), and [ASVS control implementation](../../system-design/08-crosscutting-concepts/02-security-and-authentication/asvs.md).
 
 ## Access Control
 
@@ -67,7 +67,7 @@ For the underlying evidence, see [Authentication](../../system-design/08-crosscu
 | AS-10 | HTTP Strict Transport Security (HSTS) | Implemented | Spring Security's default HSTS header (`max-age=31536000`, `includeSubDomains`), which meets the catalog's one-year minimum, is emitted over HTTPS and left unmodified. |
 | AS-11 | Session Management | Implemented | Sessions enforce a 15-minute idle timeout, a 12-hour absolute timeout (`AbsoluteSessionTimeoutFilter`), and a single concurrent session per user (`maximumSessions(1)`), consistent with NIST SP 800-63B's re-authentication guidance. |
 | AS-12 | Malware Scanning of Uploaded Files | Not applicable | The template has no file upload feature. |
-| AS-13 | Exposure of Internal System Details | Implemented | Errors are returned as RFC 9457 Problem Details without stack traces or internal identifiers; see [Error responses](../../system-design/08-crosscutting-concepts/security/error-responses.md). |
+| AS-13 | Exposure of Internal System Details | Implemented | Errors are returned as RFC 9457 Problem Details without stack traces or internal identifiers; see [Error responses](../../system-design/08-crosscutting-concepts/02-security-and-authentication/error-responses.md). |
 | AS-14 | Secure Cryptographic Libraries | Implemented | Cryptographic operations use Nimbus JOSE+JWT for JWT/JWKS handling and the JDK's TLS stack; the template implements no custom cryptographic primitives. |
 | AS-15 | Password Change | Not applicable | The template has no password management surface; enforcing a password change on suspected compromise is Keycloak's responsibility. |
 
@@ -160,7 +160,7 @@ This template has no generative AI or large language model integration; the enti
 | IS-2 | Automated Patch Management Tools | Not applicable | OS/host patching is a deployment/infrastructure responsibility; application dependency currency is covered separately under SD-5. |
 | IS-3 | Restricted Administrator Privileges | Not applicable | Host administrator account configuration is outside an application component's boundary. |
 | IS-4 | Least Functionality | Not applicable | Host port/protocol/service configuration is a deployment responsibility. |
-| IS-5 | Host System Hardening | Not applicable | Host hardening is a deployment responsibility; the template's own embedded Tomcat hardening is covered by the [CIS Tomcat Benchmark control implementation](../../system-design/08-crosscutting-concepts/security/hardening.md). |
+| IS-5 | Host System Hardening | Not applicable | Host hardening is a deployment responsibility; the template's own embedded Tomcat hardening is covered by the [CIS Tomcat Benchmark control implementation](../../system-design/08-crosscutting-concepts/02-security-and-authentication/hardening.md). |
 | IS-6 | Remote Administration | Not applicable | Host remote-administration tooling is a deployment responsibility. |
 | IS-7 | Malware Protection | Not applicable | Host anti-malware tooling is a deployment responsibility. |
 | IS-8 | Endpoint Detection and Response (EDR) | Not applicable | Host EDR tooling is a deployment responsibility. |
@@ -189,7 +189,7 @@ This template has no generative AI or large language model integration; the enti
 | LM-12 | Central Security Log Management and Monitoring | Not applicable | Centralised log management is a deployment/organisational decision. |
 | LM-13 | Anomalous Database Activity Monitoring | Not applicable | Database activity monitoring is owned by the operator-supplied database/infrastructure. |
 | LM-14 | Web Defacement Monitoring | Not applicable | The template serves no static or public-facing HTML content to deface. |
-| LM-15 | Structured Log Formatting | Implemented | Logs are emitted as structured ECS (Elastic Common Schema) JSON; see the [logging schema](../../system-design/08-crosscutting-concepts/logging/schema.md). |
+| LM-15 | Structured Log Formatting | Implemented | Logs are emitted as structured ECS (Elastic Common Schema) JSON; see the [logging schema](../../system-design/08-crosscutting-concepts/06-logging-and-monitoring/schema.md). |
 | LM-16 | Key Signals Monitoring | Not applicable | Golden-signal (latency, traffic, errors, saturation) monitoring is a deployment decision; the template's Actuator health endpoint and structured request logs are inputs such tooling can consume. |
 | LM-17 | Software delivery performance monitoring | Not applicable | DORA metric tracking is an organisational/process decision; the template's CI workflow (`build-and-test.yml`) does not currently measure it. |
 | LM-18 | Whole of Government Application Analytics (WOGAA) | Not applicable | The template is an internal/administrative API template, not a registered public-facing digital service. |
@@ -236,7 +236,7 @@ Network boundary controls belong to the deployment's network and infrastructure 
 | SD-7 | CI Environment Variable Secrets Management | Not applicable | The current CI workflow uses no secrets; if secrets are added, GitHub Actions' encrypted secrets with the default log-masking behaviour should be used. |
 | SD-8 | Deployment Environment Segregation | Not applicable | Environment segregation is a deployment/infrastructure decision outside this repository. |
 | SD-9 | Dynamic Analysis | Planned | No DAST/IAST tool is configured in CI. |
-| SD-10 | Secure Software Development Lifecycle (SSDLC) | Partial | The repository documents security-relevant decisions through ADRs and control implementations (this document, [ASVS](../../system-design/08-crosscutting-concepts/security/asvs.md), [CIS Tomcat Benchmark](../../system-design/08-crosscutting-concepts/security/hardening.md)) as part of its development process, but does not name an adopted SSDLC framework such as NIST SSDF or OWASP SAMM. |
+| SD-10 | Secure Software Development Lifecycle (SSDLC) | Partial | The repository documents security-relevant decisions through ADRs and control implementations (this document, [ASVS](../../system-design/08-crosscutting-concepts/02-security-and-authentication/asvs.md), [CIS Tomcat Benchmark](../../system-design/08-crosscutting-concepts/02-security-and-authentication/hardening.md)) as part of its development process, but does not name an adopted SSDLC framework such as NIST SSDF or OWASP SAMM. |
 
 ## Security Programme Management
 

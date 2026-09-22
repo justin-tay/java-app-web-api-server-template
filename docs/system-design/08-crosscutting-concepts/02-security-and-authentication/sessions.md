@@ -104,5 +104,5 @@ match what is decided:
    changes as automatic invalidation criteria without a product decision.
 
 Related documentation: [Authentication](authentication.md),
-[HTTP security headers](headers.md), [Logging](../logging/README.md), and
+[HTTP security headers](headers.md), [Logging](../06-logging-and-monitoring/README.md), and
 [ADR 0006](../../../adr/0006-jdbc-backed-server-side-sessions.md).

@@ -31,15 +31,20 @@ let a plain directory listing reflect reading order without relying on
 `index.md`.
 
 Section 8, Crosscutting Concepts, is itself sharded further by topic rather
-than kept as one file, since its subject matter, domain concepts,
-architecture patterns, development concepts, operational concepts, logging,
-and security, does not share a single narrative. `logging/` and `security/`
-hold detailed control-implementation mappings (standard to status),
-hand-authored rather than generated from the codebase; `domain/`,
-`architecture/`, `development/`, and `operational/` cover the remaining
-topics. Each subdirectory has its own `README.md`, and
-`08-crosscutting-concepts/README.md` indexes them by topic, one row per
-subdirectory, the same pattern `index.md` uses one level up.
+than kept as one file, since its subject matter, domain model,
+architecture patterns, development concepts, operational concepts,
+security, and logging, does not share a single narrative. Its six
+subdirectories carry the same numeric-prefix convention as the top-level
+chapters: `01-domain-model/`, `02-security-and-authentication/`,
+`03-architecture-patterns/`, `04-development-concepts/`,
+`05-operational-concepts/`, and `06-logging-and-monitoring/`.
+`02-security-and-authentication/` and `06-logging-and-monitoring/` hold
+detailed control-implementation mappings (standard to status),
+hand-authored rather than generated from the codebase; the other four
+subdirectories cover the remaining topics. Each subdirectory has its own
+`README.md`, and `08-crosscutting-concepts/README.md` indexes them by
+topic, one row per subdirectory, the same pattern `index.md` uses one
+level up.
 
 Section 9, Architecture Decisions, links to the ADRs under `docs/adr/` by a
 one-line summary table rather than restating their Context, Decision, and

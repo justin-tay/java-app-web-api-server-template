@@ -368,7 +368,7 @@ one Spring MVC forwards outside a controller invocation). Level: `ERROR`,
 matching the sibling event above: reaching the last-resort handler is a
 stronger signal than reaching the well-understood exception resolver, since it
 means even that fallback did not catch it. Reaching it at all is unexpected; see
-[error-responses.md](../security/error-responses.md).
+[error-responses.md](../02-security-and-authentication/error-responses.md).
 
 `error.stack_trace` is not the underlying exception's own
 `printStackTrace()` output: `MessageRedactedStackTraces` renders the same

@@ -3,7 +3,7 @@
 
 Structural patterns that recur across the codebase rather than belonging to
 one class. Filter-chain composition is documented in depth in
-[Logging](../logging/README.md#design-and-ownership) already, since almost
+[Logging](../06-logging-and-monitoring/README.md#design-and-ownership) already, since almost
 every filter's reason for existing is the log/audit event it produces; this
 page covers the patterns that sit above and around it.
 
@@ -19,7 +19,7 @@ alternative pattern elsewhere in the codebase:
 * Controllers depend only on the service, never on a repository directly.
   A controller's job is HTTP binding, validation triggering (`@Valid`),
   authorization (`@PreAuthorize`), and mapping between DTOs and domain
-  entities (see [Domain concepts](../domain/README.md)); it holds no
+  entities (see [Domain concepts](../01-domain-model/README.md)); it holds no
   business rules.
 * `AdministrationService` is the single `@Transactional` service for the
   whole admin domain, covering users, groups, and roles together rather than
@@ -49,7 +49,7 @@ place that maps an exception type to an HTTP status, a `urn:problem:*` type,
 and a redacted audit event. The full type-by-type mapping, including the
 firewall- and Tomcat-level responses that never reach this handler, is
 maintained once, in
-[Error responses](../security/error-responses.md), rather than repeated here.
+[Error responses](../02-security-and-authentication/error-responses.md), rather than repeated here.
 
 ## Query composition
 

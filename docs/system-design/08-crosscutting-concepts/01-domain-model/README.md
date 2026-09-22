@@ -1,5 +1,5 @@
 <!-- arc42-generated -->
-# Domain concepts
+# Domain Model
 
 The template's only business domain is local user administration: users,
 groups, and roles used for authorization, layered on top of Keycloak-issued
@@ -22,7 +22,7 @@ not database-generated sequences; this keeps ID generation independent of the
 database platform and avoids exposing a monotonic count. Role assignment is
 always `AppUser -> AppGroup -> AppRole`; there is no direct
 `AppUser`-to-`AppRole` relationship, and `LocalAuthorityRefreshFilter`
-(see [Architecture patterns](../architecture/README.md)) walks this same path
+(see [Architecture patterns](../03-architecture-patterns/README.md)) walks this same path
 on every request to resolve `ROLE_` authorities.
 
 ## API model and DTO conventions
@@ -40,7 +40,7 @@ The conventions this template follows:
 * **Bean Validation on the request record's components.** Constraints
   (`@Username`, `@DisplayName`, `@Email`, `@NotEmpty`) are declared once, on
   the request record itself, and enforced by `@Valid @RequestBody` in the
-  controller; see [Error responses](../security/error-responses.md) for how a
+  controller; see [Error responses](../02-security-and-authentication/error-responses.md) for how a
   rejected constraint becomes a `urn:problem:validation-failed` response.
 * **`Summary` for nested references.** A related entity referenced from
   another resource's response (a group's roles, a user's groups) is

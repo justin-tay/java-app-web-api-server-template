@@ -149,7 +149,7 @@ For each Keycloak client:
 | Multi-factor authentication | Delegated to identity provider, not enabled by default | Keycloak can require OTP or WebAuthn per realm or per user, but the supplied local development realm does not enable it. Enabling MFA is a production identity-provider decision. If enabled, confirm the requirement actually takes effect for the intended users or realms. `bin/configure-keycloak.js` provisions no realm MFA policy. |
 | FIDO2/WebAuthn passkeys | Not implemented | Not configured in the supplied realm. |
 | Security questions or memorable words | Not applicable | The application implements no knowledge-based recovery mechanism. |
-| Log authentication successes and failures | Implemented | `SecurityAuditEventLogger` records login success, login failure, and logout, without credentials or tokens. See [Logging](../logging/README.md). Confirm in the deployed service that these events appear without credentials or tokens. |
+| Log authentication successes and failures | Implemented | `SecurityAuditEventLogger` records login success, login failure, and logout, without credentials or tokens. See [Logging](../06-logging-and-monitoring/README.md). Confirm in the deployed service that these events appear without credentials or tokens. |
 | Use a standard, audited authentication protocol rather than a custom scheme | Implemented | The application delegates authentication to Keycloak through Spring Security's OAuth2 Login/OIDC client rather than a custom credential scheme. **Application configuration:** `spring.security.oauth2.client`; **Spring Security:** `oauth2Login()`. |
 | Validate ID tokens: issuer, audience, signature, and expiration | Implemented | Described in [ID-token and access-token validation](#id-token-and-access-token-validation) above. Confirm a tampered, expired, or wrong-audience ID token is rejected. **Application code:** `jwtDecoderFactory()`, `oidcIdTokenValidator()`. |
 | Use well-maintained libraries/SDKs and provider discovery/JWKS | Implemented | Spring Security's OIDC client stack and Nimbus JOSE+JWT are used throughout; keys are discovered through JWKS rather than embedded or hand-rolled cryptography. **Dependencies:** `spring-boot-starter-oauth2-client`, Nimbus JOSE+JWT. See [ADR 0007](../../../adr/0007-tls-and-oauth-client-key-management.md). |
@@ -176,7 +176,7 @@ Before production use, the service owner must record and implement decisions for
 
 Related documentation: [Authorization](authorization.md),
 [Sessions](sessions.md), [HTTP security headers](headers.md),
-[Logging](../logging/README.md), [Hardening](hardening.md),
+[Logging](../06-logging-and-monitoring/README.md), [Hardening](hardening.md),
 [Error responses](error-responses.md),
 [ADR 0005](../../../adr/0005-keycloak-authentication-local-authorisation.md), and
 [ADR 0007](../../../adr/0007-tls-and-oauth-client-key-management.md).

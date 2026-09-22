@@ -44,7 +44,7 @@ public class ProblemDetailAccessDeniedHandler implements AccessDeniedHandler {
 				// setCause(exception) is deliberately not used here: a CSRF rejection is
 				// an expected control outcome, not a bug, so a stack trace is noise, and
 				// the exception message is withheld like every other security failure;
-				// see docs/system-design/08-crosscutting-concepts/logging/schema.md,
+				// see docs/system-design/08-crosscutting-concepts/06-logging-and-monitoring/schema.md,
 				// "Sensitive-data policy".
 				.addKeyValue("error.type", exception.getClass().getSimpleName())
 				.log("CSRF validation failed");

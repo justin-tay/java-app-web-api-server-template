@@ -3,7 +3,7 @@
 
 How the running application is configured, monitored, and scaled. Session
 and cache *security* posture is covered in
-[Sessions](../security/sessions.md); this page covers the operational shape
+[Sessions](../02-security-and-authentication/sessions.md); this page covers the operational shape
 around it: externalized configuration, the management surface, and what
 scaling an instance up or down actually requires.
 
@@ -43,7 +43,7 @@ load balancer or orchestrator health check should target; there is no
 `metrics`, `info`, `env`, or other operational endpoint to scrape today. The
 control-by-control rationale (why the port is separate, why the path is
 non-default, what adding another endpoint would require) is maintained once
-in [Hardening](../security/hardening.md#actuator-management-port) and
+in [Hardening](../02-security-and-authentication/hardening.md#actuator-management-port) and
 [ADR 0014](../../../adr/0014-actuator-management-port.md); operationally,
 the two things a deployer must still do are (1) restrict the management port
 to the load balancer's health-check path and any internal ops network, at
@@ -53,7 +53,7 @@ application ports behind the same target group or listener.
 Distributed tracing sampling is set to `probability: 1.0`
 (`management.tracing.sampling.probability`) with no span exporter
 configured anywhere in the template, so every log line carries `trace.id`/
-`span.id` (see [Logging](../logging/README.md)) at effectively no export
+`span.id` (see [Logging](../06-logging-and-monitoring/README.md)) at effectively no export
 cost, since nothing is exported; a deployment that adds an OTLP or similar
 exporter should revisit this probability against the resulting export
 volume.
@@ -73,7 +73,7 @@ sessions, because session state itself is externalized:
   `SpringSessionBackedSessionRegistry`, which finds a user's session by
   querying the shared JDBC store rather than an in-memory registry local to
   one instance, so the one-concurrent-session-per-user rule holds correctly
-  across instances (see [Sessions](../security/sessions.md)).
+  across instances (see [Sessions](../02-security-and-authentication/sessions.md)).
 * Authorization state is not cached in the session at all:
   `LocalAuthorityRefreshFilter` reloads a user's roles from the database on
   every request
