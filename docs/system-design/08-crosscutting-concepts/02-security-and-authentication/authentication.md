@@ -112,8 +112,47 @@ prefix; see [Authorization](authorization.md).
 The application accepts Keycloak back-channel logout notifications using:
 
 ```java
-http.oidcLogout(oidcLogout -> oidcLogout.backChannel(withDefaults()));
+http.oidcLogout(oidcLogout -> oidcLogout.backChannel(backChannel -> backChannel
+    .logoutHandler(new SessionRepositoryOidcBackChannelLogoutHandler(oidcSessionRegistry,
+        sessionRepository, sessionLifecycleAuditLogger))));
 ```
+
+Spring Security's `OidcBackChannelLogoutFilter` validates the logout token
+(signature against the provider JWKS, issuer, audience, `iat`, `jti`, the
+back-channel logout `events` member, `sub` or `sid`, and no `nonce`). At
+login, Spring Security links the Keycloak session (`sid` and `sub`) to the
+local session ID in the `OidcSessionRegistry`.
+`SessionRepositoryOidcBackChannelLogoutHandler` removes the entries the token
+names, logs each linked session as `destroy_session` with
+`session.termination_reason` `back_channel_logout`, and deletes it from the
+JDBC session repository, so its `SPRING_SESSION` row is gone and the browser's
+next request is unauthenticated.
+
+Spring Security's default `OidcBackChannelLogoutHandler` is not used. It ends
+each linked session by posting back to the application with the session ID in
+a `JSESSIONID` cookie; setting its cookie name to `id` is not enough, because
+it sends the raw session ID while Spring Session's `id` cookie carries the ID
+Base64-encoded, so that internal request resumes no session and the session
+survives. Deleting through the repository also avoids the application having
+to call itself at the URL Keycloak used.
+
+**Single instance only.** The `OidcSessionRegistry` is Spring Security's
+`InMemoryOidcSessionRegistry` (`WebSecurityConfiguration.oidcSessionRegistry()`),
+held in memory on the instance that handled the login. A notification ends a
+session only if it reaches that instance. Sticky routing does not help: Keycloak
+sends the notification server-to-server with no session cookie, so a load
+balancer cannot route it to the instance holding the link. With more than one
+instance, a notification that reaches another instance is acknowledged but ends
+nothing, and the session lasts until local logout or its idle or absolute
+timeout. The registry is also emptied by a restart, and an entry for a session
+that ended any other way (local logout, timeout) stays in memory until a
+back-channel logout names it or the instance restarts. Running more than one
+instance with reliable back-channel logout needs a shared `OidcSessionRegistry`
+implementation, which the template does not provide.
+
+`OidcBackChannelLogoutIntegrationTest` logs in through a stub OpenID Provider
+and asserts that a back-channel logout removes the session's `SPRING_SESSION`
+row.
 
 For each Keycloak client:
 

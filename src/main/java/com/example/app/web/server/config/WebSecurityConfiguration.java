@@ -1,7 +1,5 @@
 package com.example.app.web.server.config;
 
-import static org.springframework.security.config.Customizer.withDefaults;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
@@ -42,6 +40,8 @@ import org.springframework.security.oauth2.client.endpoint.NimbusJwtClientAuthen
 import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
 import org.springframework.security.oauth2.client.oidc.authentication.OidcIdTokenValidator;
+import org.springframework.security.oauth2.client.oidc.session.InMemoryOidcSessionRegistry;
+import org.springframework.security.oauth2.client.oidc.session.OidcSessionRegistry;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.web.logout.OidcClientInitiatedLogoutSuccessHandler;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
@@ -58,6 +58,7 @@ import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.session.SessionInformationExpiredStrategy;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
@@ -76,10 +77,12 @@ import com.example.app.web.server.security.authorization.LocalAuthorityRefreshFi
 import com.example.app.web.server.security.authorization.ProblemDetailAccessDeniedHandler;
 import com.example.app.web.server.security.firewall.ProblemDetailRequestRejectedHandler;
 import com.example.app.web.server.security.session.AbsoluteSessionTimeoutFilter;
+import com.example.app.web.server.security.session.AuditingInvalidSessionStrategy;
 import com.example.app.web.server.security.session.ContentNegotiatingSessionExpiredStrategy;
 import com.example.app.web.server.security.session.SessionLifecycleAuditInitializationFilter;
 import com.example.app.web.server.security.session.SessionLifecycleAuditLogger;
 import com.example.app.web.server.security.session.SessionLifecycleLogoutHandler;
+import com.example.app.web.server.security.session.SessionRepositoryOidcBackChannelLogoutHandler;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.KeySourceException;
 import com.nimbusds.jose.jwk.JWK;
@@ -151,7 +154,8 @@ public class WebSecurityConfiguration {
 			LocalAuthoritiesOidcUserService localAuthoritiesOidcUserService, Clock clock,
 			SessionRegistry sessionRegistry, SessionInformationExpiredStrategy sessionExpiredStrategy,
 			SessionLifecycleAuditLogger sessionLifecycleAuditLogger, LogoutHandler sessionLifecycleLogoutHandler,
-			AppUserRepository appUserRepository) throws Exception {
+			AppUserRepository appUserRepository, OidcSessionRegistry oidcSessionRegistry,
+			JdbcIndexedSessionRepository sessionRepository) throws Exception {
 		http.getSharedObject(AuthenticationManagerBuilder.class)
 			.authenticationEventPublisher(authenticationEventPublisher);
 		OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient = accessTokenResponseClient(
@@ -162,7 +166,15 @@ public class WebSecurityConfiguration {
 		SessionLifecycleAuditInitializationFilter sessionLifecycleAuditInitializationFilter = new SessionLifecycleAuditInitializationFilter(
 				sessionLifecycleAuditLogger);
 		LocalAuthorityRefreshFilter localAuthorityRefreshFilter = new LocalAuthorityRefreshFilter(appUserRepository,
-				sessionLifecycleAuditLogger);
+				sessionLifecycleAuditLogger, sessionRegistry);
+		ProblemDetailAuthenticationEntryPoint authenticationEntryPoint = new ProblemDetailAuthenticationEntryPoint(
+				OAUTH2_AUTHORIZATION_REQUEST_URI);
+		ProblemDetailAccessDeniedHandler accessDeniedHandler = new ProblemDetailAccessDeniedHandler();
+		// The request cache is a shared object set while the chain is built, so it is
+		// resolved when a request arrives rather than now.
+		AuditingInvalidSessionStrategy invalidSessionStrategy = new AuditingInvalidSessionStrategy(
+				sessionLifecycleAuditLogger, () -> http.getSharedObject(RequestCache.class), authenticationEntryPoint,
+				accessDeniedHandler);
 		return http.addFilterBefore(authenticatedUserLoggingContextFilter, SecurityContextHolderFilter.class)
 			.addFilterAfter(sessionLifecycleAuditInitializationFilter, AuthenticatedUserLoggingContextFilter.class)
 			.addFilterAfter(absoluteSessionTimeoutFilter, SessionLifecycleAuditInitializationFilter.class)
@@ -174,9 +186,8 @@ public class WebSecurityConfiguration {
 				.referrerPolicy(referrerPolicy -> referrerPolicy
 					.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
 				.permissionsPolicyHeader(permissionsPolicy -> permissionsPolicy.policy(PERMISSIONS_POLICY)))
-			.exceptionHandling(exceptionHandling -> exceptionHandling
-				.accessDeniedHandler(new ProblemDetailAccessDeniedHandler())
-				.authenticationEntryPoint(new ProblemDetailAuthenticationEntryPoint(OAUTH2_AUTHORIZATION_REQUEST_URI)))
+			.exceptionHandling(exceptionHandling -> exceptionHandling.accessDeniedHandler(accessDeniedHandler)
+				.authenticationEntryPoint(authenticationEntryPoint))
 			.authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
 				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/admin/users/**"))
 				.hasRole("USER_MANAGE")
@@ -188,7 +199,7 @@ public class WebSecurityConfiguration {
 				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/oauth2/jwks"))
 				.anonymous())
 			.authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
-				// The management port (see docs/adr/0008) is a separate embedded server
+				// The management port (see docs/adr/0014) is a separate embedded server
 				// that nonetheless shares this filter chain, so it goes through these
 				// rules too. Only the health check the ALB/monitoring probes is
 				// unauthenticated; every other actuator endpoint falls through to the
@@ -201,7 +212,8 @@ public class WebSecurityConfiguration {
 			.authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
 				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/**"))
 				.authenticated())
-			.sessionManagement(sessionManagement -> sessionManagement.maximumSessions(1)
+			.sessionManagement(sessionManagement -> sessionManagement.invalidSessionStrategy(invalidSessionStrategy)
+				.maximumSessions(1)
 				.maxSessionsPreventsLogin(false)
 				.sessionRegistry(sessionRegistry)
 				.expiredSessionStrategy(sessionExpiredStrategy))
@@ -209,7 +221,9 @@ public class WebSecurityConfiguration {
 				.tokenEndpoint(tokenEndpoint -> tokenEndpoint.accessTokenResponseClient(accessTokenResponseClient))
 				.userInfoEndpoint(
 						userInfoEndpoint -> userInfoEndpoint.oidcUserService(localAuthoritiesOidcUserService)))
-			.oidcLogout(oidcLogout -> oidcLogout.backChannel(withDefaults()))
+			.oidcLogout(oidcLogout -> oidcLogout
+				.backChannel(backChannel -> backChannel.logoutHandler(new SessionRepositoryOidcBackChannelLogoutHandler(
+						oidcSessionRegistry, sessionRepository, sessionLifecycleAuditLogger))))
 			.logout(logout -> logout.addLogoutHandler(sessionLifecycleLogoutHandler)
 				.logoutSuccessHandler(oidcLogoutSuccessHandler(clientRegistrationRepository)))
 			.with(new DefaultLoginPageConfigurer<>(),
@@ -246,6 +260,20 @@ public class WebSecurityConfiguration {
 	@Bean
 	SessionInformationExpiredStrategy sessionExpiredStrategy(SessionLifecycleAuditLogger sessionLifecycleAuditLogger) {
 		return new ContentNegotiatingSessionExpiredStrategy(sessionLifecycleAuditLogger);
+	}
+
+	/**
+	 * Provides the registry that links an OpenID Provider session (its {@code sid} and
+	 * {@code sub}) to the local session created at login, so a back-channel logout token
+	 * can be resolved to the local session it ends. It is held in memory, so it only
+	 * resolves sessions that logged in through this instance; see the "Back-channel
+	 * logout" section of
+	 * docs/system-design/08-crosscutting-concepts/02-security-and-authentication/authentication.md.
+	 * @return the in-memory OIDC session registry
+	 */
+	@Bean
+	OidcSessionRegistry oidcSessionRegistry() {
+		return new InMemoryOidcSessionRegistry();
 	}
 
 	@Bean
@@ -380,7 +408,7 @@ public class WebSecurityConfiguration {
 	 * Registers {@link LoggingContextCleanupFilter} as the outermost filter (the lowest
 	 * order of any filter in this application), so its MDC cleanup is the last thing that
 	 * runs before control returns to the servlet container, regardless of what any inner
-	 * filter or library left behind. See docs/adr/0010.
+	 * filter or library left behind. See docs/adr/0012.
 	 * @param filter the filter to register
 	 * @return the registration
 	 */
@@ -399,7 +427,7 @@ public class WebSecurityConfiguration {
 	 * {@code SecurityProperties.DEFAULT_FILTER_ORDER}), so
 	 * {@code http.request.id}/{@code source.ip}/{@code client.ip} are present even when
 	 * the {@code HttpFirewall} rejects a request before Spring Security's internal filter
-	 * list is ever invoked. See docs/adr/0010.
+	 * list is ever invoked. See docs/adr/0012.
 	 * @param filter the filter to register
 	 * @return the registration
 	 */

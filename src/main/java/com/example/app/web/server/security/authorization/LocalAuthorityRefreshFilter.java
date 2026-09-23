@@ -1,6 +1,7 @@
 package com.example.app.web.server.security.authorization;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -15,9 +16,13 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.session.SessionInformation;
+import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.example.app.web.server.domain.AppUser;
@@ -37,6 +42,11 @@ import com.example.app.web.server.security.session.SessionLifecycleAuditLogger;
  * covers any authorization-relevant change that revocation does not enumerate (for
  * example, redefining a group's role set, or deleting a role), and guards against a
  * session outliving its user for any other reason.
+ * <p>
+ * When the reloaded {@code ROLE_} authorities differ from the ones the session holds, and
+ * the session is not already expired for revocation, the change is logged as a
+ * {@code privilege_change} session event and the refreshed authentication is saved to the
+ * session, so the change is logged once rather than on every later request.
  */
 public class LocalAuthorityRefreshFilter extends OncePerRequestFilter {
 
@@ -44,10 +54,15 @@ public class LocalAuthorityRefreshFilter extends OncePerRequestFilter {
 
 	private final SessionLifecycleAuditLogger sessionLifecycleAuditLogger;
 
-	public LocalAuthorityRefreshFilter(AppUserRepository users,
-			SessionLifecycleAuditLogger sessionLifecycleAuditLogger) {
+	private final SessionRegistry sessionRegistry;
+
+	private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
+
+	public LocalAuthorityRefreshFilter(AppUserRepository users, SessionLifecycleAuditLogger sessionLifecycleAuditLogger,
+			SessionRegistry sessionRegistry) {
 		this.users = users;
 		this.sessionLifecycleAuditLogger = sessionLifecycleAuditLogger;
+		this.sessionRegistry = sessionRegistry;
 	}
 
 	@Override
@@ -56,12 +71,13 @@ public class LocalAuthorityRefreshFilter extends OncePerRequestFilter {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		if (authentication instanceof OAuth2AuthenticationToken oauthToken
 				&& oauthToken.getPrincipal() instanceof OidcUser oidcUser) {
-			refresh(request, oauthToken, oidcUser);
+			refresh(request, response, oauthToken, oidcUser);
 		}
 		filterChain.doFilter(request, response);
 	}
 
-	private void refresh(HttpServletRequest request, OAuth2AuthenticationToken oauthToken, OidcUser oidcUser) {
+	private void refresh(HttpServletRequest request, HttpServletResponse response, OAuth2AuthenticationToken oauthToken,
+			OidcUser oidcUser) {
 		String username = oidcUser.getClaimAsString("preferred_username");
 		AppUser user = (username != null) ? this.users.findByUsernameAndEnabledTrue(username).orElse(null) : null;
 		if (user == null) {
@@ -83,6 +99,37 @@ public class LocalAuthorityRefreshFilter extends OncePerRequestFilter {
 				oauthToken.getAuthorizedClientRegistrationId());
 		refreshedToken.setDetails(oauthToken.getDetails());
 		SecurityContextHolder.getContext().setAuthentication(refreshedToken);
+		Set<String> previousRoles = roleNames(oauthToken.getAuthorities());
+		Set<String> currentRoles = roleNames(authorities);
+		if (!previousRoles.equals(currentRoles)) {
+			privilegeChanged(request, response, username, previousRoles, currentRoles);
+		}
+	}
+
+	private void privilegeChanged(HttpServletRequest request, HttpServletResponse response, String username,
+			Set<String> previousRoles, Set<String> currentRoles) {
+		HttpSession session = request.getSession(false);
+		if (session == null || isExpired(session)) {
+			return;
+		}
+		Set<String> added = new HashSet<>(currentRoles);
+		added.removeAll(previousRoles);
+		Set<String> removed = new HashSet<>(previousRoles);
+		removed.removeAll(currentRoles);
+		this.sessionLifecycleAuditLogger.logSessionPrivilegeChanged(session, username, added, removed);
+		this.securityContextRepository.saveContext(SecurityContextHolder.getContext(), request, response);
+	}
+
+	private boolean isExpired(HttpSession session) {
+		SessionInformation sessionInformation = this.sessionRegistry.getSessionInformation(session.getId());
+		return sessionInformation != null && sessionInformation.isExpired();
+	}
+
+	private static Set<String> roleNames(Collection<? extends GrantedAuthority> authorities) {
+		return authorities.stream()
+			.map(GrantedAuthority::getAuthority)
+			.filter(authority -> authority.startsWith("ROLE_"))
+			.collect(Collectors.toSet());
 	}
 
 	private void deauthenticate(HttpServletRequest request) {

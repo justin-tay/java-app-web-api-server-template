@@ -125,9 +125,9 @@ sequenceDiagram
         App-->>Browser: redirect to /login?logout
     else Keycloak back-channel logout
         KC->>App: Back-channel logout token (server-to-server)
-        App->>App: resolve session by logout token subject
-        App->>App: SessionLifecycleLogoutHandler (audit)
-        App->>DB: invalidate JDBC session
+        App->>App: resolve session by logout token sid or sub (in-memory OidcSessionRegistry)
+        App->>App: SessionRepositoryOidcBackChannelLogoutHandler (audit)
+        App->>DB: delete JDBC session
     end
 ```
 
@@ -141,9 +141,15 @@ sequenceDiagram
    example, an administrator disabling the account in Keycloak); this
    arrives as an OIDC back-channel logout token (`oidcLogout().backChannel()`)
    and is handled without any browser round trip.
-3. Both paths invalidate the same JDBC-backed session and produce the
-   same audit trail, so "how did this session end" never depends on
-   which path was taken.
+   `SessionRepositoryOidcBackChannelLogoutHandler` finds the local session
+   linked to the token's `sid` or `sub` in the in-memory
+   `OidcSessionRegistry` and deletes it from the JDBC repository. The link
+   exists only on the instance that handled the login, so this path is
+   reliable only with a single instance (see
+   [Back-channel logout](08-crosscutting-concepts/02-security-and-authentication/authentication.md#back-channel-logout)).
+3. Both paths end the same JDBC-backed session and log a `destroy_session`
+   event, whose `session.termination_reason` (`logout` or
+   `back_channel_logout`) records which path was taken.
 <!-- /arc42-generated -->
 
 ## Scenario: Error Handling

@@ -108,16 +108,20 @@ produced which event:
   and [Authorization](../02-security-and-authentication/authorization.md#owasp-control-implementation)).
 * `SessionLifecycleAuditLogger`, together with
   `SessionLifecycleAuditInitializationFilter`,
-  `AbsoluteSessionTimeoutFilter`, and `SessionLifecycleLogoutHandler`, emits
-  `create_session`, `renew_session`, and `destroy_session` events keyed by a
-  random, application-local `session.id` that is deliberately never the
-  session cookie or the raw Spring Session ID (see
+  `AbsoluteSessionTimeoutFilter`, `SessionLifecycleLogoutHandler`, and
+  `LocalAuthorityRefreshFilter`, emits `create_session`, `renew_session`,
+  `update_session`, and `destroy_session` events keyed by a random,
+  application-local `session.id` that is deliberately never the session
+  cookie or the raw Spring Session ID (see
   [Sessions](../02-security-and-authentication/sessions.md#owasp-control-implementation)
   and [ADR 0008](../../../adr/0008-session-lifecycle-audit-identifiers.md)).
-  These events are limited to lifecycle causes the application can state
-  accurately; JDBC idle cleanup and arbitrary invalid-cookie attempts are
-  not inferred or logged, because the application has no reliable hook for
-  either.
+  `AuditingInvalidSessionStrategy` adds a `resume_session` failure, with no
+  `session.id`, for a request carrying a session ID that is not found, which
+  is where idle expiry is detected on the session's next use. These events
+  are limited to what the application can state accurately: an unrecognized
+  ID is not called expired or forged, and JDBC cleanup of a session never
+  used again is not logged (see
+  [ADR 0017](../../../adr/0017-invalid-session-and-privilege-change-logging.md)).
 * `ApiResponseEntityExceptionHandler` and
   `ProblemDetailRequestRejectedHandler` emit `validate_input` and
   `reject_request` for rejected input and firewall rejections respectively,

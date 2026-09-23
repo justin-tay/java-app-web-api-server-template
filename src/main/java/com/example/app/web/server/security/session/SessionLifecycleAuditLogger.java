@@ -1,5 +1,6 @@
 package com.example.app.web.server.security.session;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -7,6 +8,7 @@ import jakarta.servlet.http.HttpSession;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.security.web.authentication.session.SessionFixationProtectionEvent;
 import org.springframework.session.Session;
 import org.springframework.stereotype.Component;
@@ -85,6 +87,49 @@ public class SessionLifecycleAuditLogger {
 		if (auditSessionId != null) {
 			log("destroy_session", "end", auditSessionId, reason);
 		}
+	}
+
+	/**
+	 * Records a request that presented a session ID the session repository does not hold.
+	 * The application cannot tell a session that ended (idle expiry, logout, revocation)
+	 * from an ID it never issued, so the event says only that the requested session was
+	 * not found. Neither the presented ID nor anything derived from it is logged.
+	 */
+	public void logRequestedSessionNotFound() {
+		LOGGER.atInfo()
+			.addKeyValue("event.category", List.of("authentication"))
+			.addKeyValue("event.type", List.of("info"))
+			.addKeyValue("event.action", "resume_session")
+			.addKeyValue("event.outcome", "failure")
+			.addKeyValue("event.reason", "session_not_found")
+			.log("Requested session not found");
+	}
+
+	/**
+	 * Records a change to the {@code ROLE_} authorities an authenticated session acts
+	 * with, found when they are reloaded from the local user, group, and role model.
+	 * @param session the session whose authorities changed
+	 * @param username the authenticated user
+	 * @param added the authority names granted since the session's previous authorities
+	 * @param removed the authority names withdrawn since the session's previous
+	 * authorities
+	 */
+	public void logSessionPrivilegeChanged(HttpSession session, String username, Collection<String> added,
+			Collection<String> removed) {
+		logSessionCreatedIfNeeded(session);
+		var event = LOGGER.atInfo()
+			.addKeyValue("event.category", List.of("authentication"))
+			.addKeyValue("event.type", List.of("info"))
+			.addKeyValue("event.action", "update_session")
+			.addKeyValue("event.outcome", "success")
+			.addKeyValue("event.reason", "privilege_change")
+			.addKeyValue("session.id", auditSessionId(session))
+			.addKeyValue("session.authorities.added", added.stream().sorted().toList())
+			.addKeyValue("session.authorities.removed", removed.stream().sorted().toList());
+		if (MDC.get("user.name") == null) {
+			event.addKeyValue("user.name", username);
+		}
+		event.log("Session privileges changed");
 	}
 
 	private String auditSessionId(HttpSession session) {

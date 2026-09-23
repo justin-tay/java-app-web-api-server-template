@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -140,6 +141,22 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 		ProblemDetail problemDetail = problemDetail(statusCode, GENERIC_ERROR_DETAIL,
 				ProblemTypes.UPSTREAM_RESPONSE_FAILED);
 		return ResponseEntity.status(statusCode).body(problemDetail);
+	}
+
+	/**
+	 * Rethrows an authorization failure raised inside a handler, such as a
+	 * {@code @PreAuthorize} denial, so it is not caught by
+	 * {@link #handleUnexpectedException(Exception, HttpServletRequest)} and answered as a
+	 * 500. The exception leaves the {@code DispatcherServlet} and reaches Spring
+	 * Security's {@code ExceptionTranslationFilter}, which answers it the same way as a
+	 * URL authorization failure: a 403 from {@code ProblemDetailAccessDeniedHandler} for
+	 * an authenticated user, or the authentication entry point for an anonymous one.
+	 * @param ex the authorization failure
+	 * @throws AccessDeniedException always
+	 */
+	@ExceptionHandler(AccessDeniedException.class)
+	public void rethrowAccessDenied(AccessDeniedException ex) {
+		throw ex;
 	}
 
 	@ExceptionHandler(Exception.class)

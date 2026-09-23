@@ -19,10 +19,11 @@ import com.example.app.web.server.domain.AppRole;
 @RestController
 @Validated
 @RequestMapping("/admin/roles")
-// The seeded role is named "ROLE_MANAGE", which becomes the granted authority
-// "ROLE_ROLE_MANAGE" (see LocalAuthoritiesOidcUserService). hasRole("ROLE_MANAGE") cannot
-// be used here: Spring Security's hasRole() rejects any role argument that already starts
-// with "ROLE_", since it prepends that prefix itself.
+// The seeded role "ROLE_MANAGE" becomes the authority "ROLE_ROLE_MANAGE" (see
+// LocalAuthoritiesOidcUserService), which hasRole() cannot name. In this expression it
+// strips one leading "ROLE_" before adding the prefix, so hasRole('ROLE_MANAGE') checks
+// ROLE_MANAGE and hasRole('ROLE_ROLE_MANAGE') is rejected; the Java configuration form
+// rejects any argument starting with "ROLE_". hasAuthority() names it exactly.
 @PreAuthorize("hasAuthority('ROLE_ROLE_MANAGE')")
 public class RoleAdminController {
 

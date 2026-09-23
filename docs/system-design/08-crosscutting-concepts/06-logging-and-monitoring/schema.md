@@ -8,7 +8,7 @@ field that it emits.
 
 ECS groups related fields into field sets; the [Base field set](https://www.elastic.co/docs/reference/ecs/ecs-base)
 is the only set defined directly at the event root. This template uses ECS
-fields where available and documents two intentional project extensions.
+fields where available and documents its intentional project extensions.
 
 ## Event index
 
@@ -26,6 +26,8 @@ fields where available and documents two intentional project extensions.
 | Session audit ID initialized | INFO | `authentication` | `start` | `create_session` | [Event reference](event-reference.md#session-audit-id-initialized-create_session) |
 | Session ID renewed | INFO | `authentication` | `info` | `renew_session` | [Event reference](event-reference.md#session-id-renewed-renew_session) |
 | Session destroyed | INFO | `authentication` | `end` | `destroy_session` | [Event reference](event-reference.md#session-destroyed-destroy_session) |
+| Session privileges changed | INFO | `authentication` | `info` | `update_session` | [Event reference](event-reference.md#session-privileges-changed-update_session) |
+| Requested session not found | INFO | `authentication` | `info` | `resume_session` | [Event reference](event-reference.md#requested-session-not-found-resume_session) |
 | Unexpected request failure | ERROR | `web` | `error` | `process_request` | [Event reference](event-reference.md#request-processing-failed-process_request) |
 | Application starting | INFO | `process` | `start` | `start_application` | [Event reference](event-reference.md#application-starting-start_application) |
 | Application started | INFO | `process` | `start` | `start_application` | [Event reference](event-reference.md#application-started-start_application) |
@@ -54,6 +56,7 @@ fields where available and documents two intentional project extensions.
 | `event.type` | `keyword[]` | Lifecycle/subcategory classification. |
 | `event.action` | `keyword` | Stable lower-snake-case operation identifier. Do not encode outcome in this field. |
 | `event.outcome` | `keyword` | `success`, `failure`, or `unknown` where applicable. |
+| `event.reason` | `keyword` | Controlled reason for a session event (`privilege_change`, `session_not_found`). |
 | `event.start`, `event.end` | `date` | Request lifecycle boundaries. |
 | `event.duration` | `long` | Request duration in nanoseconds. |
 | `http.request.id` | `keyword` | Correlation ID established by `RequestCorrelationContextFilter`; generated as a UUID unless the configured `RequestIdResolver` supplies an upstream ID. It is not authentication material. |
@@ -76,6 +79,7 @@ fields where available and documents two intentional project extensions.
 | `http.route` | `keyword` | Best-matching Spring MVC route, or `UNKNOWN` when unavailable. Useful for aggregation without raw identifier-bearing paths. |
 | `url.query_keys` | `keyword[]` | Query parameter names, including names whose values were redacted. Parameter names must not contain sensitive data. |
 | `validation.field` | `keyword` | Rejected request field or parameter path. It must never contain the rejected value. |
+| `session.authorities.added`, `session.authorities.removed` | `keyword[]` | `ROLE_` authority names granted to or withdrawn from an active session by an `update_session` event. |
 
 ## Correlation and lifecycle semantics
 

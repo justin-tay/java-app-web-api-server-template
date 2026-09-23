@@ -2,6 +2,8 @@ package com.example.app.web.server.security.session;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -72,6 +74,37 @@ class SessionLifecycleAuditLoggerTest {
 		this.sessionLifecycleAuditLogger.logSessionDestroyed(session, "privilege_change");
 
 		assertThat(this.logEvents.list).isEmpty();
+	}
+
+	@Test
+	void logsARequestedSessionThatWasNotFoundWithoutAnySessionIdentifier() {
+		this.sessionLifecycleAuditLogger.logRequestedSessionNotFound();
+
+		assertThat(this.logEvents.list).singleElement().satisfies(event -> {
+			assertThat(event.getKeyValuePairs().toString()).contains("event.action=\"resume_session\"")
+				.contains("event.outcome=\"failure\"")
+				.contains("event.reason=\"session_not_found\"")
+				.doesNotContain("session.id");
+		});
+	}
+
+	@Test
+	void logsAPrivilegeChangeWithTheAuditIdentifierUserAndChangedAuthorities() {
+		MockHttpSession session = new MockHttpSession(null, "browser-session-credential");
+		session.setAttribute(SessionLifecycleAuditLogger.AUDIT_SESSION_ID_ATTRIBUTE, "audit-id");
+
+		this.sessionLifecycleAuditLogger.logSessionPrivilegeChanged(session, "alice",
+				List.of("ROLE_USER_MANAGE", "ROLE_GROUP_MANAGE"), List.of("ROLE_APPLICATION_USER"));
+
+		assertThat(this.logEvents.list).singleElement().satisfies(event -> {
+			assertThat(event.getKeyValuePairs().toString()).doesNotContain("browser-session-credential")
+				.contains("event.action=\"update_session\"")
+				.contains("event.reason=\"privilege_change\"")
+				.contains("session.id=\"audit-id\"")
+				.contains("user.name=\"alice\"")
+				.contains("session.authorities.added=\"[ROLE_GROUP_MANAGE, ROLE_USER_MANAGE]\"")
+				.contains("session.authorities.removed=\"[ROLE_APPLICATION_USER]\"");
+		});
 	}
 
 }
