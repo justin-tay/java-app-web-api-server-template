@@ -12,10 +12,13 @@ production identity provider must also be reviewed against the cheat sheet.
 
 The application is an OIDC relying party for Keycloak. Browser requests are
 authenticated with the authorization-code flow (documented as a request
-sequence in [Runtime View](../../06-runtime-view.md#oidc-authorization-code-flow));
+sequence in [Runtime View](../../06-runtime-view.md#scenario-oidc-login));
 unauthenticated requests are redirected to the configured provider. All
 application routes require authentication except the public `/oauth2/jwks`
-endpoint.
+endpoint (restricted to anonymous callers) and the `/app/health` health check
+(permitted to all callers), plus the login, OAuth2 redirect, and back-channel
+logout endpoints that Spring Security's `oauth2Login()` and `oidcLogout()`
+handle before authorization applies.
 
 Each Keycloak client configured for the application uses `private_key_jwt`,
 publishes the application's public keys through `/oauth2/jwks`, and is
@@ -88,10 +91,12 @@ in Keycloak without a matching decoder configuration will fail authentication.
 If encryption is required, configure the selected JWE algorithm and a private
 decryption key in the application before enabling it for the Keycloak client.
 
-For role extraction, the application decodes the access token with an
-issuer-validating decoder and reads Keycloak's `realm_access.roles` claim from
-both the access token and ID token. Roles are exposed as Spring authorities
-with the `ROLE_` prefix.
+The application does not read Keycloak realm or client roles (such as the
+`realm_access.roles` claim) from the access token or ID token.
+`LocalAuthoritiesOidcUserService` resolves the OIDC user's `preferred_username`
+claim to an enabled local user and derives authorities from the roles of that
+user's local groups, exposing each as a Spring authority with the `ROLE_`
+prefix; see [Authorization](authorization.md).
 
 ## Logout
 
@@ -164,7 +169,7 @@ since they carry no separate testable claim.
 | Recommendation | Status | Implementation Statement |
 | --- | --- | --- |
 | **Multi-Factor Authentication**<br>Implement MFA wherever feasible, as the strongest defense against password-based attacks. | Delegated to identity provider, not enabled by default | Keycloak can require OTP or WebAuthn per realm or per user, but the supplied local development realm does not enable it; `bin/configure-keycloak.js` provisions no realm MFA policy. Enabling MFA is a production identity-provider decision. FIDO2/WebAuthn passkeys specifically are also not configured in the supplied realm. |
-| **Login Throttling**<br>Limit failed login attempts per account, for example with an account lockout policy. | Delegated to identity provider | The application never sees a submitted password, so it cannot throttle or lock out credential-guessing attempts itself, and there is no application-rendered login form to throttle. Login throttling and account lockout are entirely a Keycloak realm policy. See [Hardening](hardening.md) section 5.2. Confirm the provisioned realm's brute-force/lockout threshold, observation window, and lockout duration actually take effect. |
+| **Login Throttling**<br>Limit failed login attempts per account, for example with an account lockout policy. | Delegated to identity provider, not enabled by default | The application never sees a submitted password, so it cannot throttle or lock out credential-guessing attempts itself, and there is no application-rendered login form to throttle. Login throttling and account lockout are entirely a Keycloak realm policy, but the supplied local development realm does not enable them; `bin/configure-keycloak.js` creates the realm without brute-force detection (no `bruteForceProtected` or lockout settings). Enabling brute-force detection and choosing its threshold, observation window, and lockout duration is a production identity-provider decision. See [Hardening](hardening.md) section 5.2. |
 | **CAPTCHA**<br>Treat CAPTCHA as a defense-in-depth control against automated login, ideally required only after a few failed attempts. | Delegated to identity provider | Any CAPTCHA challenge would be rendered on Keycloak's hosted login page, not by the application; the supplied realm configuration does not enable one. |
 | **Security Questions and Memorable Words**<br>If security questions or memorable words are used against automated attacks, choose them carefully and do not count them as MFA. | Not applicable | The application implements no knowledge-based recovery mechanism of its own. |
 
@@ -179,7 +184,7 @@ since they carry no separate testable claim.
 | Recommendation | Status | Implementation Statement |
 | --- | --- | --- |
 | **OAuth 2.0 and 2.1**<br>Use OAuth only as an authorization framework for delegated API access, following the OAuth 2.0 Cheat Sheet. | Not applicable | The application uses OpenID Connect, not bare OAuth 2.0/2.1, for authentication; see OpenID Connect (OIDC) below. |
-| **OpenID Connect (OIDC)**<br>Use OIDC for authentication through a well-maintained library, validating the ID token's issuer, audience, signature, and expiry. | Implemented | The application delegates authentication to Keycloak through Spring Security's OAuth2 Login/OIDC client (`spring.security.oauth2.client`, `oauth2Login()`) rather than a custom credential scheme, using well-maintained libraries (`spring-boot-starter-oauth2-client`, Nimbus JOSE+JWT) and provider discovery/JWKS rather than embedded cryptography. ID tokens are validated for issuer, audience, signature, and expiration; see [ID-token and access-token validation](#id-token-and-access-token-validation) above. Confirm a tampered, expired, or wrong-audience ID token is rejected.<br><br>**Application code:** `jwtDecoderFactory()`, `oidcIdTokenValidator()`. See [ADR 0007](../../../adr/0007-tls-and-oauth-client-key-management.md). |
+| **OpenID Connect (OIDC)**<br>Use OIDC for authentication through a well-maintained library, validating the ID token's issuer, audience, signature, and expiry. | Implemented | The application delegates authentication to Keycloak through Spring Security's OAuth2 Login/OIDC client (`spring.security.oauth2.client`, `oauth2Login()`) rather than a custom credential scheme, using well-maintained libraries (`spring-boot-starter-oauth2-client`, Nimbus JOSE+JWT) and provider discovery/JWKS rather than embedded cryptography. ID tokens are validated for issuer, audience, signature, and expiration; see [ID-token and access-token validation](#id-token-and-access-token-validation) above. Confirm a tampered, expired, or wrong-audience ID token is rejected.<br><br>**Application code:** `jwtDecoderFactory()`, `oidcIdTokenValidator()`; **Test code:** `WebSecurityConfigurationTest.oidcIdTokenValidatorRejectsUnexpectedIssuerAudienceAndAuthorizedParty()`. See [ADR 0007](../../../adr/0007-tls-and-oauth-client-key-management.md). |
 | **SAML**<br>Consider SAML 2.0, the XML-based federation protocol common in enterprise single sign-on, as a password-free option. | Not applicable | The template uses OIDC exclusively. |
 | **FIDO**<br>Consider FIDO public-key authentication, the basis of FIDO2/WebAuthn passkeys, for passwordless or second-factor login. | Not implemented | FIDO2/WebAuthn passkeys are not configured in the supplied Keycloak realm. |
 
