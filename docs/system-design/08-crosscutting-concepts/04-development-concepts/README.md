@@ -11,7 +11,9 @@ Maven, via the wrapper (`mvnw`/`mvnw.cmd`), on the `spring-boot-starter-parent`
 structure exists to document. A Maven `local` profile adds the H2 dependency
 at `runtime` scope, paired with the Spring `local` profile
 (`application-local.yaml`) that disables TLS and the `Secure` cookie
-attribute for local development; see
+attribute for local development. `-Plocal` does not activate the Spring
+profile, so a local HTTP run passes both
+(`mvn -Plocal spring-boot:run -Dspring-boot.run.profiles=local`); see
 [Configuration management](../05-operational-concepts/README.md#configuration-management).
 
 ## Code formatting
@@ -75,11 +77,12 @@ through Spring Boot's ahead-of-time (AOT) processing. Two things in the
 codebase exist specifically to keep that processing correct:
 
 * [`ApplicationRuntimeHints`](../../../../src/main/java/com/example/app/web/server/ApplicationRuntimeHints.java)
-  implements `RuntimeHintsRegistrar` and registers `jwks.json` as a resource
-  pattern, because AOT's static analysis cannot discover that
-  `app.jwks: classpath:jwks.json` (in `application.yaml`) needs that
-  classpath resource available at runtime; without the hint, a native image
-  would fail to load the file that `JwksController` serves.
+  implements `RuntimeHintsRegistrar`, the place to register any reflection or
+  resource hint that AOT's static analysis cannot discover. It currently
+  registers none: the private JWKS is read from the external location in
+  `app.jwks`, not from a classpath resource that a native image would need a
+  hint to include
+  ([ADR 0018](../../../adr/0018-development-fixtures-kept-out-of-production.md)).
 * `TomcatConfiguration`'s nested
   `JreMemoryLeakPreventionTomcatServletWebServerFactory` was changed from
   `private static final class` to package-private `static final class`

@@ -19,7 +19,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * {@code http.request.id}, {@code source.ip}, and {@code client.ip} are established
  * earlier, by {@code RequestCorrelationContextFilter}, since they must be present even
  * when Spring Security's {@code HttpFirewall} rejects a request before this filter runs;
- * see docs/adr/0010.
+ * see docs/adr/0012.
  */
 @Component
 public class AuthenticatedUserLoggingContextFilter extends OncePerRequestFilter {

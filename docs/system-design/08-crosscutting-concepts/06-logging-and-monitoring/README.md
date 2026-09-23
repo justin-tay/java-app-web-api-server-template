@@ -4,9 +4,11 @@
 Every log line the application writes is structured JSON, emitted to
 standard output for platform collection rather than to a file or a Tomcat
 access log. There is no separate logging library dependency: Spring Boot's
-native structured-logging support is configured through
-`logging.structured.ecs.service` in `application.yaml`, targeting the
-Elastic Common Schema (ECS) format directly. The schema, the full event
+native structured-logging support is switched on by
+`logging.structured.format.console: ecs` in `application.yaml`, which
+writes console output in the Elastic Common Schema (ECS) format directly;
+`logging.structured.ecs.service` sets the ECS `service` fields, such as
+`service.environment`, per profile. The schema, the full event
 catalogue, and the redaction rules are maintained once, in
 [Logging schema](schema.md) and the
 [Logging event reference](event-reference.md); this page explains why the
@@ -68,9 +70,10 @@ The sensitive-data policy in [Logging schema](schema.md#sensitive-data-policy)
 is enforced structurally, not by convention: request/response bodies,
 headers, cookies, session IDs, passwords, keys, tokens, and client secrets
 are never fields any logging code has access to write, and a fixed list of
-query-parameter names (`access_token`, `client_secret`, `refresh_token`,
-`state`, and others in `WebSecurityConfiguration.QUERY_PARAMETER_REDACT_LIST`)
-is redacted out of `url.query` before it is ever logged; `url.full` and
+query-parameter names (OAuth/OIDC parameters such as `access_token`,
+`client_secret`, `refresh_token`, and `state`, and session-ID parameters such
+as `id` and `jsessionid`, all in
+`WebSecurityConfiguration.QUERY_PARAMETER_REDACT_LIST`) is redacted out of `url.query` before it is ever logged; `url.full` and
 `url.original` are omitted entirely rather than reviewed case by case. The
 same discipline extends to exception content. Code reporting an unexpected
 bug attaches the exception with SLF4J's `setCause(throwable)` and lets the

@@ -1,3 +1,6 @@
+app:
+  # Development-only private JWKS on the test classpath (see docs/adr/0018).
+  jwks: classpath:jwks.json
 management:
   server:
     port: 0
@@ -13,3 +16,7 @@ logging:
     ecs:
       service:
         environment: test
+spring:
+  liquibase:
+    # Applies the development seed users in 004-development-seed.sql (see docs/adr/0018).
+    contexts: dev

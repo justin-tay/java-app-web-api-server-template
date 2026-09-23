@@ -29,9 +29,10 @@ encryption) key pair, `RestClientAuthorizationCodeTokenResponseClient` signs
 a client assertion with the private key during token exchange, and
 `JwksController` publishes only the public components at `/oauth2/jwks` for
 Keycloak to verify against. The development JWKS fixture at
-`src/main/resources/jwks.json` contains private key material and must never
-be deployed; a real deployment supplies its own JWKS through `app.jwks` and
-rotates keys in coordination with Keycloak. ID tokens are validated by a
+`src/test/resources/jwks.json` contains private key material and is not
+packaged; `app.jwks` has no default, so a real deployment must supply its
+own JWKS through it (startup fails otherwise) and rotates keys in
+coordination with Keycloak. ID tokens are validated by a
 custom `JwtDecoderFactory<ClientRegistration>` (needed because
 `OidcIdTokenDecoderFactory` cannot be customized enough for encrypted
 ID-token support), which accepts only signed RS256 tokens, selects only
@@ -138,10 +139,13 @@ Apache Tomcat 11 Benchmark, translating each standalone-Tomcat control into
 either "configured," "not applicable to embedded Tomcat," or a deployment
 decision; and [ASVS](asvs.md) maps all 345 OWASP ASVS 5.0.0 requirements
 against the codebase across encoding/sanitization, validation, the web
-frontend, the API surface, file handling, and authentication, most of which
-resolve to "not applicable to this template" (no HTML rendering, no file
-upload, no GraphQL, no WebSocket) precisely because the template is a narrow
-JSON administration API rather than a general-purpose web application.
+frontend, the API surface, file handling, and authentication. A minority
+of them resolve to "not applicable to this template" (no HTML
+rendering, no file upload, no GraphQL, no WebSocket) because the template is
+a narrow JSON administration API rather than a general-purpose web
+application; most of the rest are met by the template or its frameworks, or
+delegated to Keycloak or the deployment, and the remainder are recorded as
+partial or not yet implemented.
 Neither document repeats the authentication, authorization, session, or
 header detail already recorded in the pages above; they cite it instead.
 

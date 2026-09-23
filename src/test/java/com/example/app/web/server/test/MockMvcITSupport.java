@@ -22,7 +22,7 @@ import com.example.app.web.server.logging.RequestCorrelationContextFilter;
  * <p>
  * {@link LoggingContextCleanupFilter} and {@link RequestCorrelationContextFilter} are
  * added explicitly because they are registered as plain top-level
- * {@code FilterRegistrationBean}s (see docs/adr/0010) rather than through
+ * {@code FilterRegistrationBean}s (see docs/adr/0012) rather than through
  * {@code HttpSecurity}, and {@code MockMvcTester}/{@code springSecurity()} do not
  * reliably include arbitrary container-level filter registrations the way a real servlet
  * container does.

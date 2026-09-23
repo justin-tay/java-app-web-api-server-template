@@ -12,6 +12,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
@@ -54,7 +56,10 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
  * the life of the test JVM, and the {@code keycloak} client registration points at it, so
  * the application performs the whole login, including session-fixation ID rotation,
  * through its own security filter chain. The stub signs ID tokens for the seeded local
- * user {@code test-user}.
+ * user {@code test-user}, and, like Keycloak's client configured by
+ * {@code bin/configure-keycloak.js}, requires PKCE with {@code S256}: its token endpoint
+ * rejects a {@code code_verifier} that does not match the authorization request's
+ * {@code code_challenge}.
  */
 @Import(OidcLoginITSupport.StubProviderClientRegistrationConfiguration.class)
 public abstract class OidcLoginITSupport extends RestTestClientITSupport {
@@ -68,6 +73,8 @@ public abstract class OidcLoginITSupport extends RestTestClientITSupport {
 	private static final RSAKey SIGNING_KEY = signingKey();
 
 	private static final AtomicReference<String> NONCE = new AtomicReference<>();
+
+	private static final AtomicReference<String> CODE_CHALLENGE = new AtomicReference<>();
 
 	private static final HttpServer PROVIDER = startProvider();
 
@@ -94,7 +101,11 @@ public abstract class OidcLoginITSupport extends RestTestClientITSupport {
 		String preLoginCookie = sessionCookie(authorizationResponse);
 		Map<String, String> authorizationRequest = queryParameters(
 				URI.create(authorizationResponse.headers().firstValue(HttpHeaders.LOCATION).orElseThrow()));
+		assertThat(authorizationRequest).containsEntry("code_challenge_method", "S256")
+			.containsEntry("redirect_uri", uri("/login/oauth2/code/keycloak").toString())
+			.containsKey("code_challenge");
 		NONCE.set(authorizationRequest.get("nonce"));
+		CODE_CHALLENGE.set(authorizationRequest.get("code_challenge"));
 
 		HttpResponse<Void> callbackResponse = this.client.send(HttpRequest
 			.newBuilder(uri("/login/oauth2/code/keycloak?code=test-code&state="
@@ -195,7 +206,14 @@ public abstract class OidcLoginITSupport extends RestTestClientITSupport {
 			server.createContext("/jwks",
 					exchange -> respond(exchange, new JWKSet(SIGNING_KEY.toPublicJWK()).toString()));
 			server.createContext("/token", exchange -> {
-				exchange.getRequestBody().readAllBytes();
+				String codeVerifier = queryParameters(
+						URI.create("?" + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)))
+					.get("code_verifier");
+				if (codeVerifier == null || !codeChallenge(codeVerifier).equals(CODE_CHALLENGE.get())) {
+					respond(exchange, HttpStatus.BAD_REQUEST,
+							"{\"error\":\"invalid_grant\",\"error_description\":\"PKCE verification failed\"}");
+					return;
+				}
 				respond(exchange,
 						"""
 								{"access_token":"stub-access-token","token_type":"Bearer","expires_in":300,"scope":"openid","id_token":"%s"}"""
@@ -212,10 +230,30 @@ public abstract class OidcLoginITSupport extends RestTestClientITSupport {
 		}
 	}
 
+	/**
+	 * Computes the {@code S256} code challenge (RFC 7636 section 4.2) for a verifier.
+	 * @param codeVerifier the code verifier
+	 * @return the base64url-encoded SHA-256 digest of the verifier
+	 */
+	private static String codeChallenge(String codeVerifier) {
+		try {
+			byte[] digest = MessageDigest.getInstance("SHA-256")
+				.digest(codeVerifier.getBytes(StandardCharsets.US_ASCII));
+			return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+		}
+		catch (NoSuchAlgorithmException ex) {
+			throw new IllegalStateException(ex);
+		}
+	}
+
 	private static void respond(HttpExchange exchange, String json) throws IOException {
+		respond(exchange, HttpStatus.OK, json);
+	}
+
+	private static void respond(HttpExchange exchange, HttpStatus status, String json) throws IOException {
 		byte[] body = json.getBytes(StandardCharsets.UTF_8);
 		exchange.getResponseHeaders().add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
-		exchange.sendResponseHeaders(HttpStatus.OK.value(), body.length);
+		exchange.sendResponseHeaders(status.value(), body.length);
 		try (OutputStream outputStream = exchange.getResponseBody()) {
 			outputStream.write(body);
 		}

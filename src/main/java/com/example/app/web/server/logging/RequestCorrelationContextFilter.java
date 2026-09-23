@@ -21,7 +21,7 @@ import com.example.app.web.server.logging.request.RequestIdResolver;
  * {@code WebSecurityConfiguration}), rather than through {@code HttpSecurity},
  * specifically so {@code http.request.id}, {@code source.ip}, and {@code client.ip} are
  * present even when Spring Security's {@code HttpFirewall} rejects a request before its
- * own internal filter chain is ever invoked; see docs/adr/0010. It scopes and removes
+ * own internal filter chain is ever invoked; see docs/adr/0012. It scopes and removes
  * only its own MDC entries; {@link LoggingContextCleanupFilter}, the outermost filter, is
  * the one guaranteed final cleanup for the whole request.
  */

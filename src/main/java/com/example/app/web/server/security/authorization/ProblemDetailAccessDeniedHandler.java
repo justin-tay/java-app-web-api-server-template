@@ -15,6 +15,7 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.csrf.CsrfException;
 
 import com.example.app.web.server.api.ProblemTypes;
+import com.example.app.web.server.logging.LoggedUrlPath;
 
 /**
  * Writes Problem Details responses for access-denied requests.
@@ -40,7 +41,7 @@ public class ProblemDetailAccessDeniedHandler implements AccessDeniedHandler {
 				.addKeyValue("event.action", "validate_csrf_token")
 				.addKeyValue("event.outcome", "failure")
 				.addKeyValue("http.response.status_code", HttpStatus.FORBIDDEN.value())
-				.addKeyValue("url.path", request.getRequestURI())
+				.addKeyValue("url.path", LoggedUrlPath.of(request.getRequestURI()))
 				// setCause(exception) is deliberately not used here: a CSRF rejection is
 				// an expected control outcome, not a bug, so a stack trace is noise, and
 				// the exception message is withheld like every other security failure;

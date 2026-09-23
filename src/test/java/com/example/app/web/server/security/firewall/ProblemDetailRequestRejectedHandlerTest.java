@@ -69,6 +69,23 @@ class ProblemDetailRequestRejectedHandlerTest {
 	}
 
 	@Test
+	void logsThePathWithoutItsPathParameters() throws Exception {
+		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/login-user;jsessionid=0f5b3c1e");
+
+		new ProblemDetailRequestRejectedHandler()
+			.handle(request, new MockHttpServletResponse(), new RequestRejectedException(
+					"The request was rejected because the URL contained a potentially " + "malicious String \";\""));
+
+		ILoggingEvent event = this.logEvents.list.get(0);
+		assertThat(event.getKeyValuePairs()).anySatisfy(pair -> {
+			assertThat(pair.key).isEqualTo("url.path");
+			assertThat(pair.value).isEqualTo("/login-user;[REDACTED]");
+		});
+		assertThat(event.getKeyValuePairs())
+			.allSatisfy(pair -> assertThat(String.valueOf(pair.value)).doesNotContain("0f5b3c1e"));
+	}
+
+	@Test
 	void doesNotWriteResponseWhenAlreadyCommitted() throws Exception {
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/admin/users");
 		MockHttpServletResponse response = new MockHttpServletResponse();

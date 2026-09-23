@@ -66,6 +66,29 @@ class RequestLoggingFilterTest {
 		}
 	}
 
+	@Test
+	void logsThePathWithPathParametersRedacted() throws Exception {
+		Logger logger = (Logger) LoggerFactory.getLogger(RequestLoggingFilter.class);
+		ListAppender<ILoggingEvent> appender = new ListAppender<>();
+		appender.start();
+		logger.addAppender(appender);
+		try {
+			MockHttpServletRequest request = new MockHttpServletRequest("GET", "/accounts;jsessionid=0f5b3c1e/123");
+			MockHttpServletResponse response = new MockHttpServletResponse();
+
+			new RequestLoggingFilter(List.of()).doFilter(request, response, (servletRequest, servletResponse) -> {
+			});
+
+			assertThat(appender.list).hasSize(2)
+				.allSatisfy(
+						event -> assertThat(keyValues(event)).containsEntry("url.path", "/accounts;[REDACTED]/123"));
+		}
+		finally {
+			logger.detachAppender(appender);
+			appender.stop();
+		}
+	}
+
 	private Map<String, Object> keyValues(ILoggingEvent event) {
 		return event.getKeyValuePairs().stream().collect(Collectors.toMap(pair -> pair.key, pair -> pair.value));
 	}

@@ -163,16 +163,19 @@ realistic test fixtures, so that environments are reproducible.
    structures.
 2. WHEN Liquibase creates the schema, THEN it SHALL enforce unique user, group,
    and role names and prevent duplicate membership or role-assignment links.
-3. WHEN Liquibase applies initial data, THEN it SHALL create the `USER_MANAGE`,
-   `GROUP_MANAGE`, `ROLE_MANAGE`, and `APPLICATION_USER` roles; the
-   `Administrators` and `Test Users` groups; and enabled `admin`, `test-user`,
-   and `multi-group-user` test users.
-4. WHEN initial data is applied, THEN it SHALL associate the administrator test
-   user with `USER_MANAGE`, `GROUP_MANAGE`, and `ROLE_MANAGE` through its group
-   memberships.
-5. WHEN initial data is applied, THEN it SHALL assign `APPLICATION_USER` to the
-   `Test Users` group and SHALL give `multi-group-user` memberships in both seeded
-   groups.
+3. WHEN Liquibase applies initial data in any environment, THEN it SHALL create
+   the `USER_MANAGE`, `GROUP_MANAGE`, `ROLE_MANAGE`, and `APPLICATION_USER`
+   roles and the `Administrators` group with `USER_MANAGE`, `GROUP_MANAGE`, and
+   `ROLE_MANAGE` assigned and no members.
+4. WHEN Liquibase applies initial data with the `dev` context explicitly
+   requested, THEN it SHALL also create the `Test Users` group and enabled
+   `admin`, `test-user`, and `multi-group-user` test users, and SHALL associate
+   the administrator test user with `USER_MANAGE`, `GROUP_MANAGE`, and
+   `ROLE_MANAGE` through its `Administrators` membership; WHEN the `dev`
+   context is not requested, THEN it SHALL create no local user.
+5. WHEN development data is applied, THEN it SHALL assign `APPLICATION_USER` to
+   the `Test Users` group and SHALL give `multi-group-user` memberships in both
+   seeded groups.
 6. WHEN migrations run more than once, THEN Liquibase SHALL not reapply recorded
    changesets.
 7. WHEN schema and data are expressed, THEN they SHALL use Liquibase formatted SQL

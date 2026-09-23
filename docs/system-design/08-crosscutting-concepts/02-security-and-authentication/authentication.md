@@ -54,14 +54,20 @@ signing key is available to Keycloak at `/oauth2/jwks`.
 
 ## Application JWKS and key handling
 
-The development JWKS at `src/main/resources/jwks.json` contains private key
-material. It is a fixture for local development and tests only; it must not be
-deployed.
+The development JWKS at `src/test/resources/jwks.json` contains private key
+material. It is a fixture for local development and tests only, and the build
+does not package it: the `test` profile loads it from the test classpath, and
+the `local` profile and `bin/start-api-server-tls.sh` load it from that path on
+disk.
 
-For a real deployment, provide an equivalent private JWKS through a protected
-resource, set `app.jwks` to that resource location, and rotate signing and
-encryption keys in coordination with Keycloak. Do not place private JWKs in
-source control, container images, or a public JWKS endpoint.
+`app.jwks` has no default. For a real deployment, provide a private JWKS
+through a protected resource (for example `file:/run/secrets/jwks.json`), set
+`app.jwks` to that resource location, and rotate signing and encryption keys in
+coordination with Keycloak. When `app.jwks` is unset, `ApplicationProperties`
+validation fails startup with a message naming the property; when it is set
+but unreadable, the `jwks` bean fails startup naming the location. Do not place
+private JWKs in source control, container images, or a public JWKS endpoint
+([ADR 0018](../../../adr/0018-development-fixtures-kept-out-of-production.md)).
 
 `WebSecurityConfiguration` loads the configured JWKS into a `JWKSet`.
 `JwksController` publishes only public key components at `/oauth2/jwks`;

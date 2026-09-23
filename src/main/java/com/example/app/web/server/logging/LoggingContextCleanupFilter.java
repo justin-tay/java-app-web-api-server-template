@@ -20,7 +20,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * associate a later, unrelated event with this request. Every MDC-adding component in
  * this application already scopes and removes its own entries; this filter is a safety
  * net for anything that does not, not the primary cleanup mechanism, and it does not
- * establish any MDC entries itself. See docs/adr/0010.
+ * establish any MDC entries itself. See docs/adr/0012.
  */
 @Component
 public class LoggingContextCleanupFilter extends OncePerRequestFilter {

@@ -28,6 +28,7 @@ import org.springframework.web.context.request.NativeWebRequest;
 
 import com.example.app.web.server.api.admin.ConflictException;
 import com.example.app.web.server.api.admin.ResourceNotFoundException;
+import com.example.app.web.server.logging.LoggedUrlPath;
 
 /**
  * A {@link ResponseEntityExceptionHandler}.
@@ -186,7 +187,7 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 			.addKeyValue("event.action", "process_request")
 			.addKeyValue("event.outcome", "failure")
 			.addKeyValue("http.response.status_code", responseStatusCode)
-			.addKeyValue("url.path", request.getRequestURI())
+			.addKeyValue("url.path", LoggedUrlPath.of(request.getRequestURI()))
 			.setCause(ex)
 			.log("Request processing failed");
 	}
@@ -199,7 +200,7 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 			.addKeyValue("event.action", "validate_input")
 			.addKeyValue("event.outcome", "failure")
 			.addKeyValue("http.response.status_code", HttpStatus.BAD_REQUEST.value())
-			.addKeyValue("url.path", request.getRequestURI())
+			.addKeyValue("url.path", LoggedUrlPath.of(request.getRequestURI()))
 			// setCause(exception) is deliberately not used here: this is an expected,
 			// client-driven failure, not a bug, so a stack trace is noise, and the
 			// exception message can echo rejected request content (see

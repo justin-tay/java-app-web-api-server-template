@@ -36,8 +36,12 @@ independently testable and is ordered by its implementation dependencies.
     `password`; do not modify `bin/configure-keycloak.js`.
   - Do not assign Keycloak realm or client roles. Local application roles are the
     only source of application authorisation.
-  - Seed `USER_MANAGE`, `GROUP_MANAGE`, `ROLE_MANAGE`, and `APPLICATION_USER`;
-    the `Administrators` and `Test Users` groups; and matching enabled local users.
+  - Seed `USER_MANAGE`, `GROUP_MANAGE`, `ROLE_MANAGE`, and `APPLICATION_USER`
+    and the member-less `Administrators` group in every environment
+    (`002-authorisation-seed.sql`).
+  - Seed the `Test Users` group and matching enabled local users only with the
+    `dev` Liquibase context (`004-development-seed.sql`, ADR 0018); a production
+    database bootstraps its first administrator with its own changeset.
   - Associate the fixtures exactly as designed, including multi-group membership.
   - Completion: a local test setup has matching Keycloak and Liquibase identities.
   - _Requirements: R1, R3, R6_

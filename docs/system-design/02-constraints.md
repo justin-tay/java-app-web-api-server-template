@@ -11,7 +11,7 @@
 | Liquibase-owned schema | `spring.jpa.hibernate.ddl-auto: none` and `spring.session.jdbc.initialize-schema: never`; Liquibase (`db/changelog/db.changelog-master.yaml`) is the only schema owner, per [ADR 0004](../adr/0004-database-schema-management.md). Hibernate never creates or alters tables. |
 | Keycloak as identity provider | The application does not implement credential storage or verification itself; Keycloak owns authentication end to end via OIDC, per [ADR 0005](../adr/0005-keycloak-authentication-local-authorisation.md). |
 | JDBC-backed sessions | Sessions must be backed by a relational datastore reachable from the application (Spring Session JDBC); an in-memory or client-side session store is not an option this template supports, per [ADR 0006](../adr/0006-jdbc-backed-server-side-sessions.md). |
-| `private_key_jwt` client authentication | The OAuth2 client authenticates to Keycloak using a JWKS-backed key (`app.jwks`, default `classpath:jwks.json`), not a client secret. |
+| `private_key_jwt` client authentication | The OAuth2 client authenticates to Keycloak using a JWKS-backed key, not a client secret. `app.jwks` has no default: every deployment supplies its own private JWKS location, and startup fails without one ([ADR 0018](../adr/0018-development-fixtures-kept-out-of-production.md)). |
 | GraalVM native image support | `native-maven-plugin` is on the build; changes that rely on unregistered reflection, resources, or proxies will fail native compilation unless hints are added to `ApplicationRuntimeHints`. |
 | Formatting enforced in CI | `spring-javaformat-maven-plugin` runs `apply` during `mvn verify`; CI (`build-and-test.yml`) fails the build if `git diff` shows any formatting drift afterward. |
 <!-- /arc42-generated -->

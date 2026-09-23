@@ -5,9 +5,9 @@ Spring Security 7, is recorded here against the
 [OWASP HTTP Security Response Headers Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html).
 
 The effective headers at the public edge can also be changed by a reverse proxy,
-load balancer, CDN, or servlet container; this table records the application
+load balancer, CDN, or servlet container; the tables below record the application
 configuration, not an assertion about infrastructure configuration. Review
-this matrix whenever `WebSecurityConfiguration`, an application endpoint, the
+these tables whenever `WebSecurityConfiguration`, an application endpoint, the
 browser UI, or edge infrastructure changes, confirming both authenticated and
 unauthenticated responses, redirects, errors, downloads, and the externally
 deployed HTTPS endpoint.

@@ -14,6 +14,7 @@ import org.springframework.security.web.firewall.RequestRejectedException;
 import org.springframework.security.web.firewall.RequestRejectedHandler;
 
 import com.example.app.web.server.api.ProblemTypes;
+import com.example.app.web.server.logging.LoggedUrlPath;
 
 /**
  * Logs and writes a Problem Details response for a {@link RequestRejectedException}
@@ -27,7 +28,7 @@ import com.example.app.web.server.api.ProblemTypes;
  * available, though: {@code RequestCorrelationContextFilter} runs ahead of the firewall
  * check and puts them in MDC, so this handler must not add them itself, since that would
  * duplicate the MDC-sourced fields and fail structured logging's duplicate-key check; see
- * docs/adr/0010. Because
+ * docs/adr/0012. Because
  * {@code com.example.app.web.server.api.ApiResponseEntityExceptionHandler} only sees
  * exceptions thrown from within {@code DispatcherServlet}'s handler invocation, this is
  * the only place a firewall rejection is recorded. The exception's message is never
@@ -35,7 +36,9 @@ import com.example.app.web.server.api.ProblemTypes;
  * since it can echo the rejected request content. For that reason {@code setCause()} is
  * deliberately not used below: it would add the withheld message (and an unnecessary
  * stack trace for this expected, client-driven outcome) as {@code error.message}/
- * {@code error.stack_trace}.
+ * {@code error.stack_trace}. The path is logged through {@link LoggedUrlPath}, because a
+ * path parameter such as {@code ;jsessionid=} is one of the things the firewall rejects
+ * and would otherwise put a session ID in the log.
  */
 public class ProblemDetailRequestRejectedHandler implements RequestRejectedHandler {
 
@@ -55,7 +58,7 @@ public class ProblemDetailRequestRejectedHandler implements RequestRejectedHandl
 			.addKeyValue("event.outcome", "failure")
 			.addKeyValue("http.response.status_code", HttpStatus.BAD_REQUEST.value())
 			.addKeyValue("http.request.method", request.getMethod())
-			.addKeyValue("url.path", request.getRequestURI())
+			.addKeyValue("url.path", LoggedUrlPath.of(request.getRequestURI()))
 			.addKeyValue("error.type", requestRejectedException.getClass().getSimpleName())
 			.log("Request rejected by the HTTP firewall");
 		if (response.isCommitted()) {

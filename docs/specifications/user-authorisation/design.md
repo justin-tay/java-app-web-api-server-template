@@ -217,10 +217,20 @@ OAuth2 authentication failure.
 
 ## Initial fixtures
 
-Liquibase seeds the four roles and two groups. `Administrators` holds all three
-management roles. `Test Users` holds `APPLICATION_USER`. It also seeds local users
-`admin`, `test-user`, and `multi-group-user`; the first has the Administrators
-membership, the second Test Users membership, and the third both. A new
+Liquibase seeds the four roles and the `Administrators` group, which holds all
+three management roles and has no members, in every environment
+(`002-authorisation-seed.sql`). The `Test Users` group, which holds
+`APPLICATION_USER`, and the local users `admin`, `test-user`, and
+`multi-group-user` are development and test fixtures (`004-development-seed.sql`)
+that Liquibase applies only when the `dev` context is explicitly requested, as
+the `local` and `test` profiles and `bin/start-api-server-tls.sh` do; a
+production migration creates no local user (ADR 0018). Of those users, the
+first has the Administrators membership, the second Test Users membership, and
+the third both. A production deployment creates its first administrator with
+its own changeset, as described under "Bootstrapping the first administrator"
+in
+`docs/system-design/08-crosscutting-concepts/02-security-and-authentication/authorization.md`.
+A new
 `bin/seed-test-data.js` script creates matching immutable Keycloak
 `preferred_username` accounts with the test-only password `password` and no
 Keycloak realm or client roles. It does not alter `bin/configure-keycloak.js`.

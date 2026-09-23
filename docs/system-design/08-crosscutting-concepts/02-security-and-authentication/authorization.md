@@ -61,7 +61,41 @@ strips one leading `ROLE_` before prepending it again, so
 | Role administration | `ROLE_ROLE_MANAGE` |
 
 The administration API is the sole mechanism for maintaining local users,
-groups, roles, and their relationships.
+groups, roles, and their relationships, once the first administrator exists
+(see [Bootstrapping the first administrator](#bootstrapping-the-first-administrator)).
+
+## Bootstrapping the first administrator
+
+Liquibase applies the four roles above and the `Administrators` group, which
+holds the three management roles, in every environment
+(`002-authorisation-seed.sql`). The local users `admin`, `test-user`, and
+`multi-group-user`, and the `Test Users` group, are development and test
+fixtures (`004-development-seed.sql`): Liquibase applies them only when the
+`dev` context is explicitly requested, which the `local` and `test` profiles
+and `bin/start-api-server-tls.sh` do. A production migration must not request
+the `dev` context, so it creates no local user
+([ADR 0018](../../../adr/0018-development-fixtures-kept-out-of-production.md)).
+
+A new production database therefore has no user who can call the
+administration API. Create the first administrator once, as a data change
+applied by the migration job like every other
+([ADR 0004](../../../adr/0004-database-schema-management.md)): add a changeset
+that inserts the local user and its `Administrators` membership, restricted
+to the environments that should have it with a required context (for
+example `context:@production`) that only those migration runs request.
+
+```sql
+INSERT INTO app_user (id, username, display_name, enabled, created_at, updated_at)
+VALUES ('<new UUID>', '<Keycloak preferred_username>', '<display name>', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT INTO app_user_group (user_id, group_id)
+VALUES ('<the same UUID>', '00000000-0000-0000-0000-000000000011');
+```
+
+The `username` must equal the `preferred_username` of an existing Keycloak
+account whose username is immutable (see
+[Identity resolution](#identity-resolution)). That administrator then
+maintains every further user, group, and membership through the
+administration API.
 
 ## Security behaviour
 

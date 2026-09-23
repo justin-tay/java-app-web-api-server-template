@@ -111,9 +111,12 @@ There is no direct user-to-role assignment. All three entities extend
 `preferred_username` claim is matched against `app_user.username`, which
 is why usernames are treated as immutable once a user is provisioned (see
 `README.md`). Schema defined in
-`src/main/resources/db/changelog/001-authorisation-schema.sql`, seed data
-in `002-authorisation-seed.sql`; Spring Session's own tables are added in
-`003-spring-session-schema.sql`.
+`src/main/resources/db/changelog/001-authorisation-schema.sql`, the roles
+and the `Administrators` group in `002-authorisation-seed.sql`; Spring
+Session's own tables are added in `003-spring-session-schema.sql`. The
+development and test users are in `004-development-seed.sql`, applied only
+when the `dev` Liquibase context is requested
+([ADR 0018](../adr/0018-development-fixtures-kept-out-of-production.md)).
 
 ### Security Filter Chain (White Box)
 

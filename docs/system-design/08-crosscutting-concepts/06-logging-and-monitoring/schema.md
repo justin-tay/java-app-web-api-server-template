@@ -64,7 +64,7 @@ fields where available and documents its intentional project extensions.
 | `span.id` | `keyword` | OpenTelemetry identifier for the active server span, renamed alongside `trace.id`. |
 | `http.request.method` | `keyword` | Incoming servlet request method. |
 | `http.response.status_code` | `long` | Final or handler-known HTTP response status. |
-| `url.scheme`, `url.path`, `url.query` | `keyword`, `wildcard`, `keyword` | Request URL components; query values are redacted before emission. |
+| `url.scheme`, `url.path`, `url.query` | `keyword`, `wildcard`, `keyword` | Request URL components; path parameters and listed query values are redacted before emission. |
 | `server.address`, `server.port` | `keyword`, `long` | Servlet destination as observed by the application, not necessarily the public host. |
 | `user.name` | `keyword` | Authenticated actor when known. |
 | `user.target.name` | `keyword` | Target account of a failed authentication. |
@@ -89,9 +89,9 @@ sharing `http.request.id` and `event.start`. The completed event's
 the correlation ID and authenticated user for asynchronous completion.
 
 `http.request.id`, `source.ip`, `client.ip`, `trace.id`, and `span.id` are all
-established ahead of Spring Security's filter chain — `RequestCorrelationContextFilter`
+established ahead of Spring Security's filter chain: `RequestCorrelationContextFilter`
 and Micrometer Tracing's observation filter are both registered directly with the
-servlet container at an order below Spring Security's own (see [ADR 0012](../../../adr/0012-request-correlation-ahead-of-security-chain.md)) — so
+servlet container at an order below Spring Security's own (see [ADR 0012](../../../adr/0012-request-correlation-ahead-of-security-chain.md)), so
 all five are present even on a request the HTTP firewall rejects (`reject_request`),
 before Spring Security's own internal filter chain, including
 `AuthenticatedUserLoggingContextFilter`, is ever invoked. `user.name` remains the one field
@@ -110,10 +110,25 @@ context (see [ADR 0011](../../../adr/0011-trace-correlated-structured-logging.md
 
 ## Sensitive-data policy
 
-`url.query` redacts values for `access_token`, `client_assertion`,
-`client_secret`, `code`, `code_verifier`, `id_token`, `id_token_hint`,
-`logout_token`, `refresh_token`, `session_state`, and `state`. The list is
-source-controlled in `WebSecurityConfiguration.QUERY_PARAMETER_REDACT_LIST`.
+`url.query` redacts values for the OAuth/OIDC parameters `access_token`,
+`client_assertion`, `client_secret`, `code`, `code_verifier`, `id_token`,
+`id_token_hint`, `logout_token`, `refresh_token`, `session_state`, and
+`state`, and for the session-ID parameters `id` (the session cookie's name),
+`jsessionid`, `session`, and `sessionid`. The application only ever reads
+the session ID from the `id` cookie, but a client that sends it in the query
+string anyway, such as `?jsessionid=<session ID>`, has it logged as
+`jsessionid=[REDACTED]`. Names match case-insensitively, so `SESSION` is
+redacted too. No controller uses any of these names as a query parameter
+(the admin APIs filter by `groupId` and `roleId`, which do not match `id`),
+so the redaction hides no legitimate value. The list is source-controlled in
+`WebSecurityConfiguration.QUERY_PARAMETER_REDACT_LIST`.
+
+`url.path` never carries path parameters: every event that records it
+replaces each section from a `;` to the next `/` (or the end of the path)
+with `;[REDACTED]`, through `LoggedUrlPath`, so a path such as
+`/login-user;jsessionid=<session ID>` is logged as `/login-user;[REDACTED]`.
+The HTTP firewall rejects such a path, and its `reject_request` event is
+the usual place one appears.
 
 The request/security filters intentionally do not emit request or response
 bodies, headers, cookies, session IDs, passwords, keys, tokens, client secrets,

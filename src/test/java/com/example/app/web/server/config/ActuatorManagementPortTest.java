@@ -17,7 +17,7 @@ import com.example.app.web.server.test.RestTestClientITSupport;
  * Tests that actuator is reachable on the separate management port only, exposes nothing
  * beyond a minimal, unauthenticated health check there, and has no endpoint mapping on
  * the application port even though the two ports share one security filter chain. See
- * docs/adr/0008-actuator-management-port.md for the rationale.
+ * docs/adr/0014-actuator-management-port.md for the rationale.
  */
 class ActuatorManagementPortTest extends RestTestClientITSupport {
 
@@ -63,7 +63,7 @@ class ActuatorManagementPortTest extends RestTestClientITSupport {
 
 	/**
 	 * The management port is a separate embedded server that nonetheless shares one
-	 * Spring Security filter chain with the application (see docs/adr/0008), so
+	 * Spring Security filter chain with the application (see docs/adr/0014), so
 	 * {@code /actuator/health} is also permitted there on the application port. It still
 	 * is not reachable there: actuator's endpoint mapping only activates for requests
 	 * arriving on the management server, so the application port falls through to an
@@ -78,7 +78,7 @@ class ActuatorManagementPortTest extends RestTestClientITSupport {
 	}
 
 	/**
-	 * The management port is a separate embedded Tomcat instance (see docs/adr/0008), so
+	 * The management port is a separate embedded Tomcat instance (see docs/adr/0014), so
 	 * {@link TomcatConfiguration}'s connector hardening is not applied to it merely by
 	 * being applied to the application's connector; it must hold independently. Verified
 	 * at the HTTP level, since the two are distinct {@code TomcatWebServer}s and the

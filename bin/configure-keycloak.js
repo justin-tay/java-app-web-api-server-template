@@ -35,14 +35,22 @@ const credentials = async ({ server, user, password }) => {
 };
 
 const upsertClient = async (headers, { id, appBaseUrl }) => {
-  const redirectUris = [`${appBaseUrl}/*`];
+  // Exact URIs only, no wildcards, so Keycloak compares them by exact string match.
+  // The redirect URI is Spring Security's default for the 'keycloak' registration,
+  // {baseUrl}/{action}/oauth2/code/{registrationId}; the post-logout redirect URI is
+  // the one WebSecurityConfiguration.oidcLogoutSuccessHandler() sends.
+  const redirectUris = [`${appBaseUrl}/login/oauth2/code/keycloak`];
+  const postLogoutRedirectUris = [`${appBaseUrl}/login?logout`];
   const clientRepresentation = {
     attributes: {
       'backchannel.logout.revoke.offline.tokens': 'false',
       'backchannel.logout.session.required': 'true',
       'backchannel.logout.url': `${appBaseUrl}/logout/connect/back-channel/keycloak`,
       'jwks.url': `${appBaseUrl}/oauth2/jwks`,
-      'post.logout.redirect.uris': redirectUris.join('##'),
+      // Require PKCE with S256 on every authorization request; Keycloak then rejects
+      // a request without a code_challenge, or with the 'plain' method.
+      'pkce.code.challenge.method': 'S256',
+      'post.logout.redirect.uris': postLogoutRedirectUris.join('##'),
       'use.jwks.url': 'true',
     },
     clientAuthenticatorType: 'client-jwt',
@@ -57,7 +65,7 @@ const upsertClient = async (headers, { id, appBaseUrl }) => {
     rootUrl: '',
     serviceAccountsEnabled: false,
     standardFlowEnabled: true,
-    webOrigins: redirectUris,
+    webOrigins: [appBaseUrl],
   };
   const clientUrl = `${KEYCLOAK_SERVER}/admin/realms/${KEYCLOAK_REALM}/clients`;
   let response = await fetch(`${clientUrl}?clientId=${encodeURIComponent(id)}`, { headers });

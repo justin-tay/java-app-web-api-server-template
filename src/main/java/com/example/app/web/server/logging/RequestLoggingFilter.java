@@ -33,7 +33,8 @@ import org.springframework.web.util.UriComponentsBuilder;
  * <p>
  * This filter intentionally records only request metadata. It never logs request or
  * response bodies, cookies, credentials, or authorization headers. Query parameter values
- * are redacted when their names are in the configured redaction list.
+ * are redacted when their names are in the configured redaction list, and path parameters
+ * are redacted by {@link LoggedUrlPath}.
  */
 public class RequestLoggingFilter extends OncePerRequestFilter {
 
@@ -44,8 +45,6 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 	private static final String CLIENT_IP = "client.ip";
 
 	private static final String SOURCE_IP = "source.ip";
-
-	private static final String REDACTED_VALUE = "[REDACTED]";
 
 	private final Set<String> queryParameterRedactList;
 
@@ -84,7 +83,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 			.addKeyValue("url.scheme", request.getScheme())
 			.addKeyValue("server.address", request.getServerName())
 			.addKeyValue("server.port", request.getServerPort())
-			.addKeyValue("url.path", request.getRequestURI());
+			.addKeyValue("url.path", LoggedUrlPath.of(request.getRequestURI()));
 		addQueryParameters(event, request);
 		addUser(event, username());
 		event.log("HTTP request received");
@@ -110,7 +109,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 			.addKeyValue("url.scheme", request.getScheme())
 			.addKeyValue("server.address", request.getServerName())
 			.addKeyValue("server.port", request.getServerPort())
-			.addKeyValue("url.path", request.getRequestURI())
+			.addKeyValue("url.path", LoggedUrlPath.of(request.getRequestURI()))
 			.addKeyValue("http.route", route(request));
 		addQueryParameters(event, request);
 		addRequestId(event, context.requestId());
@@ -138,7 +137,8 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 	}
 
 	private String redactedValue(String parameterName, String value) {
-		return this.queryParameterRedactList.contains(parameterName.toLowerCase(Locale.ROOT)) ? REDACTED_VALUE : value;
+		return this.queryParameterRedactList.contains(parameterName.toLowerCase(Locale.ROOT))
+				? LoggedUrlPath.REDACTED_VALUE : value;
 	}
 
 	private MultiValueMap<String, String> queryParameters(HttpServletRequest request) {

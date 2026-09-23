@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.app.web.server.logging.LoggedUrlPath;
 import com.example.app.web.server.logging.MessageRedactedStackTraces;
 
 /**
@@ -54,7 +55,7 @@ public class ProblemDetailErrorController implements ErrorController {
 	private void addUrlPath(LoggingEventBuilder event, HttpServletRequest request) {
 		Object requestUri = request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI);
 		if (requestUri != null) {
-			event.addKeyValue("url.path", String.valueOf(requestUri));
+			event.addKeyValue("url.path", LoggedUrlPath.of(String.valueOf(requestUri)));
 		}
 	}
 

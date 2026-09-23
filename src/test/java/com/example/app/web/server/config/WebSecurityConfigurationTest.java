@@ -2,10 +2,20 @@ package com.example.app.web.server.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.net.URI;
+import java.net.URLDecoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -20,6 +30,37 @@ import com.example.app.web.server.test.RestTestClientITSupport;
  * Tests that the WebSecurityConfiguration is properly set.
  */
 public class WebSecurityConfigurationTest extends RestTestClientITSupport {
+
+	@LocalServerPort
+	private int port;
+
+	/**
+	 * The application's own {@code keycloak} registration (from {@code application.yaml})
+	 * sends PKCE with {@code S256}, which Spring Security applies by default to an
+	 * authorization code client, and the exact redirect URI that
+	 * {@code bin/configure-keycloak.js} registers. Keycloak's client requires both.
+	 */
+	@Test
+	void authorizationRequestSendsS256PkceAndTheExactRegisteredRedirectUri() throws Exception {
+		HttpResponse<Void> response = HttpClient.newBuilder()
+			.followRedirects(HttpClient.Redirect.NEVER)
+			.build()
+			.send(HttpRequest.newBuilder(URI.create("http://localhost:" + this.port + "/oauth2/authorization/keycloak"))
+				.GET()
+				.build(), HttpResponse.BodyHandlers.discarding());
+
+		assertThat(response.statusCode()).isEqualTo(HttpStatus.FOUND.value());
+		Map<String, String> parameters = Arrays.stream(
+				URI.create(response.headers().firstValue(HttpHeaders.LOCATION).orElseThrow()).getRawQuery().split("&"))
+			.map(parameter -> parameter.split("=", 2))
+			.collect(Collectors.toMap(parameter -> URLDecoder.decode(parameter[0], StandardCharsets.UTF_8),
+					parameter -> URLDecoder.decode(parameter[1], StandardCharsets.UTF_8)));
+		assertThat(parameters).containsEntry("response_type", "code")
+			.containsEntry("code_challenge_method", "S256")
+			.containsEntry("redirect_uri", "http://localhost:" + this.port + "/login/oauth2/code/keycloak");
+		// A base64url-encoded SHA-256 digest is 43 characters.
+		assertThat(parameters.get("code_challenge")).matches("[A-Za-z0-9_-]{43}");
+	}
 
 	@Test
 	void oidcIdTokenValidatorRejectsUnexpectedIssuerAudienceAndAuthorizedParty() {

@@ -19,6 +19,12 @@ export CERTIFICATE_PEM="$(file_uri "${certificate_directory}/localhost.pem")"
 export PRIVATE_KEY_PEM="$(file_uri "${certificate_directory}/localhost-key.pem")"
 export CA_BUNDLE_PEM="$(file_uri "${certificate_directory}/local-ca.pem")"
 export SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KEYCLOAK_CLIENT_ID="java-app-web-api-server-secure"
+# This run uses the default (production-like) Spring profile so TLS stays enabled, so it
+# supplies the development-only settings that the local profile would otherwise set:
+# the development JWKS and the Liquibase context for the development seed users
+# (see docs/adr/0018).
+export APP_JWKS="$(file_uri "${project_directory}/src/test/resources/jwks.json")"
+export SPRING_LIQUIBASE_CONTEXTS="dev"
 
 cd "${project_directory}"
 

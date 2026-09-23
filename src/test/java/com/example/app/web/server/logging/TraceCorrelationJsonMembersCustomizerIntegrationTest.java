@@ -31,7 +31,7 @@ class TraceCorrelationJsonMembersCustomizerIntegrationTest extends RestTestClien
 	 * {@code spanId}) are registered ahead of Spring Security's filter chain, so both
 	 * correlation mechanisms survive the HTTP firewall rejecting a request before its own
 	 * internal filter chain, including {@code AuthenticatedUserLoggingContextFilter}, is
-	 * ever invoked; see docs/adr/0010.
+	 * ever invoked; see docs/adr/0012.
 	 */
 	@Test
 	void firewallRejectedRequestsCarryTraceSpanAndHttpRequestIds(CapturedOutput output) {

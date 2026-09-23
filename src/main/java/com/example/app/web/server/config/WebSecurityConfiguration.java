@@ -115,9 +115,19 @@ public class WebSecurityConfiguration {
 
 	private static final String PERMISSIONS_POLICY = "camera=(), geolocation=(), microphone=(), payment=(), usb=()";
 
+	/**
+	 * Query parameters whose values are replaced with {@code [REDACTED]} in logged
+	 * {@code url.query} values (matched case-insensitively). Besides the OAuth 2.0 and
+	 * OIDC credentials and correlation values, this covers the names a client could use
+	 * to send a session ID: {@code id} (this application's session cookie name),
+	 * {@code jsessionid} (the servlet container default), and {@code session} and
+	 * {@code sessionid} (Spring Session's default cookie name and a common variant). The
+	 * session ID is only ever accepted from the {@code id} cookie, but a value sent this
+	 * way must still not reach the logs.
+	 */
 	private static final List<String> QUERY_PARAMETER_REDACT_LIST = List.of("access_token", "client_assertion",
-			"client_secret", "code", "code_verifier", "id_token", "id_token_hint", "logout_token", "refresh_token",
-			"session_state", "state");
+			"client_secret", "code", "code_verifier", "id", "id_token", "id_token_hint", "jsessionid", "logout_token",
+			"refresh_token", "session", "session_state", "sessionid", "state");
 
 	private final Map<String, JwtDecoder> jwtDecoders = new ConcurrentHashMap<>();
 
@@ -126,14 +136,16 @@ public class WebSecurityConfiguration {
 	 * @param resourceLoader the resource loader
 	 * @param applicationProperties the application properties
 	 * @return the JWKS
-	 * @throws IOException the exception
-	 * @throws ParseException the exception
+	 * @throws ParseException if the resource is not a valid JWKS
 	 */
 	@Bean
-	JWKSet jwks(ResourceLoader resourceLoader, ApplicationProperties applicationProperties)
-			throws IOException, ParseException {
-		try (InputStream inputStream = resourceLoader.getResource(applicationProperties.getJwks()).getInputStream()) {
+	JWKSet jwks(ResourceLoader resourceLoader, ApplicationProperties applicationProperties) throws ParseException {
+		String location = applicationProperties.getJwks();
+		try (InputStream inputStream = resourceLoader.getResource(location).getInputStream()) {
 			return JWKSet.load(inputStream);
+		}
+		catch (IOException ex) {
+			throw new IllegalStateException("Unable to read the private JWKS configured by app.jwks: " + location, ex);
 		}
 	}
 
