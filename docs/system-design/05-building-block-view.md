@@ -8,7 +8,7 @@ flowchart TB
     subgraph app ["app-web-api-server (com.example.app.web.server)"]
         api["api\nREST controllers"]
         admin["api.admin\nUser/group/role administration"]
-        config["config\nApplication authorization rules, async, REST client"]
+        config["config\nApplication authorization rules, REST client"]
         domain["domain\nJPA entities and repositories"]
         lookup["security\nLocalAuthorityLookup implementation"]
         validation["validation\nBean Validation constraints"]
@@ -56,13 +56,13 @@ HTTP; `domain` is the only package with JPA/database awareness.
 | `commons` `security.firewall` | RFC 9457 response for requests Spring Security's `HttpFirewall` rejects | `ProblemDetailRequestRejectedHandler` | `commons/src/main/java/com/example/commons/security/firewall/` |
 | `commons` `security.oauth2` | `private_key_jwt` client authentication and JWKS publication, applied only when a client registration uses it | `PrivateKeyJwtAutoConfiguration`, `JwksProperties` (`commons.security.oauth2.jwks`), `GET /oauth2/jwks` | `commons/src/main/java/com/example/commons/security/oauth2/` |
 | `commons` `tomcat` | CIS Tomcat hardening of the embedded server, Tomcat-level Problem Details error reports, strict servlet compliance | `TomcatHardeningAutoConfiguration`, `TomcatApplicationContextInitializer`; `commons.web.tomcat.enabled` | `commons/src/main/java/com/example/commons/web/tomcat/` |
-| `commons` `logging` | Request correlation, ECS/trace field customization, request-boundary logging, MDC cleanup, application lifecycle events | `LoggingAutoConfiguration` (registers `RequestCorrelationContextFilter` and `LoggingContextCleanupFilter`, and adds `AuthenticatedUserLoggingContextFilter` and `RequestLoggingFilter` to every security filter chain), `TraceCorrelationJsonMembersCustomizer`, `ApplicationLifecycleEventLogger`; `commons.logging.enabled` | `commons/src/main/java/com/example/commons/logging/` |
+| `commons` `logging` | Request correlation, ECS/trace field customization, request-boundary logging, MDC cleanup, application lifecycle events | `LoggingAutoConfiguration` (registers `RequestCorrelationContextFilter` and `LoggingContextCleanupFilter`, and adds `AuthenticatedUserLoggingContextFilter` and `RequestLoggingFilter` to every security filter chain), `TraceCorrelationJsonMembersCustomizer`, `ApplicationLifecycleEventLogger`, `MdcTaskDecorator` (request MDC on async tasks); `commons.logging.enabled` | `commons/src/main/java/com/example/commons/logging/` |
 | `commons` `logging.client` / `logging.request` | Pluggable client-IP and upstream-request-ID resolution (safe no-op defaults; an application defines its own bean for its ingress) | `ClientIpResolver`, `RequestIdResolver` | `commons/src/main/java/com/example/commons/logging/client/`, `.../logging/request/` |
 | `commons` `problem` | RFC 9457 error handling for every endpoint, and the exceptions applications throw to produce it | `ProblemDetailsAutoConfiguration`, `ApiResponseEntityExceptionHandler`, `ProblemDetailErrorController`, `ProblemTypes`, `BadRequestException`, `ConflictException`, `ResourceNotFoundException`; `commons.web.problem-details.enabled` | `commons/src/main/java/com/example/commons/web/problem/` |
 | `commons` defaults | Configuration defaults ranked below every application configuration source | `CommonsDefaultsEnvironmentPostProcessor` | `commons/src/main/resources/META-INF/commons-defaults.yaml` |
 | `api` | Public, non-administrative REST endpoints: login-user claims, Keycloak account proxy | `GET /login-user`, `GET /account` | `app-web-api-server/src/main/java/com/example/app/web/server/api/` |
 | `api.admin` | Administration REST API for users, groups, and roles | `/admin/users/**`, `/admin/groups/**`, `/admin/roles/**` (each individually role-gated) | `app-web-api-server/src/main/java/com/example/app/web/server/api/admin/` |
-| `config` | Spring `@Configuration` classes: the application's authorization rules, async execution, REST client | `WebSecurityConfiguration`; otherwise wiring only | `app-web-api-server/src/main/java/com/example/app/web/server/config/` |
+| `config` | Spring `@Configuration` classes: the application's authorization rules, REST client | `WebSecurityConfiguration`; otherwise wiring only | `app-web-api-server/src/main/java/com/example/app/web/server/config/` |
 | `domain` | JPA entities (`AppUser`, `AppGroup`, `AppRole`) and Spring Data repositories | Repository interfaces consumed by `api.admin` and `security` | `app-web-api-server/src/main/java/com/example/app/web/server/domain/` |
 | `security` | Supplies local authorities from the user, group, and role model | `AppUserLocalAuthorityLookup` | `app-web-api-server/src/main/java/com/example/app/web/server/security/` |
 | `validation` | Reusable Bean Validation constraints for domain input | `@Username`, `@DisplayName`, `@ResourceName` | `app-web-api-server/src/main/java/com/example/app/web/server/validation/` |

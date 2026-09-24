@@ -67,6 +67,9 @@ scan picks up a commons class.
   Spring Security denies any request that matches no authorization rule once any
   rule is configured, and commons always configures one, an application's
   chain that omits its final `anyRequest().authenticated()` rule fails closed.
+  The reference application's `AnonymousAccessIntegrationTest`, which each new
+  backend copies with it, turns that failure and any accidentally public
+  controller path into a failing build.
 - Secure configuration values (TLS protocols and cipher suites, the session
   cookie and timeouts, the Actuator management port and exposure, the ECS log
   format, and trace correlation) are

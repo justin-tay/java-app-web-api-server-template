@@ -13,7 +13,7 @@
 | Authorization | Local user/group/role model, refreshed every request | Keeps authorization changes (disable a user, change a role) effective immediately without depending on identity-provider claim refresh or token lifetime ([ADR 0015](../adr/0015-per-request-local-authority-refresh.md)). |
 | Observability | Micrometer Tracing + OpenTelemetry bridge, ECS-structured JSON logs to stdout | Every log line is trace-correlated and machine-parseable without adopting a specific log backend up front ([ADR 0010](../adr/0010-ecs-structured-logging.md), [ADR 0011](../adr/0011-trace-correlated-structured-logging.md)). |
 | Error responses | RFC 9457 Problem Details (`ApiResponseEntityExceptionHandler`, `ProblemDetailErrorController`, `ProblemTypes`) | A single, standards-based error shape across validation, authentication, authorization, firewall rejection, and unhandled exceptions ([ADR 0013](../adr/0013-rfc-9457-problem-details.md)). |
-| Messaging | None | No message broker or asynchronous integration exists in the current scope; `AsyncConfiguration` covers in-process `@Async` only. |
+| Messaging | None | No message broker or asynchronous integration exists in the current scope; in-process `@Async` work runs on Spring Boot's task executor, with the commons `MdcTaskDecorator` carrying each request's logging context. |
 <!-- /arc42-generated -->
 
 ## Quality Goal Strategies

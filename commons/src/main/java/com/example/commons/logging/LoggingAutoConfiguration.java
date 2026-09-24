@@ -9,11 +9,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProp
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.autoconfigure.task.TaskExecutionAutoConfiguration;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.task.TaskDecorator;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
@@ -33,7 +35,7 @@ import com.example.commons.logging.request.RequestIdResolver;
  * correlation fields are configured separately, through the defaults that
  * {@code CommonsDefaultsEnvironmentPostProcessor} contributes.
  */
-@AutoConfiguration
+@AutoConfiguration(before = TaskExecutionAutoConfiguration.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnBooleanProperty(name = "commons.logging.enabled", matchIfMissing = true)
 public class LoggingAutoConfiguration {
@@ -79,6 +81,18 @@ public class LoggingAutoConfiguration {
 	@ConditionalOnMissingBean
 	RequestIdResolver requestIdResolver() {
 		return RequestIdResolver.none();
+	}
+
+	/**
+	 * Propagates the request's MDC to tasks run by Spring Boot's auto-configured task
+	 * executor, which applies a single {@link TaskDecorator} bean. Define a
+	 * {@code TaskDecorator} bean to replace it.
+	 * @return the MDC-propagating task decorator
+	 */
+	@Bean
+	@ConditionalOnMissingBean(TaskDecorator.class)
+	MdcTaskDecorator mdcTaskDecorator() {
+		return new MdcTaskDecorator();
 	}
 
 	@Bean

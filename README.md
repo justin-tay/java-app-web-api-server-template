@@ -18,7 +18,8 @@ To add another backend, copy `app-web-api-server` to a new `app-<name>` module w
 own `com.example.app.<name>` package, and add it to the root `pom.xml`. The new backend
 implements `LocalAuthorityLookup` to supply its local authorities, and its
 `SecurityFilterChain` holds only its own authorization rules, ending with
-`anyRequest().authenticated()`. Keep application packages outside `com.example.commons`
+`anyRequest().authenticated()`; keep its `AnonymousAccessIntegrationTest`, whose allow list
+is the one place a path is made public. Keep application packages outside `com.example.commons`
 so an application's component scan never picks up a `commons` class. Turn a
 `commons` group off by setting `commons.web.tomcat.enabled`,
 `commons.logging.enabled`, `commons.web.problem-details.enabled`, or

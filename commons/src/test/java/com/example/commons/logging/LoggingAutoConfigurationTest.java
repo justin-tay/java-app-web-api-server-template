@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.TaskDecorator;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -57,6 +58,18 @@ class LoggingAutoConfigurationTest {
 			assertThat(context.getBean(ClientIpResolver.class)).isSameAs(CustomResolverConfiguration.CLIENT_IP);
 			assertThat(context.getBean(RequestIdResolver.class)).isSameAs(CustomResolverConfiguration.REQUEST_ID);
 		});
+	}
+
+	@Test
+	void propagatesTheMdcToAsyncTasks() {
+		this.contextRunner.run(context -> assertThat(context).hasSingleBean(MdcTaskDecorator.class));
+	}
+
+	@Test
+	void keepsAnApplicationTaskDecorator() {
+		this.contextRunner.withBean("customTaskDecorator", TaskDecorator.class, () -> runnable -> runnable)
+			.run(context -> assertThat(context).hasSingleBean(TaskDecorator.class)
+				.doesNotHaveBean(MdcTaskDecorator.class));
 	}
 
 	@Test

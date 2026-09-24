@@ -44,7 +44,7 @@ flowchart LR
 | Interface | Protocol | Format | Notes |
 | --- | --- | --- | --- |
 | Browser to application | HTTPS (TLS 1.2/1.3 in production; plain HTTP in the `local` Maven profile) | HTML (default login page), JSON, `application/problem+json` on error | Session identified by an `id` cookie (`http-only`, `same-site=lax`, `secure` outside `local`). |
-| Application to database | JDBC | Relational (Liquibase-managed schema: `app_user`, `app_group`, `app_role`, join tables, Spring Session tables) | Concrete database product is a [deployment decision required](../CONTEXT.md); `com.h2database:h2` is used for local development and tests only. |
+| Application to database | JDBC | Relational (Liquibase-managed schema: `app_user`, `app_group`, `app_role`, join tables, Spring Session tables) | Concrete database product is a [deployment decision required](../../CONTEXT.md); `com.h2database:h2` is used for local development and tests only. |
 | Application to Keycloak | HTTPS, OpenID Connect (authorization code grant, `private_key_jwt` client auth, back-channel logout) | JWT (ID token), JSON (userinfo, JWKS) | `spring.security.oauth2.client.provider.keycloak.issuer-uri` is `http://localhost:8080/realms/test` for local development; production issuer is a deployment decision required. |
 | Application to Keycloak account API | HTTPS, bearer token via `RestClient` | JSON | Proxied through `GET /account` (`AccountController`), using the same OAuth2-authorized client as login. |
 | Load balancer / monitoring to application | HTTP | Plain text/JSON (Actuator health) | Separate management port (`8082`), base path `/app` (not the `/actuator` default), unauthenticated only for `/app/health`; see [ADR 0014](../adr/0014-actuator-management-port.md). |
