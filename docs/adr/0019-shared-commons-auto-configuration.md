@@ -33,9 +33,21 @@ version, and lists the modules:
   package `com.example.commons`, with one subpackage and property prefix per
   concern: `commons.logging`, `commons.security`, and `commons.web` (for the
   servlet container and Spring MVC: `commons.web.tomcat`, `commons.web.problem`).
+- `commons-accounts` is optional local user, group, and role management in
+  package `com.example.commons.accounts` with `commons.accounts.*` properties:
+  the JPA model, its schema changelog, a `LocalAuthorityLookup` backed by it,
+  and the administration API. Like `commons`, it ships schema but no data: each
+  application seeds its own roles and groups, including the `USER_MANAGE`,
+  `GROUP_MANAGE`, and `ROLE_MANAGE` roles the administration API requires by
+  name. It is a separate module because it brings JPA
+  and tables that a backend reading another backend's user store must not get
+  automatically. Its entities and repositories are registered with
+  `@AutoConfigurationPackage`, which adds the package to the application's own
+  scanning, rather than `@EntityScan`, which would replace it.
 - `app-web-api-server` is the reference application, in package
   `com.example.app.web.server`. Each further backend is another `app-<name>`
-  module in package `com.example.app.<name>` that depends on `commons`.
+  module in package `com.example.app.<name>` that depends on `commons`, and
+  on `commons-accounts` when it uses that user, group, and role model.
 
 Shared (`com.example.commons.*`) and application (`com.example.app.*`)
 packages are siblings, never parent and child, so no application's component
@@ -49,7 +61,9 @@ scan picks up a commons class.
   `commons.web.problem-details.enabled` (`ProblemDetailsAutoConfiguration`), and
   `commons.security.enabled` (`WebSecurityAutoConfiguration`, plus
   `PrivateKeyJwtAutoConfiguration`, which applies only when a client registration
-  uses `private_key_jwt`).
+  uses `private_key_jwt`). `commons-accounts` adds `commons.accounts.enabled`
+  (`AccountsAutoConfiguration`) and `commons.accounts.admin.enabled` for the
+  administration API alone.
 - A replaceable strategy, such as `ClientIpResolver`, `RequestIdResolver`, the
   web server factory, the `ErrorController`, or the
   `ResponseEntityExceptionHandler`, is `@ConditionalOnMissingBean`, so an

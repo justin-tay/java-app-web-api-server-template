@@ -17,6 +17,7 @@
 	<description>Spring Boot web API servers sharing the commons security baseline</description>
 	<modules>
 		<module>commons</module>
+		<module>commons-accounts</module>
 		<module>app-web-api-server</module>
 	</modules>
 	<properties>
@@ -32,6 +33,11 @@
 			<dependency>
 				<groupId>com.example</groupId>
 				<artifactId>commons</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.example</groupId>
+				<artifactId>commons-accounts</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 		</dependencies>

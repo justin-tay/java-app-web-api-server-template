@@ -3,8 +3,8 @@
 
 The template's only business domain is local user administration: users,
 groups, and roles used for authorization, layered on top of Keycloak-issued
-authentication. Everything under `com.example.app.web.server.domain` and
-`com.example.app.web.server.api.admin` exists to let an operator manage that
+authentication. Everything under `com.example.commons.accounts.domain` and
+`com.example.commons.accounts.admin` exists to let an operator manage that
 model through a REST API; there is no further product domain to model until
 an adopter builds one.
 
@@ -28,7 +28,7 @@ on every request to resolve `ROLE_` authorities.
 ## API model and DTO conventions
 
 Request and response shapes live in one file per resource area,
-[`AdminDtos`](../../../../app-web-api-server/src/main/java/com/example/app/web/server/api/admin/AdminDtos.java),
+[`AdminDtos`](../../../../commons-accounts/src/main/java/com/example/commons/accounts/admin/AdminDtos.java),
 as a namespace of `record` types rather than individual top-level classes.
 The conventions this template follows:
 
@@ -79,7 +79,7 @@ The three are structurally identical today; they are kept as distinct
 annotations, each with its own message key
 (`{validation.username}`, `{validation.display-name}`,
 `{validation.resource-name}` in
-[`ValidationMessages.properties`](../../../../app-web-api-server/src/main/resources/ValidationMessages.properties)),
+[`ValidationMessages.properties`](../../../../commons-accounts/src/main/resources/ValidationMessages.properties)),
 so a username rule and a resource name rule can diverge later without a
 call-site change.
 

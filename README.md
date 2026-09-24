@@ -12,19 +12,24 @@ The repository is a Maven multi-module build
 | Module | Purpose |
 | --- | --- |
 | `commons` | Shared, secure-by-default Spring Boot auto-configuration: the Spring Security baseline (OIDC login with local authorities, JDBC sessions, security headers, audit logging, `private_key_jwt`), CIS Tomcat hardening, request correlation and logging, RFC 9457 Problem Details, and configuration defaults for TLS, session cookies, Actuator, and ECS logging. It applies itself when it is on the classpath. |
-| `app-web-api-server` | The reference API backend, built on `commons`. |
+| `commons-accounts` | Optional local user, group, and role management built on `commons`: the JPA model and its schema changelog, the `LocalAuthorityLookup` implementation, and the `/admin/*` administration API. It ships no data: the application seeds its roles and groups, including the `USER_MANAGE`, `GROUP_MANAGE`, and `ROLE_MANAGE` roles the administration API requires. Switch it off with `commons.accounts.enabled`, or keep the model without the API with `commons.accounts.admin.enabled=false`. |
+| `app-web-api-server` | The reference API backend, built on `commons` and `commons-accounts`. |
 
 To add another backend, copy `app-web-api-server` to a new `app-<name>` module with its
-own `com.example.app.<name>` package, and add it to the root `pom.xml`. The new backend
-implements `LocalAuthorityLookup` to supply its local authorities, and its
+own `com.example.app.<name>` package, and add it to the root `pom.xml`. Its
 `SecurityFilterChain` holds only its own authorization rules, ending with
 `anyRequest().authenticated()`; keep its `AnonymousAccessIntegrationTest`, whose allow list
-is the one place a path is made public. Keep application packages outside `com.example.commons`
-so an application's component scan never picks up a `commons` class. Turn a
-`commons` group off by setting `commons.web.tomcat.enabled`,
-`commons.logging.enabled`, `commons.web.problem-details.enabled`, or
-`commons.security.enabled` to `false`, and override any default by setting the same
-key in the application's own configuration.
+is the one place a path is made public. It gets its local authorities from
+`commons-accounts`, and seeds its own roles and groups in its own changelog. A backend
+that reads a user store another backend owns instead either keeps `commons-accounts` with
+`commons.accounts.admin.enabled=false` or implements `LocalAuthorityLookup` itself, and in
+both cases leaves the accounts schema and seed out of its master changelog. Keep
+application packages outside `com.example.commons` so an application's component scan
+never picks up a commons class. Turn a commons group off by setting
+`commons.web.tomcat.enabled`, `commons.logging.enabled`,
+`commons.web.problem-details.enabled`, `commons.security.enabled`, or
+`commons.accounts.enabled` to `false`, and override any default by setting the same key in
+the application's own configuration.
 
 ## Quick Start
 

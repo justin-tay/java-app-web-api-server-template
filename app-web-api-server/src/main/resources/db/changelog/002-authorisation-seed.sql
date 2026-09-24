@@ -6,6 +6,10 @@
 -- 004-development-seed.sql for the development and test users, and the "Bootstrapping
 -- the first administrator" section of
 -- docs/system-design/08-crosscutting-concepts/02-security-and-authentication/authorization.md.
+--
+-- The commons-accounts schema (001) ships no data, so each application seeds its own.
+-- The commons-accounts administration API requires USER_MANAGE, GROUP_MANAGE, and
+-- ROLE_MANAGE by name; APPLICATION_USER is this application's own role.
 
 --changeset app:002-authorisation-seed
 INSERT INTO app_role (id, name, created_at, updated_at) VALUES ('00000000-0000-0000-0000-000000000001', 'USER_MANAGE', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00');

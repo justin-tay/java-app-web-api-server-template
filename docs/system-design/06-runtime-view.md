@@ -44,7 +44,7 @@ sequenceDiagram
    authentication (`RestClientAuthorizationCodeTokenResponseClient` with
    `NimbusJwtClientAuthenticationParametersConverter`), not a client secret.
 4. `LocalAuthoritiesOidcUserService` resolves the user's local authorities
-   through the application's `LocalAuthorityLookup` (here
+   through the application's `LocalAuthorityLookup` (here commons-accounts'
    `AppUserLocalAuthorityLookup`, reading `app_user`/`app_group`/`app_role`) by
    matching Keycloak's
    `preferred_username` claim, per
@@ -93,8 +93,8 @@ sequenceDiagram
 
 1. `LocalAuthorityRefreshFilter` runs after `RequestLoggingFilter` on every
    authenticated request and reloads the user's current authorities through
-   the application's `LocalAuthorityLookup` (`AppUserLocalAuthorityLookup`,
-   backed by `AppUserRepository`).
+   the application's `LocalAuthorityLookup` (commons-accounts'
+   `AppUserLocalAuthorityLookup`, backed by `AppUserRepository`).
 2. If the user has been disabled or deleted, `SessionRevocationService`
    terminates the session immediately and the event is audited, rather
    than letting a stale session remain valid until its own timeout.

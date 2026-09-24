@@ -45,12 +45,13 @@ review", "recommendation matrix"
 
 **Commons module**:
 A shared Maven module that backends in the repository depend on: `commons`,
-which every backend depends on, and optional ones named `commons-<concern>` (the
-planned `commons-accounts`). It applies its behavior through Spring Boot
+which every backend depends on, and optional ones named `commons-<concern>`, such as
+`commons-accounts`. It applies its behavior through Spring Boot
 auto-configuration when it is on the classpath and is secure by default. Its
 code lives under `com.example.commons`, with one subpackage and matching
 property prefix per concern, such as `com.example.commons.security` and
-`commons.security.*`. See
+`commons.security.*`. A commons module ships code and schema but no data;
+the application seeds its own roles, groups, and other reference data. See
 [ADR 0019](docs/adr/0019-shared-commons-auto-configuration.md).
 _Avoid_: "library" or "starter" (nothing is published), "core", "common",
 "shared module" as a proper name
