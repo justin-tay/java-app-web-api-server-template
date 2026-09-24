@@ -28,7 +28,7 @@ on every request to resolve `ROLE_` authorities.
 ## API model and DTO conventions
 
 Request and response shapes live in one file per resource area,
-[`AdminDtos`](../../../../src/main/java/com/example/app/web/server/api/admin/AdminDtos.java),
+[`AdminDtos`](../../../../app-web-api-server/src/main/java/com/example/app/web/server/api/admin/AdminDtos.java),
 as a namespace of `record` types rather than individual top-level classes.
 The conventions this template follows:
 
@@ -79,7 +79,7 @@ The three are structurally identical today; they are kept as distinct
 annotations, each with its own message key
 (`{validation.username}`, `{validation.display-name}`,
 `{validation.resource-name}` in
-[`ValidationMessages.properties`](../../../../src/main/resources/ValidationMessages.properties)),
+[`ValidationMessages.properties`](../../../../app-web-api-server/src/main/resources/ValidationMessages.properties)),
 so a username rule and a resource name rule can diverge later without a
 call-site change.
 

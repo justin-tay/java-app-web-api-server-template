@@ -1,0 +1,6 @@
+org.springframework.boot.EnvironmentPostProcessor=\
+com.example.commons.CommonsDefaultsEnvironmentPostProcessor
+org.springframework.context.ApplicationContextInitializer=\
+com.example.commons.web.tomcat.TomcatApplicationContextInitializer
+org.springframework.context.ApplicationListener=\
+com.example.commons.logging.ApplicationLifecycleEventLogger

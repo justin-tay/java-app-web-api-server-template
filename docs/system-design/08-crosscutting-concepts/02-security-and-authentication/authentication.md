@@ -54,22 +54,22 @@ signing key is available to Keycloak at `/oauth2/jwks`.
 
 ## Application JWKS and key handling
 
-The development JWKS at `src/test/resources/jwks.json` contains private key
+The development JWKS at `app-web-api-server/src/test/resources/jwks.json` contains private key
 material. It is a fixture for local development and tests only, and the build
 does not package it: the `test` profile loads it from the test classpath, and
 the `local` profile and `bin/start-api-server-tls.sh` load it from that path on
 disk.
 
-`app.jwks` has no default. For a real deployment, provide a private JWKS
+`commons.security.oauth2.jwks` has no default. For a real deployment, provide a private JWKS
 through a protected resource (for example `file:/run/secrets/jwks.json`), set
-`app.jwks` to that resource location, and rotate signing and encryption keys in
-coordination with Keycloak. When `app.jwks` is unset, `ApplicationProperties`
+`commons.security.oauth2.jwks` to that resource location, and rotate signing and encryption keys in
+coordination with Keycloak. When `commons.security.oauth2.jwks` is unset, `JwksProperties`
 validation fails startup with a message naming the property; when it is set
 but unreadable, the `jwks` bean fails startup naming the location. Do not place
 private JWKs in source control, container images, or a public JWKS endpoint
 ([ADR 0018](../../../adr/0018-development-fixtures-kept-out-of-production.md)).
 
-`WebSecurityConfiguration` loads the configured JWKS into a `JWKSet`.
+`PrivateKeyJwtAutoConfiguration` loads the configured JWKS into a `JWKSet`.
 `JwksController` publishes only public key components at `/oauth2/jwks`;
 `JWKSet.toString()` does not include private key material.
 
@@ -143,7 +143,7 @@ survives. Deleting through the repository also avoids the application having
 to call itself at the URL Keycloak used.
 
 **Single instance only.** The `OidcSessionRegistry` is Spring Security's
-`InMemoryOidcSessionRegistry` (`WebSecurityConfiguration.oidcSessionRegistry()`),
+`InMemoryOidcSessionRegistry` (`WebSecurityAutoConfiguration.oidcSessionRegistry()`),
 held in memory on the instance that handled the login. A notification ends a
 session only if it reaches that instance. Sticky routing does not help: Keycloak
 sends the notification server-to-server with no session cookie, so a load
@@ -198,7 +198,7 @@ since they carry no separate testable claim.
 | **User IDs**<br>Generate user IDs randomly so they are neither predictable nor sequential. | Partial | The local `AppUser` record (the application's own authorization identity) has a randomly generated UUID primary key that never changes and is never reused, per `AbstractAuditableEntity`. The upstream Keycloak identity's own internal ID is entirely Keycloak's responsibility.<br><br>**Application code:** `AbstractAuditableEntity`, `AppUser`. |
 | **Usernames**<br>Let users log in with a verified email address or a username of their own choosing. | Delegated to identity provider | The application resolves the OIDC `preferred_username` claim to the immutable local `username` field (validated by the `@Username` constraint on `AppUser`/`UserCreateRequest`) as a lookup key; it does not accept, register, or validate a username as a login credential itself, so the cheat sheet's case-sensitivity/format guidance for a login form does not apply. See [Authorization](authorization.md). |
 | **Authentication Solution and Sensitive Accounts**<br>Keep sensitive internal accounts off front-end logins, and do not reuse the internal authentication solution for public access. | Deployment decision required | The application does not distinguish an internal/service-account population from browser users. Ensure the Keycloak realm and client used by end users are not also used to authenticate backend, database, or administrative accounts. |
-| **Implement Proper Password Strength Controls**<br>Enforce sensible minimum and maximum password lengths, allow all characters, and block known-breached passwords. | Delegated to identity provider | The application never receives, renders, or validates a password field; Keycloak's realm password policy owns strength rules. `WebSecurityConfiguration` defines no credential input of its own. |
+| **Implement Proper Password Strength Controls**<br>Enforce sensible minimum and maximum password lengths, allow all characters, and block known-breached passwords. | Delegated to identity provider | The application never receives, renders, or validates a password field; Keycloak's realm password policy owns strength rules. Neither `WebSecurityAutoConfiguration` nor `WebSecurityConfiguration` defines a credential input of its own. |
 | **Implement Secure Password Recovery Mechanism**<br>Provide a secure password recovery flow, following the Forgot Password Cheat Sheet. | Delegated to identity provider | Password reset is a Keycloak realm flow (`bin/configure-keycloak.js` provisions no custom recovery flow); the application exposes no forgot-password endpoint. |
 | **Store Passwords in a Secure Fashion**<br>Store passwords using a strong password-hashing technique, following the Password Storage Cheat Sheet. | Delegated to identity provider | The application has no password column, hash, or credential store of any kind; `AppUser` carries only `username`, `displayName`, and `email`. Keycloak owns hashing and storage. |
 | **Compare Password Hashes Using Safe Functions**<br>Compare password hashes with a vetted, constant-time library function rather than hand-written comparison. | Delegated to identity provider | Password comparison never occurs in application code; there is no such code path to review. |
@@ -229,7 +229,7 @@ since they carry no separate testable claim.
 | Recommendation | Status | Implementation Statement |
 | --- | --- | --- |
 | **OAuth 2.0 and 2.1**<br>Use OAuth only as an authorization framework for delegated API access, following the OAuth 2.0 Cheat Sheet. | Not applicable | The application uses OpenID Connect, not bare OAuth 2.0/2.1, for authentication; see OpenID Connect (OIDC) below. |
-| **OpenID Connect (OIDC)**<br>Use OIDC for authentication through a well-maintained library, validating the ID token's issuer, audience, signature, and expiry. | Implemented | The application delegates authentication to Keycloak through Spring Security's OAuth2 Login/OIDC client (`spring.security.oauth2.client`, `oauth2Login()`) rather than a custom credential scheme, using well-maintained libraries (`spring-boot-starter-oauth2-client`, Nimbus JOSE+JWT) and provider discovery/JWKS rather than embedded cryptography. ID tokens are validated for issuer, audience, signature, and expiration; see [ID-token and access-token validation](#id-token-and-access-token-validation) above. Confirm a tampered, expired, or wrong-audience ID token is rejected.<br><br>**Application code:** `jwtDecoderFactory()`, `oidcIdTokenValidator()`; **Test code:** `WebSecurityConfigurationTest.oidcIdTokenValidatorRejectsUnexpectedIssuerAudienceAndAuthorizedParty()`. See [ADR 0007](../../../adr/0007-tls-and-oauth-client-key-management.md). |
+| **OpenID Connect (OIDC)**<br>Use OIDC for authentication through a well-maintained library, validating the ID token's issuer, audience, signature, and expiry. | Implemented | The application delegates authentication to Keycloak through Spring Security's OAuth2 Login/OIDC client (`spring.security.oauth2.client`, `oauth2Login()`) rather than a custom credential scheme, using well-maintained libraries (`spring-boot-starter-oauth2-client`, Nimbus JOSE+JWT) and provider discovery/JWKS rather than embedded cryptography. ID tokens are validated for issuer, audience, signature, and expiration; see [ID-token and access-token validation](#id-token-and-access-token-validation) above. Confirm a tampered, expired, or wrong-audience ID token is rejected.<br><br>**Application code:** `jwtDecoderFactory()`, `oidcIdTokenValidator()`; **Test code:** `WebSecurityAutoConfigurationTest.oidcIdTokenValidatorRejectsUnexpectedIssuerAudienceAndAuthorizedParty()`. See [ADR 0007](../../../adr/0007-tls-and-oauth-client-key-management.md). |
 | **SAML**<br>Consider SAML 2.0, the XML-based federation protocol common in enterprise single sign-on, as a password-free option. | Not applicable | The template uses OIDC exclusively. |
 | **FIDO**<br>Consider FIDO public-key authentication, the basis of FIDO2/WebAuthn passkeys, for passwordless or second-factor login. | Not implemented | FIDO2/WebAuthn passkeys are not configured in the supplied Keycloak realm. |
 

@@ -28,6 +28,14 @@ The CIS Apache Tomcat 11 Benchmark v1.1.0 contains 59 recommendations in section
 through 9. Use the benchmark that matches the deployed Tomcat major version and an
 image/runtime scan for the actual deployed version.
 
+The template's Tomcat controls live in the shared commons module, not in an
+application: `TomcatHardeningAutoConfiguration` and `TomcatApplicationContextInitializer`
+apply the connector, context, and server settings, and `commons-defaults.yaml` supplies
+the TLS and Actuator settings. Every `app-*` module that depends on commons therefore
+inherits the Implemented rows below. An application that sets
+`commons.web.tomcat.enabled=false`, supplies its own `ServletWebServerFactory`, or overrides
+one of those defaults must reassess the rows it affects.
+
 ## 1. Remove extraneous resources
 
 | CIS ID | CIS intent | Status | Implementation Statement |
@@ -42,9 +50,9 @@ image/runtime scan for the actual deployed version.
 | 2.1 | Alter advertised `server.info` string | Not applicable | The client-facing risks are Tomcat's default HTML error-page footer and `X-Powered-By`, which incorporates this metadata when enabled. The template disables `X-Powered-By` (2.4) and replaces Tomcat's error page with a generic Problem Details response (2.5), so the metadata is not exposed. Embedded Tomcat packages `ServerInfo.properties` in its dependency JAR; do not edit it or other dependency-JAR contents, because this breaks artifact integrity, reproducible builds, checksums/SBOM provenance, and will be undone when dependencies are patched. |
 | 2.2 | Alter advertised `server.number` string | Not applicable | See 2.1. |
 | 2.3 | Alter advertised `server.built` date | Not applicable | See 2.1. |
-| 2.4 | Disable `X-Powered-By` and replace connector server value | Implemented | `TomcatConfiguration` explicitly disables `X-Powered-By`, leaves the connector `server` value unset so Tomcat emits no `Server` header, and sets `serverRemoveAppProvidedValues=true` to remove any `Server` header added by application code. `TomcatConfigurationTest.doesNotDiscloseTomcatOrApplicationServerInformation()` verifies the effective connector configuration. |
-| 2.5 | Disable client-facing stack traces | Implemented | `TomcatConfiguration` installs `TomcatProblemDetailErrorReportValve` for Tomcat-level errors, `ApiResponseEntityExceptionHandler` returns generic RFC 9457 responses for MVC errors, and `ProblemDetailErrorController` does the same for any dispatch that bypasses both. None of the three ever return a stack trace, query, or secret to the client; see ASVS V16.5.1. Do not replace these with debug error pages in production. |
-| 2.6 | Turn off TRACE | Implemented | `TomcatConfiguration` explicitly sets `Connector.allowTrace=false`, so Tomcat rejects TRACE requests before they reach the application. `TomcatConfigurationTest.rejectsTraceRequests()` verifies the effective connector configuration. |
+| 2.4 | Disable `X-Powered-By` and replace connector server value | Implemented | `TomcatHardeningAutoConfiguration` explicitly disables `X-Powered-By`, leaves the connector `server` value unset so Tomcat emits no `Server` header, and sets `serverRemoveAppProvidedValues=true` to remove any `Server` header added by application code. `TomcatHardeningIntegrationTest.doesNotDiscloseTomcatOrApplicationServerInformation()` verifies the effective connector configuration. |
+| 2.5 | Disable client-facing stack traces | Implemented | `TomcatHardeningAutoConfiguration` installs `TomcatProblemDetailErrorReportValve` for Tomcat-level errors, `ApiResponseEntityExceptionHandler` returns generic RFC 9457 responses for MVC errors, and `ProblemDetailErrorController` does the same for any dispatch that bypasses both. None of the three ever return a stack trace, query, or secret to the client; see ASVS V16.5.1. Do not replace these with debug error pages in production. |
+| 2.6 | Turn off TRACE | Implemented | `TomcatHardeningAutoConfiguration` explicitly sets `Connector.allowTrace=false`, so Tomcat rejects TRACE requests before they reach the application. `TomcatHardeningIntegrationTest.rejectsTraceRequests()` verifies the effective connector configuration. |
 | 2.7 | Remove the Server header to prevent information disclosure | Implemented | The template takes the stricter approach of emitting no Tomcat `Server` header rather than substituting a generic value; the connector configuration and its regression test are documented in 2.4. |
 
 ## 3. Protect the shutdown port
@@ -58,7 +66,8 @@ image/runtime scan for the actual deployed version.
 
 Neither of the two Tomcat shutdown-port controls above covers this, because it is a
 Spring Boot-level HTTP surface, not a raw TCP listener: Spring Boot Actuator is added
-with its own embedded server on a separate port (`management.server.port: 8082`),
+with its own embedded server on a separate port (`management.server.port: 8082`, set in
+`commons-defaults.yaml`),
 distinct from the application port (`8081`). It exists to give an ALB or equivalent
 load balancer an HTTP health check without exposing the rest of the application.
 
@@ -68,7 +77,7 @@ request returns only `{"status":"UP"}`. Endpoints are served under `/app` rather
 the default `/actuator` base path, so an unauthenticated scan does not immediately
 fingerprint the framework; this is obscurity, not a control, and does not reduce the
 network-restriction requirement below. `/app/health` is the only actuator path
-permitted by `WebSecurityConfiguration`; the port stays plaintext HTTP because
+permitted by `WebSecurityAutoConfiguration`; the port stays plaintext HTTP because
 network restriction, not TLS, is its security boundary.
 
 This is a deployment decision, not a template guarantee: the management port must
@@ -94,7 +103,7 @@ filter chain with the application while running as a separate embedded server.
 | 4.8 | Restrict access to `catalina.properties` | Not applicable | The template has no standalone `catalina.properties`. Treat external Spring configuration and JVM options as protected deployment configuration. |
 | 4.9 | Restrict access to `context.xml` | Not applicable | The template configures embedded Tomcat in Java and Spring properties, not a standalone `context.xml`. Protect the source repository and runtime configuration. |
 | 4.10 | Restrict access to `logging.properties` | Not applicable | Logging is configured by Spring Boot, not Tomcat JULI `logging.properties`. Protect logging configuration and the log pipeline. |
-| 4.11 | Restrict access to `server.xml` | Not applicable | There is no standalone `server.xml`; connector configuration is via Spring Boot properties and `TomcatConfiguration`. |
+| 4.11 | Restrict access to `server.xml` | Not applicable | There is no standalone `server.xml`; connector configuration is via Spring Boot properties and `TomcatHardeningAutoConfiguration`. |
 | 4.12 | Restrict access to `tomcat-users.xml` | Not applicable | The template has no Tomcat users database or Manager application. Authentication uses OIDC. |
 | 4.13 | Restrict access to `web.xml` | Not applicable | The application is Spring Boot Java configuration; it does not supply a standalone global `web.xml`. |
 | 4.14 | Restrict access to `jaspic-providers.xml` | Not applicable | JASPIC provider configuration is not used. Do not add unreviewed container authentication providers. |
@@ -103,7 +112,7 @@ filter chain with the application while running as a separate embedded server.
 
 | CIS ID | CIS intent | Status | Implementation Statement |
 | --- | --- | --- | --- |
-| 5.1 | Use secure Realms | Not applicable | The application does not use Tomcat Realms. `WebSecurityConfiguration` uses OAuth 2.0/OIDC with Keycloak; secure the identity-provider configuration and issuer/JWKS trust. |
+| 5.1 | Use secure Realms | Not applicable | The application does not use Tomcat Realms. `WebSecurityAutoConfiguration` uses OAuth 2.0/OIDC with Keycloak; secure the identity-provider configuration and issuer/JWKS trust. |
 | 5.2 | Use LockOut Realms | Not applicable | Account lockout is an identity-provider policy, not a Tomcat Realm. Configure brute-force protection, MFA, and recovery policy in the production identity provider. |
 
 ## 6. Connector security
@@ -114,7 +123,7 @@ filter chain with the application while running as a separate embedded server.
 | 6.2 | Enable SSL for sensitive connectors | Implemented | The default profile enables `server.ssl` and supplies its PEM bundle through `CERTIFICATE_PEM` and `PRIVATE_KEY_PEM`; `local` and `test` deliberately disable TLS. Production must provide valid key material and never activate those development profiles. |
 | 6.3 | Set connector scheme accurately | Implemented | Spring Boot configures the direct TLS connector with the correct scheme. If TLS terminates at a proxy instead, configure and restrict forwarded-header handling so redirects, cookies, and OIDC callback URLs see the correct external scheme. |
 | 6.4 | Set `secure` only for SSL-enabled connectors | Implemented | Spring Boot manages `secure` correctly for the direct TLS connector. Review the proxy/Tomcat topology whenever TLS termination changes. |
-| 6.5 | Configure secure connector TLS protocol | Implemented | `application.yaml` permits only TLS 1.2 and TLS 1.3 and lists explicit AEAD cipher suites. Reassess cipher policy when the JDK, embedded Tomcat, or organizational TLS baseline changes. |
+| 6.5 | Configure secure connector TLS protocol | Implemented | The commons defaults (`commons-defaults.yaml`) permit only TLS 1.2 and TLS 1.3 and list explicit AEAD cipher suites. Reassess cipher policy when the JDK, embedded Tomcat, or organizational TLS baseline changes. |
 
 ## 7. Establish and protect logging facilities
 
@@ -143,17 +152,17 @@ filter chain with the application while running as a separate embedded server.
 | 9.3 | Restrict the Manager application | Not applicable | No Manager application or `manager-*` roles exist. |
 | 9.4 | Force SSL for the Manager application | Not applicable | No Manager application exists. Ensure administration consoles elsewhere use strong authentication, network restriction, and TLS. |
 | 9.5 | Rename the Manager application | Not applicable | No Manager application is present. Do not regard path renaming as an access-control substitute for other administrative interfaces. |
-| 9.6 | Enable strict servlet compliance | Implemented | The `spring.factories`-registered `TomcatApplicationContextInitializer` sets `org.apache.catalina.STRICT_SERVLET_COMPLIANCE=true` before Spring creates embedded Tomcat; `TomcatConfigurationTest.enablesStrictServletComplianceBeforeEmbeddedTomcatStarts()` guards the setting in the live-server context. Retain integration coverage for redirects, sessions, filters, and added servlet libraries. |
-| 9.7 | Turn off session facade recycling | Implemented | `TomcatConfiguration` explicitly sets the embedded connector's `discardFacades=true`, so Tomcat discards request/response facade objects after every request; `TomcatConfigurationTest.discardsRequestAndResponseFacadesAfterEachRequest()` guards it. The template also declares `spring-session-jdbc`, so Spring Boot replaces servlet `HttpSession` with JDBC-backed Spring Session. Session persistence and Tomcat facade lifecycle are separate controls. |
-| 9.8 | Disallow additional path delimiters | Implemented | The CIS audit names legacy JVM flags `CoyoteAdapter.ALLOW_BACKSLASH=false` and `UDecoder.ALLOW_ENCODED_SLASH=false`. Tomcat 11 replaces the latter mechanism with connector settings, so `TomcatConfiguration` explicitly sets `allowBackslash=false`, `encodedSolidusHandling=reject`, and `encodedReverseSolidusHandling=reject`; `TomcatConfigurationTest.rejectsAdditionalPathDelimiters()` guards the effective connector values. Test the deployed proxy and application together after upgrades because an edge can normalize paths before Tomcat receives them. |
+| 9.6 | Enable strict servlet compliance | Implemented | The commons `spring.factories`-registered `TomcatApplicationContextInitializer` sets `org.apache.catalina.STRICT_SERVLET_COMPLIANCE=true` before Spring creates embedded Tomcat; `TomcatHardeningIntegrationTest.enablesStrictServletComplianceBeforeEmbeddedTomcatStarts()` guards the setting in the live-server context. Retain integration coverage for redirects, sessions, filters, and added servlet libraries. |
+| 9.7 | Turn off session facade recycling | Implemented | `TomcatHardeningAutoConfiguration` explicitly sets the embedded connector's `discardFacades=true`, so Tomcat discards request/response facade objects after every request; `TomcatHardeningIntegrationTest.discardsRequestAndResponseFacadesAfterEachRequest()` guards it. The template also declares `spring-session-jdbc`, so Spring Boot replaces servlet `HttpSession` with JDBC-backed Spring Session. Session persistence and Tomcat facade lifecycle are separate controls. |
+| 9.8 | Disallow additional path delimiters | Implemented | The CIS audit names legacy JVM flags `CoyoteAdapter.ALLOW_BACKSLASH=false` and `UDecoder.ALLOW_ENCODED_SLASH=false`. Tomcat 11 replaces the latter mechanism with connector settings, so `TomcatHardeningAutoConfiguration` explicitly sets `allowBackslash=false`, `encodedSolidusHandling=reject`, and `encodedReverseSolidusHandling=reject`; `TomcatHardeningIntegrationTest.rejectsAdditionalPathDelimiters()` guards the effective connector values. Test the deployed proxy and application together after upgrades because an edge can normalize paths before Tomcat receives them. |
 | 9.9 | Configure connection timeout | Deployment decision required | No `server.tomcat.connection-timeout` is set. Choose a timeout based on request-body size, slow-client protection, load balancer timeouts, and expected API behavior. |
 | 9.10 | Configure maximum HTTP header size | Deployment decision required | No maximum request-header size is configured. Set a bounded `server.max-http-request-header-size` and align proxy/ingress limits with expected OIDC cookies and headers. |
 | 9.11 | Force SSL for all applications | Implemented | The default profile enables TLS and marks the session cookie secure. Production deployment must also enforce HTTPS at the public edge, redirect/reject HTTP, and use trusted forwarded-header configuration if TLS terminates upstream. |
-| 9.12 | Disallow symbolic linking | Implemented | `TomcatConfiguration` explicitly sets the web application resources' `allowLinking=false`; `TomcatConfigurationTest.disallowsSymbolicLinksInWebApplicationResources()` verifies the live context. Do not mount application resources through unsafe symbolic links, and review any future custom `WebResourceSet`, which can override the root setting. |
-| 9.13 | Do not run applications as privileged | Implemented | `TomcatConfiguration` explicitly sets `Context.privileged=false`; `TomcatConfigurationTest.doesNotRunTheWebApplicationAsPrivileged()` verifies the live context. Do not add `privileged=true` contexts or Manager libraries. |
-| 9.14 | Disallow cross-context requests | Implemented | `TomcatConfiguration` explicitly sets `Context.crossContext=false`; `TomcatConfigurationTest.disallowsCrossContextRequests()` verifies the live context. Reassess this setting if multiple web applications are ever hosted in one JVM. |
+| 9.12 | Disallow symbolic linking | Implemented | `TomcatHardeningAutoConfiguration` explicitly sets the web application resources' `allowLinking=false`; `TomcatHardeningIntegrationTest.disallowsSymbolicLinksInWebApplicationResources()` verifies the live context. Do not mount application resources through unsafe symbolic links, and review any future custom `WebResourceSet`, which can override the root setting. |
+| 9.13 | Do not run applications as privileged | Implemented | `TomcatHardeningAutoConfiguration` explicitly sets `Context.privileged=false`; `TomcatHardeningIntegrationTest.doesNotRunTheWebApplicationAsPrivileged()` verifies the live context. Do not add `privileged=true` contexts or Manager libraries. |
+| 9.14 | Disallow cross-context requests | Implemented | `TomcatHardeningAutoConfiguration` explicitly sets `Context.crossContext=false`; `TomcatHardeningIntegrationTest.disallowsCrossContextRequests()` verifies the live context. Reassess this setting if multiple web applications are ever hosted in one JVM. |
 | 9.15 | Do not resolve hosts in logging valves | Not applicable | No Tomcat logging valve is configured. `RequestLoggingFilter` records the direct peer only for CSRF failures; configure proxy/IP handling deliberately rather than reverse DNS lookups. |
-| 9.16 | Enable the memory-leak listener | Implemented | `TomcatConfiguration` adds `JreMemoryLeakPreventionListener` to the embedded Tomcat `Server` before initialization; `TomcatConfigurationTest.enablesJreMemoryLeakPrevention()` verifies its registration. The listener initializes JRE singletons with Tomcat's common class loader to reduce class-loader leaks during web application reloads. |
+| 9.16 | Enable the memory-leak listener | Implemented | `TomcatHardeningAutoConfiguration` adds `JreMemoryLeakPreventionListener` to the embedded Tomcat `Server` before initialization; `TomcatHardeningIntegrationTest.enablesJreMemoryLeakPrevention()` verifies its registration. The listener initializes JRE singletons with Tomcat's common class loader to reduce class-loader leaks during web application reloads. |
 | 9.17 | Set the Security Lifecycle Listener | Not applicable | This benchmark control modifies standalone `server.xml` and startup `umask` behavior. Set a restrictive container process umask and writable-volume permissions in the image/runtime instead. |
 | 9.18 | Use `logEffectiveWebXml` and `metadata-complete` in production | Not applicable | Spring Boot intentionally discovers components and security configuration through application code. Do not set `metadata-complete` without a full compatibility review; control component discovery through dependency and source review. |
 | 9.19 | Encrypt Manager application passwords | Not applicable | There is no `tomcat-users.xml` or Manager application. Store all production secrets in the selected secret manager and inject them with least privilege. |

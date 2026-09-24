@@ -14,7 +14,8 @@ no configuration server or external config store in this template:
 
 | File | Scope | Notable differences from the default |
 | --- | --- | --- |
-| `application.yaml` | Always applied | Production-shaped defaults: TLS enabled, `Secure` session cookie, `management.server.port: 8082`, ECS logging with `environment: production`. |
+| `commons-defaults.yaml` (in commons) | Always applied, below every application file | Shared secure baseline: TLS 1.2/1.3 protocols and AEAD cipher suites, the `id` session cookie (`HttpOnly`, `SameSite=Lax`, `Secure`, cookie-only tracking) with a 15-minute idle and 12-hour absolute timeout, `management.server.port: 8082` with only `health` exposed under `/app`, ECS logging with `environment: production` and trace correlation. An application overrides any key by setting it. |
+| `application.yaml` | Always applied | Production-shaped application settings: TLS certificate bundle, the Keycloak client registration. |
 | `application-local.yaml` | `local` profile | Disables `server.ssl.enabled` and the `Secure` cookie attribute for HTTP-only local development; sets `environment: local` in logs. |
 | `application-test.yaml` | `test` profile (active during `mvn test`/`verify`) | Same TLS/cookie relaxation as `local`, plus `management.server.port: 0` so the management port binds to an OS-assigned ephemeral port instead of the fixed `8082`, avoiding collisions between parallel test JVMs; sets `environment: test` in logs. |
 

@@ -34,12 +34,12 @@ stand up:
 
 | Kind | Suffix | What it exercises |
 | --- | --- | --- |
-| Unit / slice test | `*Test` | A single filter, handler, service, or configuration class in isolation, often with `@WebMvcTest` or plain construction; for example `ApiResponseEntityExceptionHandlerTest`, `TomcatConfigurationTest`, `SessionRevocationServiceTest`. |
-| Integration test | `*IntegrationTest` | A running (or sliced) Spring context exercising a full request path, such as `WebSecurityConfigurationSessionManagementIntegrationTest` and `AbsoluteSessionTimeoutIntegrationTest`. |
+| Unit / slice test | `*Test` | A single filter, handler, service, or configuration class in isolation, often with `@WebMvcTest` or plain construction; for example `ApiResponseEntityExceptionHandlerTest`, `SessionRevocationServiceTest`. A commons auto-configuration is tested with `ApplicationContextRunner`, covering that it applies by default, backs off when its `enabled` property is `false`, and backs off when the application supplies its own bean; for example `TomcatHardeningAutoConfigurationTest`. |
+| Integration test | `*IntegrationTest` | A running (or sliced) Spring context exercising a full request path, such as `WebSecurityConfigurationSessionManagementIntegrationTest`, `AbsoluteSessionTimeoutIntegrationTest`, and `TomcatHardeningIntegrationTest`, which confirms the commons hardening reaches the application's running Tomcat. |
 
 Two shared support base classes remove duplication from integration tests:
 `MockMvcITSupport` and `RestTestClientITSupport`
-(`src/test/java/com/example/app/web/server/test`), giving MockMvc-based and
+(`app-web-api-server/src/test/java/com/example/app/web/server/test`), giving MockMvc-based and
 `RestTestClient`-based integration tests a common setup rather than each
 test class configuring its own. `OAuth2ClientTestConfiguration` supplies a
 stand-in OAuth2 client registration so security-chain tests do not depend on
@@ -76,14 +76,14 @@ template ships as a starting point, not a deployed service.
 through Spring Boot's ahead-of-time (AOT) processing. Two things in the
 codebase exist specifically to keep that processing correct:
 
-* [`ApplicationRuntimeHints`](../../../../src/main/java/com/example/app/web/server/ApplicationRuntimeHints.java)
+* [`ApplicationRuntimeHints`](../../../../app-web-api-server/src/main/java/com/example/app/web/server/ApplicationRuntimeHints.java)
   implements `RuntimeHintsRegistrar`, the place to register any reflection or
   resource hint that AOT's static analysis cannot discover. It currently
   registers none: the private JWKS is read from the external location in
-  `app.jwks`, not from a classpath resource that a native image would need a
+  `commons.security.oauth2.jwks`, not from a classpath resource that a native image would need a
   hint to include
   ([ADR 0018](../../../adr/0018-development-fixtures-kept-out-of-production.md)).
-* `TomcatConfiguration`'s nested
+* `TomcatHardeningAutoConfiguration`'s nested
   `JreMemoryLeakPreventionTomcatServletWebServerFactory` was changed from
   `private static final class` to package-private `static final class`
   (commit `eca529b`, "fix for spring boot aot"). Spring's AOT-generated

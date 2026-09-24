@@ -1,0 +1,80 @@
+# commons configuration defaults, contributed below every application configuration
+# source by CommonsDefaultsEnvironmentPostProcessor. An application overrides any key
+# by setting it in its own application.yaml, a profile, or the environment.
+management:
+  server:
+    # Separate port so the ALB/monitoring health check never shares a listener
+    # with the application. Deployments must restrict this port to the
+    # health-check and internal ops network only; see docs/adr/0014.
+    port: 8082
+  endpoints:
+    web:
+      # Avoid the well-known /actuator prefix so an unauthenticated probe does
+      # not immediately fingerprint the framework; see docs/adr/0014.
+      base-path: /app
+      exposure:
+        # Only health is exposed. Adding any other endpoint (metrics, info,
+        # etc.) requires adding authentication for the management port first;
+        # see docs/adr/0014.
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+  tracing:
+    sampling:
+      # No exporter is configured, so nothing is sent anywhere and 100%
+      # sampling has no export-volume cost; it only guarantees every log
+      # line carries trace.id/span.id. See docs/adr/0011.
+      probability: 1.0
+logging:
+  structured:
+    ecs:
+      service:
+        environment: production
+    format:
+      console: ecs
+    json:
+      # Renames Micrometer Tracing's traceId/spanId MDC keys to ECS's trace.id/
+      # span.id field names; see docs/adr/0011.
+      customizer:
+      - com.example.commons.logging.TraceCorrelationJsonMembersCustomizer
+commons:
+  security:
+    session:
+      # Maximum lifetime of a session from its creation, regardless of activity.
+      absolute-timeout: 12h
+server:
+  servlet:
+    session:
+      cookie:
+        name: id
+        http-only: true
+        same-site: lax
+        secure: true
+      tracking-modes:
+      - COOKIE
+      timeout: 15m
+  ssl:
+    # Only the protocols and cipher suites are defaulted here. Each application
+    # still supplies its own certificate through server.ssl.bundle, or sets
+    # server.ssl.enabled=false for a profile that runs without TLS.
+    enabled-protocols:
+    - TLSv1.2
+    - TLSv1.3
+    ciphers:
+    - TLS_AES_256_GCM_SHA384
+    - TLS_AES_128_GCM_SHA256
+    - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+    - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+    - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+    - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+    - TLS_DHE_RSA_WITH_AES_256_GCM_SHA384
+    - TLS_DHE_RSA_WITH_AES_128_GCM_SHA256
+spring:
+  session:
+    jdbc:
+      # Liquibase owns the schema (see docs/adr/0004); commons ships the Spring
+      # Session tables as db/changelog/003-spring-session-schema.sql for each
+      # application's master changelog to include.
+      initialize-schema: never

@@ -33,8 +33,10 @@ sequenceDiagram
 **Steps:**
 
 1. An unauthenticated request to any path other than `/app/health` or
-   `/oauth2/jwks` is denied by the `authorizeHttpRequests` rule in
-   `WebSecurityConfiguration`, triggering the OAuth2 login entry point.
+   `/oauth2/jwks` (both permitted by the commons module's
+   `WebSecurityAutoConfiguration` and `PrivateKeyJwtAutoConfiguration`) is
+   denied by the `authorizeHttpRequests` rules in `WebSecurityConfiguration`,
+   triggering the OAuth2 login entry point.
 2. The browser is redirected to Keycloak's authorization endpoint and
    authenticates there; the application never sees the user's credentials.
 3. Keycloak redirects back with an authorization code, which the
@@ -42,7 +44,9 @@ sequenceDiagram
    authentication (`RestClientAuthorizationCodeTokenResponseClient` with
    `NimbusJwtClientAuthenticationParametersConverter`), not a client secret.
 4. `LocalAuthoritiesOidcUserService` resolves the user's local authorities
-   from `app_user`/`app_group`/`app_role` by matching Keycloak's
+   through the application's `LocalAuthorityLookup` (here
+   `AppUserLocalAuthorityLookup`, reading `app_user`/`app_group`/`app_role`) by
+   matching Keycloak's
    `preferred_username` claim, per
    [ADR 0005](../adr/0005-keycloak-authentication-local-authorisation.md).
 5. A server-side session is created and persisted via Spring Session JDBC;
@@ -88,8 +92,9 @@ sequenceDiagram
 **Steps:**
 
 1. `LocalAuthorityRefreshFilter` runs after `RequestLoggingFilter` on every
-   authenticated request and reloads the user's current authorities from
-   `AppUserRepository`.
+   authenticated request and reloads the user's current authorities through
+   the application's `LocalAuthorityLookup` (`AppUserLocalAuthorityLookup`,
+   backed by `AppUserRepository`).
 2. If the user has been disabled or deleted, `SessionRevocationService`
    terminates the session immediately and the event is audited, rather
    than letting a stale session remain valid until its own timeout.

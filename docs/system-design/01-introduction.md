@@ -15,7 +15,7 @@ from scratch.
 <!-- arc42-generated -->
 | Priority | Requirement | Description |
 | --- | --- | --- |
-| High | Browser-facing authentication | Authenticate browser users via OIDC authorization code flow against Keycloak, with `private_key_jwt` client authentication (`WebSecurityConfiguration`, `application.yaml`). |
+| High | Browser-facing authentication | Authenticate browser users via OIDC authorization code flow against Keycloak, with `private_key_jwt` client authentication (`WebSecurityAutoConfiguration`, `PrivateKeyJwtAutoConfiguration`, `application.yaml`). |
 | High | Server-side session management | Maintain server-side sessions backed by JDBC (Spring Session), with absolute and idle timeouts, single concurrent session, and audited lifecycle events. |
 | High | Local authorization model | Resolve a user's roles from a locally owned user/group/role schema (`app_user`, `app_group`, `app_role`) rather than trusting identity-provider claims, refreshed on every request. |
 | High | Administration API | Expose REST endpoints for administering users, groups, and roles, each individually role-gated (`/admin/users`, `/admin/groups`, `/admin/roles`). |
@@ -38,7 +38,7 @@ requirements breakdown of individual features (currently
 | 2 | Observability | Production incidents must be diagnosable from logs alone, with every log line traceable to the request and user that produced it. | Every request-scoped log line carries `http.request.id`, `trace.id`, `span.id`, and, once authenticated, the acting user, in ECS-structured JSON. See [Logging](08-crosscutting-concepts/06-logging-and-monitoring/README.md). |
 | 3 | Auditability | Session-security-relevant events (login, logout, concurrent-session eviction, absolute timeout, authority change) must be reconstructable after the fact, independent of the session ID itself. | Each session lifecycle event is logged with a random, application-local audit identifier distinct from the session ID (ADR 0008), and authority changes take effect on the very next request (ADR 0015). |
 | 4 | Maintainability | As a template other services are forked from, conventions must be explicit and enforced automatically rather than left to reviewer memory. | CI (`build-and-test.yml`) fails the build on formatting drift (`spring-javaformat`) and reports JaCoCo coverage on every pull request. |
-| 5 | Portability | The template targets both a conventional JVM deployment and a GraalVM native image, and must not silently rely on reflection Spring cannot see. | `mvn -Pnative native:compile` succeeds using the runtime hints registered in `ApplicationRuntimeHints`. |
+| 5 | Portability | The template targets both a conventional JVM deployment and a GraalVM native image, and must not silently rely on reflection Spring cannot see. | `mvn -Pnative native:compile` succeeds using the runtime hints registered in `ApplicationRuntimeHints` and by the commons auto-configurations. |
 <!-- /arc42-generated -->
 
 ## 1.3 Stakeholders

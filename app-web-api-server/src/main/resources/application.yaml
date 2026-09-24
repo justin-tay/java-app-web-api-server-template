@@ -1,0 +1,45 @@
+# TLS protocols and ciphers, the session cookie and timeouts, the actuator management
+# port, and the ECS logging format come from the commons defaults
+# (commons/src/main/resources/META-INF/commons-defaults.yaml); set a key here
+# only to override it.
+#
+# No default for commons.security.oauth2.jwks: because the keycloak registration
+# uses private_key_jwt, every deployment must supply the location of its own private
+# JWKS, and startup fails if it is unset. See docs/adr/0018.
+server:
+  port: 8081
+  ssl:
+    bundle: server
+spring:
+  application:
+    name: java-app-web-api-server
+  jpa:
+    hibernate:
+      ddl-auto: none
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+  main:
+    banner-mode: "off"
+  ssl:
+    bundle:
+      pem:
+        server:
+          keystore:
+            certificate: ${CERTIFICATE_PEM:}
+            private-key: ${PRIVATE_KEY_PEM:}
+          truststore:
+            certificate: ${CA_BUNDLE_PEM:}
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            client-id: java-app-web-api-server
+            client-authentication-method: private_key_jwt
+            authorization-grant-type: authorization_code
+            scope:
+            - openid
+        provider:
+          keycloak:
+            issuer-uri: http://localhost:8080/realms/test
+            user-name-attribute: preferred_username

@@ -5,50 +5,70 @@
 <!-- arc42-generated -->
 ```mermaid
 flowchart TB
-    subgraph system ["com.example.app.web.server"]
-        api["api\nREST controllers, error handling"]
+    subgraph app ["app-web-api-server (com.example.app.web.server)"]
+        api["api\nREST controllers"]
         admin["api.admin\nUser/group/role administration"]
-        config["config\nSpring configuration, security filter chain"]
+        config["config\nApplication authorization rules, async, REST client"]
         domain["domain\nJPA entities and repositories"]
-        security["security\nAuthentication, authorization, session filters"]
-        logging["logging\nRequest correlation, audit, structured logging support"]
+        lookup["security\nLocalAuthorityLookup implementation"]
         validation["validation\nBean Validation constraints"]
+    end
+    subgraph commons ["commons (com.example.commons)"]
+        websecurity["security\nOIDC login, sessions, headers, audit, JWKS"]
+        tomcat["tomcat\nCIS Tomcat hardening"]
+        logging["logging\nRequest correlation, request logging, ECS support"]
+        problem["problem\nRFC 9457 Problem Details"]
+        defaults["commons-defaults.yaml\nTLS, session cookie, Actuator, logging defaults"]
     end
     api --> domain
     admin --> domain
-    config --> security
-    config --> logging
-    security --> domain
-    security --> logging
+    admin --> problem
+    admin --> websecurity
+    lookup --> domain
+    websecurity --> lookup
+    websecurity --> logging
+    websecurity --> problem
     api --> validation
 ```
 
-**Motivation:** The codebase is a single deployable unit organized by
-technical concern rather than by feature module, appropriate for a
-template of this size. `config` wires everything together;
-`api`/`api.admin` expose HTTP; `security` and `logging` are the
-crosscutting filter chains described in
-[Crosscutting Concepts](08-crosscutting-concepts/README.md); `domain` is
-the only package with JPA/database awareness.
+**Motivation:** The repository is a Maven multi-module build
+([ADR 0019](../adr/0019-shared-commons-auto-configuration.md)).
+`commons` is the shared, secure-by-default baseline that every backend
+module depends on: it applies itself through Spring Boot auto-configuration,
+so an application gets the security filter chain baseline, the Tomcat
+hardening, the request logging filters, Problem Details error handling, and
+the configuration defaults without wiring any of it. It reaches the
+application's user model only through the `LocalAuthorityLookup` interface,
+which the application implements. `app-web-api-server` is the reference
+backend. Within it, code is organized by technical concern rather than by
+feature module, appropriate for a template of this size: `config` holds the
+application's own authorization rules and wiring; `api`/`api.admin` expose
+HTTP; `domain` is the only package with JPA/database awareness.
 
 ### Contained Building Blocks
 
 | Building Block | Responsibility | Interfaces | Code Location |
 | --- | --- | --- | --- |
-| `api` | Public, non-administrative REST endpoints: login-user claims, Keycloak account proxy, JWKS publication, RFC 9457 error handling | `GET /login-user`, `GET /account`, `GET /oauth2/jwks`, exception handling for all endpoints | `src/main/java/com/example/app/web/server/api/` |
-| `api.admin` | Administration REST API for users, groups, and roles | `/admin/users/**`, `/admin/groups/**`, `/admin/roles/**` (each individually role-gated) | `src/main/java/com/example/app/web/server/api/admin/` |
-| `config` | Spring `@Configuration` classes: security filter chain assembly, Tomcat/TLS setup, async execution, REST client, application properties binding, lifecycle event logging | N/A (wiring only) | `src/main/java/com/example/app/web/server/config/` |
-| `domain` | JPA entities (`AppUser`, `AppGroup`, `AppRole`) and Spring Data repositories | Repository interfaces consumed by `api.admin` and `security` | `src/main/java/com/example/app/web/server/domain/` |
-| `security.authentication` | Converts Spring Security authentication failures into RFC 9457 Problem Details; local-authority-aware OIDC user loading | `ProblemDetailAuthenticationEntryPoint`, `LocalAuthoritiesOidcUserService` | `src/main/java/com/example/app/web/server/security/authentication/` |
-| `security.authorization` | Per-request local authority refresh; RFC 9457 access-denied responses | `LocalAuthorityRefreshFilter`, `ProblemDetailAccessDeniedHandler` | `src/main/java/com/example/app/web/server/security/authorization/` |
-| `security.session` | Session lifecycle: absolute timeout, concurrent-session eviction, audit logging, revocation on authority change | `AbsoluteSessionTimeoutFilter`, `SessionLifecycleAuditLogger`, `SessionRevocationService`, `SessionLifecycleAuditInitializationFilter` | `src/main/java/com/example/app/web/server/security/session/` |
-| `security.firewall` | RFC 9457 response for requests Spring Security's `HttpFirewall` rejects | `ProblemDetailRequestRejectedHandler` | `src/main/java/com/example/app/web/server/security/firewall/` |
-| `logging` | Request correlation, ECS/trace field customization, request-boundary logging, MDC cleanup | `RequestCorrelationContextFilter`, `RequestLoggingFilter`, `AuthenticatedUserLoggingContextFilter`, `LoggingContextCleanupFilter`, `TraceCorrelationJsonMembersCustomizer` | `src/main/java/com/example/app/web/server/logging/` |
-| `logging.client` / `logging.request` | Pluggable client-IP and upstream-request-ID resolution (safe no-op defaults; deployment supplies a real resolver for its ingress) | `ClientIpResolver`, `RequestIdResolver` | `src/main/java/com/example/app/web/server/logging/client/`, `.../logging/request/` |
-| `validation` | Reusable Bean Validation constraints for domain input | `@Username`, `@DisplayName`, `@ResourceName` | `src/main/java/com/example/app/web/server/validation/` |
+| `commons` `security` | Security filter chain baseline: OIDC login with local authorities, security headers, session management (absolute timeout, one session per user), OIDC back-channel and RP-initiated logout, method security, security audit events | `WebSecurityAutoConfiguration`, `WebSecurityProperties` (`commons.security.*`), `SecurityAuditEventLogger`; `commons.security.enabled` | `commons/src/main/java/com/example/commons/security/` |
+| `commons` `security.authentication` | Converts Spring Security authentication failures into RFC 9457 Problem Details; local-authority-aware OIDC user loading | `ProblemDetailAuthenticationEntryPoint`, `LocalAuthoritiesOidcUserService` | `commons/src/main/java/com/example/commons/security/authentication/` |
+| `commons` `security.authorization` | The application's authority source; per-request local authority refresh; RFC 9457 access-denied responses | `LocalAuthorityLookup` (implemented by each application), `LocalAuthorityRefreshFilter`, `ProblemDetailAccessDeniedHandler` | `commons/src/main/java/com/example/commons/security/authorization/` |
+| `commons` `security.session` | Session lifecycle: absolute timeout, concurrent-session eviction, audit logging, revocation on authority change | `AbsoluteSessionTimeoutFilter`, `SessionLifecycleAuditLogger`, `SessionRevocationService`, `SessionLifecycleAuditInitializationFilter` | `commons/src/main/java/com/example/commons/security/session/` |
+| `commons` `security.firewall` | RFC 9457 response for requests Spring Security's `HttpFirewall` rejects | `ProblemDetailRequestRejectedHandler` | `commons/src/main/java/com/example/commons/security/firewall/` |
+| `commons` `security.oauth2` | `private_key_jwt` client authentication and JWKS publication, applied only when a client registration uses it | `PrivateKeyJwtAutoConfiguration`, `JwksProperties` (`commons.security.oauth2.jwks`), `GET /oauth2/jwks` | `commons/src/main/java/com/example/commons/security/oauth2/` |
+| `commons` `tomcat` | CIS Tomcat hardening of the embedded server, Tomcat-level Problem Details error reports, strict servlet compliance | `TomcatHardeningAutoConfiguration`, `TomcatApplicationContextInitializer`; `commons.web.tomcat.enabled` | `commons/src/main/java/com/example/commons/web/tomcat/` |
+| `commons` `logging` | Request correlation, ECS/trace field customization, request-boundary logging, MDC cleanup, application lifecycle events | `LoggingAutoConfiguration` (registers `RequestCorrelationContextFilter` and `LoggingContextCleanupFilter`, and adds `AuthenticatedUserLoggingContextFilter` and `RequestLoggingFilter` to every security filter chain), `TraceCorrelationJsonMembersCustomizer`, `ApplicationLifecycleEventLogger`; `commons.logging.enabled` | `commons/src/main/java/com/example/commons/logging/` |
+| `commons` `logging.client` / `logging.request` | Pluggable client-IP and upstream-request-ID resolution (safe no-op defaults; an application defines its own bean for its ingress) | `ClientIpResolver`, `RequestIdResolver` | `commons/src/main/java/com/example/commons/logging/client/`, `.../logging/request/` |
+| `commons` `problem` | RFC 9457 error handling for every endpoint, and the exceptions applications throw to produce it | `ProblemDetailsAutoConfiguration`, `ApiResponseEntityExceptionHandler`, `ProblemDetailErrorController`, `ProblemTypes`, `BadRequestException`, `ConflictException`, `ResourceNotFoundException`; `commons.web.problem-details.enabled` | `commons/src/main/java/com/example/commons/web/problem/` |
+| `commons` defaults | Configuration defaults ranked below every application configuration source | `CommonsDefaultsEnvironmentPostProcessor` | `commons/src/main/resources/META-INF/commons-defaults.yaml` |
+| `api` | Public, non-administrative REST endpoints: login-user claims, Keycloak account proxy | `GET /login-user`, `GET /account` | `app-web-api-server/src/main/java/com/example/app/web/server/api/` |
+| `api.admin` | Administration REST API for users, groups, and roles | `/admin/users/**`, `/admin/groups/**`, `/admin/roles/**` (each individually role-gated) | `app-web-api-server/src/main/java/com/example/app/web/server/api/admin/` |
+| `config` | Spring `@Configuration` classes: the application's authorization rules, async execution, REST client | `WebSecurityConfiguration`; otherwise wiring only | `app-web-api-server/src/main/java/com/example/app/web/server/config/` |
+| `domain` | JPA entities (`AppUser`, `AppGroup`, `AppRole`) and Spring Data repositories | Repository interfaces consumed by `api.admin` and `security` | `app-web-api-server/src/main/java/com/example/app/web/server/domain/` |
+| `security` | Supplies local authorities from the user, group, and role model | `AppUserLocalAuthorityLookup` | `app-web-api-server/src/main/java/com/example/app/web/server/security/` |
+| `validation` | Reusable Bean Validation constraints for domain input | `@Username`, `@DisplayName`, `@ResourceName` | `app-web-api-server/src/main/java/com/example/app/web/server/validation/` |
 
-Full detail on the `security` and `logging` packages' crosscutting
-behavior is documented once, not duplicated here: see
+Full detail on the security and logging crosscutting behavior is documented
+once, not duplicated here: see
 [Security](08-crosscutting-concepts/02-security-and-authentication/README.md) and
 [Logging](08-crosscutting-concepts/06-logging-and-monitoring/README.md).
 <!-- /arc42-generated -->
@@ -111,7 +131,7 @@ There is no direct user-to-role assignment. All three entities extend
 `preferred_username` claim is matched against `app_user.username`, which
 is why usernames are treated as immutable once a user is provisioned (see
 `README.md`). Schema defined in
-`src/main/resources/db/changelog/001-authorisation-schema.sql`, the roles
+`app-web-api-server/src/main/resources/db/changelog/001-authorisation-schema.sql`, the roles
 and the `Administrators` group in `002-authorisation-seed.sql`; Spring
 Session's own tables are added in `003-spring-session-schema.sql`. The
 development and test users are in `004-development-seed.sql`, applied only
@@ -134,8 +154,14 @@ flowchart LR
     SecurityChain --> Cleanup["LoggingContextCleanupFilter\n(outermost, HIGHEST_PRECEDENCE)"]
 ```
 
-`WebSecurityConfiguration` assembles this chain explicitly; filter order
-is deliberate and documented inline (see source references in
+The commons module assembles this chain through ordered
+`Customizer<HttpSecurity>` beans that Spring Security applies before the
+application's own `SecurityFilterChain` bean: `LoggingAutoConfiguration` adds
+`AuthenticatedUserLoggingContextFilter` and `RequestLoggingFilter` (and registers
+the two servlet filters outside the chain), then `WebSecurityAutoConfiguration`
+adds the session and authority filters next to them, anchored on Spring
+Security's own filters. The application's `WebSecurityConfiguration` adds only its
+authorization rules. Filter order is deliberate and documented inline (see source references in
 [ADR 0010](../adr/0010-ecs-structured-logging.md) and
 [ADR 0012](../adr/0012-request-correlation-ahead-of-security-chain.md)).
 <!-- /arc42-generated -->

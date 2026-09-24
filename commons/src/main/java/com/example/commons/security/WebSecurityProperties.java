@@ -1,0 +1,47 @@
+package com.example.commons.security;
+
+import java.time.Duration;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
+
+/**
+ * Security properties under {@code commons.security}. Their defaults are in
+ * {@code commons-defaults.yaml}.
+ */
+@ConfigurationProperties(prefix = "commons.security")
+@Validated
+public class WebSecurityProperties {
+
+	@Valid
+	private final Session session = new Session();
+
+	public Session getSession() {
+		return this.session;
+	}
+
+	/**
+	 * Session security properties.
+	 */
+	public static class Session {
+
+		/**
+		 * Maximum lifetime of a session from its creation, regardless of activity.
+		 */
+		@NotNull
+		private Duration absoluteTimeout;
+
+		public Duration getAbsoluteTimeout() {
+			return this.absoluteTimeout;
+		}
+
+		public void setAbsoluteTimeout(Duration absoluteTimeout) {
+			this.absoluteTimeout = absoluteTimeout;
+		}
+
+	}
+
+}

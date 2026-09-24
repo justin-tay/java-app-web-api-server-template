@@ -36,7 +36,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          report=target/site/jacoco/jacoco.csv
+          report=app-web-api-server/target/site/jacoco-aggregate/jacoco.csv
           {
             echo "## Code coverage"
             echo
@@ -72,7 +72,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: jacoco-report
-          path: target/site/jacoco
+          path: app-web-api-server/target/site/jacoco-aggregate
           if-no-files-found: warn
 
       - name: Upload Surefire reports
@@ -80,5 +80,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: surefire-reports
-          path: target/surefire-reports
+          path: "**/target/surefire-reports"
           if-no-files-found: ignore

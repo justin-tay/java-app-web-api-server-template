@@ -23,7 +23,7 @@ export SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KEYCLOAK_CLIENT_ID="java-app-w
 # supplies the development-only settings that the local profile would otherwise set:
 # the development JWKS and the Liquibase context for the development seed users
 # (see docs/adr/0018).
-export APP_JWKS="$(file_uri "${project_directory}/src/test/resources/jwks.json")"
+export COMMONS_SECURITY_OAUTH2_JWKS="$(file_uri "${project_directory}/app-web-api-server/src/test/resources/jwks.json")"
 export SPRING_LIQUIBASE_CONTEXTS="dev"
 
 cd "${project_directory}"
@@ -49,7 +49,7 @@ if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]]; then
 		exit 1
 	fi
 	export JAVA_HOME="$(cygpath -m "${java_home}")"
-	exec cmd.exe /c mvn.cmd -Plocal spring-boot:run "$@"
+	exec cmd.exe /c mvn.cmd -Plocal -pl app-web-api-server -am spring-boot:run "$@"
 fi
 
-exec mvn -Plocal spring-boot:run "$@"
+exec mvn -Plocal -pl app-web-api-server -am spring-boot:run "$@"

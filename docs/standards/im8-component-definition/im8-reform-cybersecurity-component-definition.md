@@ -39,7 +39,7 @@ For the underlying evidence, see [Authentication](../../system-design/08-crosscu
 | AC-3 | Inactive and Expired Accounts | Not applicable | Disabling accounts on expiry or inactivity is an identity-provider/governance responsibility. The template does provide immediate authority revocation once an account is disabled or deleted locally (`SessionRevocationService`), but does not itself detect inactivity or expiry. |
 | AC-4 | Access Review | Not applicable | Periodic access review is an organisational process the adopter runs against the account and role data the template exposes through `AdministrationService`; the template does not schedule or perform reviews itself. |
 | AC-5 | Endpoint Device Hardening | Not applicable | Endpoint hardening for administrator devices is outside an application component's boundary. |
-| AC-6 | Default Credentials | Not applicable | The template ships no default account or credential to production; authentication is delegated to Keycloak. The development users are seeded only when the Liquibase `dev` context is requested, and the dev-only `jwks.json` fixture lives in `src/test/resources`, so it is not packaged, and `app.jwks` has no default (ADR 0018). |
+| AC-6 | Default Credentials | Not applicable | The template ships no default account or credential to production; authentication is delegated to Keycloak. The development users are seeded only when the Liquibase `dev` context is requested, and the dev-only `jwks.json` fixture lives in `app-web-api-server/src/test/resources`, so it is not packaged, and `commons.security.oauth2.jwks` has no default (ADR 0018). |
 | AC-7 | Singpass/Corppass for Public Users | Not applicable | The template is an internal/administrative API, not a Public User-facing digital service requiring Singpass/Corppass identity assurance. |
 | AC-8 | Automated Account Lifecycle Management | Not applicable | Automated provisioning/deprovisioning tooling (SCIM or similar) is a deployment/identity-governance integration; the template exposes an administration API that such tooling could call, but does not implement the automation itself. |
 | AC-9 | Endpoint Device Management | Not applicable | Endpoint device management is outside an application component's boundary. |
@@ -104,7 +104,7 @@ There is no Dockerfile or container image build in this repository, so the entir
 
 | Control ID | Title | Status | Implementation Statement |
 | --- | --- | --- | --- |
-| CK-1 | Cryptographic Key Establishment | Implemented | TLS key establishment uses the JDK's TLS implementation restricted to TLS 1.2/1.3 with AEAD-only cipher suites (`TomcatConfiguration`, `application.yaml`); JWT operations use Nimbus JOSE+JWT's standard RS256/ES512/RSA-OAEP-256 algorithms. |
+| CK-1 | Cryptographic Key Establishment | Implemented | TLS key establishment uses the JDK's TLS implementation restricted to TLS 1.2/1.3 with AEAD-only cipher suites (`TomcatHardeningAutoConfiguration`, `commons-defaults.yaml`); JWT operations use Nimbus JOSE+JWT's standard RS256/ES512/RSA-OAEP-256 algorithms. |
 | CK-2 | Cryptographic Key Rotation | Not applicable | The template consumes an operator-supplied TLS private key (`PRIVATE_KEY_PEM`) and JWKS signing key; rotating those keys is a deployment/key-management decision, not something the template automates. |
 | CK-3 | Cryptographic Key Management | Not applicable | Key lifecycle management (generation, storage, revocation) belongs to whichever KMS or keystore the deployment chooses; the template only consumes keys supplied to it. |
 | CK-4 | Cryptographic Key Storage | Not applicable | The template reads key material from environment variables at startup; securely storing that material (e.g. in a KMS or vault) before it reaches the environment is a deployment decision. |
@@ -115,7 +115,7 @@ There is no Dockerfile or container image build in this repository, so the entir
 | --- | --- | --- | --- |
 | DP-1 | Data Residency | Not applicable | Data residency is determined by the deployment's chosen hosting region, not the application code. |
 | DP-2 | Data at Rest Encryption | Not applicable | The template's only persistent store is the Spring Session JDBC schema in an operator-supplied database; encrypting that database at rest is a deployment decision. |
-| DP-3 | Data in Transit Encryption | Implemented | TLS 1.2/1.3 with AEAD-only cipher suites is enforced for all traffic (`TomcatConfiguration`, `application.yaml`). |
+| DP-3 | Data in Transit Encryption | Implemented | TLS 1.2/1.3 with AEAD-only cipher suites is enforced for all traffic (`TomcatHardeningAutoConfiguration`, `commons-defaults.yaml`). |
 | DP-4 | Central Cloud Tenant Management | Not applicable | Cloud tenant structure is a deployment/organisational decision. |
 | DP-5 | Sanitisation | Not applicable | Physical media sanitisation is an infrastructure/operational responsibility. |
 | DP-6 | Witness Sanitisation and Destruction of Storage Devices | Not applicable | Infrastructure/operational responsibility. |
@@ -193,7 +193,7 @@ This template has no generative AI or large language model integration; the enti
 | LM-16 | Key Signals Monitoring | Not applicable | Golden-signal (latency, traffic, errors, saturation) monitoring is a deployment decision; the template's Actuator health endpoint and structured request logs are inputs such tooling can consume. |
 | LM-17 | Software delivery performance monitoring | Not applicable | DORA metric tracking is an organisational/process decision; the template's CI workflow (`build-and-test.yml`) does not currently measure it. |
 | LM-18 | Whole of Government Application Analytics (WOGAA) | Not applicable | The template is an internal/administrative API template, not a registered public-facing digital service. |
-| LM-19 | Log Sanitisation | Implemented | Query parameters matching a redaction list are masked before logging, and request/response bodies, cookies, authentication headers, and passwords are never logged (`WebSecurityConfiguration`). |
+| LM-19 | Log Sanitisation | Implemented | Query parameters matching a redaction list are masked before logging, and request/response bodies, cookies, authentication headers, and passwords are never logged (`LoggingAutoConfiguration`). |
 | LM-20 | User and Entity Behaviour Analytics | Not applicable | UEBA tooling is a deployment/SIEM decision. |
 | LM-21 | Detection Updates | Not applicable | Malware/IOC detection signature updates are an infrastructure/EDR responsibility. |
 

@@ -1,4 +1,0 @@
-org.springframework.context.ApplicationContextInitializer=\
-com.example.app.web.server.config.TomcatApplicationContextInitializer
-org.springframework.context.ApplicationListener=\
-com.example.app.web.server.config.ApplicationLifecycleEventLogger

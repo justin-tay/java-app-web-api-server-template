@@ -1,0 +1,24 @@
+commons:
+  security:
+    oauth2:
+      # Development-only private JWKS on the test classpath (see docs/adr/0018).
+      jwks: classpath:jwks.json
+management:
+  server:
+    port: 0
+server:
+  ssl:
+    enabled: false
+  servlet:
+    session:
+      cookie:
+        secure: false
+logging:
+  structured:
+    ecs:
+      service:
+        environment: test
+spring:
+  liquibase:
+    # Applies the development seed users in 004-development-seed.sql (see docs/adr/0018).
+    contexts: dev

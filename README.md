@@ -4,6 +4,27 @@ This is an opinionated template for a Java Application Web API Server used to se
 
 [Keycloak](https://github.com/keycloak/keycloak) is used as the public Identity Provider for testing purposes
 
+## Project layout
+
+The repository is a Maven multi-module build
+([ADR 0019](docs/adr/0019-shared-commons-auto-configuration.md)):
+
+| Module | Purpose |
+| --- | --- |
+| `commons` | Shared, secure-by-default Spring Boot auto-configuration: the Spring Security baseline (OIDC login with local authorities, JDBC sessions, security headers, audit logging, `private_key_jwt`), CIS Tomcat hardening, request correlation and logging, RFC 9457 Problem Details, and configuration defaults for TLS, session cookies, Actuator, and ECS logging. It applies itself when it is on the classpath. |
+| `app-web-api-server` | The reference API backend, built on `commons`. |
+
+To add another backend, copy `app-web-api-server` to a new `app-<name>` module with its
+own `com.example.app.<name>` package, and add it to the root `pom.xml`. The new backend
+implements `LocalAuthorityLookup` to supply its local authorities, and its
+`SecurityFilterChain` holds only its own authorization rules, ending with
+`anyRequest().authenticated()`. Keep application packages outside `com.example.commons`
+so an application's component scan never picks up a `commons` class. Turn a
+`commons` group off by setting `commons.web.tomcat.enabled`,
+`commons.logging.enabled`, `commons.web.problem-details.enabled`, or
+`commons.security.enabled` to `false`, and override any default by setting the same
+key in the application's own configuration.
+
 ## Quick Start
 
 ### Configure Keycloak as the Identity Provider
@@ -60,18 +81,18 @@ Both local runs use two separate profiles that share the name `local`:
 
 - The `local` **Maven** profile (`-Plocal`) adds the H2 driver, so the application
   runs against an in-memory H2 database that Liquibase creates on every start.
-- The `local` **Spring** profile (`src/main/resources/application-local.yaml`)
+- The `local` **Spring** profile (`app-web-api-server/src/main/resources/application-local.yaml`)
   disables TLS, marks the session cookie as non-secure, loads the development-only
-  JWKS from `src/test/resources/jwks.json`, and requests the Liquibase `dev` context
+  JWKS from `app-web-api-server/src/test/resources/jwks.json`, and requests the Liquibase `dev` context
   that creates the development users. Outside the `local` and `test` profiles
-  `app.jwks` has no default and must be set to the deployment's own private JWKS,
+  `commons.security.oauth2.jwks` has no default and must be set to the deployment's own private JWKS,
   or the application fails to start.
 
 `-Plocal` does not activate the Spring profile, so for local HTTP development
 activate both:
 
 ```shell
-mvn -Plocal spring-boot:run -Dspring-boot.run.profiles=local
+mvn -Plocal -pl app-web-api-server -am spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
 For local TLS development, use the helper instead. It creates development-only
@@ -79,7 +100,7 @@ certificates under `.local/certs`, configures the HTTPS Keycloak client, and sta
 the application with TLS enabled. It activates only the `local` Maven profile and
 keeps the default Spring profile, so TLS and the secure session cookie stay on; it
 supplies the development JWKS and the Liquibase `dev` context itself through the
-`APP_JWKS` and `SPRING_LIQUIBASE_CONTEXTS` environment variables.
+`COMMONS_SECURITY_OAUTH2_JWKS` and `SPRING_LIQUIBASE_CONTEXTS` environment variables.
 
 ```shell
 ./bin/start-api-server-tls.sh

@@ -23,14 +23,14 @@ authorities; a successful OIDC authentication only proves identity, not
 permission.
 
 Each Keycloak client is configured for `private_key_jwt` client
-authentication rather than a shared client secret: `WebSecurityConfiguration`
-loads a JWKS containing the application's signing (and optionally
+authentication rather than a shared client secret: the commons module's
+`PrivateKeyJwtAutoConfiguration` loads a JWKS containing the application's signing (and optionally
 encryption) key pair, `RestClientAuthorizationCodeTokenResponseClient` signs
 a client assertion with the private key during token exchange, and
 `JwksController` publishes only the public components at `/oauth2/jwks` for
 Keycloak to verify against. The development JWKS fixture at
-`src/test/resources/jwks.json` contains private key material and is not
-packaged; `app.jwks` has no default, so a real deployment must supply its
+`app-web-api-server/src/test/resources/jwks.json` contains private key material and is not
+packaged; `commons.security.oauth2.jwks` has no default, so a real deployment must supply its
 own JWKS through it (startup fails otherwise) and rotates keys in
 coordination with Keycloak. ID tokens are validated by a
 custom `JwtDecoderFactory<ClientRegistration>` (needed because

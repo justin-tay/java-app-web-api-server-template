@@ -42,3 +42,21 @@ component describing how it satisfies a control catalog. See
 _Avoid_: "crosswalk" (that term properly means mapping two different
 standards to each other, not a standard to an implementation), "OWASP
 review", "recommendation matrix"
+
+**Commons module**:
+A shared Maven module that backends in the repository depend on: `commons`,
+which every backend depends on, and optional ones named `commons-<concern>` (the
+planned `commons-accounts`). It applies its behavior through Spring Boot
+auto-configuration when it is on the classpath and is secure by default. Its
+code lives under `com.example.commons`, with one subpackage and matching
+property prefix per concern, such as `com.example.commons.security` and
+`commons.security.*`. See
+[ADR 0019](docs/adr/0019-shared-commons-auto-configuration.md).
+_Avoid_: "library" or "starter" (nothing is published), "core", "common",
+"shared module" as a proper name
+
+**App module**:
+A deployable Spring Boot backend named `app-<name>` (currently
+`app-web-api-server`), in a `com.example.app.<name>` package that is a sibling
+of, never a parent of, a commons module's package.
+_Avoid_: "service" or "example app" as a module name, "backend module"

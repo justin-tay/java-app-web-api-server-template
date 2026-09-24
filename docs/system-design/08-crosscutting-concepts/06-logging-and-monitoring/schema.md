@@ -121,7 +121,7 @@ string anyway, such as `?jsessionid=<session ID>`, has it logged as
 redacted too. No controller uses any of these names as a query parameter
 (the admin APIs filter by `groupId` and `roleId`, which do not match `id`),
 so the redaction hides no legitimate value. The list is source-controlled in
-`WebSecurityConfiguration.QUERY_PARAMETER_REDACT_LIST`.
+`LoggingAutoConfiguration.QUERY_PARAMETER_REDACT_LIST`.
 
 `url.path` never carries path parameters: every event that records it
 replaces each section from a `;` to the next `/` (or the end of the path)
@@ -154,7 +154,7 @@ message: `ProblemDetailErrorController`'s last-resort `process_request` event
 is reached from a forward outside any handler's control, so the exception
 reaching it has not been reviewed the way the exceptions
 `ApiResponseEntityExceptionHandler` catches have been.
-`com.example.app.web.server.logging.MessageRedactedStackTraces` renders a
+`com.example.commons.logging.MessageRedactedStackTraces` renders a
 stack trace in the same format `Throwable.printStackTrace()` would, with the
 message of the exception, every cause, and every suppressed exception
 replaced with nothing, and adds it as `error.stack_trace` by hand alongside
