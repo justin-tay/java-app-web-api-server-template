@@ -59,6 +59,60 @@ cost, since nothing is exported; a deployment that adds an OTLP or similar
 exporter should revisit this probability against the resulting export
 volume.
 
+## Client IP behind proxies
+
+Every log event records `source.ip`, the immediate peer from
+`HttpServletRequest.getRemoteAddr()`, which behind a load balancer is the load
+balancer. The end-user address, `client.ip`, is recorded only when the
+application defines a `ClientIpResolver` bean, because which forwarded header
+can be trusted depends on the deployment's proxies, and choosing it is the
+deployer's responsibility. By default commons resolves none.
+
+| Deployment | Resolver | Notes |
+| --- | --- | --- |
+| CloudFront, then an Application Load Balancer | `new CloudFrontViewerAddressClientIpResolver()` | Recommended. CloudFront sets `CloudFront-Viewer-Address` from the viewer's TCP connection, independent of any `X-Forwarded-For` the client sends. |
+| CloudFront, then an Application Load Balancer, without the viewer-address header | `XForwardedForClientIpResolver.fromRight(2)` | Both append to `X-Forwarded-For`: CloudFront the viewer, then the load balancer the CloudFront edge. |
+| An Application Load Balancer alone | `XForwardedForClientIpResolver.fromRight(1)` | The load balancer appends the client to `X-Forwarded-For` in its default `append` mode. |
+| An edge proxy that replaces `X-Forwarded-For` with the address it received the request from | `XForwardedForClientIpResolver.leftmost()` | For example nginx with `proxy_set_header X-Forwarded-For $remote_addr`. |
+| Several proxies of your own, with changing hop counts | `new XForwardedForClientIpResolver(proxyCidrs)` | Every proxy that appends to the header must be in `proxyCidrs`. |
+| A proxy that sets a single-address header and replaces any value a client sent | `new TrustedHeaderClientIpResolver("True-Client-IP")` | Any header name the proxy sets. |
+
+Choose the leftmost entry only behind an edge that replaces the header.
+CloudFront and Application Load Balancers do not: both append to an
+`X-Forwarded-For` the client sends, so behind them the leftmost entry is
+whatever the client wrote. An Application Load Balancer cannot be configured to
+replace the header either; its `routing.http.xff_header_processing.mode` is
+`append`, `preserve`, or `remove`, and `remove` drops the header entirely. A
+CloudFront Function on the viewer request can delete a client-supplied
+`X-Forwarded-For`, after which CloudFront forwards one holding only the viewer
+address; confirm that with a test request before relying on `leftmost()`.
+
+Each resolver also takes the CIDR blocks of the application's immediate peer,
+such as the load balancer's subnets (a load balancer's node addresses change,
+its subnets do not), and then ignores the header on a request from any other
+peer. That guards against a request that reaches the application without
+passing through its load balancer. It does not guard against a request that
+bypasses the edge but reaches the load balancer, which still arrives from the
+load balancer, so the controls that make `client.ip` trustworthy are in the
+network:
+
+1. Allow the application's port only from the load balancer's security group.
+2. Behind CloudFront, allow the load balancer's listener only from the
+   `com.amazonaws.global.cloudfront.origin-facing` managed prefix list, and add
+   a secret custom origin header in CloudFront that a load balancer listener
+   rule requires, because the prefix list admits every CloudFront distribution,
+   including one an attacker points at the load balancer.
+3. Add `CloudFront-Viewer-Address` to the distribution's origin request policy;
+   CloudFront sends it only then.
+
+The resolvers accept only a literal IP address: a dotted-quad IPv4 address
+without leading zeros, or an IPv6 literal, and never resolve a host name. They
+accept `CloudFront-Viewer-Address` with an IPv6 address with or without
+brackets, and an `X-Forwarded-For` entry with the port an Application Load
+Balancer adds when client port preservation is enabled. An `X-Forwarded-For`
+resolver parses only the entries from the right up to the one it selects, so a
+malformed value a client prepends cannot suppress `client.ip`.
+
 ## Scaling and statelessness posture
 
 The application is not a stateless service in the strict sense: user

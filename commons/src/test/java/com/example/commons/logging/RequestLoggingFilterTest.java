@@ -14,6 +14,8 @@ import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.springframework.mock.web.MockAsyncContext;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -84,6 +86,54 @@ class RequestLoggingFilterTest {
 						event -> assertThat(keyValues(event)).containsEntry("url.path", "/accounts;[REDACTED]/123"));
 		}
 		finally {
+			logger.detachAppender(appender);
+			appender.stop();
+		}
+	}
+
+	/**
+	 * An asynchronous request is not complete when the filter chain returns, so the
+	 * completion event is logged when the async context completes instead. That can
+	 * happen on another thread, with no MDC or security context, so the request ID, user,
+	 * and client IP captured when the request went async are logged with it.
+	 */
+	@Test
+	void logsAnAsyncRequestWhenItCompletesWithTheContextCapturedWhenItWentAsync() throws Exception {
+		Logger logger = (Logger) LoggerFactory.getLogger(RequestLoggingFilter.class);
+		ListAppender<ILoggingEvent> appender = new ListAppender<>();
+		appender.start();
+		logger.addAppender(appender);
+		try {
+			MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/42");
+			request.setAsyncSupported(true);
+			request.setRemoteAddr("192.0.2.10");
+			MockHttpServletResponse response = new MockHttpServletResponse();
+			SecurityContextHolder.getContext()
+				.setAuthentication(UsernamePasswordAuthenticationToken.authenticated("alice", "N/A", null));
+			MDC.put("http.request.id", "request-1");
+			MDC.put("client.ip", "198.51.100.7");
+
+			new RequestLoggingFilter(List.of()).doFilter(request, response,
+					(servletRequest, servletResponse) -> servletRequest.startAsync());
+
+			assertThat(appender.list).extracting(event -> keyValues(event).get("event.action"))
+				.containsExactly("receive_request");
+
+			MDC.clear();
+			SecurityContextHolder.clearContext();
+			response.setStatus(202);
+			((MockAsyncContext) request.getAsyncContext()).complete();
+
+			assertThat(appender.list).hasSize(2);
+			assertThat(keyValues(appender.list.get(1))).containsEntry("event.action", "complete_request")
+				.containsEntry("http.response.status_code", 202)
+				.containsEntry("http.request.id", "request-1")
+				.containsEntry("user.name", "alice")
+				.containsEntry("client.ip", "198.51.100.7")
+				.containsEntry("source.ip", "192.0.2.10");
+		}
+		finally {
+			MDC.clear();
 			logger.detachAppender(appender);
 			appender.stop();
 		}

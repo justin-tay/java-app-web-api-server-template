@@ -31,9 +31,10 @@ For request-scoped events, `RequestCorrelationContextFilter` puts `source.ip`
 in MDC. It is the direct peer address from `HttpServletRequest.getRemoteAddr()`,
 not a unique correlation identifier and not a proxy-normalized end-user IP.
 When an application defines a trusted `ClientIpResolver` bean, replacing the
-commons default that resolves none, it also adds `client.ip`. The supplied resolvers support a
-normalized header, an `X-Forwarded-For` chain, and CloudFront's address-and-port
-header; each rejects an untrusted immediate peer. This filter, along with
+commons default that resolves none, it also adds `client.ip`. The supplied resolvers read
+a single-address header, an `X-Forwarded-For` chain, or CloudFront's address-and-port
+header; which one fits, and the network controls that make it trustworthy, are
+described in [Client IP behind proxies](../05-operational-concepts/README.md#client-ip-behind-proxies). This filter, along with
 `http.request.id`, is registered directly with the servlet container at an
 order below Spring Security's own filter chain (see [ADR 0012](../../../adr/0012-request-correlation-ahead-of-security-chain.md)), so these
 fields are present on every event below, including `reject_request`.
