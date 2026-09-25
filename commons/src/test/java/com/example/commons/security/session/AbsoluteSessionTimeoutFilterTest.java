@@ -1,61 +1,67 @@
 package com.example.commons.security.session;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
-
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockFilterChain;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.mock.web.MockHttpSession;
 
 /**
  * Tests for {@link AbsoluteSessionTimeoutFilter}.
  */
 class AbsoluteSessionTimeoutFilterTest {
 
-	private static final Instant NOW = Instant.parse("2026-09-09T00:00:00Z");
+	private static final Duration TIMEOUT = Duration.ofHours(12);
+
+	private final MockHttpServletRequest request = new MockHttpServletRequest("GET", "/account");
+
+	private final MockHttpServletResponse response = new MockHttpServletResponse();
+
+	private final MockFilterChain filterChain = new MockFilterChain();
+
+	private final MockHttpSession session = new MockHttpSession();
 
 	@Test
 	void invalidatesSessionAtAbsoluteTimeout() throws Exception {
-		HttpServletRequest request = mock(HttpServletRequest.class);
-		HttpServletResponse response = mock(HttpServletResponse.class);
-		HttpSession session = mock(HttpSession.class);
-		FilterChain filterChain = mock(FilterChain.class);
-		when(request.getSession(false)).thenReturn(session);
-		when(session.getCreationTime()).thenReturn(NOW.minus(Duration.ofHours(12)).toEpochMilli());
+		this.request.setSession(this.session);
 
-		filter().doFilter(request, response, filterChain);
+		filterAt(created().plus(TIMEOUT)).doFilter(this.request, this.response, this.filterChain);
 
-		verify(session).invalidate();
-		verify(filterChain).doFilter(request, response);
+		assertThat(this.session.isInvalid()).isTrue();
+		assertThat(this.filterChain.getRequest()).isSameAs(this.request);
 	}
 
 	@Test
 	void retainsSessionBeforeAbsoluteTimeout() throws Exception {
-		HttpServletRequest request = mock(HttpServletRequest.class);
-		HttpServletResponse response = mock(HttpServletResponse.class);
-		HttpSession session = mock(HttpSession.class);
-		FilterChain filterChain = mock(FilterChain.class);
-		when(request.getSession(false)).thenReturn(session);
-		when(session.getCreationTime()).thenReturn(NOW.minus(Duration.ofHours(12)).plusMillis(1).toEpochMilli());
+		this.request.setSession(this.session);
 
-		filter().doFilter(request, response, filterChain);
+		filterAt(created().plus(TIMEOUT).minusMillis(1)).doFilter(this.request, this.response, this.filterChain);
 
-		verify(session, never()).invalidate();
-		verify(filterChain).doFilter(request, response);
+		assertThat(this.session.isInvalid()).isFalse();
+		assertThat(this.filterChain.getRequest()).isSameAs(this.request);
 	}
 
-	private AbsoluteSessionTimeoutFilter filter() {
-		return new AbsoluteSessionTimeoutFilter(Duration.ofHours(12), Clock.fixed(NOW, ZoneOffset.UTC));
+	@Test
+	void passesARequestWithoutASessionThrough() throws Exception {
+		filterAt(created().plus(TIMEOUT)).doFilter(this.request, this.response, this.filterChain);
+
+		assertThat(this.request.getSession(false)).isNull();
+		assertThat(this.filterChain.getRequest()).isSameAs(this.request);
+	}
+
+	private Instant created() {
+		return Instant.ofEpochMilli(this.session.getCreationTime());
+	}
+
+	private static AbsoluteSessionTimeoutFilter filterAt(Instant now) {
+		return new AbsoluteSessionTimeoutFilter(TIMEOUT, Clock.fixed(now, ZoneOffset.UTC));
 	}
 
 }

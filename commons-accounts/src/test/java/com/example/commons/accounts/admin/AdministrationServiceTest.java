@@ -2,126 +2,149 @@ package com.example.commons.accounts.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-import java.util.List;
-import java.util.Optional;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.data.domain.Pageable;
+import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.core.session.SessionInformation;
+import org.springframework.security.core.session.SessionRegistryImpl;
+import org.springframework.session.FindByIndexNameSessionRepository;
+import org.springframework.session.MapSession;
 
+import com.example.commons.accounts.AccountsJpaTest;
 import com.example.commons.accounts.domain.AppGroup;
 import com.example.commons.accounts.domain.AppGroupRepository;
 import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
+import com.example.commons.security.session.SessionLifecycleAuditLogger;
 import com.example.commons.security.session.SessionRevocationService;
 import com.example.commons.web.problem.ConflictException;
 import com.example.commons.web.problem.ResourceNotFoundException;
 
 /**
- * Tests {@link AdministrationService}: it revokes a user's active sessions exactly when
- * their disabled status or group membership changes, rejects changes that would break the
- * user, group, and role model's integrity with a {@link ConflictException}, and reports
- * an unknown user, group, or role with a {@link ResourceNotFoundException}.
+ * Tests {@link AdministrationService} against the real user, group, and role schema: it
+ * revokes a user's active sessions exactly when their disabled status or group membership
+ * changes, rejects changes that would break the model's integrity with a
+ * {@link ConflictException}, and reports an unknown user, group, or role with a
+ * {@link ResourceNotFoundException}.
  */
+@AccountsJpaTest
+@ExtendWith(OutputCaptureExtension.class)
 class AdministrationServiceTest {
 
-	private final AppUserRepository users = mock(AppUserRepository.class);
+	@Autowired
+	private TestEntityManager entityManager;
 
-	private final AppGroupRepository groups = mock(AppGroupRepository.class);
+	@Autowired
+	private AppUserRepository users;
 
-	private final AppRoleRepository roles = mock(AppRoleRepository.class);
+	@Autowired
+	private AppGroupRepository groups;
 
-	private final SessionRevocationService sessionRevocationService = mock(SessionRevocationService.class);
+	@Autowired
+	private AppRoleRepository roles;
 
-	private final AdministrationService service = new AdministrationService(this.users, this.groups, this.roles,
-			this.sessionRevocationService);
+	private final SessionLifecycleAuditLogger sessionLifecycleAuditLogger = new SessionLifecycleAuditLogger();
+
+	private final SessionRegistryImpl sessionRegistry = new SessionRegistryImpl();
+
+	private final InMemorySessionRepository sessionRepository = new InMemorySessionRepository();
+
+	private AdministrationService service;
+
+	private AppRole userManage;
+
+	private AppGroup managers;
+
+	private AppGroup administrators;
+
+	private AppUser testUser;
+
+	@BeforeEach
+	void setUp() {
+		this.service = new AdministrationService(this.users, this.groups, this.roles, new SessionRevocationService(
+				this.sessionRegistry, this.sessionRepository, this.sessionLifecycleAuditLogger));
+		this.userManage = this.entityManager.persist(new AppRole("USER_MANAGE"));
+		this.managers = this.entityManager.persist(new AppGroup("Managers"));
+		this.managers.getRoles().add(this.userManage);
+		this.administrators = this.entityManager.persist(new AppGroup("Administrators"));
+		this.testUser = new AppUser("test-user", "Test User", "test@example.test", true);
+		this.testUser.getGroups().add(this.managers);
+		this.entityManager.persist(this.testUser);
+		this.entityManager.flush();
+		signIn("session-1", "test-user");
+	}
 
 	@Test
-	void revokesSessionsWhenAUserIsDisabled() {
-		AppGroup group = groupWithId("group-1");
-		AppUser user = enabledUser("test-user", group);
-		when(this.users.findById("user-1")).thenReturn(Optional.of(user));
-		when(this.groups.findAllById(Set.of("group-1"))).thenReturn(List.of(group));
+	void revokesSessionsWhenAUserIsDisabled(CapturedOutput output) {
+		this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User", "test@example.test",
+				false, Set.of(this.managers.getId())));
 
-		this.service.updateUser("user-1",
-				new AdminDtos.UserUpdateRequest("Display Name", "test@example.test", false, Set.of("group-1")));
-
-		verify(this.sessionRevocationService).revoke("test-user", "privilege_change");
+		assertThat(sessionOf("test-user").isExpired()).isTrue();
+		assertThat(output).contains("destroy_session").contains("\"privilege_change\"");
 	}
 
 	@Test
 	void revokesSessionsWhenGroupMembershipChanges() {
-		AppGroup originalGroup = groupWithId("group-1");
-		AppGroup newGroup = groupWithId("group-2");
-		AppUser user = enabledUser("test-user", originalGroup);
-		when(this.users.findById("user-1")).thenReturn(Optional.of(user));
-		when(this.groups.findAllById(Set.of("group-2"))).thenReturn(List.of(newGroup));
+		this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User", "test@example.test",
+				true, Set.of(this.administrators.getId())));
 
-		this.service.updateUser("user-1",
-				new AdminDtos.UserUpdateRequest("Display Name", "test@example.test", true, Set.of("group-2")));
-
-		verify(this.sessionRevocationService).revoke("test-user", "privilege_change");
+		assertThat(sessionOf("test-user").isExpired()).isTrue();
+		assertThat(reload(this.testUser).getGroups()).extracting(AppGroup::getName).containsExactly("Administrators");
 	}
 
 	@Test
 	void doesNotRevokeSessionsWhenNeitherEnabledStatusNorGroupsChange() {
-		AppGroup group = groupWithId("group-1");
-		AppUser user = enabledUser("test-user", group);
-		when(this.users.findById("user-1")).thenReturn(Optional.of(user));
-		when(this.groups.findAllById(Set.of("group-1"))).thenReturn(List.of(group));
+		this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("New Display Name",
+				"test@example.test", true, Set.of(this.managers.getId())));
 
-		this.service.updateUser("user-1",
-				new AdminDtos.UserUpdateRequest("New Display Name", "test@example.test", true, Set.of("group-1")));
-
-		verify(this.sessionRevocationService, never()).revoke(any(), any());
+		assertThat(sessionOf("test-user").isExpired()).isFalse();
+		assertThat(reload(this.testUser).getDisplayName()).isEqualTo("New Display Name");
 	}
 
 	@Test
-	void revokesSessionsWhenAUserIsDeleted() {
-		AppUser user = enabledUser("test-user", groupWithId("group-1"));
-		when(this.users.findById("user-1")).thenReturn(Optional.of(user));
+	void revokesSessionsWhenAUserIsDeleted(CapturedOutput output) {
+		this.service.deleteUser(this.testUser.getId());
+		this.entityManager.flush();
 
-		this.service.deleteUser("user-1");
-
-		verify(this.sessionRevocationService).revoke("test-user", "account_deleted");
+		assertThat(sessionOf("test-user").isExpired()).isTrue();
+		assertThat(output).contains("destroy_session").contains("\"account_deleted\"");
+		assertThat(this.users.existsByUsername("test-user")).isFalse();
 	}
 
 	@Test
 	void rejectsADuplicateUsername() {
-		when(this.users.existsByUsername("test-user")).thenReturn(true);
-
 		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service
-				.createUser(new AdminDtos.UserCreateRequest("test-user", "Test User", null, true, Set.of("group-1"))))
+			.isThrownBy(() -> this.service.createUser(new AdminDtos.UserCreateRequest("test-user", "Test User", null,
+					true, Set.of(this.managers.getId()))))
 			.withMessage("Username already exists.");
-		verify(this.users, never()).save(any());
+		assertThat(this.users.count()).isEqualTo(1);
 	}
 
 	@Test
 	void rejectsAUserInAGroupThatDoesNotExist() {
-		when(this.groups.findAllById(Set.of("group-1", "missing"))).thenReturn(List.of(groupWithId("group-1")));
-
 		assertThatExceptionOfType(ResourceNotFoundException.class)
-			.isThrownBy(() -> this.service.createUser(
-					new AdminDtos.UserCreateRequest("new-user", "New User", null, true, Set.of("group-1", "missing"))))
+			.isThrownBy(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null,
+					true, Set.of(this.managers.getId(), "missing"))))
 			.withMessage("Group was not found.");
-		verify(this.users, never()).save(any());
+		assertThat(this.users.existsByUsername("new-user")).isFalse();
 	}
 
 	@Test
 	void reportsAnUnknownUserGroupOrRole() {
-		when(this.users.findById("missing")).thenReturn(Optional.empty());
-		when(this.groups.findById("missing")).thenReturn(Optional.empty());
-		when(this.roles.findById("missing")).thenReturn(Optional.empty());
-
 		assertThatExceptionOfType(ResourceNotFoundException.class).isThrownBy(() -> this.service.user("missing"))
 			.withMessage("User was not found.");
 		assertThatExceptionOfType(ResourceNotFoundException.class).isThrownBy(() -> this.service.group("missing"))
@@ -132,105 +155,164 @@ class AdministrationServiceTest {
 
 	@Test
 	void doesNotRevokeSessionsOrDeleteAnUnknownUser() {
-		when(this.users.findById("missing")).thenReturn(Optional.empty());
-
 		assertThatExceptionOfType(ResourceNotFoundException.class).isThrownBy(() -> this.service.deleteUser("missing"));
-		verify(this.sessionRevocationService, never()).revoke(any(), any());
-		verify(this.users, never()).delete(any(AppUser.class));
+
+		assertThat(sessionOf("test-user").isExpired()).isFalse();
+		assertThat(this.users.count()).isEqualTo(1);
+	}
+
+	@Test
+	void findsTheUsersOfAGroupOnceEach() {
+		AppUser other = new AppUser("other-user", "Other User", null, true);
+		other.getGroups().add(this.administrators);
+		this.entityManager.persist(other);
+		this.testUser.getGroups().add(this.administrators);
+		this.entityManager.flush();
+
+		assertThat(this.service.users(null, null, null, this.administrators.getId(), Pageable.unpaged()).getContent())
+			.extracting(AppUser::getUsername)
+			.containsExactlyInAnyOrder("test-user", "other-user");
+		assertThat(this.service.users(null, null, null, this.managers.getId(), Pageable.unpaged()).getContent())
+			.extracting(AppUser::getUsername)
+			.containsExactly("test-user");
 	}
 
 	@Test
 	void rejectsADuplicateGroupName() {
-		when(this.groups.existsByName("Administrators")).thenReturn(true);
-
 		assertThatExceptionOfType(ConflictException.class)
 			.isThrownBy(() -> this.service.createGroup(new AdminDtos.GroupRequest("Administrators", null)))
 			.withMessage("Group name already exists.");
-		verify(this.groups, never()).save(any());
+		assertThat(this.groups.count()).isEqualTo(2);
 	}
 
 	@Test
 	void rejectsAGroupWithARoleThatDoesNotExist() {
-		when(this.roles.findAllById(Set.of("missing"))).thenReturn(List.of());
-
 		assertThatExceptionOfType(ResourceNotFoundException.class)
 			.isThrownBy(() -> this.service.createGroup(new AdminDtos.GroupRequest("New Group", Set.of("missing"))))
 			.withMessage("Role was not found.");
-		verify(this.groups, never()).save(any());
+		assertThat(this.groups.existsByName("New Group")).isFalse();
 	}
 
 	@Test
 	void rejectsRenamingAGroupToAnExistingName() {
-		AppGroup group = groupWithId("group-1");
-		when(this.groups.findById("group-1")).thenReturn(Optional.of(group));
-		when(this.groups.existsByName("Administrators")).thenReturn(true);
-
 		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.updateGroup("group-1", new AdminDtos.GroupRequest("Administrators", null)))
+			.isThrownBy(() -> this.service.updateGroup(this.managers.getId(),
+					new AdminDtos.GroupRequest("Administrators", null)))
 			.withMessage("Group name already exists.");
-		assertThat(group.getName()).isEqualTo("Group group-1");
+		assertThat(reload(this.managers).getName()).isEqualTo("Managers");
 	}
 
 	@Test
 	void keepingAGroupsOwnNameIsNotAConflict() {
-		AppGroup group = groupWithId("group-1");
-		when(this.groups.findById("group-1")).thenReturn(Optional.of(group));
-		when(this.groups.existsByName("Group group-1")).thenReturn(true);
+		AppGroup updated = this.service.updateGroup(this.managers.getId(),
+				new AdminDtos.GroupRequest("Managers", Set.of(this.userManage.getId())));
 
-		assertThat(this.service.updateGroup("group-1", new AdminDtos.GroupRequest("Group group-1", null)).getName())
-			.isEqualTo("Group group-1");
+		assertThat(updated.getName()).isEqualTo("Managers");
 	}
 
 	@Test
 	void rejectsDeletingAGroupThatContainsUsers() {
-		when(this.users.existsByGroups_Id("group-1")).thenReturn(true);
-
-		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> this.service.deleteGroup("group-1"))
+		assertThatExceptionOfType(ConflictException.class)
+			.isThrownBy(() -> this.service.deleteGroup(this.managers.getId()))
 			.withMessage("Group contains users.");
-		verify(this.groups, never()).delete(any(AppGroup.class));
+		assertThat(this.groups.existsById(this.managers.getId())).isTrue();
+	}
+
+	@Test
+	void deletesAGroupWithoutUsers() {
+		this.service.deleteGroup(this.administrators.getId());
+		this.entityManager.flush();
+
+		assertThat(this.groups.existsById(this.administrators.getId())).isFalse();
 	}
 
 	@Test
 	void rejectsADuplicateRoleName() {
-		when(this.roles.existsByName("USER_MANAGE")).thenReturn(true);
-
 		assertThatExceptionOfType(ConflictException.class)
 			.isThrownBy(() -> this.service.createRole(new AdminDtos.RoleRequest("USER_MANAGE")))
 			.withMessage("Role name already exists.");
-		verify(this.roles, never()).save(any());
+		assertThat(this.roles.count()).isEqualTo(1);
 	}
 
 	@Test
 	void rejectsRenamingARoleToAnExistingName() {
-		AppRole role = new AppRole("REPORT_VIEW");
-		when(this.roles.findById("role-1")).thenReturn(Optional.of(role));
-		when(this.roles.existsByName("USER_MANAGE")).thenReturn(true);
+		AppRole reportView = this.entityManager.persist(new AppRole("REPORT_VIEW"));
 
 		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.updateRole("role-1", new AdminDtos.RoleRequest("USER_MANAGE")))
+			.isThrownBy(() -> this.service.updateRole(reportView.getId(), new AdminDtos.RoleRequest("USER_MANAGE")))
 			.withMessage("Role name already exists.");
-		assertThat(role.getName()).isEqualTo("REPORT_VIEW");
+		assertThat(reload(reportView).getName()).isEqualTo("REPORT_VIEW");
 	}
 
 	@Test
 	void rejectsDeletingARoleThatIsAssignedToAGroup() {
-		when(this.groups.existsByRoles_Id("role-1")).thenReturn(true);
-
-		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> this.service.deleteRole("role-1"))
+		assertThatExceptionOfType(ConflictException.class)
+			.isThrownBy(() -> this.service.deleteRole(this.userManage.getId()))
 			.withMessage("Role is assigned to a group.");
-		verify(this.roles, never()).delete(any(AppRole.class));
+		assertThat(this.roles.existsById(this.userManage.getId())).isTrue();
 	}
 
-	private AppUser enabledUser(String username, AppGroup group) {
-		AppUser user = new AppUser(username, "Display Name", "test@example.test", true);
-		user.getGroups().add(group);
-		return user;
+	/**
+	 * Registers an authenticated session for a user, with the audit identifier the login
+	 * would have given it, so a revocation is both expired in the registry and logged.
+	 */
+	private void signIn(String sessionId, String username) {
+		this.sessionRegistry.registerNewSession(sessionId, username);
+		MockHttpSession httpSession = new MockHttpSession(null, sessionId);
+		this.sessionLifecycleAuditLogger.logSessionCreatedIfNeeded(httpSession);
+		MapSession session = new MapSession(sessionId);
+		for (String name : Collections.list(httpSession.getAttributeNames())) {
+			session.setAttribute(name, httpSession.getAttribute(name));
+		}
+		this.sessionRepository.save(session);
 	}
 
-	private AppGroup groupWithId(String id) {
-		AppGroup group = new AppGroup("Group " + id);
-		ReflectionTestUtils.setField(group, "id", id);
-		return group;
+	private SessionInformation sessionOf(String username) {
+		return this.sessionRegistry.getAllSessions(username, true).get(0);
+	}
+
+	private <T> T reload(T entity) {
+		this.entityManager.flush();
+		this.entityManager.clear();
+		Object id = this.entityManager.getId(entity);
+		@SuppressWarnings("unchecked")
+		T reloaded = (T) this.entityManager.find(entity.getClass(), id);
+		return reloaded;
+	}
+
+	/**
+	 * A {@link FindByIndexNameSessionRepository} held in memory, standing in for the JDBC
+	 * one.
+	 */
+	static final class InMemorySessionRepository implements FindByIndexNameSessionRepository<MapSession> {
+
+		private final Map<String, MapSession> sessions = new HashMap<>();
+
+		@Override
+		public MapSession createSession() {
+			return new MapSession();
+		}
+
+		@Override
+		public void save(MapSession session) {
+			this.sessions.put(session.getId(), session);
+		}
+
+		@Override
+		public MapSession findById(String id) {
+			return this.sessions.get(id);
+		}
+
+		@Override
+		public void deleteById(String id) {
+			this.sessions.remove(id);
+		}
+
+		@Override
+		public Map<String, MapSession> findByIndexNameAndIndexValue(String indexName, String indexValue) {
+			return Map.of();
+		}
+
 	}
 
 }

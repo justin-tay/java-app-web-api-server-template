@@ -3,10 +3,14 @@ package com.example.commons.accounts.domain;
 import java.time.Instant;
 import java.util.UUID;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * Base entity providing a random UUID identifier and creation/update audit timestamps,
@@ -15,7 +19,13 @@ import jakarta.persistence.PreUpdate;
 @MappedSuperclass
 public abstract class AbstractAuditableEntity {
 
+	/**
+	 * A UUID in its 36-character text form, stored as {@code CHAR(36)} as
+	 * {@code 001-authorisation-schema.sql} defines it.
+	 */
 	@Id
+	@Column(length = 36)
+	@JdbcTypeCode(SqlTypes.CHAR)
 	private String id;
 
 	private Instant createdAt;

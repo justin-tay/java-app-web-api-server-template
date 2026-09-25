@@ -1,59 +1,54 @@
 package com.example.commons.security.session;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.same;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.web.AuthenticationEntryPoint;
-import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.csrf.MissingCsrfTokenException;
-import org.springframework.security.web.savedrequest.RequestCache;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 
+@ExtendWith(OutputCaptureExtension.class)
 class AuditingInvalidSessionStrategyTest {
 
-	private final SessionLifecycleAuditLogger sessionLifecycleAuditLogger = mock(SessionLifecycleAuditLogger.class);
+	private final HttpSessionRequestCache requestCache = new HttpSessionRequestCache();
 
-	private final RequestCache requestCache = mock(RequestCache.class);
+	private final MockHttpServletRequest request = new MockHttpServletRequest("GET", "/account");
 
-	private final AuthenticationEntryPoint authenticationEntryPoint = mock(AuthenticationEntryPoint.class);
-
-	private final AccessDeniedHandler accessDeniedHandler = mock(AccessDeniedHandler.class);
+	private final MockHttpServletResponse response = new MockHttpServletResponse();
 
 	private final AuditingInvalidSessionStrategy strategy = new AuditingInvalidSessionStrategy(
-			this.sessionLifecycleAuditLogger, () -> this.requestCache, this.authenticationEntryPoint,
-			this.accessDeniedHandler);
+			new SessionLifecycleAuditLogger(), () -> this.requestCache,
+			(request, response, ex) -> response.setStatus(401),
+			(request, response, ex) -> response.sendError(403, ex.getClass().getSimpleName()));
 
 	@Test
-	void logsAnUnknownRequestedSessionAndAnswersAsUnauthenticated() throws Exception {
-		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/account");
-		request.setRequestedSessionId("unknown-session-id");
-		request.setRequestedSessionIdValid(false);
-		MockHttpServletResponse response = new MockHttpServletResponse();
+	void logsAnUnknownRequestedSessionAndAnswersAsUnauthenticated(CapturedOutput output) throws Exception {
+		this.request.setRequestedSessionId("unknown-session-id");
+		this.request.setRequestedSessionIdValid(false);
 
-		this.strategy.onInvalidSessionDetected(request, response);
+		this.strategy.onInvalidSessionDetected(this.request, this.response);
 
-		verify(this.sessionLifecycleAuditLogger).logRequestedSessionNotFound();
-		verify(this.requestCache).saveRequest(request, response);
-		verify(this.authenticationEntryPoint).commence(same(request), same(response),
-				any(AuthenticationException.class));
-		verifyNoInteractions(this.accessDeniedHandler);
+		assertThat(output).contains("event.action=\"resume_session\"")
+			.contains("event.reason=\"session_not_found\"")
+			.doesNotContain("unknown-session-id");
+		assertThat(this.requestCache.getRequest(this.request, this.response)).isNotNull();
+		assertThat(this.response.getStatus()).isEqualTo(401);
 	}
 
 	@Test
-	void answersAMissingCsrfTokenWithoutAPresentedSessionIdAsACsrfFailure() throws Exception {
-		MockHttpServletRequest request = new MockHttpServletRequest("POST", "/account");
-		MockHttpServletResponse response = new MockHttpServletResponse();
+	void answersAMissingCsrfTokenWithoutAPresentedSessionIdAsACsrfFailure(CapturedOutput output) throws Exception {
+		MockHttpServletRequest post = new MockHttpServletRequest("POST", "/account");
 
-		this.strategy.onInvalidSessionDetected(request, response);
+		this.strategy.onInvalidSessionDetected(post, this.response);
 
-		verify(this.accessDeniedHandler).handle(same(request), same(response), any(MissingCsrfTokenException.class));
-		verifyNoInteractions(this.sessionLifecycleAuditLogger, this.requestCache, this.authenticationEntryPoint);
+		assertThat(this.response.getStatus()).isEqualTo(403);
+		assertThat(this.response.getErrorMessage()).isEqualTo(MissingCsrfTokenException.class.getSimpleName());
+		assertThat(output).doesNotContain("resume_session");
+		assertThat(this.requestCache.getRequest(post, this.response)).isNull();
 	}
 
 }

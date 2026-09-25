@@ -1,25 +1,21 @@
 package com.example.commons.security.authorization;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.mock.web.MockHttpSession;
@@ -28,8 +24,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.session.SessionInformation;
-import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
@@ -37,13 +32,25 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 
 import com.example.commons.security.session.SessionLifecycleAuditLogger;
 
+@ExtendWith(OutputCaptureExtension.class)
 class LocalAuthorityRefreshFilterTest {
 
-	private final LocalAuthorityLookup localAuthorityLookup = mock(LocalAuthorityLookup.class);
+	/**
+	 * The local users' authorities by username; a username that is absent is a disabled
+	 * or deleted user.
+	 */
+	private final Map<String, Collection<GrantedAuthority>> localUsers = new HashMap<>();
 
-	private final SessionLifecycleAuditLogger sessionLifecycleAuditLogger = mock(SessionLifecycleAuditLogger.class);
+	private final List<String> lookedUp = new ArrayList<>();
 
-	private final SessionRegistry sessionRegistry = mock(SessionRegistry.class);
+	private final LocalAuthorityLookup localAuthorityLookup = (username) -> {
+		this.lookedUp.add(username);
+		return Optional.ofNullable(this.localUsers.get(username));
+	};
+
+	private final SessionLifecycleAuditLogger sessionLifecycleAuditLogger = new SessionLifecycleAuditLogger();
+
+	private final SessionRegistryImpl sessionRegistry = new SessionRegistryImpl();
 
 	private final LocalAuthorityRefreshFilter filter = new LocalAuthorityRefreshFilter(this.localAuthorityLookup,
 			this.sessionLifecycleAuditLogger, this.sessionRegistry);
@@ -55,7 +62,7 @@ class LocalAuthorityRefreshFilterTest {
 
 	@Test
 	void replacesRoleAuthoritiesWithFreshOnesFromTheDatabaseButKeepsOtherAuthorities() throws Exception {
-		when(this.localAuthorityLookup.findAuthorities("alice")).thenReturn(roles("USER_MANAGE"));
+		this.localUsers.put("alice", roles("USER_MANAGE"));
 		SecurityContextHolder.getContext()
 			.setAuthentication(oauthToken("alice", new SimpleGrantedAuthority("SCOPE_openid"),
 					new SimpleGrantedAuthority("ROLE_STALE_ROLE")));
@@ -72,23 +79,25 @@ class LocalAuthorityRefreshFilterTest {
 	}
 
 	@Test
-	void deauthenticatesAndInvalidatesTheSessionWhenTheUserIsDisabledOrDeleted() throws Exception {
-		when(this.localAuthorityLookup.findAuthorities("alice")).thenReturn(Optional.empty());
+	void deauthenticatesAndInvalidatesTheSessionWhenTheUserIsDisabledOrDeleted(CapturedOutput output) throws Exception {
 		SecurityContextHolder.getContext().setAuthentication(oauthToken("alice"));
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/accounts");
 		MockHttpSession session = (MockHttpSession) request.getSession(true);
+		this.sessionLifecycleAuditLogger.logSessionCreatedIfNeeded(session);
 
 		this.filter.doFilter(request, new MockHttpServletResponse(), (servletRequest, servletResponse) -> {
 		});
 
 		assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
 		assertThat(session.isInvalid()).isTrue();
-		verify(this.sessionLifecycleAuditLogger).logSessionDestroyed(session, "user_disabled_or_deleted");
+		assertThat(output).contains("event.action=\"destroy_session\"")
+			.contains("session.termination_reason=\"user_disabled_or_deleted\"");
 	}
 
 	@Test
-	void logsAPrivilegeChangeOnceAndSavesTheRefreshedAuthenticationToTheSession() throws Exception {
-		when(this.localAuthorityLookup.findAuthorities("alice")).thenReturn(roles("USER_MANAGE"));
+	void logsAPrivilegeChangeOnceAndSavesTheRefreshedAuthenticationToTheSession(CapturedOutput output)
+			throws Exception {
+		this.localUsers.put("alice", roles("USER_MANAGE"));
 		SecurityContextHolder.getContext()
 			.setAuthentication(oauthToken("alice", new SimpleGrantedAuthority("SCOPE_openid"),
 					new SimpleGrantedAuthority("ROLE_STALE_ROLE")));
@@ -98,8 +107,9 @@ class LocalAuthorityRefreshFilterTest {
 		this.filter.doFilter(request, new MockHttpServletResponse(), (servletRequest, servletResponse) -> {
 		});
 
-		verify(this.sessionLifecycleAuditLogger).logSessionPrivilegeChanged(session, "alice",
-				Set.of("ROLE_USER_MANAGE"), Set.of("ROLE_STALE_ROLE"));
+		assertThat(output).containsOnlyOnce("event.action=\"update_session\"")
+			.contains("ROLE_USER_MANAGE")
+			.contains("ROLE_STALE_ROLE");
 		SecurityContext savedContext = (SecurityContext) session
 			.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
 		assertThat(savedContext.getAuthentication().getAuthorities()).extracting(GrantedAuthority::getAuthority)
@@ -107,8 +117,8 @@ class LocalAuthorityRefreshFilterTest {
 	}
 
 	@Test
-	void doesNotLogWhenTheReloadedAuthoritiesAreUnchanged() throws Exception {
-		when(this.localAuthorityLookup.findAuthorities("alice")).thenReturn(roles("USER_MANAGE"));
+	void doesNotLogWhenTheReloadedAuthoritiesAreUnchanged(CapturedOutput output) throws Exception {
+		this.localUsers.put("alice", roles("USER_MANAGE"));
 		SecurityContextHolder.getContext()
 			.setAuthentication(oauthToken("alice", new SimpleGrantedAuthority("ROLE_USER_MANAGE")));
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/accounts");
@@ -117,25 +127,24 @@ class LocalAuthorityRefreshFilterTest {
 		this.filter.doFilter(request, new MockHttpServletResponse(), (servletRequest, servletResponse) -> {
 		});
 
-		verify(this.sessionLifecycleAuditLogger, never()).logSessionPrivilegeChanged(any(), anyString(), any(), any());
+		assertThat(output).doesNotContain("update_session");
 		assertThat(session.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY)).isNull();
 	}
 
 	@Test
-	void doesNotLogAPrivilegeChangeForASessionAlreadyExpiredForRevocation() throws Exception {
-		when(this.localAuthorityLookup.findAuthorities("alice")).thenReturn(roles("USER_MANAGE"));
+	void doesNotLogAPrivilegeChangeForASessionAlreadyExpiredForRevocation(CapturedOutput output) throws Exception {
+		this.localUsers.put("alice", roles("USER_MANAGE"));
 		SecurityContextHolder.getContext()
 			.setAuthentication(oauthToken("alice", new SimpleGrantedAuthority("ROLE_STALE_ROLE")));
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/accounts");
 		MockHttpSession session = (MockHttpSession) request.getSession(true);
-		SessionInformation sessionInformation = new SessionInformation("alice", session.getId(), new Date());
-		sessionInformation.expireNow();
-		when(this.sessionRegistry.getSessionInformation(session.getId())).thenReturn(sessionInformation);
+		this.sessionRegistry.registerNewSession(session.getId(), "alice");
+		this.sessionRegistry.getSessionInformation(session.getId()).expireNow();
 
 		this.filter.doFilter(request, new MockHttpServletResponse(), (servletRequest, servletResponse) -> {
 		});
 
-		verify(this.sessionLifecycleAuditLogger, never()).logSessionPrivilegeChanged(any(), anyString(), any(), any());
+		assertThat(output).doesNotContain("update_session");
 	}
 
 	@Test
@@ -148,13 +157,13 @@ class LocalAuthorityRefreshFilterTest {
 				(request, response) -> {
 				});
 
-		verifyNoInteractions(this.localAuthorityLookup);
+		assertThat(this.lookedUp).isEmpty();
 	}
 
-	private static Optional<Collection<GrantedAuthority>> roles(String... roleNames) {
-		return Optional.of(Arrays.stream(roleNames)
-			.<GrantedAuthority>map(roleName -> new SimpleGrantedAuthority("ROLE_" + roleName))
-			.toList());
+	private static Collection<GrantedAuthority> roles(String... roleNames) {
+		return Arrays.stream(roleNames)
+			.<GrantedAuthority>map((roleName) -> new SimpleGrantedAuthority("ROLE_" + roleName))
+			.toList();
 	}
 
 	private OAuth2AuthenticationToken oauthToken(String preferredUsername, GrantedAuthority... authorities) {
