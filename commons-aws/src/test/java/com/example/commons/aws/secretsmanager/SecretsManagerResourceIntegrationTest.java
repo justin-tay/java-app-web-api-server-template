@@ -14,15 +14,17 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.localstack.LocalStackContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import io.floci.testcontainers.FlociContainer;
 import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
 
 /**
  * Reads a secret through the {@code aws-secretsmanager:} protocol and Spring Cloud AWS's
- * auto-configured {@link SecretsManagerClient}, against Secrets Manager in LocalStack.
- * Skipped when Docker is not available.
+ * auto-configured {@link SecretsManagerClient}, against Secrets Manager in
+ * <a href="https://github.com/floci-io/floci">Floci</a>, an MIT-licensed AWS emulator
+ * that needs no account or auth token. Floci runs Secrets Manager in process, so its
+ * container gets no Docker socket. Skipped when Docker is not available.
  */
 @SpringBootTest(classes = SecretsManagerResourceIntegrationTest.TestApplication.class)
 @Testcontainers(disabledWithoutDocker = true)
@@ -30,7 +32,8 @@ class SecretsManagerResourceIntegrationTest {
 
 	@Container
 	@ServiceConnection
-	static LocalStackContainer localStack = new LocalStackContainer(DockerImageName.parse("localstack/localstack:4"));
+	static FlociContainer floci = new FlociContainer(DockerImageName.parse("floci/floci:2.1.0"))
+		.withDockerSocket(false);
 
 	@Autowired
 	private ApplicationContext context;

@@ -73,7 +73,7 @@ template ships as a starting point, not a deployed service.
 
 `org.graalvm.buildtools:native-maven-plugin` is on the build, enabling
 `mvn -Pnative native:compile`/`native:build` to produce a native image
-through Spring Boot's ahead-of-time (AOT) processing. Two things in the
+through Spring Boot's ahead-of-time (AOT) processing. Three things in the
 codebase exist specifically to keep that processing correct:
 
 * [`ApplicationRuntimeHints`](../../../../app-web-api-server/src/main/java/com/example/app/web/server/ApplicationRuntimeHints.java)
@@ -83,6 +83,14 @@ codebase exist specifically to keep that processing correct:
   `commons.security.oauth2.jwks`, not from a classpath resource that a native image would need a
   hint to include
   ([ADR 0018](../../../adr/0018-development-fixtures-kept-out-of-production.md)).
+* [`CommonsRuntimeHints`](../../../../commons/src/main/java/com/example/commons/CommonsRuntimeHints.java),
+  registered in `commons`' `META-INF/spring/aot.factories` so every application
+  on `commons` gets it without importing it, holds the hints for `commons`
+  itself: the `META-INF/commons-defaults.yaml` resource, which
+  `CommonsDefaultsEnvironmentPostProcessor` reads before the application
+  context exists, and the constructor of `AbstractAuthenticationFailureEvent`,
+  which Spring Security's `DefaultAuthenticationEventPublisher` looks up
+  reflectively. Without either, the native image fails to start.
 * `TomcatHardeningAutoConfiguration`'s nested
   `JreMemoryLeakPreventionTomcatServletWebServerFactory` was changed from
   `private static final class` to package-private `static final class`

@@ -11,6 +11,9 @@
 	<artifactId>commons-aws</artifactId>
 	<name>commons-aws</name>
 	<description>Optional AWS integration for commons, such as reading resources from AWS Secrets Manager</description>
+	<properties>
+		<testcontainers-floci.version>2.16.1</testcontainers-floci.version>
+	</properties>
 	<dependencies>
 		<dependency>
 			<groupId>io.awspring.cloud</groupId>
@@ -41,8 +44,11 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>io.awspring.cloud</groupId>
-			<artifactId>spring-cloud-aws-testcontainers</artifactId>
+			<!-- Floci, an MIT-licensed AWS emulator, with @ServiceConnection support for
+				Spring Cloud AWS. LocalStack's current image needs an account auth token. -->
+			<groupId>io.floci</groupId>
+			<artifactId>spring-boot-testcontainers-floci</artifactId>
+			<version>${testcontainers-floci.version}</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -53,11 +59,6 @@
 		<dependency>
 			<groupId>org.testcontainers</groupId>
 			<artifactId>testcontainers-junit-jupiter</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.testcontainers</groupId>
-			<artifactId>testcontainers-localstack</artifactId>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
