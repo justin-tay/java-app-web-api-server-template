@@ -10,11 +10,11 @@
 		<relativePath /> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.example</groupId>
-	<artifactId>java-app-web-api-server-parent</artifactId>
+	<artifactId>commons-parent</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>pom</packaging>
-	<name>java-app-web-api-server-parent</name>
-	<description>Spring Boot web API servers sharing the commons security baseline</description>
+	<name>commons-parent</name>
+	<description>Parent of the commons modules, the secure-by-default baseline shared by Spring Boot web API servers</description>
 	<modules>
 		<module>commons</module>
 		<module>commons-accounts</module>
