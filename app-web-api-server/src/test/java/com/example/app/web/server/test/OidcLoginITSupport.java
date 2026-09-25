@@ -21,10 +21,18 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.nimbusds.jose.EncryptionMethod;
 import com.nimbusds.jose.JOSEObjectType;
+import com.nimbusds.jose.JWEAlgorithm;
+import com.nimbusds.jose.JWEHeader;
+import com.nimbusds.jose.JWEObject;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.Payload;
+import com.nimbusds.jose.crypto.ECDHEncrypter;
 import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -33,11 +41,13 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -60,6 +70,12 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
  * {@code bin/configure-keycloak.js}, requires PKCE with {@code S256}: its token endpoint
  * rejects a {@code code_verifier} that does not match the authorization request's
  * {@code code_challenge}.
+ * <p>
+ * Like Keycloak's client configured for ID token encryption, the stub encrypts each ID
+ * token to the application's {@code enc} key ({@code ECDH-ES+A128KW} with Keycloak's
+ * default content encryption, {@code A128CBC-HS256}), nesting the signed JWT. It uses the
+ * {@code enc} key of the test JWKS {@code classpath:jwks.json} unless a test sets another
+ * with {@link #encryptIdTokensTo(ECKey)}.
  */
 @Import(OidcLoginITSupport.StubProviderClientRegistrationConfiguration.class)
 public abstract class OidcLoginITSupport extends RestTestClientITSupport {
@@ -71,6 +87,11 @@ public abstract class OidcLoginITSupport extends RestTestClientITSupport {
 	protected static final String PROVIDER_SESSION_ID = "provider-session-1";
 
 	private static final RSAKey SIGNING_KEY = signingKey();
+
+	private static final ECKey DEFAULT_ID_TOKEN_ENCRYPTION_KEY = testJwksEncryptionKey();
+
+	private static final AtomicReference<ECKey> ID_TOKEN_ENCRYPTION_KEY = new AtomicReference<>(
+			DEFAULT_ID_TOKEN_ENCRYPTION_KEY);
 
 	private static final AtomicReference<String> NONCE = new AtomicReference<>();
 
@@ -88,17 +109,50 @@ public abstract class OidcLoginITSupport extends RestTestClientITSupport {
 
 	protected final HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
 
+	private String preLoginCookie;
+
+	@AfterEach
+	void encryptIdTokensToTheTestJwks() {
+		ID_TOKEN_ENCRYPTION_KEY.set(DEFAULT_ID_TOKEN_ENCRYPTION_KEY);
+	}
+
+	/**
+	 * Sets the key the stub provider encrypts ID tokens to for the rest of the test.
+	 * @param key the public {@code enc} key, or {@code null} to send plain signed ID
+	 * tokens
+	 */
+	protected static void encryptIdTokensTo(ECKey key) {
+		ID_TOKEN_ENCRYPTION_KEY.set(key);
+	}
+
 	/**
 	 * Performs the authorization code flow against the stub provider.
 	 * @return the rotated session cookie ({@code id=...}) of the authenticated session
 	 * @throws Exception if a request fails
 	 */
 	protected String login() throws Exception {
+		HttpResponse<Void> callbackResponse = authorizationCodeFlow();
+		assertThat(callbackResponse.statusCode()).isEqualTo(HttpStatus.FOUND.value());
+		assertThat(callbackResponse.headers().firstValue(HttpHeaders.LOCATION))
+			.hasValueSatisfying(location -> assertThat(location).doesNotContain("error"));
+		String sessionCookie = sessionCookie(callbackResponse);
+		assertThat(sessionId(sessionCookie)).isNotEqualTo(sessionId(this.preLoginCookie));
+		return sessionCookie;
+	}
+
+	/**
+	 * Performs the authorization code flow against the stub provider, up to and including
+	 * the redirect back to the application's callback.
+	 * @return the application's response to the callback
+	 * @throws Exception if a request fails
+	 */
+	protected HttpResponse<Void> authorizationCodeFlow() throws Exception {
 		HttpResponse<Void> authorizationResponse = this.client.send(
 				HttpRequest.newBuilder(uri("/oauth2/authorization/keycloak")).GET().build(),
 				HttpResponse.BodyHandlers.discarding());
 		assertThat(authorizationResponse.statusCode()).isEqualTo(HttpStatus.FOUND.value());
 		String preLoginCookie = sessionCookie(authorizationResponse);
+		this.preLoginCookie = preLoginCookie;
 		Map<String, String> authorizationRequest = queryParameters(
 				URI.create(authorizationResponse.headers().firstValue(HttpHeaders.LOCATION).orElseThrow()));
 		assertThat(authorizationRequest).containsEntry("code_challenge_method", "S256")
@@ -107,18 +161,12 @@ public abstract class OidcLoginITSupport extends RestTestClientITSupport {
 		NONCE.set(authorizationRequest.get("nonce"));
 		CODE_CHALLENGE.set(authorizationRequest.get("code_challenge"));
 
-		HttpResponse<Void> callbackResponse = this.client.send(HttpRequest
+		return this.client.send(HttpRequest
 			.newBuilder(uri("/login/oauth2/code/keycloak?code=test-code&state="
 					+ URLEncoder.encode(authorizationRequest.get("state"), StandardCharsets.UTF_8)))
 			.header(HttpHeaders.COOKIE, preLoginCookie)
 			.GET()
 			.build(), HttpResponse.BodyHandlers.discarding());
-		assertThat(callbackResponse.statusCode()).isEqualTo(HttpStatus.FOUND.value());
-		assertThat(callbackResponse.headers().firstValue(HttpHeaders.LOCATION))
-			.hasValueSatisfying(location -> assertThat(location).doesNotContain("error"));
-		String sessionCookie = sessionCookie(callbackResponse);
-		assertThat(sessionId(sessionCookie)).isNotEqualTo(sessionId(preLoginCookie));
-		return sessionCookie;
 	}
 
 	protected URI uri(String path) {
@@ -178,6 +226,27 @@ public abstract class OidcLoginITSupport extends RestTestClientITSupport {
 	}
 
 	private static String idToken() {
+		String signed = signedIdToken();
+		ECKey encryptionKey = ID_TOKEN_ENCRYPTION_KEY.get();
+		if (encryptionKey == null) {
+			return signed;
+		}
+		try {
+			JWEObject jwe = new JWEObject(
+					new JWEHeader.Builder(JWEAlgorithm.ECDH_ES_A128KW, EncryptionMethod.A128CBC_HS256)
+						.contentType("JWT")
+						.keyID(encryptionKey.getKeyID())
+						.build(),
+					new Payload(signed));
+			jwe.encrypt(new ECDHEncrypter(encryptionKey));
+			return jwe.serialize();
+		}
+		catch (Exception ex) {
+			throw new IllegalStateException(ex);
+		}
+	}
+
+	private static String signedIdToken() {
 		Instant now = Instant.now();
 		return sign(JOSEObjectType.JWT,
 				new JWTClaimsSet.Builder().issuer(ISSUER)
@@ -189,6 +258,27 @@ public abstract class OidcLoginITSupport extends RestTestClientITSupport {
 					.claim("sid", PROVIDER_SESSION_ID)
 					.claim("preferred_username", "test-user")
 					.build());
+	}
+
+	/**
+	 * Gets the public {@code enc} key of the test JWKS, which the application under test
+	 * decrypts ID tokens with.
+	 * @return the public encryption key
+	 */
+	protected static ECKey testJwksEncryptionKey() {
+		try (var inputStream = new ClassPathResource("jwks.json").getInputStream()) {
+			return JWKSet.load(inputStream)
+				.getKeys()
+				.stream()
+				.filter(key -> KeyUse.ENCRYPTION.equals(key.getKeyUse()))
+				.map(JWK::toECKey)
+				.findFirst()
+				.orElseThrow()
+				.toPublicJWK();
+		}
+		catch (Exception ex) {
+			throw new IllegalStateException(ex);
+		}
 	}
 
 	private static RSAKey signingKey() {

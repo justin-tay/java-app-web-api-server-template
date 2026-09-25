@@ -20,12 +20,16 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoderFactory;
 import org.springframework.session.FindByIndexNameSessionRepository;
 
 import com.example.commons.security.authentication.oidc.LocalAuthoritiesOidcUserService;
 import com.example.commons.security.authorization.LocalAuthorityLookup;
+import com.example.commons.security.oauth2.IdTokenDecryption;
 import com.example.commons.security.oauth2.JwksController;
+import com.example.commons.security.oauth2.JwksHealthIndicator;
 import com.example.commons.security.oauth2.PrivateKeyJwtAutoConfiguration;
+import com.example.commons.security.oauth2.RefreshingJwks;
 import com.example.commons.security.session.SessionRevocationService;
 
 class WebSecurityAutoConfigurationTest {
@@ -45,7 +49,9 @@ class WebSecurityAutoConfigurationTest {
 				.hasSingleBean(SessionRevocationService.class)
 				.hasSingleBean(SecurityAuditEventLogger.class)
 				.hasBean("securityFilterChainCustomizer")
-				.doesNotHaveBean(JwksController.class));
+				.doesNotHaveBean(JwksController.class)
+				.doesNotHaveBean(RefreshingJwks.class)
+				.doesNotHaveBean(IdTokenDecryption.class));
 	}
 
 	@Test
@@ -75,6 +81,10 @@ class WebSecurityAutoConfigurationTest {
 					"commons.security.oauth2.jwks=classpath:jwks.json")
 			.run(context -> assertThat(context).hasNotFailed()
 				.hasSingleBean(JwksController.class)
+				.hasSingleBean(RefreshingJwks.class)
+				.hasSingleBean(JwksHealthIndicator.class)
+				.hasSingleBean(JwtDecoderFactory.class)
+				.hasSingleBean(IdTokenDecryption.class)
 				.hasBean("privateKeyJwtFilterChainCustomizer"));
 	}
 

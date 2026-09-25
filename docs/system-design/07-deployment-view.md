@@ -18,13 +18,15 @@ flowchart TB
     DB[("Relational database\napp + Spring Session schema")]
     KC["Keycloak\n(identity provider)"]
     Logs[("Log collector\n(stdout capture)")]
+    SM[("AWS Secrets Manager\n(private JWKS, optional)")]
 
     Browser -->|"HTTPS"| LB
     LB -->|"HTTP/HTTPS :8081"| App
-    LB -.->|"health check :8082/app/health"| App
+    LB -.->|"readiness check :8082/app/health/readiness"| App
     App -->|"JDBC"| DB
     App -->|"HTTPS, OIDC"| KC
     App -->|"stdout ECS JSON"| Logs
+    App -->|"HTTPS, GetSecretValue"| SM
 ```
 
 **Motivation:** The application is a single deployable artifact (JAR or
@@ -42,11 +44,12 @@ not something this template provisions.
 <!-- arc42-generated -->
 | Building Block | Infrastructure Element | Notes |
 | --- | --- | --- |
-| `app-web-api-server` with the `commons` and `commons-accounts` modules it depends on | Application runtime (single JVM process or native binary) | No internal service split; the modules are packaged into one deployable unit. |
+| `app-web-api-server` with the `commons`, `commons-accounts`, and `commons-aws` modules it depends on | Application runtime (single JVM process or native binary) | No internal service split; the modules are packaged into one deployable unit. |
 | `commons-accounts` `domain` (JPA entities/repositories) | Relational database | Schema owned by Liquibase; runtime DB account must not have DDL privileges ([ADR 0004](../adr/0004-database-schema-management.md)). |
 | Spring Session JDBC tables | Same relational database | Shares the database with the application schema; no separate session store is provisioned. |
 | TLS termination | Load balancer/reverse proxy, or the application's own `server.ssl` (PEM bundle via `CERTIFICATE_PEM`/`PRIVATE_KEY_PEM`/`CA_BUNDLE_PEM`) | Production TLS 1.2/1.3 with a fixed strong cipher list is configured either way; which layer terminates TLS is a deployment decision required. |
-| Health probe | Load balancer / orchestrator, targeting management port 8082 | Only `/app/health` is exposed and unauthenticated; every other Actuator endpoint is both unexposed and would require authentication if enabled. |
+| Health probe | Load balancer / orchestrator, targeting management port 8082 | Only `/app/health` and its `/app/health/liveness` and `/app/health/readiness` groups are exposed and unauthenticated; every other Actuator endpoint is both unexposed and would require authentication if enabled. Point the load balancer at the readiness group, which stays DOWN until the private JWKS has a signing key, and the orchestrator's restart check at the liveness group ([ADR 0020](../adr/0020-jwks-rotation-from-aws-secrets-manager.md)). |
+| Private JWKS (`commons.security.oauth2.jwks`) | A protected file, or on AWS one `cdk-jwks-secret` Secrets Manager secret per key use, read through `commons-aws` as `aws-secretsmanager:<secret name or ARN>` | The application reads the `AWSCURRENT` version every `commons.security.oauth2.jwks-refresh-interval` (default 1 hour), so rotated keys are picked up without a restart. Grant the application's role read access to each secret (`jwksSecret.grantRead(role)`) and leave credentials to the AWS SDK default chain ([ADR 0020](../adr/0020-jwks-rotation-from-aws-secrets-manager.md)). |
 | Log collection | Deployment-supplied stdout capture (container log driver, sidecar, etc.) | The application only writes structured JSON to stdout; shipping/retention is a deployment responsibility. |
 <!-- /arc42-generated -->
 

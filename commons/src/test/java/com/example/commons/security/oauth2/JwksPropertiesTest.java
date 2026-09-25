@@ -2,6 +2,9 @@ package com.example.commons.security.oauth2;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Duration;
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.context.ConfigurationPropertiesAutoConfiguration;
@@ -45,7 +48,47 @@ class JwksPropertiesTest {
 			.run(context -> assertThat(context).hasNotFailed()
 				.getBean(JwksProperties.class)
 				.extracting(JwksProperties::getJwks)
-				.isEqualTo("file:/run/secrets/jwks.json"));
+				.isEqualTo(List.of("file:/run/secrets/jwks.json")));
+	}
+
+	@Test
+	void bindsSeveralJwksLocations() {
+		this.contextRunner
+			.withPropertyValues("commons.security.oauth2.jwks[0]=aws-secretsmanager:sig",
+					"commons.security.oauth2.jwks[1]=aws-secretsmanager:enc")
+			.run(context -> assertThat(context).hasNotFailed()
+				.getBean(JwksProperties.class)
+				.extracting(JwksProperties::getJwks)
+				.isEqualTo(List.of("aws-secretsmanager:sig", "aws-secretsmanager:enc")));
+	}
+
+	@Test
+	void refreshesHourlyByDefault() {
+		this.contextRunner.withPropertyValues("commons.security.oauth2.jwks=file:/run/secrets/jwks.json")
+			.run(context -> assertThat(context.getBean(JwksProperties.class).getJwksRefreshInterval())
+				.isEqualTo(Duration.ofHours(1)));
+	}
+
+	@Test
+	void startupFailsWhenTheRefreshIntervalIsLongerThanADay() {
+		this.contextRunner
+			.withPropertyValues("commons.security.oauth2.jwks=file:/run/secrets/jwks.json",
+					"commons.security.oauth2.jwks-refresh-interval=2d")
+			.run(context -> assertThat(context).hasFailed()
+				.getFailure()
+				.rootCause()
+				.hasMessageContaining("jwksRefreshInterval"));
+	}
+
+	@Test
+	void startupFailsWhenTheRefreshIntervalIsShorterThanAMinute() {
+		this.contextRunner
+			.withPropertyValues("commons.security.oauth2.jwks=file:/run/secrets/jwks.json",
+					"commons.security.oauth2.jwks-refresh-interval=10s")
+			.run(context -> assertThat(context).hasFailed()
+				.getFailure()
+				.rootCause()
+				.hasMessageContaining("jwksRefreshInterval"));
 	}
 
 	@Configuration(proxyBeanMethods = false)

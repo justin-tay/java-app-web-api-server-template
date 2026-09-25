@@ -41,6 +41,7 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtDecoderFactory;
@@ -65,6 +66,7 @@ import com.example.commons.security.authorization.LocalAuthorityLookup;
 import com.example.commons.security.authorization.LocalAuthorityRefreshFilter;
 import com.example.commons.security.authorization.ProblemDetailAccessDeniedHandler;
 import com.example.commons.security.firewall.ProblemDetailRequestRejectedHandler;
+import com.example.commons.security.oauth2.IdTokenDecryption;
 import com.example.commons.security.session.AbsoluteSessionTimeoutFilter;
 import com.example.commons.security.session.AuditingInvalidSessionStrategy;
 import com.example.commons.security.session.ContentNegotiatingSessionExpiredStrategy;
@@ -210,12 +212,17 @@ public class WebSecurityAutoConfiguration {
 	/**
 	 * Configures the JWT decoder used to decode the ID Token. The default
 	 * {@code OidcIdTokenDecoderFactory} offers limited customization, for instance if the
-	 * ID token needs to be decrypted.
+	 * ID token needs to be decrypted: when an {@link IdTokenDecryption} bean exists, as
+	 * it does for a {@code private_key_jwt} client with {@code enc} keys (see
+	 * docs/adr/0020), an ID token encrypted to the application is decrypted before its
+	 * signature is verified, and a plain signed ID token is rejected while encryption is
+	 * required.
+	 * @param idTokenDecryption the ID token decryption, if any
 	 * @return the JWT decoder factory to decode the ID Token
 	 */
 	@Bean
 	@ConditionalOnMissingBean
-	JwtDecoderFactory<ClientRegistration> idTokenDecoderFactory() {
+	JwtDecoderFactory<ClientRegistration> idTokenDecoderFactory(ObjectProvider<IdTokenDecryption> idTokenDecryption) {
 		Map<String, JwtDecoder> jwtDecoders = new ConcurrentHashMap<>();
 		return clientRegistration -> jwtDecoders.computeIfAbsent(clientRegistration.getRegistrationId(), key -> {
 			JWKSource<SecurityContext> jwkSource = jwkSource(clientRegistration);
@@ -225,10 +232,33 @@ public class WebSecurityAutoConfiguration {
 						.stream()
 						.filter(jwk -> KeyUse.SIGNATURE.equals(jwk.getKeyUse()))
 						.toList()));
+			IdTokenDecryption decryption = idTokenDecryption.getIfAvailable();
+			if (decryption != null) {
+				jwtProcessor.setJWEKeySelector(decryption.keySelector());
+			}
 			NimbusJwtDecoder jwtDecoder = new NimbusJwtDecoder(jwtProcessor);
 			jwtDecoder.setJwtValidator(oidcIdTokenValidator(clientRegistration));
-			return jwtDecoder;
+			if (decryption == null) {
+				return jwtDecoder;
+			}
+			return token -> {
+				if (decryption.isRequired() && !isJwe(token)) {
+					throw new BadJwtException(
+							"The ID token is not encrypted, but this client requires encrypted ID tokens");
+				}
+				return jwtDecoder.decode(token);
+			};
 		});
+	}
+
+	/**
+	 * Returns whether a token is in JWE compact serialization, which has five parts where
+	 * a JWS has three.
+	 * @param token the token
+	 * @return whether the token is a JWE
+	 */
+	private static boolean isJwe(String token) {
+		return token.chars().filter(character -> character == '.').count() == 4;
 	}
 
 	/**
@@ -306,13 +336,14 @@ public class WebSecurityAutoConfiguration {
 				// that
 				// nonetheless shares this filter chain, so it goes through these rules
 				// too.
-				// Only the health check the ALB/monitoring probes is unauthenticated;
-				// every
+				// Only the health check the ALB/monitoring probes, and its liveness and
+				// readiness groups (see docs/adr/0020), are unauthenticated; every
 				// other actuator endpoint falls through to the application's rules, and
-				// is
-				// also not exposed (see management.endpoints.web.exposure.include).
+				// is also not exposed (see management.endpoints.web.exposure.include).
 				.authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
-					.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher(healthPath))
+					.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher(healthPath),
+							PathPatternRequestMatcher.withDefaults().matcher(healthPath + "/liveness"),
+							PathPatternRequestMatcher.withDefaults().matcher(healthPath + "/readiness"))
 					.permitAll())
 				.sessionManagement(sessionManagement -> sessionManagement.invalidSessionStrategy(invalidSessionStrategy)
 					.maximumSessions(1)

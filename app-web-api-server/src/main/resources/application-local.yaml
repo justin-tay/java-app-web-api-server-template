@@ -2,7 +2,8 @@ commons:
   security:
     oauth2:
       # Development-only private JWKS; production supplies its own (see docs/adr/0018).
-      jwks: file:src/test/resources/jwks.json
+      jwks:
+      - file:src/test/resources/jwks.json
 server:
   ssl:
     enabled: false
@@ -16,6 +17,11 @@ logging:
       service:
         environment: local
 spring:
+  cloud:
+    aws:
+      secretsmanager:
+        # The development JWKS is a file, so no AWS Secrets Manager client is needed.
+        enabled: false
   liquibase:
     # Applies the development seed users in 004-development-seed.sql (see docs/adr/0018).
     contexts: dev

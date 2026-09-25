@@ -16,7 +16,8 @@ sequence in [Runtime View](../../06-runtime-view.md#scenario-oidc-login));
 unauthenticated requests are redirected to the configured provider. All
 application routes require authentication except the public `/oauth2/jwks`
 endpoint (restricted to anonymous callers) and the `/app/health` health check
-(permitted to all callers), plus the login, OAuth2 redirect, and back-channel
+with its `/app/health/liveness` and `/app/health/readiness` groups (permitted to
+all callers), plus the login, OAuth2 redirect, and back-channel
 logout endpoints that Spring Security's `oauth2Login()` and `oidcLogout()`
 handle before authorization applies.
 
@@ -49,53 +50,110 @@ spring:
 During the authorization-code token exchange,
 `RestClientAuthorizationCodeTokenResponseClient` uses
 `NimbusJwtClientAuthenticationParametersConverter` with the application's
-private signing key to create the client assertion. The corresponding public
-signing key is available to Keycloak at `/oauth2/jwks`.
+private signing key to create the client assertion. The signing key is resolved
+for every token request, so a rotated key is used as soon as the application
+has read it. The corresponding public signing key is available to Keycloak at
+`/oauth2/jwks`.
 
 ## Application JWKS and key handling
 
 The development JWKS at `app-web-api-server/src/test/resources/jwks.json` contains private key
-material. It is a fixture for local development and tests only, and the build
-does not package it: the `test` profile loads it from the test classpath, and
-the `local` profile and `bin/start-api-server-tls.sh` load it from that path on
-disk.
+material: an ES512 `sig` key and an `ECDH-ES+A128KW` `enc` key. It is a fixture
+for local development and tests only, and the build does not package it: the
+`test` profile loads it from the test classpath, and the `local` profile and
+`bin/start-api-server-tls.sh` load it from that path on disk.
 
-`commons.security.oauth2.jwks` has no default. For a real deployment, provide a private JWKS
-through a protected resource (for example `file:/run/secrets/jwks.json`), set
-`commons.security.oauth2.jwks` to that resource location, and rotate signing and encryption keys in
-coordination with Keycloak. When `commons.security.oauth2.jwks` is unset, `JwksProperties`
-validation fails startup with a message naming the property; when it is set
-but unreadable, the `jwks` bean fails startup naming the location. Do not place
-private JWKs in source control, container images, or a public JWKS endpoint
-([ADR 0018](../../../adr/0018-development-fixtures-kept-out-of-production.md)).
+`commons.security.oauth2.jwks` is a list of resource locations and has no default. When it is
+unset, `JwksProperties` validation fails startup with a message naming the
+property; when a location is set but unreadable or not a valid JWKS, the
+`jwks` bean fails startup naming the location, without quoting its content. Do
+not place private JWKs in source control, container images, or a public JWKS
+endpoint ([ADR 0018](../../../adr/0018-development-fixtures-kept-out-of-production.md)).
 
-`PrivateKeyJwtAutoConfiguration` loads the configured JWKS into a `JWKSet`.
-`JwksController` publishes only public key components at `/oauth2/jwks`;
-`JWKSet.toString()` does not include private key material.
+With more than one location, each holds the keys of one use (`sig` or `enc`)
+and each use comes from one location; a single location may hold both, as the
+development JWKS does. Every key needs a unique `kid` and a `use`. On AWS, the
+keys are kept in two Secrets Manager secrets created by
+[`cdk-jwks-secret`](https://github.com/justin-tay/cdk-jwks-secret), one with
+`use: 'sig'` and one with `use: 'enc'`, and named with the `commons-aws`
+module's `aws-secretsmanager:` prefix, which reads the raw `AWSCURRENT` value
+of a secret by its name or ARN:
 
-During a token exchange Keycloak uses that endpoint to obtain:
+```yaml
+commons:
+  security:
+    oauth2:
+      jwks:
+      - aws-secretsmanager:<sig secret name or ARN>
+      - aws-secretsmanager:<enc secret name or ARN>
+```
+
+As environment variables these are `COMMONS_SECURITY_OAUTH2_JWKS_0` and
+`COMMONS_SECURITY_OAUTH2_JWKS_1`. The prefix is unrelated to Spring Cloud AWS's
+`spring.config.import=aws-secretsmanager:`, which would flatten the secret into
+configuration properties; do not import the JWKS secrets that way. The
+`SecretsManagerClient` takes its region and credentials from the AWS SDK default
+chain, such as an ECS task role, and needs only `secretsmanager:GetSecretValue`
+on the two secrets (and `kms:Decrypt` on a customer-managed key), which
+`jwksSecret.grantRead(role)` grants
+([ADR 0020](../../../adr/0020-jwks-rotation-from-aws-secrets-manager.md)).
+
+`RefreshingJwks` reads every location again each
+`commons.security.oauth2.jwks-refresh-interval` (default `1h`, from `1m` to
+`1d`), so keys rotated at the source, every 28 days by default for
+`cdk-jwks-secret`, are picked up without a restart. Keep the interval a small
+fraction of the rotation interval. A read that fails logs a WARN and keeps the
+last good keys. When there is no signing key, or an ID token names an `enc` key
+the application has not read yet, it reads the locations again at once, at
+most once every 30 seconds. It follows the rotation rules of `cdk-jwks-secret`:
+
+* **Signing:** the first `sig` key that has its private part signs; a retired
+  key keeps only its public part, so it is never chosen.
+* **Publishing:** `JwksController` publishes the public components of every
+  `sig` key, and of every `enc` key except the first when there are three,
+  which is the key the next rotation deletes. Private key material is never
+  published.
+* **Decrypting:** every `enc` key keeps its private part and decrypts an ID
+  token whose `kid` names it.
+
+A newly deployed secret is empty until its first rotation, shortly after the
+stack is deployed. The application still starts, but the `jwks` health
+contributor, part of the readiness group at `/app/health/readiness` on the
+management port, is DOWN until there is a signing key and while any location
+has no keys, so a load balancer that checks readiness sends it no traffic.
+Liveness at `/app/health/liveness` stays UP, so the orchestrator does not
+restart it.
+
+During a token exchange Keycloak uses `/oauth2/jwks` to obtain:
 
 * The public signing key for verifying the `private_key_jwt` client assertion.
-* The public encryption key if ID-token encryption is enabled for the Keycloak
-  client.
+* The public encryption key, when ID-token encryption is enabled for the
+  Keycloak client.
 
 ## ID-token and access-token validation
 
 The custom `JwtDecoderFactory<ClientRegistration>` is used because the default
 `OidcIdTokenDecoderFactory` is not sufficiently customizable for encrypted
-ID-token support. The current decoder:
+ID-token support. The decoder:
 
 * accepts signed RS256 ID tokens;
 * selects only keys marked for signature use from the provider JWKS, preventing
   RSA encryption keys and unrelated EC signature keys from being selected;
+* when the application's JWKS has `enc` keys, decrypts an ID token encrypted to
+  one of them (a JWE nesting the signed ID token) with the key its `kid` names,
+  accepting only that key's own `alg` and any RFC 7518 content encryption
+  (`A128CBC-HS256`, `A192CBC-HS384`, `A256CBC-HS512`, `A128GCM`, `A192GCM`,
+  `A256GCM`), and rejects an ID token that is not encrypted;
 * applies `OidcIdTokenValidator`, which validates the OIDC ID-token claims for
   the client registration.
 
-The supplied Keycloak configuration does **not** enable ID-token encryption.
-The current decoder has no JWE decryption-key selector, so enabling encryption
-in Keycloak without a matching decoder configuration will fail authentication.
-If encryption is required, configure the selected JWE algorithm and a private
-decryption key in the application before enabling it for the Keycloak client.
+Because the application rejects an unencrypted ID token while it has `enc`
+keys, the Keycloak client must have ID-token encryption turned on whenever an
+`enc` key is configured, and off (with no `enc` location) otherwise.
+`bin/configure-keycloak.js` sets the client's ID Token Encryption Key
+Management Algorithm to `ECDH-ES+A128KW` and its Content Encryption Algorithm
+to `A128CBC-HS256`, Keycloak's default. `ECDH-ES` key management needs
+Keycloak 26.0 or later.
 
 The application does not read Keycloak realm or client roles (such as the
 `realm_access.roles` claim) from the access token or ID token.
@@ -273,6 +331,7 @@ Related documentation: [Authorization](authorization.md),
 [Sessions](sessions.md), [HTTP security headers](headers.md),
 [Logging](../06-logging-and-monitoring/README.md), [Hardening](hardening.md),
 [Error responses](error-responses.md),
-[ADR 0005](../../../adr/0005-keycloak-authentication-local-authorisation.md), and
-[ADR 0007](../../../adr/0007-tls-and-oauth-client-key-management.md).
+[ADR 0005](../../../adr/0005-keycloak-authentication-local-authorisation.md),
+[ADR 0007](../../../adr/0007-tls-and-oauth-client-key-management.md), and
+[ADR 0020](../../../adr/0020-jwks-rotation-from-aws-secrets-manager.md).
 

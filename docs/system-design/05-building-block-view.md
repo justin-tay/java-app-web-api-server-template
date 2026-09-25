@@ -22,6 +22,9 @@ flowchart TB
         problem["web.problem\nRFC 9457 Problem Details"]
         defaults["commons-defaults.yaml\nTLS, session cookie, Actuator, logging defaults"]
     end
+    subgraph aws ["commons-aws (com.example.commons.aws)"]
+        secretsmanager["secretsmanager\naws-secretsmanager: resource locations"]
+    end
     admin --> domain
     admin --> validation
     admin --> problem
@@ -31,6 +34,7 @@ flowchart TB
     websecurity --> lookup
     websecurity --> logging
     websecurity --> problem
+    websecurity -.->|"JWKS locations"| secretsmanager
 ```
 
 **Motivation:** The repository is a Maven multi-module build
@@ -43,7 +47,10 @@ without wiring any of it. It reaches a user model only through the
 `LocalAuthorityLookup` interface. `commons-accounts` is the optional user,
 group, and role model that implements it, with its administration API; a
 backend that reads a user store another backend owns can implement the
-interface itself instead. `app-web-api-server` is the reference backend and
+interface itself instead. `commons-aws` is the optional AWS integration: it lets
+a resource location, such as a JWKS location, name an AWS Secrets Manager secret
+([ADR 0020](../adr/0020-jwks-rotation-from-aws-secrets-manager.md)); `commons`
+does not depend on it. `app-web-api-server` is the reference backend and
 holds only what is specific to it: its own endpoints, its authorization
 rules, its Liquibase master changelog, and its configuration.
 
@@ -56,12 +63,13 @@ rules, its Liquibase master changelog, and its configuration.
 | `commons` `security.authorization` | The source of local authorities; per-request local authority refresh; RFC 9457 access-denied responses | `LocalAuthorityLookup`, `LocalAuthorityRefreshFilter`, `ProblemDetailAccessDeniedHandler` | `commons/src/main/java/com/example/commons/security/authorization/` |
 | `commons` `security.session` | Session lifecycle: absolute timeout, concurrent-session eviction, audit logging, revocation on authority change | `AbsoluteSessionTimeoutFilter`, `SessionLifecycleAuditLogger`, `SessionRevocationService`, `SessionLifecycleAuditInitializationFilter` | `commons/src/main/java/com/example/commons/security/session/` |
 | `commons` `security.firewall` | RFC 9457 response for requests Spring Security's `HttpFirewall` rejects | `ProblemDetailRequestRejectedHandler` | `commons/src/main/java/com/example/commons/security/firewall/` |
-| `commons` `security.oauth2` | `private_key_jwt` client authentication and JWKS publication, applied only when a client registration uses it | `PrivateKeyJwtAutoConfiguration`, `JwksProperties` (`commons.security.oauth2.jwks`), `GET /oauth2/jwks` | `commons/src/main/java/com/example/commons/security/oauth2/` |
+| `commons` `security.oauth2` | `private_key_jwt` client authentication, the private JWKS read again on a schedule, JWKS publication, and ID token decryption, applied only when a client registration uses `private_key_jwt` | `PrivateKeyJwtAutoConfiguration`, `JwksProperties` (`commons.security.oauth2.jwks`, `commons.security.oauth2.jwks-refresh-interval`), `RefreshingJwks`, `JwksHealthIndicator` (`jwks` in the readiness group), `IdTokenDecryption`, `GET /oauth2/jwks` | `commons/src/main/java/com/example/commons/security/oauth2/` |
 | `commons` `web.tomcat` | CIS Tomcat hardening of the embedded server, Tomcat-level Problem Details error reports, strict servlet compliance | `TomcatHardeningAutoConfiguration`, `TomcatApplicationContextInitializer`; `commons.web.tomcat.enabled` | `commons/src/main/java/com/example/commons/web/tomcat/` |
 | `commons` `logging` | Request correlation, ECS/trace field customization, request-boundary logging, MDC cleanup, application lifecycle events | `LoggingAutoConfiguration` (registers `RequestCorrelationContextFilter` and `LoggingContextCleanupFilter`, and adds `AuthenticatedUserLoggingContextFilter` and `RequestLoggingFilter` to every security filter chain), `TraceCorrelationJsonMembersCustomizer`, `ApplicationLifecycleEventLogger`, `MdcTaskDecorator` (request MDC on async tasks); `commons.logging.enabled` | `commons/src/main/java/com/example/commons/logging/` |
 | `commons` `logging.client` / `logging.request` | Pluggable client-IP and upstream-request-ID resolution (safe no-op defaults; an application defines its own bean for its ingress) | `ClientIpResolver`, `RequestIdResolver` | `commons/src/main/java/com/example/commons/logging/client/`, `.../logging/request/` |
 | `commons` `web.problem` | RFC 9457 error handling for every endpoint, and the exceptions applications throw to produce it | `ProblemDetailsAutoConfiguration`, `ApiResponseEntityExceptionHandler`, `ProblemDetailErrorController`, `ProblemTypes`, `BadRequestException`, `ConflictException`, `ResourceNotFoundException`; `commons.web.problem-details.enabled` | `commons/src/main/java/com/example/commons/web/problem/` |
 | `commons` defaults | Configuration defaults ranked below every application configuration source | `CommonsDefaultsEnvironmentPostProcessor` | `commons/src/main/resources/META-INF/commons-defaults.yaml` |
+| `commons-aws` `secretsmanager` | Resolves `aws-secretsmanager:<secret name or ARN>` resource locations to the secret's `AWSCURRENT` value, read with Spring Cloud AWS's `SecretsManagerClient` | `SecretsManagerResourceAutoConfiguration`, `SecretsManagerProtocolResolver`, `SecretsManagerResource`; `spring.cloud.aws.*` | `commons-aws/src/main/java/com/example/commons/aws/secretsmanager/` |
 | `commons-accounts` | Local account management wiring: registers the model, the authority lookup, and the administration API | `AccountsAutoConfiguration`, `AppUserLocalAuthorityLookup`; `commons.accounts.enabled`, `commons.accounts.admin.enabled` | `commons-accounts/src/main/java/com/example/commons/accounts/` |
 | `commons-accounts` `admin` | Administration REST API for users, groups, and roles | `/admin/users/**`, `/admin/groups/**`, `/admin/roles/**` (each individually role-gated) | `commons-accounts/src/main/java/com/example/commons/accounts/admin/` |
 | `commons-accounts` `domain` | JPA entities (`AppUser`, `AppGroup`, `AppRole`) and Spring Data repositories | Repository interfaces consumed by `admin` and `AppUserLocalAuthorityLookup` | `commons-accounts/src/main/java/com/example/commons/accounts/domain/` |

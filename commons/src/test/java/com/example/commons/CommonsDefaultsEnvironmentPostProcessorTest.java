@@ -29,6 +29,32 @@ class CommonsDefaultsEnvironmentPostProcessorTest {
 	}
 
 	@Test
+	void enablesTheHealthProbes() {
+		this.postProcessor.postProcessEnvironment(this.environment, new SpringApplication());
+
+		assertThat(this.environment.getProperty("management.endpoint.health.probes.enabled")).isEqualTo("true");
+		assertThat(this.environment.getProperty("management.endpoint.health.group.readiness.include")).isNull();
+	}
+
+	@Test
+	void addsTheJwksToTheReadinessGroupWhenAClientRegistrationUsesPrivateKeyJwt() {
+		this.environment.getPropertySources()
+			.addLast(new MapPropertySource("applicationConfig",
+					Map.of("spring.security.oauth2.client.registration.keycloak.client-authentication-method",
+							"private_key_jwt")));
+
+		this.postProcessor.postProcessEnvironment(this.environment, new SpringApplication());
+
+		assertThat(this.environment.getProperty("management.endpoint.health.group.readiness.include"))
+			.isEqualTo("readinessState,jwks");
+		assertThat(this.environment.getPropertySources()
+			.stream()
+			.reduce((first, second) -> second)
+			.orElseThrow()
+			.getName()).isEqualTo(CommonsDefaultsEnvironmentPostProcessor.PROPERTY_SOURCE_NAME);
+	}
+
+	@Test
 	void ranksBelowApplicationConfiguration() {
 		this.environment.getPropertySources()
 			.addLast(new MapPropertySource("applicationConfig", Map.of("management.server.port", "9000")));

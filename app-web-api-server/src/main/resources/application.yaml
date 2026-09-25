@@ -4,8 +4,12 @@
 # only to override it.
 #
 # No default for commons.security.oauth2.jwks: because the keycloak registration
-# uses private_key_jwt, every deployment must supply the location of its own private
-# JWKS, and startup fails if it is unset. See docs/adr/0018.
+# uses private_key_jwt, every deployment must supply the locations of its own private
+# JWKS, and startup fails if it is unset. See docs/adr/0018. A deployment on AWS names
+# its cdk-jwks-secret secrets, for example
+# COMMONS_SECURITY_OAUTH2_JWKS_0=aws-secretsmanager:<sig secret name or ARN> and
+# COMMONS_SECURITY_OAUTH2_JWKS_1=aws-secretsmanager:<enc secret name or ARN>; see
+# docs/adr/0020.
 server:
   port: 8081
   ssl:

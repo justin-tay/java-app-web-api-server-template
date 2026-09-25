@@ -1,8 +1,7 @@
 package com.example.commons.security.oauth2;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.text.ParseException;
+import java.time.Clock;
+import java.util.List;
 import java.util.function.Function;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -10,8 +9,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProp
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -24,15 +26,18 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 
 import com.example.commons.security.WebSecurityAutoConfiguration;
 import com.nimbusds.jose.jwk.JWK;
-import com.nimbusds.jose.jwk.JWKSet;
-import com.nimbusds.jose.jwk.KeyUse;
+import com.nimbusds.jose.proc.JWEKeySelector;
+import com.nimbusds.jose.proc.SecurityContext;
 
 /**
- * Configures {@code private_key_jwt} client authentication (see docs/adr/0007): loads the
- * deployment's private JWKS from {@code commons.security.oauth2.jwks}, signs the client
- * assertion sent to the token endpoint with its signing key, and publishes the public
- * keys at {@value JwksController#JWKS_PATH} for the identity provider to verify that
- * assertion.
+ * Configures {@code private_key_jwt} client authentication (see docs/adr/0007 and
+ * docs/adr/0020): reads the deployment's private JWKS from the locations in
+ * {@code commons.security.oauth2.jwks} and reads them again every
+ * {@code commons.security.oauth2.jwks-refresh-interval}, signs the client assertion sent
+ * to the token endpoint with the current signing key, decrypts ID tokens encrypted to its
+ * {@code enc} keys, if any, and publishes the public keys at
+ * {@value JwksController#JWKS_PATH} for the identity provider to verify that assertion
+ * and encrypt to.
  *
  * <p>
  * Applied only when commons security is on and at least one
@@ -49,27 +54,45 @@ import com.nimbusds.jose.jwk.KeyUse;
 public class PrivateKeyJwtAutoConfiguration {
 
 	/**
-	 * Gets the JWKS for encryption/decryption and signing/verification.
+	 * Gets the private JWKS, read from its locations now and on a schedule.
 	 * @param resourceLoader the resource loader
 	 * @param properties the JWKS properties
 	 * @return the JWKS
-	 * @throws ParseException if the resource is not a valid JWKS
 	 */
 	@Bean
-	JWKSet jwks(ResourceLoader resourceLoader, JwksProperties properties) throws ParseException {
-		String location = properties.getJwks();
-		try (InputStream inputStream = resourceLoader.getResource(location).getInputStream()) {
-			return JWKSet.load(inputStream);
-		}
-		catch (IOException ex) {
-			throw new IllegalStateException(
-					"Unable to read the private JWKS configured by commons.security.oauth2.jwks: " + location, ex);
-		}
+	RefreshingJwks jwks(ResourceLoader resourceLoader, JwksProperties properties) {
+		List<Resource> locations = properties.getJwks().stream().map(resourceLoader::getResource).toList();
+		return new RefreshingJwks(locations, properties.getJwksRefreshInterval(), Clock.systemUTC());
 	}
 
 	@Bean
-	JwksController jwksController(JWKSet jwks) {
+	JwksController jwksController(RefreshingJwks jwks) {
 		return new JwksController(jwks);
+	}
+
+	/**
+	 * Decrypts ID tokens encrypted to the JWKS {@code enc} keys, and requires encrypted
+	 * ID tokens while there are any, so an identity provider client whose ID token
+	 * encryption was turned off fails loudly rather than being accepted.
+	 * @param jwks the JWKS
+	 * @return the ID token decryption
+	 */
+	@Bean
+	IdTokenDecryption idTokenDecryption(RefreshingJwks jwks) {
+		JwksDecryptionKeySelector keySelector = new JwksDecryptionKeySelector(jwks);
+		return new IdTokenDecryption() {
+
+			@Override
+			public JWEKeySelector<SecurityContext> keySelector() {
+				return keySelector;
+			}
+
+			@Override
+			public boolean isRequired() {
+				return jwks.hasEncryptionKeys();
+			}
+
+		};
 	}
 
 	/**
@@ -80,7 +103,7 @@ public class PrivateKeyJwtAutoConfiguration {
 	 */
 	@Bean
 	@Order(WebSecurityAutoConfiguration.FILTER_CHAIN_CUSTOMIZER_ORDER)
-	Customizer<HttpSecurity> privateKeyJwtFilterChainCustomizer(JWKSet jwks) {
+	Customizer<HttpSecurity> privateKeyJwtFilterChainCustomizer(RefreshingJwks jwks) {
 		OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient = accessTokenResponseClient(
 				jwks);
 		return http -> http
@@ -93,22 +116,34 @@ public class PrivateKeyJwtAutoConfiguration {
 
 	/**
 	 * Gets the access token response client configured for {@code private_key_jwt}
-	 * authentication.
+	 * authentication. The signing key is resolved for every token request, so a rotated
+	 * key is used as soon as the JWKS is refreshed; when there is none the token request
+	 * fails.
 	 * @param jwks the JWKS
 	 * @return the access token response client
 	 */
 	private static OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient(
-			JWKSet jwks) {
-		Function<ClientRegistration, JWK> jwkResolver = clientRegistration -> jwks.getKeys()
-			.stream()
-			.filter(jwk -> KeyUse.SIGNATURE.equals(jwk.getKeyUse()))
-			.findFirst()
-			.get();
+			RefreshingJwks jwks) {
+		Function<ClientRegistration, JWK> jwkResolver = clientRegistration -> jwks.signingKey().orElse(null);
 		NimbusJwtClientAuthenticationParametersConverter<OAuth2AuthorizationCodeGrantRequest> parametersConverter = new NimbusJwtClientAuthenticationParametersConverter<>(
 				jwkResolver);
 		RestClientAuthorizationCodeTokenResponseClient accessTokenResponseClient = new RestClientAuthorizationCodeTokenResponseClient();
 		accessTokenResponseClient.addParametersConverter(parametersConverter);
 		return accessTokenResponseClient;
+	}
+
+	/**
+	 * Reports the JWKS to the readiness group when actuator health is present.
+	 */
+	@Configuration(proxyBeanMethods = false)
+	@ConditionalOnClass(HealthIndicator.class)
+	static class JwksHealthConfiguration {
+
+		@Bean
+		JwksHealthIndicator jwksHealthIndicator(RefreshingJwks jwks) {
+			return new JwksHealthIndicator(jwks);
+		}
+
 	}
 
 }

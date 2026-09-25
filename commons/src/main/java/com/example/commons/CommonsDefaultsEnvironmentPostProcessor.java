@@ -3,6 +3,7 @@ package com.example.commons;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.boot.EnvironmentPostProcessor;
 import org.springframework.boot.SpringApplication;
@@ -10,10 +11,13 @@ import org.springframework.boot.env.DefaultPropertiesPropertySource;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.PropertySource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
+
+import com.example.commons.security.oauth2.ConditionalOnPrivateKeyJwtClientRegistration.OnPrivateKeyJwtClientRegistrationCondition;
 
 /**
  * Contributes the commons configuration defaults in {@value #DEFAULTS_LOCATION}, such as
@@ -32,6 +36,15 @@ public class CommonsDefaultsEnvironmentPostProcessor implements EnvironmentPostP
 	static final String DEFAULTS_LOCATION = "META-INF/commons-defaults.yaml";
 
 	static final String PROPERTY_SOURCE_NAME = "commonsDefaults";
+
+	static final String JWKS_READINESS_PROPERTY_SOURCE_NAME = "commonsJwksReadinessDefaults";
+
+	/**
+	 * The readiness group when a client registration uses {@code private_key_jwt}: the
+	 * application's own readiness state and the {@code jwks} health contributor, which
+	 * only exists then (see docs/adr/0020).
+	 */
+	static final String JWKS_READINESS_GROUP_INCLUDE = "readinessState,jwks";
 
 	@Override
 	public int getOrder() {
@@ -53,6 +66,14 @@ public class CommonsDefaultsEnvironmentPostProcessor implements EnvironmentPostP
 			else {
 				propertySources.addLast(defaults);
 			}
+		}
+		// Only a private_key_jwt application has the jwks health contributor, and naming
+		// a missing contributor in a health group fails startup, so this default is added
+		// only then, just above the other defaults.
+		if (propertySources.contains(PROPERTY_SOURCE_NAME)
+				&& OnPrivateKeyJwtClientRegistrationCondition.matches(environment)) {
+			propertySources.addBefore(PROPERTY_SOURCE_NAME, new MapPropertySource(JWKS_READINESS_PROPERTY_SOURCE_NAME,
+					Map.of("management.endpoint.health.group.readiness.include", JWKS_READINESS_GROUP_INCLUDE)));
 		}
 	}
 

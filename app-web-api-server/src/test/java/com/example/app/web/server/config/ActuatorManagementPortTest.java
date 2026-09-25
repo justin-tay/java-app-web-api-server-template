@@ -47,6 +47,31 @@ class ActuatorManagementPortTest extends RestTestClientITSupport {
 	}
 
 	/**
+	 * The readiness group includes the {@code jwks} contributor, which is UP once the
+	 * JWKS has a signing key (see docs/adr/0020); both probes are unauthenticated.
+	 */
+	@Test
+	void livenessAndReadinessProbesAreReachableWithoutAuthentication() {
+		assertThat(
+				RestTestClientResponse.from(this.managementRestTestClient.get().uri("/app/health/liveness").exchange()))
+			.hasStatus(HttpStatus.OK)
+			.bodyJson()
+			.isLenientlyEqualTo("""
+					{
+					  "status": "UP"
+					}
+					""");
+		assertThat(RestTestClientResponse
+			.from(this.managementRestTestClient.get().uri("/app/health/readiness").exchange())).hasStatus(HttpStatus.OK)
+			.bodyJson()
+			.isLenientlyEqualTo("""
+					{
+					  "status": "UP"
+					}
+					""");
+	}
+
+	/**
 	 * Endpoints outside {@code management.endpoints.web.exposure.include} are also not
 	 * permitted by {@code WebSecurityConfiguration}, so an unauthenticated request is
 	 * turned away by the {@code authenticated()} rule before it can reach the (also

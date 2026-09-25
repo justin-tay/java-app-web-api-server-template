@@ -24,19 +24,22 @@ permission.
 
 Each Keycloak client is configured for `private_key_jwt` client
 authentication rather than a shared client secret: the commons module's
-`PrivateKeyJwtAutoConfiguration` loads a JWKS containing the application's signing (and optionally
-encryption) key pair, `RestClientAuthorizationCodeTokenResponseClient` signs
-a client assertion with the private key during token exchange, and
+`PrivateKeyJwtAutoConfiguration` reads a JWKS containing the application's signing (and optionally
+encryption) keys, and reads it again on a schedule so keys rotated at the
+source are used without a restart; `RestClientAuthorizationCodeTokenResponseClient` signs
+a client assertion with the current private signing key during token exchange, and
 `JwksController` publishes only the public components at `/oauth2/jwks` for
-Keycloak to verify against. The development JWKS fixture at
+Keycloak to verify against and encrypt to. The development JWKS fixture at
 `app-web-api-server/src/test/resources/jwks.json` contains private key material and is not
-packaged; `commons.security.oauth2.jwks` has no default, so a real deployment must supply its
-own JWKS through it (startup fails otherwise) and rotates keys in
-coordination with Keycloak. ID tokens are validated by a
+packaged; `commons.security.oauth2.jwks` has no default, so a real deployment must supply the
+locations of its own JWKS through it (startup fails otherwise), on AWS as
+`cdk-jwks-secret` secrets in Secrets Manager
+([ADR 0020](../../../adr/0020-jwks-rotation-from-aws-secrets-manager.md)). ID tokens are validated by a
 custom `JwtDecoderFactory<ClientRegistration>` (needed because
 `OidcIdTokenDecoderFactory` cannot be customized enough for encrypted
-ID-token support), which accepts only signed RS256 tokens, selects only
-JWKS keys marked for signature use, and applies `OidcIdTokenValidator`.
+ID-token support), which accepts only signed RS256 tokens, decrypts and
+requires ID tokens encrypted to the application's `enc` key when it has one,
+selects only JWKS keys marked for signature use, and applies `OidcIdTokenValidator`.
 Logout is two-directional: `OidcClientInitiatedLogoutSuccessHandler` drives
 relying-party-initiated logout through Keycloak's `end_session_endpoint`,
 and the application also accepts Keycloak's back-channel logout

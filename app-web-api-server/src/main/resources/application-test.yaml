@@ -2,7 +2,8 @@ commons:
   security:
     oauth2:
       # Development-only private JWKS on the test classpath (see docs/adr/0018).
-      jwks: classpath:jwks.json
+      jwks:
+      - classpath:jwks.json
 management:
   server:
     port: 0
@@ -19,6 +20,11 @@ logging:
       service:
         environment: test
 spring:
+  cloud:
+    aws:
+      secretsmanager:
+        # The development JWKS is a file, so no AWS Secrets Manager client is needed.
+        enabled: false
   liquibase:
     # Applies the development seed users in 004-development-seed.sql (see docs/adr/0018).
     contexts: dev

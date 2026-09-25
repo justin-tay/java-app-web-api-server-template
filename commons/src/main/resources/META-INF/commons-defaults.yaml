@@ -21,6 +21,12 @@ management:
     health:
       show-details: never
       show-components: never
+      # Liveness and readiness groups at /app/health/liveness and
+      # /app/health/readiness on the management port. A private_key_jwt application
+      # also has the jwks contributor in its readiness group, so it is not ready until
+      # its JWKS has a signing key; see docs/adr/0020.
+      probes:
+        enabled: true
   tracing:
     sampling:
       # No exporter is configured, so nothing is sent anywhere and 100%

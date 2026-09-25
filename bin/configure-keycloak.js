@@ -46,6 +46,11 @@ const upsertClient = async (headers, { id, appBaseUrl }) => {
       'backchannel.logout.revoke.offline.tokens': 'false',
       'backchannel.logout.session.required': 'true',
       'backchannel.logout.url': `${appBaseUrl}/logout/connect/back-channel/keycloak`,
+      // Encrypt ID tokens to the application's 'enc' key, published at jwks.url; the
+      // application rejects an ID token that is not encrypted while it has one. Needs
+      // Keycloak 26.0 or later for ECDH-ES (see docs/adr/0020).
+      'id.token.encrypted.response.alg': 'ECDH-ES+A128KW',
+      'id.token.encrypted.response.enc': 'A128CBC-HS256',
       'jwks.url': `${appBaseUrl}/oauth2/jwks`,
       // Require PKCE with S256 on every authorization request; Keycloak then rejects
       // a request without a code_challenge, or with the 'plain' method.

@@ -15,6 +15,7 @@ import java.util.stream.Stream;
 
 import com.example.commons.CommonsDefaultsEnvironmentPostProcessor;
 import com.example.commons.accounts.AccountsAutoConfiguration;
+import com.example.commons.aws.secretsmanager.SecretsManagerResourceAutoConfiguration;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import org.junit.jupiter.api.Test;
@@ -27,8 +28,9 @@ class NoPackagedPrivateKeyMaterialTest {
 	/**
 	 * Scans the compiled main output, which is what the jar packages, for any JWKS
 	 * carrying a private key or any PEM private key. The executable jar also packages the
-	 * {@code commons} and {@code commons-accounts} jars, so their main outputs are
-	 * scanned too, whether the build resolves them as directories or as jars.
+	 * {@code commons}, {@code commons-accounts}, and {@code commons-aws} jars, so their
+	 * main outputs are scanned too, whether the build resolves them as directories or as
+	 * jars.
 	 */
 	@Test
 	void productionClasspathContainsNoPrivateKeyMaterial() throws IOException, URISyntaxException {
@@ -37,6 +39,7 @@ class NoPackagedPrivateKeyMaterialTest {
 		assertContainsNoPrivateKeyMaterial(mainOutput);
 		assertContainsNoPrivateKeyMaterial(codeSource(CommonsDefaultsEnvironmentPostProcessor.class));
 		assertContainsNoPrivateKeyMaterial(codeSource(AccountsAutoConfiguration.class));
+		assertContainsNoPrivateKeyMaterial(codeSource(SecretsManagerResourceAutoConfiguration.class));
 	}
 
 	private static Path codeSource(Class<?> type) throws URISyntaxException {
