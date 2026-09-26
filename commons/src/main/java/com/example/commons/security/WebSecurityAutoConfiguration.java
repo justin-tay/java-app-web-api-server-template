@@ -91,10 +91,6 @@ public class WebSecurityAutoConfiguration {
 
 	private static final String PERMISSIONS_POLICY = "camera=(), geolocation=(), microphone=(), payment=(), usb=()";
 
-	static final String LOGIN_PAGE_URI = "/login";
-
-	static final String LOGOUT_SUCCESS_URI = LOGIN_PAGE_URI + "?logout";
-
 	/**
 	 * Provides the entry point for unauthenticated requests when no OIDC login is
 	 * configured: a browser is redirected to the login page, and a non-browser client
@@ -104,7 +100,7 @@ public class WebSecurityAutoConfiguration {
 	@Bean
 	@ConditionalOnMissingBean
 	ProblemDetailAuthenticationEntryPoint authenticationEntryPoint() {
-		return new ProblemDetailAuthenticationEntryPoint(LOGIN_PAGE_URI);
+		return new ProblemDetailAuthenticationEntryPoint(LoginPaths.LOGIN_PAGE_URI);
 	}
 
 	@Bean

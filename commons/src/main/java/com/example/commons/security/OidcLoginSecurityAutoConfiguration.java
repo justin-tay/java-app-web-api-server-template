@@ -172,7 +172,7 @@ public class OidcLoginSecurityAutoConfiguration {
 							if (object instanceof DefaultLoginPageGeneratingFilter filter) {
 								// Show the logout message after the post-logout
 								// redirect.
-								filter.setLogoutSuccessUrl(WebSecurityAutoConfiguration.LOGOUT_SUCCESS_URI);
+								filter.setLogoutSuccessUrl(LoginPaths.LOGOUT_SUCCESS_URI);
 							}
 							return object;
 						}
@@ -198,7 +198,7 @@ public class OidcLoginSecurityAutoConfiguration {
 			return OAuth2AuthorizationRequestRedirectFilter.DEFAULT_AUTHORIZATION_REQUEST_BASE_URI + "/"
 					+ registrationIds.get(0);
 		}
-		return WebSecurityAutoConfiguration.LOGIN_PAGE_URI;
+		return LoginPaths.LOGIN_PAGE_URI;
 	}
 
 	/**
@@ -211,8 +211,7 @@ public class OidcLoginSecurityAutoConfiguration {
 			ClientRegistrationRepository clientRegistrationRepository) {
 		OidcClientInitiatedLogoutSuccessHandler oidcLogoutSuccessHandler = new OidcClientInitiatedLogoutSuccessHandler(
 				clientRegistrationRepository);
-		oidcLogoutSuccessHandler
-			.setPostLogoutRedirectUri("{baseUrl}" + WebSecurityAutoConfiguration.LOGOUT_SUCCESS_URI);
+		oidcLogoutSuccessHandler.setPostLogoutRedirectUri("{baseUrl}" + LoginPaths.LOGOUT_SUCCESS_URI);
 		return oidcLogoutSuccessHandler;
 	}
 
