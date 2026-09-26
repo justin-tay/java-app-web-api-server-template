@@ -9,6 +9,8 @@ CREATE TABLE app_user (
     enabled BOOLEAN NOT NULL,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL,
+    created_by VARCHAR(100) NOT NULL,
+    updated_by VARCHAR(100) NOT NULL,
     CONSTRAINT pk_app_user PRIMARY KEY (id),
     CONSTRAINT uk_app_user_username UNIQUE (username)
 );
@@ -18,6 +20,8 @@ CREATE TABLE app_group (
     name VARCHAR(100) NOT NULL,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL,
+    created_by VARCHAR(100) NOT NULL,
+    updated_by VARCHAR(100) NOT NULL,
     CONSTRAINT pk_app_group PRIMARY KEY (id),
     CONSTRAINT uk_app_group_name UNIQUE (name)
 );
@@ -27,6 +31,8 @@ CREATE TABLE app_role (
     name VARCHAR(100) NOT NULL,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL,
+    created_by VARCHAR(100) NOT NULL,
+    updated_by VARCHAR(100) NOT NULL,
     CONSTRAINT pk_app_role PRIMARY KEY (id),
     CONSTRAINT uk_app_role_name UNIQUE (name)
 );

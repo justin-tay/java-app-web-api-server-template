@@ -28,6 +28,10 @@ fields where available and documents its intentional project extensions.
 | Session destroyed | INFO | `authentication` | `end` | `destroy_session` | [Event reference](event-reference.md#session-destroyed-destroy_session) |
 | Session privileges changed | INFO | `authentication` | `info` | `update_session` | [Event reference](event-reference.md#session-privileges-changed-update_session) |
 | Requested session not found | INFO | `authentication` | `info` | `resume_session` | [Event reference](event-reference.md#requested-session-not-found-resume_session) |
+| User changed | INFO | `iam` | `user`, plus `creation`, `change`, or `deletion` | `create_user`, `update_user`, `delete_user` | [Event reference](event-reference.md#user-changed-create_user-update_user-delete_user) |
+| Group changed | INFO | `iam` | `group`, plus `creation`, `change`, or `deletion` | `create_group`, `update_group`, `delete_group` | [Event reference](event-reference.md#group-changed-create_group-update_group-delete_group) |
+| Role changed | INFO | `iam` | `admin`, plus `creation`, `change`, or `deletion` | `create_role`, `update_role`, `delete_role` | [Event reference](event-reference.md#role-changed-create_role-update_role-delete_role) |
+| Administration change rejected | WARN | `iam` | As the rejected change | As the rejected change | [Event reference](event-reference.md#administration-change-rejected) |
 | Unexpected request failure | ERROR | `web` | `error` | `process_request` | [Event reference](event-reference.md#request-processing-failed-process_request) |
 | Application starting | INFO | `process` | `start` | `start_application` | [Event reference](event-reference.md#application-starting-start_application) |
 | Application started | INFO | `process` | `start` | `start_application` | [Event reference](event-reference.md#application-started-start_application) |
@@ -56,7 +60,7 @@ fields where available and documents its intentional project extensions.
 | `event.type` | `keyword[]` | Lifecycle/subcategory classification. |
 | `event.action` | `keyword` | Stable lower-snake-case operation identifier. Do not encode outcome in this field. |
 | `event.outcome` | `keyword` | `success`, `failure`, or `unknown` where applicable. |
-| `event.reason` | `keyword` | Controlled reason for a session event (`privilege_change`, `session_not_found`). |
+| `event.reason` | `keyword` | Controlled reason for a session event (`privilege_change`, `session_not_found`) or a rejected administration change (`username_exists`, `name_exists`, `group_has_users`, `role_in_use`). |
 | `event.start`, `event.end` | `date` | Request lifecycle boundaries. |
 | `event.duration` | `long` | Request duration in nanoseconds. |
 | `http.request.id` | `keyword` | Correlation ID established by `RequestCorrelationContextFilter`; generated as a UUID unless the configured `RequestIdResolver` supplies an upstream ID. It is not authentication material. |
@@ -67,7 +71,12 @@ fields where available and documents its intentional project extensions.
 | `url.scheme`, `url.path`, `url.query` | `keyword`, `wildcard`, `keyword` | Request URL components; path parameters and listed query values are redacted before emission. |
 | `server.address`, `server.port` | `keyword`, `long` | Servlet destination as observed by the application, not necessarily the public host. |
 | `user.name` | `keyword` | Authenticated actor when known. |
-| `user.target.name` | `keyword` | Target account of a failed authentication. |
+| `user.target.name` | `keyword` | Target account of a failed authentication, or the user an administration change affects. |
+| `user.target.id` | `keyword` | ID of the user an administration change affects. |
+| `user.target.group.name`, `user.changes.group.name` | `keyword[]` | The affected user's group names before the change, and after it when they changed. |
+| `user.target.roles`, `user.changes.roles` | `keyword[]` | Stored names of the roles the affected user's groups grant, before the change and after it when they changed. |
+| `group.id`, `group.name` | `keyword` | The group an administration change affects, and its name before the change. |
+| `related.user` | `keyword[]` | Every user named in an administration event: the administrator and the affected user. |
 | `source.ip` | `ip` | Direct peer address from request-scoped MDC, established by `RequestCorrelationContextFilter`. It is not a unique correlation identifier or proxy-normalized client identity. |
 | `client.ip` | `ip` | Validated end-user client address from request-scoped MDC, established by `RequestCorrelationContextFilter`. Present only when the default `ClientIpResolver` bean is replaced with a trusted resolver. |
 | `error.type`, `error.stack_trace` | `keyword`, `wildcard` | Safe exception classification and protected operator stack trace. |
@@ -79,7 +88,14 @@ fields where available and documents its intentional project extensions.
 | `http.route` | `keyword` | Best-matching Spring MVC route, or `UNKNOWN` when unavailable. Useful for aggregation without raw identifier-bearing paths. |
 | `url.query_keys` | `keyword[]` | Query parameter names, including names whose values were redacted. Parameter names must not contain sensitive data. |
 | `validation.field` | `keyword` | Rejected request field or parameter path. It must never contain the rejected value. |
-| `session.authorities.added`, `session.authorities.removed` | `keyword[]` | `ROLE_` authority names granted to or withdrawn from an active session by an `update_session` event. |
+| `roles.added`, `roles.removed` | `keyword[]` | Stored role names, without the `ROLE_` prefix, that an event grants or withdraws: to a user or group by an administration change, or to an active session by `update_session`. Top-level because the ECS `user.changes.roles` field is a keyword and cannot also hold `added` and `removed`. |
+| `groups.added`, `groups.removed` | `keyword[]` | Group names an administration change adds a user to or removes them from. |
+| `user.target.enabled`, `user.changes.enabled` | `boolean` | Whether the affected user was enabled before an administration change, and the new status when it changed. |
+| `user.changes.fields` | `keyword[]` | ECS names (`email`, `full_name`) of the personal-data fields an administration change altered; never their values. |
+| `group.roles`, `group.changes.roles` | `keyword[]` | Stored names of the roles a group granted before an administration change, and after it when they changed. |
+| `group.changes.name` | `keyword` | A group's new name. |
+| `group.affected_user_count` | `long` | Number of users in a group whose roles changed. |
+| `role.id`, `role.name`, `role.changes.name` | `keyword` | The role an administration change affects, its stored name before the change, and its new name. ECS has no role field set. |
 
 ## Correlation and lifecycle semantics
 

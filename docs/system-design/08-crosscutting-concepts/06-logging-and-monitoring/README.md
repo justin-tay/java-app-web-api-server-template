@@ -125,6 +125,14 @@ produced which event:
   ID is not called expired or forged, and JDBC cleanup of a session never
   used again is not logged (see
   [ADR 0017](../../../adr/0017-invalid-session-and-privilege-change-logging.md)).
+* `AdministrationAuditLogger` emits an ECS `iam` event for every create,
+  update, and delete of a local user, group, or role, and for each one
+  rejected by a business rule, with the administrator, the object's state
+  before the change, only the values that changed, and the roles and groups
+  granted or withdrawn (`roles.added`, `roles.removed`, `groups.added`,
+  `groups.removed`, the same role fields `update_session` uses). It never
+  logs an email address or display name (see
+  [ADR 0021](../../../adr/0021-authorisation-change-audit-log-events.md)).
 * `ApiResponseEntityExceptionHandler` and
   `ProblemDetailRequestRejectedHandler` emit `validate_input` and
   `reject_request` for rejected input and firewall rejections respectively,

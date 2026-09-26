@@ -31,5 +31,7 @@ Do not duplicate an ADR's content into this table when adding a new one.
 See [docs/adr/README.md](../adr/README.md) for the criteria used to decide
 whether a change warrants a new ADR.
 
+| [ADR 0021](../adr/0021-authorisation-change-audit-log-events.md) : Audit authorisation changes with log events, not history tables | Every user, group, and role change is an ECS `iam` log event carrying the prior state, the changes, and the roles granted or withdrawn, by stored role name; no Envers tables are added, and rows record only their latest `created_by` and `updated_by`. |
+
 <!-- arc42-manual: Add a row here when a new ADR is accepted. Do not restate an ADR's Context/Decision/Consequences in this table; link to it instead. -->
 <!-- /arc42-manual -->

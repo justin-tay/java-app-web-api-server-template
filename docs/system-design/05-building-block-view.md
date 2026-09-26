@@ -106,6 +106,7 @@ flowchart TB
 | --- | --- |
 | `UserAdminController` / `GroupAdminController` / `RoleAdminController` | Thin REST controllers; each is annotated `@PreAuthorize` (or matched in the security filter chain) with a distinct management authority, so a caller with only `USER_MANAGE` cannot administer groups or roles. |
 | `AdministrationService` | Application-layer orchestration for create/update/list/disable operations; translates domain conflicts (duplicate name) into `ConflictException`, missing resources into `ResourceNotFoundException`. |
+| `AdministrationAuditLogger` | Logs every change, after commit, and every rejected change as an ECS `iam` event with the prior state, the changes, and the roles and groups granted or withdrawn (see [ADR 0021](../adr/0021-authorisation-change-audit-log-events.md)). |
 | `AdminDtos` | Request/response DTOs, including `PageResponse` for paginated listings. |
 
 ### Domain Model
@@ -137,7 +138,9 @@ erDiagram
 Users are assigned to groups, and groups are granted roles; a user's
 effective authorities are the union of the roles of all of their groups.
 There is no direct user-to-role assignment. All three entities extend
-`AbstractAuditableEntity` (`created_at`/`updated_at`). The Keycloak
+`AbstractAuditableEntity` (`created_at`/`updated_at`, and `created_by`/`updated_by`
+holding the authenticated actor or `system`); the history of changes is the
+administration audit log, not these columns. The Keycloak
 `preferred_username` claim is matched against `app_user.username`, which
 is why usernames are treated as immutable once a user is provisioned (see
 `README.md`). The schema is in

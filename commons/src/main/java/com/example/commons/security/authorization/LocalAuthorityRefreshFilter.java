@@ -42,8 +42,9 @@ import com.example.commons.security.session.SessionLifecycleAuditLogger;
  * <p>
  * When the reloaded {@code ROLE_} authorities differ from the ones the session holds, and
  * the session is not already expired for revocation, the change is logged as a
- * {@code privilege_change} session event and the refreshed authentication is saved to the
- * session, so the change is logged once rather than on every later request.
+ * {@code privilege_change} session event, naming the added and removed roles by their
+ * stored names, and the refreshed authentication is saved to the session, so the change
+ * is logged once rather than on every later request.
  */
 public class LocalAuthorityRefreshFilter extends OncePerRequestFilter {
 
@@ -106,10 +107,8 @@ public class LocalAuthorityRefreshFilter extends OncePerRequestFilter {
 		if (session == null || isExpired(session)) {
 			return;
 		}
-		Set<String> added = new HashSet<>(currentRoles);
-		added.removeAll(previousRoles);
-		Set<String> removed = new HashSet<>(previousRoles);
-		removed.removeAll(currentRoles);
+		Set<String> added = storedRoleNames(currentRoles, previousRoles);
+		Set<String> removed = storedRoleNames(previousRoles, currentRoles);
 		this.sessionLifecycleAuditLogger.logSessionPrivilegeChanged(session, username, added, removed);
 		this.securityContextRepository.saveContext(SecurityContextHolder.getContext(), request, response);
 	}
@@ -123,6 +122,17 @@ public class LocalAuthorityRefreshFilter extends OncePerRequestFilter {
 		return authorities.stream()
 			.map(GrantedAuthority::getAuthority)
 			.filter(authority -> authority.startsWith("ROLE_"))
+			.collect(Collectors.toSet());
+	}
+
+	/**
+	 * Returns the {@code ROLE_} authorities in {@code authorities} that are not in
+	 * {@code excluded}, as the stored role names the audit log uses, without the prefix.
+	 */
+	private static Set<String> storedRoleNames(Set<String> authorities, Set<String> excluded) {
+		return authorities.stream()
+			.filter(authority -> !excluded.contains(authority))
+			.map(authority -> authority.substring("ROLE_".length()))
 			.collect(Collectors.toSet());
 	}
 

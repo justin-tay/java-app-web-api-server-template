@@ -75,8 +75,10 @@ class AdministrationServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		this.service = new AdministrationService(this.users, this.groups, this.roles, new SessionRevocationService(
-				this.sessionRegistry, this.sessionRepository, this.sessionLifecycleAuditLogger));
+		this.service = new AdministrationService(this.users, this.groups, this.roles,
+				new SessionRevocationService(this.sessionRegistry, this.sessionRepository,
+						this.sessionLifecycleAuditLogger),
+				new AdministrationAuditLogger());
 		this.userManage = this.entityManager.persist(new AppRole("USER_MANAGE"));
 		this.managers = this.entityManager.persist(new AppGroup("Managers"));
 		this.managers.getRoles().add(this.userManage);

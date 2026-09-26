@@ -9,6 +9,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.commons.accounts.admin.AdministrationAuditLogger.GroupState;
+import com.example.commons.accounts.admin.AdministrationAuditLogger.RoleState;
+import com.example.commons.accounts.admin.AdministrationAuditLogger.UserState;
 import com.example.commons.accounts.domain.AppGroup;
 import com.example.commons.accounts.domain.AppGroupRepository;
 import com.example.commons.accounts.domain.AppRole;
@@ -30,39 +33,49 @@ public class AdministrationService {
 
 	private final SessionRevocationService sessionRevocationService;
 
+	private final AdministrationAuditLogger auditLogger;
+
 	public AdministrationService(AppUserRepository users, AppGroupRepository groups, AppRoleRepository roles,
-			SessionRevocationService sessionRevocationService) {
+			SessionRevocationService sessionRevocationService, AdministrationAuditLogger auditLogger) {
 		this.users = users;
 		this.groups = groups;
 		this.roles = roles;
 		this.sessionRevocationService = sessionRevocationService;
+		this.auditLogger = auditLogger;
 	}
 
 	public AppUser createUser(AdminDtos.UserCreateRequest request) {
-		if (this.users.existsByUsername(request.username()))
+		if (this.users.existsByUsername(request.username())) {
+			this.auditLogger.userCreationRejected(request.username(), "username_exists");
 			throw new ConflictException("Username already exists.");
+		}
 		AppUser user = new AppUser(request.username(), request.displayName(), request.email(), request.enabled());
 		user.getGroups().addAll(groups(request.groupIds()));
-		return this.users.save(user);
+		AppUser saved = this.users.save(user);
+		this.auditLogger.userCreated(UserState.of(saved));
+		return saved;
 	}
 
 	public AppUser updateUser(String id, AdminDtos.UserUpdateRequest request) {
 		AppUser user = user(id);
-		boolean wasEnabled = user.isEnabled();
+		UserState before = UserState.of(user);
 		Set<String> previousGroupIds = user.getGroups().stream().map(AppGroup::getId).collect(Collectors.toSet());
 		user.update(request.displayName(), request.email(), request.enabled());
 		user.getGroups().clear();
 		user.getGroups().addAll(groups(request.groupIds()));
-		if ((wasEnabled && !user.isEnabled()) || !previousGroupIds.equals(request.groupIds())) {
+		if ((before.enabled() && !user.isEnabled()) || !previousGroupIds.equals(request.groupIds())) {
 			this.sessionRevocationService.revoke(user.getUsername(), "privilege_change");
 		}
+		this.auditLogger.userUpdated(before, UserState.of(user));
 		return user;
 	}
 
 	public void deleteUser(String id) {
 		AppUser user = user(id);
+		UserState before = UserState.of(user);
 		this.sessionRevocationService.revoke(user.getUsername(), "account_deleted");
 		this.users.delete(user);
+		this.auditLogger.userDeleted(before);
 	}
 
 	public AppUser user(String id) {
@@ -85,28 +98,41 @@ public class AdministrationService {
 	}
 
 	public AppGroup createGroup(AdminDtos.GroupRequest request) {
-		if (this.groups.existsByName(request.name()))
+		if (this.groups.existsByName(request.name())) {
+			this.auditLogger.groupCreationRejected(request.name(), "name_exists");
 			throw new ConflictException("Group name already exists.");
+		}
 		AppGroup group = new AppGroup(request.name());
 		group.getRoles().addAll(roles(request.roleIds()));
-		return this.groups.save(group);
+		AppGroup saved = this.groups.save(group);
+		this.auditLogger.groupCreated(GroupState.of(saved));
+		return saved;
 	}
 
 	public AppGroup updateGroup(String id, AdminDtos.GroupRequest request) {
 		AppGroup group = group(id);
-		if (!group.getName().equals(request.name()) && this.groups.existsByName(request.name()))
+		GroupState before = GroupState.of(group);
+		if (!group.getName().equals(request.name()) && this.groups.existsByName(request.name())) {
+			this.auditLogger.groupUpdateRejected(before, request.name(), "name_exists");
 			throw new ConflictException("Group name already exists.");
+		}
 		group.setName(request.name());
 		group.getRoles().clear();
 		group.getRoles().addAll(roles(request.roleIds()));
 		group.touch();
+		this.auditLogger.groupUpdated(before, GroupState.of(group), this.users.countByGroups_Id(id));
 		return group;
 	}
 
 	public void deleteGroup(String id) {
-		if (this.users.existsByGroups_Id(id))
+		AppGroup group = group(id);
+		GroupState before = GroupState.of(group);
+		if (this.users.existsByGroups_Id(id)) {
+			this.auditLogger.groupDeletionRejected(before, "group_has_users");
 			throw new ConflictException("Group contains users.");
-		this.groups.delete(group(id));
+		}
+		this.groups.delete(group);
+		this.auditLogger.groupDeleted(before);
 	}
 
 	public AppGroup group(String id) {
@@ -126,23 +152,36 @@ public class AdministrationService {
 	}
 
 	public AppRole createRole(AdminDtos.RoleRequest request) {
-		if (this.roles.existsByName(request.name()))
+		if (this.roles.existsByName(request.name())) {
+			this.auditLogger.roleCreationRejected(request.name(), "name_exists");
 			throw new ConflictException("Role name already exists.");
-		return this.roles.save(new AppRole(request.name()));
+		}
+		AppRole saved = this.roles.save(new AppRole(request.name()));
+		this.auditLogger.roleCreated(RoleState.of(saved));
+		return saved;
 	}
 
 	public AppRole updateRole(String id, AdminDtos.RoleRequest request) {
 		AppRole role = role(id);
-		if (!role.getName().equals(request.name()) && this.roles.existsByName(request.name()))
+		RoleState before = RoleState.of(role);
+		if (!role.getName().equals(request.name()) && this.roles.existsByName(request.name())) {
+			this.auditLogger.roleUpdateRejected(before, request.name(), "name_exists");
 			throw new ConflictException("Role name already exists.");
+		}
 		role.setName(request.name());
+		this.auditLogger.roleUpdated(before, RoleState.of(role));
 		return role;
 	}
 
 	public void deleteRole(String id) {
-		if (this.groups.existsByRoles_Id(id))
+		AppRole role = role(id);
+		RoleState before = RoleState.of(role);
+		if (this.groups.existsByRoles_Id(id)) {
+			this.auditLogger.roleDeletionRejected(before, "role_in_use");
 			throw new ConflictException("Role is assigned to a group.");
-		this.roles.delete(role(id));
+		}
+		this.roles.delete(role);
+		this.auditLogger.roleDeleted(before);
 	}
 
 	public AppRole role(String id) {

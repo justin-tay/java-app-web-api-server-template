@@ -15,4 +15,6 @@ public interface AppUserRepository extends JpaRepository<AppUser, String>, JpaSp
 
 	boolean existsByGroups_Id(String groupId);
 
+	long countByGroups_Id(String groupId);
+
 }

@@ -10,6 +10,7 @@ import org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfigur
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.example.commons.accounts.admin.AdministrationAuditLogger;
 import com.example.commons.accounts.admin.AdministrationService;
 import com.example.commons.accounts.admin.GroupAdminController;
 import com.example.commons.accounts.admin.RoleAdminController;
@@ -72,9 +73,15 @@ public class AccountsAutoConfiguration {
 	static class AdministrationConfiguration {
 
 		@Bean
+		AdministrationAuditLogger administrationAuditLogger() {
+			return new AdministrationAuditLogger();
+		}
+
+		@Bean
 		AdministrationService administrationService(AppUserRepository users, AppGroupRepository groups,
-				AppRoleRepository roles, SessionRevocationService sessionRevocationService) {
-			return new AdministrationService(users, groups, roles, sessionRevocationService);
+				AppRoleRepository roles, SessionRevocationService sessionRevocationService,
+				AdministrationAuditLogger administrationAuditLogger) {
+			return new AdministrationService(users, groups, roles, sessionRevocationService, administrationAuditLogger);
 		}
 
 		@Bean

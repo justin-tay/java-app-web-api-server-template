@@ -178,7 +178,7 @@ This template has no generative AI or large language model integration; the enti
 | LM-1 | Separate Log Storage | Not applicable | The template writes structured logs to stdout only; routing them to a separate storage system is a deployment/log-pipeline decision. |
 | LM-2 | Tamper-Resistant Log Storage | Not applicable | Log storage protection is a deployment/log-pipeline decision. |
 | LM-3 | Network Flow Logging | Not applicable | Network flow logging is an infrastructure responsibility. |
-| LM-4 | Audit Logging | Implemented | Authentication, authorisation, and session lifecycle events are logged as structured audit events (`SecurityAuditEventLogger`, `SessionLifecycleAuditLogger`). |
+| LM-4 | Audit Logging | Implemented | Authentication, authorisation, and session lifecycle events, and every change to local accounts and access (users, groups, roles, and their memberships), are logged as structured audit events (`SecurityAuditEventLogger`, `SessionLifecycleAuditLogger`, `AdministrationAuditLogger`). |
 | LM-5 | Database Logging | Not applicable | Database audit logging is owned by the operator-supplied database/infrastructure. |
 | LM-6 | Access Logging | Implemented | Every request's lifecycle is logged via `RequestLoggingFilter`. |
 | LM-7 | Host Security Event Logging | Not applicable | Host-level security event logging is an infrastructure responsibility. |

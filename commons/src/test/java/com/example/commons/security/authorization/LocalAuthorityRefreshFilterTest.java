@@ -108,8 +108,8 @@ class LocalAuthorityRefreshFilterTest {
 		});
 
 		assertThat(output).containsOnlyOnce("event.action=\"update_session\"")
-			.contains("ROLE_USER_MANAGE")
-			.contains("ROLE_STALE_ROLE");
+			.contains("roles.added=\"[USER_MANAGE]\"")
+			.contains("roles.removed=\"[STALE_ROLE]\"");
 		SecurityContext savedContext = (SecurityContext) session
 			.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
 		assertThat(savedContext.getAuthentication().getAuthorities()).extracting(GrantedAuthority::getAuthority)

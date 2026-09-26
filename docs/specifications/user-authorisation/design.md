@@ -104,14 +104,16 @@ com.example.app.web.server
 
 | Table / entity | Columns | Relationships and constraints |
 |---|---|---|
-| `app_user` / `AppUser` | `id`, `username`, `display_name`, `email`, `enabled`, `created_at`, `updated_at` | primary key; `username` unique and not null; display name, enabled, and timestamps not null |
-| `app_group` / `AppGroup` | `id`, `name`, `created_at`, `updated_at` | primary key; name unique and not null |
-| `app_role` / `AppRole` | `id`, `name`, `created_at`, `updated_at` | primary key; name unique and not null |
+| `app_user` / `AppUser` | `id`, `username`, `display_name`, `email`, `enabled`, `created_at`, `updated_at`, `created_by`, `updated_by` | primary key; `username` unique and not null; display name, enabled, timestamps, and actors not null |
+| `app_group` / `AppGroup` | `id`, `name`, `created_at`, `updated_at`, `created_by`, `updated_by` | primary key; name unique and not null |
+| `app_role` / `AppRole` | `id`, `name`, `created_at`, `updated_at`, `created_by`, `updated_by` | primary key; name unique and not null |
 | `app_user_group` | `user_id`, `group_id` | composite primary key; both foreign keys; a user requires at least one link at service level |
 | `app_group_role` | `group_id`, `role_id` | composite primary key; both foreign keys |
 
 `email` is nullable. `created_at` and `updated_at` are assigned by the
-application, rather than a database-specific default. Entity associations are
+application, rather than a database-specific default, and so are `created_by`
+and `updated_by`: the authenticated actor's name, or `system` when there is
+none and for seeded rows (see ADR 0021). Entity associations are
 many-to-many in both directions but API DTOs prevent recursive serialization.
 
 The user-to-group requirement is enforced transactionally: create/update validates
