@@ -222,46 +222,78 @@ public class WebSecurityAutoConfiguration {
 			http.getSharedObject(AuthenticationManagerBuilder.class)
 				.authenticationEventPublisher(authenticationEventPublisher);
 			ProblemDetailAccessDeniedHandler accessDeniedHandler = new ProblemDetailAccessDeniedHandler();
-			// The request cache is a shared object set while the chain is built, so it is
-			// resolved when a request arrives rather than now.
-			AuditingInvalidSessionStrategy invalidSessionStrategy = new AuditingInvalidSessionStrategy(
-					sessionLifecycleAuditLogger, () -> http.getSharedObject(RequestCache.class),
+			applySessionFilters(http, properties, clock, sessionLifecycleAuditLogger);
+			applyHeaders(http);
+			applyExceptionHandling(http, authenticationEntryPoint, accessDeniedHandler);
+			applyHealthEndpointRules(http, healthPath);
+			applySessionManagement(http, sessionRegistry, sessionExpiredStrategy, sessionLifecycleAuditLogger,
 					authenticationEntryPoint, accessDeniedHandler);
-			http.addFilterBefore(new SessionLifecycleAuditInitializationFilter(sessionLifecycleAuditLogger),
-					SecurityContextHolderFilter.class)
-				.addFilterAfter(
-						new AbsoluteSessionTimeoutFilter(properties.getSession().getAbsoluteTimeout(),
-								clock.getIfAvailable(Clock::systemDefaultZone), sessionLifecycleAuditLogger),
-						SecurityContextHolderFilter.class)
-				.headers(headers -> headers
-					.contentSecurityPolicy(
-							contentSecurityPolicy -> contentSecurityPolicy.policyDirectives(CONTENT_SECURITY_POLICY))
-					.referrerPolicy(referrerPolicy -> referrerPolicy
-						.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
-					.permissionsPolicyHeader(permissionsPolicy -> permissionsPolicy.policy(PERMISSIONS_POLICY)))
-				.exceptionHandling(exceptionHandling -> exceptionHandling.accessDeniedHandler(accessDeniedHandler)
-					.authenticationEntryPoint(authenticationEntryPoint))
-				// The management port (see docs/adr/0014) is a separate embedded server
-				// that
-				// nonetheless shares this filter chain, so it goes through these rules
-				// too.
-				// Only the health check the ALB/monitoring probes, and its liveness and
-				// readiness groups (see docs/adr/0020), are unauthenticated; every
-				// other actuator endpoint falls through to the application's rules, and
-				// is also not exposed (see management.endpoints.web.exposure.include).
-				.authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
-					.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher(healthPath),
-							PathPatternRequestMatcher.withDefaults().matcher(healthPath + "/liveness"),
-							PathPatternRequestMatcher.withDefaults().matcher(healthPath + "/readiness"))
-					.permitAll())
-				.sessionManagement(sessionManagement -> sessionManagement.invalidSessionStrategy(invalidSessionStrategy)
-					.maximumSessions(1)
-					.maxSessionsPreventsLogin(false)
-					.sessionRegistry(sessionRegistry)
-					.expiredSessionStrategy(sessionExpiredStrategy))
-				.logout(logout -> logout
-					.addLogoutHandler(new SessionLifecycleLogoutHandler(sessionLifecycleAuditLogger)));
+			applyLogoutAudit(http, sessionLifecycleAuditLogger);
 		};
+	}
+
+	private static void applySessionFilters(HttpSecurity http, WebSecurityProperties properties,
+			ObjectProvider<Clock> clock, SessionLifecycleAuditLogger sessionLifecycleAuditLogger) {
+		http.addFilterBefore(new SessionLifecycleAuditInitializationFilter(sessionLifecycleAuditLogger),
+				SecurityContextHolderFilter.class)
+			.addFilterAfter(
+					new AbsoluteSessionTimeoutFilter(properties.getSession().getAbsoluteTimeout(),
+							clock.getIfAvailable(Clock::systemDefaultZone), sessionLifecycleAuditLogger),
+					SecurityContextHolderFilter.class);
+	}
+
+	private static void applyHeaders(HttpSecurity http) {
+		http.headers(headers -> headers
+			.contentSecurityPolicy(
+					contentSecurityPolicy -> contentSecurityPolicy.policyDirectives(CONTENT_SECURITY_POLICY))
+			.referrerPolicy(referrerPolicy -> referrerPolicy
+				.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+			.permissionsPolicyHeader(permissionsPolicy -> permissionsPolicy.policy(PERMISSIONS_POLICY)));
+	}
+
+	private static void applyExceptionHandling(HttpSecurity http,
+			ProblemDetailAuthenticationEntryPoint authenticationEntryPoint,
+			ProblemDetailAccessDeniedHandler accessDeniedHandler) {
+		http.exceptionHandling(exceptionHandling -> exceptionHandling.accessDeniedHandler(accessDeniedHandler)
+			.authenticationEntryPoint(authenticationEntryPoint));
+	}
+
+	/**
+	 * Permits the health check and its liveness and readiness groups without
+	 * authentication. The management port (see docs/adr/0014) is a separate embedded
+	 * server that nonetheless shares this filter chain, so it goes through these rules
+	 * too. The health check the ALB/monitoring probes, and its liveness and readiness
+	 * groups (see docs/adr/0020), are the only unauthenticated endpoints; every other
+	 * actuator endpoint falls through to the application's rules, and is also not exposed
+	 * (see management.endpoints.web.exposure.include).
+	 */
+	private static void applyHealthEndpointRules(HttpSecurity http, String healthPath) {
+		http.authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
+			.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher(healthPath),
+					PathPatternRequestMatcher.withDefaults().matcher(healthPath + "/liveness"),
+					PathPatternRequestMatcher.withDefaults().matcher(healthPath + "/readiness"))
+			.permitAll());
+	}
+
+	private static void applySessionManagement(HttpSecurity http, SessionRegistry sessionRegistry,
+			SessionInformationExpiredStrategy sessionExpiredStrategy,
+			SessionLifecycleAuditLogger sessionLifecycleAuditLogger,
+			ProblemDetailAuthenticationEntryPoint authenticationEntryPoint,
+			ProblemDetailAccessDeniedHandler accessDeniedHandler) {
+		// The request cache is a shared object set while the chain is built, so it is
+		// resolved when a request arrives rather than now.
+		AuditingInvalidSessionStrategy invalidSessionStrategy = new AuditingInvalidSessionStrategy(
+				sessionLifecycleAuditLogger, () -> http.getSharedObject(RequestCache.class), authenticationEntryPoint,
+				accessDeniedHandler);
+		http.sessionManagement(sessionManagement -> sessionManagement.invalidSessionStrategy(invalidSessionStrategy)
+			.maximumSessions(1)
+			.maxSessionsPreventsLogin(false)
+			.sessionRegistry(sessionRegistry)
+			.expiredSessionStrategy(sessionExpiredStrategy));
+	}
+
+	private static void applyLogoutAudit(HttpSecurity http, SessionLifecycleAuditLogger sessionLifecycleAuditLogger) {
+		http.logout(logout -> logout.addLogoutHandler(new SessionLifecycleLogoutHandler(sessionLifecycleAuditLogger)));
 	}
 
 }
