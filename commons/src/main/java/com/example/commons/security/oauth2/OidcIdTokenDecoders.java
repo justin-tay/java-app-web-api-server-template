@@ -1,0 +1,94 @@
+package com.example.commons.security.oauth2;
+
+import java.net.MalformedURLException;
+import java.net.URI;
+
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.jwk.KeyUse;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.jwk.source.JWKSourceBuilder;
+import com.nimbusds.jose.proc.JWSVerificationKeySelector;
+import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jwt.proc.DefaultJWTProcessor;
+
+import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.client.oidc.authentication.OidcIdTokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.jwt.BadJwtException;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+
+/**
+ * Builds the {@link JwtDecoder} for the ID token of one client registration: signature
+ * verified against the provider's JWK Set, OpenID Connect claims validated, and, when an
+ * {@link IdTokenDecryption} exists, encrypted ID tokens decrypted first.
+ */
+public final class OidcIdTokenDecoders {
+
+	private OidcIdTokenDecoders() {
+	}
+
+	/**
+	 * Creates the ID token decoder for a client registration.
+	 * @param clientRegistration the client registration that receives the ID token
+	 * @param decryption the ID token decryption, or {@code null} when ID tokens are not
+	 * encrypted
+	 * @return the decoder
+	 */
+	public static JwtDecoder create(ClientRegistration clientRegistration, IdTokenDecryption decryption) {
+		JWKSource<SecurityContext> jwkSource = jwkSource(clientRegistration);
+		DefaultJWTProcessor<SecurityContext> jwtProcessor = new DefaultJWTProcessor<>();
+		jwtProcessor.setJWSKeySelector(new JWSVerificationKeySelector<>(JWSAlgorithm.RS256,
+				(jwkSelector, context) -> jwkSource.get(jwkSelector, context)
+					.stream()
+					.filter(jwk -> KeyUse.SIGNATURE.equals(jwk.getKeyUse()))
+					.toList()));
+		if (decryption != null) {
+			jwtProcessor.setJWEKeySelector(decryption.keySelector());
+		}
+		NimbusJwtDecoder jwtDecoder = new NimbusJwtDecoder(jwtProcessor);
+		jwtDecoder.setJwtValidator(oidcIdTokenValidator(clientRegistration));
+		if (decryption == null) {
+			return jwtDecoder;
+		}
+		return token -> {
+			if (decryption.isRequired() && !isJwe(token)) {
+				throw new BadJwtException(
+						"The ID token is not encrypted, but this client requires encrypted ID tokens");
+			}
+			return jwtDecoder.decode(token);
+		};
+	}
+
+	/**
+	 * Gets the OpenID Connect validator for an ID token.
+	 * @param clientRegistration the client registration that received the ID token
+	 * @return the validator for required OpenID Connect ID token claims
+	 */
+	public static OAuth2TokenValidator<Jwt> oidcIdTokenValidator(ClientRegistration clientRegistration) {
+		return new OidcIdTokenValidator(clientRegistration);
+	}
+
+	/**
+	 * Returns whether a token is in JWE compact serialization, which has five parts where
+	 * a JWS has three.
+	 * @param token the token
+	 * @return whether the token is a JWE
+	 */
+	private static boolean isJwe(String token) {
+		return token.chars().filter(character -> character == '.').count() == 4;
+	}
+
+	private static JWKSource<SecurityContext> jwkSource(ClientRegistration clientRegistration) {
+		String jwkSetUri = clientRegistration.getProviderDetails().getJwkSetUri();
+		try {
+			return JWKSourceBuilder.create(URI.create(jwkSetUri).toURL()).retrying(true).build();
+		}
+		catch (MalformedURLException | IllegalArgumentException ex) {
+			throw new IllegalArgumentException("Invalid JWK Set URI for client registration "
+					+ clientRegistration.getRegistrationId() + ": " + jwkSetUri, ex);
+		}
+	}
+
+}

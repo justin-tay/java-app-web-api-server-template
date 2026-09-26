@@ -1,6 +1,5 @@
 package com.example.commons.security;
 
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -33,19 +32,14 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.annotation.web.configurers.DefaultLoginPageConfigurer;
 import org.springframework.security.core.session.SessionRegistry;
-import org.springframework.security.oauth2.client.oidc.authentication.OidcIdTokenValidator;
 import org.springframework.security.oauth2.client.oidc.session.InMemoryOidcSessionRegistry;
 import org.springframework.security.oauth2.client.oidc.session.OidcSessionRegistry;
 import org.springframework.security.oauth2.client.oidc.web.logout.OidcClientInitiatedLogoutSuccessHandler;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
-import org.springframework.security.oauth2.core.OAuth2TokenValidator;
-import org.springframework.security.oauth2.jwt.BadJwtException;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtDecoderFactory;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
@@ -69,6 +63,7 @@ import com.example.commons.security.authorization.LocalAuthorityRefreshFilter;
 import com.example.commons.security.authorization.ProblemDetailAccessDeniedHandler;
 import com.example.commons.security.firewall.ProblemDetailRequestRejectedHandler;
 import com.example.commons.security.oauth2.IdTokenDecryption;
+import com.example.commons.security.oauth2.OidcIdTokenDecoders;
 import com.example.commons.security.session.AbsoluteSessionTimeoutFilter;
 import com.example.commons.security.session.AuditingInvalidSessionStrategy;
 import com.example.commons.security.session.ContentNegotiatingSessionExpiredStrategy;
@@ -78,13 +73,6 @@ import com.example.commons.security.session.SessionLifecycleLogoutHandler;
 import com.example.commons.security.session.SessionRepositoryOidcBackChannelLogoutHandler;
 import com.example.commons.security.session.SecureRandomSessionIdGenerator;
 import com.example.commons.security.session.SessionRevocationService;
-import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.jwk.KeyUse;
-import com.nimbusds.jose.jwk.source.JWKSource;
-import com.nimbusds.jose.jwk.source.JWKSourceBuilder;
-import com.nimbusds.jose.proc.JWSVerificationKeySelector;
-import com.nimbusds.jose.proc.SecurityContext;
-import com.nimbusds.jwt.proc.DefaultJWTProcessor;
 
 /**
  * Configures the security baseline every application's Spring Security filter chain
@@ -238,41 +226,8 @@ public class WebSecurityAutoConfiguration {
 	@ConditionalOnMissingBean
 	JwtDecoderFactory<ClientRegistration> idTokenDecoderFactory(ObjectProvider<IdTokenDecryption> idTokenDecryption) {
 		Map<String, JwtDecoder> jwtDecoders = new ConcurrentHashMap<>();
-		return clientRegistration -> jwtDecoders.computeIfAbsent(clientRegistration.getRegistrationId(), key -> {
-			JWKSource<SecurityContext> jwkSource = jwkSource(clientRegistration);
-			DefaultJWTProcessor<SecurityContext> jwtProcessor = new DefaultJWTProcessor<>();
-			jwtProcessor.setJWSKeySelector(new JWSVerificationKeySelector<>(JWSAlgorithm.RS256,
-					(jwkSelector, context) -> jwkSource.get(jwkSelector, context)
-						.stream()
-						.filter(jwk -> KeyUse.SIGNATURE.equals(jwk.getKeyUse()))
-						.toList()));
-			IdTokenDecryption decryption = idTokenDecryption.getIfAvailable();
-			if (decryption != null) {
-				jwtProcessor.setJWEKeySelector(decryption.keySelector());
-			}
-			NimbusJwtDecoder jwtDecoder = new NimbusJwtDecoder(jwtProcessor);
-			jwtDecoder.setJwtValidator(oidcIdTokenValidator(clientRegistration));
-			if (decryption == null) {
-				return jwtDecoder;
-			}
-			return token -> {
-				if (decryption.isRequired() && !isJwe(token)) {
-					throw new BadJwtException(
-							"The ID token is not encrypted, but this client requires encrypted ID tokens");
-				}
-				return jwtDecoder.decode(token);
-			};
-		});
-	}
-
-	/**
-	 * Returns whether a token is in JWE compact serialization, which has five parts where
-	 * a JWS has three.
-	 * @param token the token
-	 * @return whether the token is a JWE
-	 */
-	private static boolean isJwe(String token) {
-		return token.chars().filter(character -> character == '.').count() == 4;
+		return clientRegistration -> jwtDecoders.computeIfAbsent(clientRegistration.getRegistrationId(),
+				key -> OidcIdTokenDecoders.create(clientRegistration, idTokenDecryption.getIfAvailable()));
 	}
 
 	/**
@@ -391,15 +346,6 @@ public class WebSecurityAutoConfiguration {
 	}
 
 	/**
-	 * Gets the OpenID Connect validator for an ID token.
-	 * @param clientRegistration the client registration that received the ID token
-	 * @return the validator for required OpenID Connect ID token claims
-	 */
-	static OAuth2TokenValidator<Jwt> oidcIdTokenValidator(ClientRegistration clientRegistration) {
-		return new OidcIdTokenValidator(clientRegistration);
-	}
-
-	/**
 	 * Gets the entry point a browser is redirected to when it is not authenticated: the
 	 * authorization request URI of the only client registration, exactly as Spring
 	 * Security's own default entry point would choose, or the login page when there are
@@ -429,17 +375,6 @@ public class WebSecurityAutoConfiguration {
 							+ "the application's local authorities for a username; define one, for example backed by the "
 							+ "application's user repository (see docs/adr/0005 and docs/adr/0019)");
 		});
-	}
-
-	private static JWKSource<SecurityContext> jwkSource(ClientRegistration clientRegistration) {
-		String jwkSetUri = clientRegistration.getProviderDetails().getJwkSetUri();
-		try {
-			return JWKSourceBuilder.create(URI.create(jwkSetUri).toURL()).retrying(true).build();
-		}
-		catch (MalformedURLException | IllegalArgumentException ex) {
-			throw new IllegalArgumentException("Invalid JWK Set URI for client registration "
-					+ clientRegistration.getRegistrationId() + ": " + jwkSetUri, ex);
-		}
 	}
 
 	/**

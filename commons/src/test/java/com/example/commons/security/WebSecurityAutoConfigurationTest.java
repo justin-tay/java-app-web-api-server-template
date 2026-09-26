@@ -23,6 +23,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoderFactory;
 import org.springframework.session.FindByIndexNameSessionRepository;
 
+import com.example.commons.security.oauth2.OidcIdTokenDecoders;
 import com.example.commons.security.authentication.oidc.LocalAuthoritiesOidcUserService;
 import com.example.commons.security.authorization.LocalAuthorityLookup;
 import com.example.commons.security.oauth2.IdTokenDecryption;
@@ -123,16 +124,14 @@ class WebSecurityAutoConfigurationTest {
 		Jwt unexpectedAuthorizedParty = idToken(now, "https://issuer.example.test",
 				List.of("client-id", "other-client"), "other-client");
 
-		assertThat(WebSecurityAutoConfiguration.oidcIdTokenValidator(clientRegistration)
-			.validate(validIdToken)
-			.hasErrors()).isFalse();
-		assertThat(WebSecurityAutoConfiguration.oidcIdTokenValidator(clientRegistration)
-			.validate(unexpectedIssuer)
-			.hasErrors()).isTrue();
-		assertThat(WebSecurityAutoConfiguration.oidcIdTokenValidator(clientRegistration)
-			.validate(unexpectedAudience)
-			.hasErrors()).isTrue();
-		assertThat(WebSecurityAutoConfiguration.oidcIdTokenValidator(clientRegistration)
+		assertThat(OidcIdTokenDecoders.oidcIdTokenValidator(clientRegistration).validate(validIdToken).hasErrors())
+			.isFalse();
+		assertThat(OidcIdTokenDecoders.oidcIdTokenValidator(clientRegistration).validate(unexpectedIssuer).hasErrors())
+			.isTrue();
+		assertThat(
+				OidcIdTokenDecoders.oidcIdTokenValidator(clientRegistration).validate(unexpectedAudience).hasErrors())
+			.isTrue();
+		assertThat(OidcIdTokenDecoders.oidcIdTokenValidator(clientRegistration)
 			.validate(unexpectedAuthorizedParty)
 			.hasErrors()).isTrue();
 	}
