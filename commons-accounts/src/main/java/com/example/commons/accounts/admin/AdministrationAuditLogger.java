@@ -151,9 +151,36 @@ public class AdministrationAuditLogger {
 		});
 	}
 
+	public void userUpdateRejected(UserState user, String reason) {
+		LoggingEventBuilder event = rejected("update_user", "user", "change", user.username(), reason);
+		target(event, user);
+		event.log("User update rejected");
+	}
+
+	public void userDeletionRejected(UserState user, String reason) {
+		LoggingEventBuilder event = rejected("delete_user", "user", "deletion", user.username(), reason);
+		target(event, user);
+		event.log("User deletion rejected");
+	}
+
 	public void userCreationRejected(String username, String reason) {
 		rejected("create_user", "user", "creation", username, reason).addKeyValue("user.target.name", username)
 			.log("User creation rejected");
+	}
+
+	/**
+	 * Records an administrator ending sessions: one user's, or, when {@code username} is
+	 * null, every user's but their own. Each ended session is also logged as a
+	 * {@code destroy_session} event with reason {@code administrative_revocation}.
+	 * @param username the user whose sessions were ended, or null for every user
+	 * @param revoked the number of sessions ended
+	 */
+	public void sessionsRevoked(String username, int revoked) {
+		LoggingEventBuilder event = event("revoke_sessions", "user", "change", username);
+		if (username != null) {
+			event.addKeyValue("user.target.name", username);
+		}
+		event.addKeyValue("session.revoked_count", revoked).log("Sessions revoked");
 	}
 
 	public void groupCreated(GroupState group) {
@@ -190,9 +217,11 @@ public class AdministrationAuditLogger {
 	}
 
 	public void groupUpdateRejected(GroupState group, String requestedName, String reason) {
-		group(rejected("update_group", "group", "change", null, reason), group)
-			.addKeyValue("group.changes.name", requestedName)
-			.log("Group update rejected");
+		LoggingEventBuilder event = group(rejected("update_group", "group", "change", null, reason), group);
+		if (!group.name().equals(requestedName)) {
+			event.addKeyValue("group.changes.name", requestedName);
+		}
+		event.log("Group update rejected");
 	}
 
 	public void groupDeletionRejected(GroupState group, String reason) {
@@ -203,19 +232,6 @@ public class AdministrationAuditLogger {
 		afterCommit(() -> role(event("create_role", "admin", "creation", null), role).log("Role created"));
 	}
 
-	public void roleUpdated(RoleState before, RoleState after) {
-		afterCommit(() -> {
-			LoggingEventBuilder event = role(event("update_role", "admin", "change", null), before);
-			boolean renamed = !before.name().equals(after.name());
-			if (renamed) {
-				event.addKeyValue("role.changes.name", after.name());
-			}
-			event.addKeyValue("roles.added", renamed ? List.of(after.name()) : List.of())
-				.addKeyValue("roles.removed", renamed ? List.of(before.name()) : List.of())
-				.log("Role updated");
-		});
-	}
-
 	public void roleDeleted(RoleState role) {
 		afterCommit(() -> role(event("delete_role", "admin", "deletion", null), role).log("Role deleted"));
 	}
@@ -223,12 +239,6 @@ public class AdministrationAuditLogger {
 	public void roleCreationRejected(String name, String reason) {
 		rejected("create_role", "admin", "creation", null, reason).addKeyValue("role.name", name)
 			.log("Role creation rejected");
-	}
-
-	public void roleUpdateRejected(RoleState role, String requestedName, String reason) {
-		role(rejected("update_role", "admin", "change", null, reason), role)
-			.addKeyValue("role.changes.name", requestedName)
-			.log("Role update rejected");
 	}
 
 	public void roleDeletionRejected(RoleState role, String reason) {

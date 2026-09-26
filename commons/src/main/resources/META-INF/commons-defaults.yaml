@@ -54,7 +54,11 @@ server:
   servlet:
     session:
       cookie:
-        name: id
+        # The __Host- prefix makes the browser refuse the cookie unless it is Secure,
+        # has Path=/, and has no Domain, so no other host or path can set or shadow it.
+        # It requires the application at the root context path. A profile that sets
+        # secure: false must also drop the prefix; see application-local.yaml.
+        name: __Host-id
         http-only: true
         same-site: lax
         secure: true

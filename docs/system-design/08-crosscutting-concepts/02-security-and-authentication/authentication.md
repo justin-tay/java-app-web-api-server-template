@@ -195,7 +195,7 @@ next request is unauthenticated.
 Spring Security's default `OidcBackChannelLogoutHandler` is not used. It ends
 each linked session by posting back to the application with the session ID in
 a `JSESSIONID` cookie; setting its cookie name to `id` is not enough, because
-it sends the raw session ID while Spring Session's `id` cookie carries the ID
+it sends the raw session ID while Spring Session's session cookie carries the ID
 Base64-encoded, so that internal request resumes no session and the session
 survives. Deleting through the repository also avoids the application having
 to call itself at the URL Keycloak used.
@@ -262,7 +262,7 @@ since they carry no separate testable claim.
 | **Compare Password Hashes Using Safe Functions**<br>Compare password hashes with a vetted, constant-time library function rather than hand-written comparison. | Delegated to identity provider | Password comparison never occurs in application code; there is no such code path to review. |
 | **Change Password Feature**<br>Require an active session and the current password before allowing a password change. | Delegated to identity provider | Handled entirely by Keycloak's account console, outside this application's routes and controllers. |
 | **Transmit Passwords Only Over TLS or Other Strong Transport**<br>Serve the login page and every authenticated page only over TLS. | Implemented | Credential entry occurs on Keycloak's hosted login page, outside this application. Token exchange and every authenticated application route are TLS-protected by this application's own listener. See [Hardening](hardening.md) sections 6.2-6.5. Confirm against the deployed service that TLS protects the whole authenticated session, including Keycloak's own login and consent pages.<br><br>**Application configuration:** `server.ssl`. |
-| **Require Re-authentication for Sensitive Features**<br>Ask for the user's credentials again before sensitive account changes or critical transactions. | Not implemented | No step-up or re-authentication requirement is defined for sensitive administration actions (user, group, or role management). This mirrors the equivalent open item in [Sessions](sessions.md). |
+| **Require Re-authentication for Sensitive Features**<br>Ask for the user's credentials again before sensitive account changes or critical transactions. | Implemented | Every change made through the administration API (users, groups, and roles) needs a login no older than 15 minutes, from the ID token's `auth_time`; otherwise it is answered with a `reauthentication-required` problem and the client logs in again with `max_age=0`, which makes Keycloak authenticate the user afresh. Ending sessions is exempt, so incident response is never delayed ([ADR 0023](../../../adr/0023-recent-login-for-administration-changes.md)).<br><br>**Application code:** `AdminReauthenticationInterceptor`, `RecentAuthentication`, `MaxAgeAuthorizationRequestResolver`; **Test code:** `AdminApiIntegrationTest.aChangeNeedsARecentLoginButAReadDoesNot()`. |
 | **Re-authentication After Risk Events**<br>Require re-authentication after risk events such as account recovery, password resets, or suspicious activity. | Not implemented | No device, IP, or behavioral risk signal triggers re-authentication; see "Adaptive or Risk Based Authentication" below, which covers the same gap. |
 | **Consider Strong Transaction Authentication**<br>Consider requiring a second factor before sensitive operations, following the Transaction Authorization Cheat Sheet. | Not implemented | The application authenticates its own back-channel calls to Keycloak with `private_key_jwt` (TLS client authentication is not used for this), and defines no per-transaction second factor for any administration action. See [Hardening](hardening.md) section 6.1 for the mTLS deployment decision. |
 | **Authentication and Error Messages**<br>Return the same generic error message and status for every authentication failure so accounts cannot be enumerated. | Partial | A failed Keycloak login is handled entirely by Keycloak's own login page. Once Keycloak issues a successful authentication, `LocalAuthoritiesOidcUserService.unauthorized()` rejects a missing claim, an unknown local user, and a disabled local user with the same generic `local_user_not_authorized` OAuth2 error, and Spring Security's default failure handler redirects to a generic `/login?error` page. Verify the rendered error page never distinguishes these outcomes from each other or from a Keycloak-side rejection.<br><br>**Application code:** `LocalAuthoritiesOidcUserService.unauthorized()`; **Spring Security default:** OAuth2 login failure handling. |
@@ -320,8 +320,9 @@ Before production use, the service owner must record and implement decisions for
 2. Whether MFA (OTP, WebAuthn) is required, and for which users or realms.
 3. Keycloak brute-force detection: lockout threshold, observation window,
    lockout duration, and whether CAPTCHA is also required.
-4. Whether administrative actions or specific risk events require
-   re-authentication or step-up MFA, coordinated with [Sessions](sessions.md).
+4. Whether specific risk events require re-authentication, and whether
+   administrative actions require step-up MFA (`acr`) on top of the recent login
+   they already need, coordinated with [Sessions](sessions.md).
 5. Whether mTLS is required for machine/API clients, coordinated with
    [Hardening](hardening.md) section 6.1.
 6. Password-recovery, account-lockout communication, and any self-service

@@ -1,5 +1,8 @@
 package com.example.commons.accounts;
 
+import java.time.Clock;
+import java.time.Duration;
+
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
@@ -9,7 +12,11 @@ import org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoCo
 import org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import com.example.commons.accounts.admin.AdminReauthenticationInterceptor;
 import com.example.commons.accounts.admin.AdministrationAuditLogger;
 import com.example.commons.accounts.admin.AdministrationService;
 import com.example.commons.accounts.admin.GroupAdminController;
@@ -82,6 +89,31 @@ public class AccountsAutoConfiguration {
 				AppRoleRepository roles, SessionRevocationService sessionRevocationService,
 				AdministrationAuditLogger administrationAuditLogger) {
 			return new AdministrationService(users, groups, roles, sessionRevocationService, administrationAuditLogger);
+		}
+
+		/**
+		 * Requires a login no older than
+		 * {@code commons.accounts.admin.reauthentication-max-age} (15 minutes by default)
+		 * for every change made through the administration API, except ending sessions.
+		 * @param environment the environment
+		 * @return the MVC configurer that registers the check
+		 */
+		@Bean
+		WebMvcConfigurer adminReauthenticationConfigurer(Environment environment) {
+			Duration maxAge = environment.getProperty("commons.accounts.admin.reauthentication-max-age", Duration.class,
+					Duration.ofMinutes(15));
+			AdminReauthenticationInterceptor interceptor = new AdminReauthenticationInterceptor(maxAge,
+					Clock.systemUTC());
+			return new WebMvcConfigurer() {
+
+				@Override
+				public void addInterceptors(InterceptorRegistry registry) {
+					registry.addInterceptor(interceptor)
+						.addPathPatterns("/admin/users/**", "/admin/groups/**", "/admin/roles/**")
+						.excludePathPatterns("/admin/users/sessions", "/admin/users/*/sessions");
+				}
+
+			};
 		}
 
 		@Bean

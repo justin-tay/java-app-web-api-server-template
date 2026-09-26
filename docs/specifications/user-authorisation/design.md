@@ -157,7 +157,7 @@ endpoint family:
 |---|---|
 | `/admin/users` | `POST`, `GET`; `/admin/users/{id}`: `GET`, `PUT`, `DELETE` |
 | `/admin/groups` | `POST`, `GET`; `/admin/groups/{id}`: `GET`, `PUT`, `DELETE` |
-| `/admin/roles` | `POST`, `GET`; `/admin/roles/{id}`: `GET`, `PUT`, `DELETE` |
+| `/admin/roles` | `POST`, `GET`; `/admin/roles/{id}`: `GET`, `DELETE` (role names are immutable, see ADR 0022) |
 
 `POST` returns `201 Created` with `Location`; `PUT` returns `200 OK`; `DELETE`
 returns `204 No Content`. Requests and responses use UUID string IDs.

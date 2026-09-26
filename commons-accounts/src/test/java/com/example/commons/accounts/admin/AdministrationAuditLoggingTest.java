@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionRegistryImpl;
@@ -97,7 +98,7 @@ class AdministrationAuditLoggingTest {
 			return null;
 		});
 		SecurityContextHolder.getContext()
-			.setAuthentication(new TestingAuthenticationToken("admin", null, "ROLE_USER_MANAGE"));
+			.setAuthentication(new TestingAuthenticationToken("admin", null, "ROLE_USER_MANAGE", "ROLE_GROUP_MANAGE"));
 		this.logEvents.start();
 		this.logger.addAppender(this.logEvents);
 	}
@@ -233,18 +234,6 @@ class AdministrationAuditLoggingTest {
 	}
 
 	@Test
-	void logsARoleRenameAsTheOldRoleRemovedAndTheNewOneAdded() {
-		inTransaction(() -> this.service.updateRole(this.userManage.getId(), new AdminDtos.RoleRequest("USER_ADMIN")));
-
-		assertThat(logged()).containsOnlyOnce("event.action=\"update_role\"")
-			.contains("event.type=\"[admin, change]\"")
-			.contains("role.name=\"USER_MANAGE\"")
-			.contains("role.changes.name=\"USER_ADMIN\"")
-			.contains("roles.added=\"[USER_ADMIN]\"")
-			.contains("roles.removed=\"[USER_MANAGE]\"");
-	}
-
-	@Test
 	void logsARejectedChangeImmediatelyWithItsReason() {
 		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> inTransaction(() -> this.service.createUser(
 				new AdminDtos.UserCreateRequest("test-user", "Test User", null, true, Set.of(this.managers.getId())))));
@@ -254,7 +243,7 @@ class AdministrationAuditLoggingTest {
 			this.service.deleteGroup(this.managers.getId());
 			return null;
 		}));
-		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> inTransaction(() -> {
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(() -> inTransaction(() -> {
 			this.service.deleteRole(this.userManage.getId());
 			return null;
 		}));
@@ -267,7 +256,7 @@ class AdministrationAuditLoggingTest {
 			.contains("event.action=\"delete_group\"")
 			.contains("event.reason=\"group_has_users\"")
 			.contains("event.action=\"delete_role\"")
-			.contains("event.reason=\"role_in_use\"")
+			.contains("event.reason=\"reserved_role\"")
 			.contains("event.outcome=\"failure\"")
 			.doesNotContain("event.outcome=\"success\"")
 			.doesNotContain("INFO");

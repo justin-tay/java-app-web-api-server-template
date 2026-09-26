@@ -84,8 +84,8 @@ ABAC/ReBAC, is in [Authorization](authorization.md).
 
 Spring Security's servlet `HttpSession` is backed by Spring Session JDBC
 rather than an in-memory or sticky-session store: the browser holds only an
-opaque `id` cookie (`HttpOnly`, `SameSite=Lax`, `Secure` outside `local` and
-`test`), session metadata lives in `SPRING_SESSION`, and serialized
+opaque `__Host-id` cookie (`HttpOnly`, `SameSite=Lax`, `Secure`; `id` without
+`Secure` in the plain-HTTP `local` and `test` profiles), session metadata lives in `SPRING_SESSION`, and serialized
 attributes live in `SPRING_SESSION_ATTRIBUTES`, owned by Liquibase rather
 than Spring Boot's own JDBC session-schema initializer (see
 [ADR 0004](../../../adr/0004-database-schema-management.md)). This is what

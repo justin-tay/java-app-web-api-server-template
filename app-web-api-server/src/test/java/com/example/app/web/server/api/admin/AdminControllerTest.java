@@ -1,11 +1,14 @@
 package com.example.app.web.server.api.admin;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,7 +49,9 @@ class AdminControllerTest {
 	@Test
 	void invalidUserRequestReturnsPointerError() throws Exception {
 		this.mockMvc
-			.perform(post("/admin/users").with(user("admin").roles("USER_MANAGE"))
+			.perform(post("/admin/users")
+				.with(oidcLogin()
+					.idToken(idToken -> idToken.claim("preferred_username", "admin").claim("auth_time", Instant.now())))
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{\"username\":\"\",\"displayName\":\"\",\"email\":null,\"enabled\":false,\"groupIds\":[]}"))

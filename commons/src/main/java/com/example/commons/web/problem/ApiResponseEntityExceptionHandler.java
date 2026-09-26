@@ -105,6 +105,28 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 			.body(problemDetail(HttpStatus.CONFLICT, ex.getMessage(), ProblemTypes.RESOURCE_CONFLICT));
 	}
 
+	/**
+	 * Answers a request whose user must authenticate again with a 401 carrying the
+	 * allowed authentication age, and logs it as an access denial.
+	 */
+	@ExceptionHandler(ReauthenticationRequiredException.class)
+	public ResponseEntity<ProblemDetail> handleReauthenticationRequired(ReauthenticationRequiredException ex,
+			HttpServletRequest request) {
+		LOGGER.atWarn()
+			.addKeyValue("event.category", List.of("web", "api"))
+			.addKeyValue("event.type", List.of("access", "denied"))
+			.addKeyValue("event.action", "authorize_access")
+			.addKeyValue("event.outcome", "failure")
+			.addKeyValue("event.reason", "reauthentication_required")
+			.addKeyValue("http.response.status_code", HttpStatus.UNAUTHORIZED.value())
+			.addKeyValue("url.path", LoggedUrlPath.of(request.getRequestURI()))
+			.log("Recent authentication required");
+		ProblemDetail problemDetail = problemDetail(HttpStatus.UNAUTHORIZED, ex.getMessage(),
+				ProblemTypes.REAUTHENTICATION_REQUIRED);
+		problemDetail.setProperty("max_age", ex.getMaxAge().toSeconds());
+		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problemDetail);
+	}
+
 	@ExceptionHandler(BadRequestException.class)
 	public ResponseEntity<ProblemDetail> handleBadRequest(BadRequestException ex, HttpServletRequest request) {
 		logInputValidationFailure(request, ex, "InvalidRequest", null);

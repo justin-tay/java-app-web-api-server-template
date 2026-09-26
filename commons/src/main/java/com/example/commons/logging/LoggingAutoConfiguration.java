@@ -58,8 +58,8 @@ public class LoggingAutoConfiguration {
 	 * way must still not reach the logs.
 	 */
 	static final List<String> QUERY_PARAMETER_REDACT_LIST = List.of("access_token", "client_assertion", "client_secret",
-			"code", "code_verifier", "id", "id_token", "id_token_hint", "jsessionid", "logout_token", "refresh_token",
-			"session", "session_state", "sessionid", "state");
+			"code", "code_verifier", "__host-id", "id", "id_token", "id_token_hint", "jsessionid", "logout_token",
+			"refresh_token", "session", "session_state", "sessionid", "state");
 
 	/**
 	 * Supplies no end-user client IP by default. Define a {@link ClientIpResolver} bean

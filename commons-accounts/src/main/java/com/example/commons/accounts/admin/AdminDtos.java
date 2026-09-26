@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 
 import com.example.commons.accounts.validation.DisplayName;
+import com.example.commons.accounts.validation.ResourceId;
 import com.example.commons.accounts.validation.ResourceName;
 import com.example.commons.accounts.validation.Username;
 
@@ -17,14 +18,14 @@ public final class AdminDtos {
 	}
 
 	public record UserCreateRequest(@Username String username, @DisplayName String displayName,
-			@Email @Size(max = 254) String email, boolean enabled, @NotEmpty Set<String> groupIds) {
+			@Email @Size(max = 254) String email, boolean enabled, @NotEmpty Set<@ResourceId String> groupIds) {
 	}
 
 	public record UserUpdateRequest(@DisplayName String displayName, @Email @Size(max = 254) String email,
-			boolean enabled, @NotEmpty Set<String> groupIds) {
+			boolean enabled, @NotEmpty Set<@ResourceId String> groupIds) {
 	}
 
-	public record GroupRequest(@ResourceName String name, Set<String> roleIds) {
+	public record GroupRequest(@ResourceName String name, Set<@ResourceId String> roleIds) {
 		public GroupRequest {
 			roleIds = roleIds == null ? Set.of() : roleIds;
 		}

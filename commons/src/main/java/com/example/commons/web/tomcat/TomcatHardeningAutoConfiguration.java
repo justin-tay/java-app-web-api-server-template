@@ -6,6 +6,7 @@ import java.io.PrintWriter;
 import org.apache.catalina.connector.Request;
 import org.apache.catalina.connector.Response;
 import org.apache.catalina.core.JreMemoryLeakPreventionListener;
+import org.apache.catalina.security.SecurityListener;
 import org.apache.catalina.core.StandardHost;
 import org.apache.catalina.startup.Tomcat;
 import org.apache.catalina.valves.ErrorReportValve;
@@ -95,8 +96,9 @@ public class TomcatHardeningAutoConfiguration {
 	}
 
 	/**
-	 * Adds Tomcat's JRE memory-leak-prevention listener to the Server before it is
-	 * initialized. The listener must be attached to a Server, rather than a Context.
+	 * Adds Tomcat's JRE memory-leak-prevention listener and its security listener to the
+	 * Server before it is initialized. The listeners must be attached to a Server, rather
+	 * than a Context.
 	 */
 	static final class JreMemoryLeakPreventionTomcatServletWebServerFactory extends TomcatServletWebServerFactory {
 
@@ -104,6 +106,8 @@ public class TomcatHardeningAutoConfiguration {
 		protected Tomcat createTomcat(TempDirs tempDirs) {
 			Tomcat tomcat = super.createTomcat(tempDirs);
 			tomcat.getServer().addLifecycleListener(new JreMemoryLeakPreventionListener());
+			// CIS 9.17: refuse to start as root, and warn about a permissive umask.
+			tomcat.getServer().addLifecycleListener(new SecurityListener());
 			return tomcat;
 		}
 

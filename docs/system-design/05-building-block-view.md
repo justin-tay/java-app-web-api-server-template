@@ -104,8 +104,9 @@ flowchart TB
 
 | Component | Responsibility |
 | --- | --- |
-| `UserAdminController` / `GroupAdminController` / `RoleAdminController` | Thin REST controllers; each is annotated `@PreAuthorize` (or matched in the security filter chain) with a distinct management authority, so a caller with only `USER_MANAGE` cannot administer groups or roles. |
-| `AdministrationService` | Application-layer orchestration for create/update/list/disable operations; translates domain conflicts (duplicate name) into `ConflictException`, missing resources into `ResourceNotFoundException`. |
+| `UserAdminController` / `GroupAdminController` / `RoleAdminController` | Thin REST controllers; each is annotated `@PreAuthorize` (or matched in the security filter chain) with a distinct management authority, so a caller with only `USER_MANAGE` cannot administer groups or roles. Roles can be created and deleted but not renamed; `UserAdminController` also ends one user's or every user's sessions. |
+| `AdminReauthenticationInterceptor` | Rejects a change from a login older than 15 minutes with a `reauthentication-required` problem (see [ADR 0023](../adr/0023-recent-login-for-administration-changes.md)). |
+| `AdministrationService` | Application-layer orchestration for create/update/list/disable operations; translates domain conflicts (duplicate name) into `ConflictException`, missing resources into `ResourceNotFoundException`, and keeps an administrator from granting more than they hold (see [ADR 0022](../adr/0022-administrators-cannot-grant-beyond-their-own-roles.md)). |
 | `AdministrationAuditLogger` | Logs every change, after commit, and every rejected change as an ECS `iam` event with the prior state, the changes, and the roles and groups granted or withdrawn (see [ADR 0021](../adr/0021-authorisation-change-audit-log-events.md)). |
 | `AdminDtos` | Request/response DTOs, including `PageResponse` for paginated listings. |
 

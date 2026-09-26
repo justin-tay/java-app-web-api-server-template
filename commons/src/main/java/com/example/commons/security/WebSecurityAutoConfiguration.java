@@ -56,12 +56,14 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 import org.springframework.security.web.session.SessionInformationExpiredStrategy;
 import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.session.Session;
+import org.springframework.session.SessionIdGenerator;
 import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
 import org.springframework.session.security.SpringSessionBackedSessionRegistry;
 
 import com.example.commons.logging.LoggingAutoConfiguration;
 import com.example.commons.security.authentication.ProblemDetailAuthenticationEntryPoint;
 import com.example.commons.security.authentication.oidc.LocalAuthoritiesOidcUserService;
+import com.example.commons.security.authentication.oidc.MaxAgeAuthorizationRequestResolver;
 import com.example.commons.security.authorization.LocalAuthorityLookup;
 import com.example.commons.security.authorization.LocalAuthorityRefreshFilter;
 import com.example.commons.security.authorization.ProblemDetailAccessDeniedHandler;
@@ -74,6 +76,7 @@ import com.example.commons.security.session.SessionLifecycleAuditInitializationF
 import com.example.commons.security.session.SessionLifecycleAuditLogger;
 import com.example.commons.security.session.SessionLifecycleLogoutHandler;
 import com.example.commons.security.session.SessionRepositoryOidcBackChannelLogoutHandler;
+import com.example.commons.security.session.SecureRandomSessionIdGenerator;
 import com.example.commons.security.session.SessionRevocationService;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.KeyUse;
@@ -137,6 +140,17 @@ public class WebSecurityAutoConfiguration {
 	@Bean
 	SecurityAuditEventLogger securityAuditEventLogger(SessionLifecycleAuditLogger sessionLifecycleAuditLogger) {
 		return new SecurityAuditEventLogger(sessionLifecycleAuditLogger);
+	}
+
+	/**
+	 * Provides session IDs with 256 random bits, which Spring Session's JDBC
+	 * configuration uses in place of its version 4 UUIDs.
+	 * @return the session ID generator
+	 */
+	@Bean
+	@ConditionalOnMissingBean
+	SessionIdGenerator sessionIdGenerator() {
+		return new SecureRandomSessionIdGenerator();
 	}
 
 	/**
@@ -350,8 +364,11 @@ public class WebSecurityAutoConfiguration {
 					.maxSessionsPreventsLogin(false)
 					.sessionRegistry(sessionRegistry)
 					.expiredSessionStrategy(sessionExpiredStrategy))
-				.oauth2Login(oauth2Login -> oauth2Login.userInfoEndpoint(
-						userInfoEndpoint -> userInfoEndpoint.oidcUserService(localAuthoritiesOidcUserService)))
+				.oauth2Login(oauth2Login -> oauth2Login
+					.authorizationEndpoint(authorizationEndpoint -> authorizationEndpoint.authorizationRequestResolver(
+							new MaxAgeAuthorizationRequestResolver(clientRegistrationRepository)))
+					.userInfoEndpoint(
+							userInfoEndpoint -> userInfoEndpoint.oidcUserService(localAuthoritiesOidcUserService)))
 				.oidcLogout(oidcLogout -> oidcLogout.backChannel(
 						backChannel -> backChannel.logoutHandler(new SessionRepositoryOidcBackChannelLogoutHandler(
 								oidcSessionRegistry, sessionRepository, sessionLifecycleAuditLogger))))

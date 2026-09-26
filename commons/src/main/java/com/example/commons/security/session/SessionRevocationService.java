@@ -36,13 +36,17 @@ public class SessionRevocationService {
 	 * same {@code session-expired} response.
 	 * @param username the local username whose sessions should be revoked
 	 * @param reason the controlled revocation reason recorded in the audit log
+	 * @return the number of sessions revoked
 	 */
-	public void revoke(String username, String reason) {
+	public int revoke(String username, String reason) {
+		int revoked = 0;
 		for (SessionInformation sessionInformation : this.sessionRegistry.getAllSessions(username, false)) {
 			this.sessionLifecycleAuditLogger
 				.logSessionDestroyed(this.sessionRepository.findById(sessionInformation.getSessionId()), reason);
 			sessionInformation.expireNow();
+			revoked++;
 		}
+		return revoked;
 	}
 
 }

@@ -1,5 +1,7 @@
 package com.example.commons.accounts.admin;
 
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -7,6 +9,7 @@ import java.util.stream.Stream;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.commons.accounts.admin.AdministrationAuditLogger.GroupState;
@@ -22,8 +25,27 @@ import com.example.commons.security.session.SessionRevocationService;
 import com.example.commons.web.problem.ConflictException;
 import com.example.commons.web.problem.ResourceNotFoundException;
 
+/**
+ * Changes the local user, group, and role model, logging every change and rejection
+ * through {@link AdministrationAuditLogger}.
+ *
+ * <p>
+ * Each management role is kept from granting more than its holder has (see
+ * docs/adr/0022): an administrator cannot grant a role they do not hold, whether by
+ * giving a user a group or by giving a group a role; cannot change their own groups or
+ * enabled status, or delete themselves; and cannot delete a {@link #RESERVED_ROLES
+ * reserved role}. Role names cannot be changed at all, because a role's name is the
+ * authority the application checks. These checks apply to an authenticated administrator;
+ * a change the application makes itself, with no authenticated user, is trusted.
+ */
 @Transactional
 public class AdministrationService {
+
+	/**
+	 * The roles the administration API itself requires. Deleting one would lock every
+	 * administrator out of the part of the API it guards.
+	 */
+	public static final Set<String> RESERVED_ROLES = Set.of("USER_MANAGE", "GROUP_MANAGE", "ROLE_MANAGE");
 
 	private final AppUserRepository users;
 
@@ -49,8 +71,13 @@ public class AdministrationService {
 			this.auditLogger.userCreationRejected(request.username(), "username_exists");
 			throw new ConflictException("Username already exists.");
 		}
+		Set<AppGroup> requestedGroups = groups(request.groupIds());
+		if (!holdsRolesOf(requestedGroups)) {
+			this.auditLogger.userCreationRejected(request.username(), "exceeds_actor_privileges");
+			throw new AccessDeniedException("Cannot grant a role the administrator does not hold.");
+		}
 		AppUser user = new AppUser(request.username(), request.displayName(), request.email(), request.enabled());
-		user.getGroups().addAll(groups(request.groupIds()));
+		user.getGroups().addAll(requestedGroups);
 		AppUser saved = this.users.save(user);
 		this.auditLogger.userCreated(UserState.of(saved));
 		return saved;
@@ -60,9 +87,21 @@ public class AdministrationService {
 		AppUser user = user(id);
 		UserState before = UserState.of(user);
 		Set<String> previousGroupIds = user.getGroups().stream().map(AppGroup::getId).collect(Collectors.toSet());
+		Set<AppGroup> requestedGroups = groups(request.groupIds());
+		boolean accessChanged = before.enabled() != request.enabled() || !previousGroupIds.equals(request.groupIds());
+		if (accessChanged && isActor(user)) {
+			this.auditLogger.userUpdateRejected(before, "self_modification");
+			throw new AccessDeniedException("Administrators cannot change their own access.");
+		}
+		Set<AppGroup> addedGroups = new HashSet<>(requestedGroups);
+		addedGroups.removeAll(user.getGroups());
+		if (!holdsRolesOf(addedGroups)) {
+			this.auditLogger.userUpdateRejected(before, "exceeds_actor_privileges");
+			throw new AccessDeniedException("Cannot grant a role the administrator does not hold.");
+		}
 		user.update(request.displayName(), request.email(), request.enabled());
 		user.getGroups().clear();
-		user.getGroups().addAll(groups(request.groupIds()));
+		user.getGroups().addAll(requestedGroups);
 		if ((before.enabled() && !user.isEnabled()) || !previousGroupIds.equals(request.groupIds())) {
 			this.sessionRevocationService.revoke(user.getUsername(), "privilege_change");
 		}
@@ -73,9 +112,39 @@ public class AdministrationService {
 	public void deleteUser(String id) {
 		AppUser user = user(id);
 		UserState before = UserState.of(user);
+		if (isActor(user)) {
+			this.auditLogger.userDeletionRejected(before, "self_modification");
+			throw new AccessDeniedException("Administrators cannot delete themselves.");
+		}
 		this.sessionRevocationService.revoke(user.getUsername(), "account_deleted");
 		this.users.delete(user);
 		this.auditLogger.userDeleted(before);
+	}
+
+	/**
+	 * Ends every session of a user without changing their account, such as when their
+	 * session may have been taken over.
+	 * @param id the user ID
+	 */
+	public void revokeSessions(String id) {
+		AppUser user = user(id);
+		int revoked = this.sessionRevocationService.revoke(user.getUsername(), "administrative_revocation");
+		this.auditLogger.sessionsRevoked(user.getUsername(), revoked);
+	}
+
+	/**
+	 * Ends the sessions of every local user except the administrator making the request,
+	 * who stays signed in to respond to the incident that prompted it.
+	 */
+	public void revokeAllSessions() {
+		String actor = Actor.current().map(Actor::name).orElse(null);
+		int revoked = 0;
+		for (String username : this.users.findAllUsernames()) {
+			if (!username.equals(actor)) {
+				revoked += this.sessionRevocationService.revoke(username, "administrative_revocation");
+			}
+		}
+		this.auditLogger.sessionsRevoked(null, revoked);
 	}
 
 	public AppUser user(String id) {
@@ -102,8 +171,13 @@ public class AdministrationService {
 			this.auditLogger.groupCreationRejected(request.name(), "name_exists");
 			throw new ConflictException("Group name already exists.");
 		}
+		Set<AppRole> requestedRoles = roles(request.roleIds());
+		if (!holds(requestedRoles)) {
+			this.auditLogger.groupCreationRejected(request.name(), "exceeds_actor_privileges");
+			throw new AccessDeniedException("Cannot grant a role the administrator does not hold.");
+		}
 		AppGroup group = new AppGroup(request.name());
-		group.getRoles().addAll(roles(request.roleIds()));
+		group.getRoles().addAll(requestedRoles);
 		AppGroup saved = this.groups.save(group);
 		this.auditLogger.groupCreated(GroupState.of(saved));
 		return saved;
@@ -116,9 +190,16 @@ public class AdministrationService {
 			this.auditLogger.groupUpdateRejected(before, request.name(), "name_exists");
 			throw new ConflictException("Group name already exists.");
 		}
+		Set<AppRole> requestedRoles = roles(request.roleIds());
+		Set<AppRole> addedRoles = new HashSet<>(requestedRoles);
+		addedRoles.removeAll(group.getRoles());
+		if (!holds(addedRoles)) {
+			this.auditLogger.groupUpdateRejected(before, request.name(), "exceeds_actor_privileges");
+			throw new AccessDeniedException("Cannot grant a role the administrator does not hold.");
+		}
 		group.setName(request.name());
 		group.getRoles().clear();
-		group.getRoles().addAll(roles(request.roleIds()));
+		group.getRoles().addAll(requestedRoles);
 		group.touch();
 		this.auditLogger.groupUpdated(before, GroupState.of(group), this.users.countByGroups_Id(id));
 		return group;
@@ -161,21 +242,13 @@ public class AdministrationService {
 		return saved;
 	}
 
-	public AppRole updateRole(String id, AdminDtos.RoleRequest request) {
-		AppRole role = role(id);
-		RoleState before = RoleState.of(role);
-		if (!role.getName().equals(request.name()) && this.roles.existsByName(request.name())) {
-			this.auditLogger.roleUpdateRejected(before, request.name(), "name_exists");
-			throw new ConflictException("Role name already exists.");
-		}
-		role.setName(request.name());
-		this.auditLogger.roleUpdated(before, RoleState.of(role));
-		return role;
-	}
-
 	public void deleteRole(String id) {
 		AppRole role = role(id);
 		RoleState before = RoleState.of(role);
+		if (RESERVED_ROLES.contains(role.getName())) {
+			this.auditLogger.roleDeletionRejected(before, "reserved_role");
+			throw new AccessDeniedException("Reserved roles cannot be deleted.");
+		}
 		if (this.groups.existsByRoles_Id(id)) {
 			this.auditLogger.roleDeletionRejected(before, "role_in_use");
 			throw new ConflictException("Role is assigned to a group.");
@@ -195,6 +268,30 @@ public class AdministrationService {
 				distinct(Specification
 					.allOf(Stream.of(this.<AppRole>contains("name", name)).filter(value -> value != null).toList())),
 				pageable);
+	}
+
+	/**
+	 * Returns whether the user is the administrator making the change.
+	 */
+	private boolean isActor(AppUser user) {
+		return Actor.current().map(actor -> actor.name().equals(user.getUsername())).orElse(false);
+	}
+
+	/**
+	 * Returns whether the administrator holds every role the given groups grant.
+	 */
+	private boolean holdsRolesOf(Collection<AppGroup> groups) {
+		return holds(groups.stream().flatMap(group -> group.getRoles().stream()).toList());
+	}
+
+	/**
+	 * Returns whether the administrator holds every given role. A change with no
+	 * authenticated administrator is made by the application itself and is trusted.
+	 */
+	private boolean holds(Collection<AppRole> roles) {
+		return Actor.current()
+			.map(actor -> roles.stream().map(AppRole::getName).allMatch(actor.roles()::contains))
+			.orElse(true);
 	}
 
 	private Set<AppGroup> groups(Set<String> ids) {

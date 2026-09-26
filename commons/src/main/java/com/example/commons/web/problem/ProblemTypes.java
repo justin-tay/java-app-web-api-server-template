@@ -19,6 +19,8 @@ public final class ProblemTypes {
 
 	public static final URI METHOD_NOT_ALLOWED = type("method-not-allowed");
 
+	public static final URI REAUTHENTICATION_REQUIRED = type("reauthentication-required");
+
 	public static final URI REQUEST_REJECTED = type("request-rejected");
 
 	public static final URI RESOURCE_CONFLICT = type("resource-conflict");

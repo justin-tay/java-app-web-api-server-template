@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -12,6 +13,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Arrays;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -31,7 +36,9 @@ import org.springframework.transaction.annotation.Transactional;
  * Tests the commons-accounts administration API as this application serves it, against
  * the seeded test database: each API admits only its own management role, conflicts and
  * unknown resources are answered with Problem Details, and groups and roles can be
- * created, read, updated, listed, and deleted.
+ * created, read, updated, listed, and deleted. Every change needs a recent OpenID Connect
+ * login, whose roles the application reloads from the seeded user it names, and is kept
+ * from granting more than that user holds.
  *
  * <p>
  * Tests that change data run in a transaction that is rolled back, so every other test
@@ -47,6 +54,14 @@ class AdminApiIntegrationTest {
 	private static final String APPLICATION_USER_ROLE_ID = "00000000-0000-0000-0000-000000000004";
 
 	private static final String ADMINISTRATORS_GROUP_ID = "00000000-0000-0000-0000-000000000011";
+
+	private static final String UNKNOWN_ID = "00000000-0000-0000-0000-00000000ffff";
+
+	private static final String TEST_USERS_GROUP_ID = "00000000-0000-0000-0000-000000000012";
+
+	private static final String ADMIN_USER_ID = "00000000-0000-0000-0000-000000000021";
+
+	private static final String TEST_USER_ID = "00000000-0000-0000-0000-000000000022";
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -96,23 +111,32 @@ class AdminApiIntegrationTest {
 
 	@Test
 	void unknownResourceReturnsNotFoundProblemDetail() throws Exception {
-		this.mockMvc.perform(get("/admin/roles/missing").with(as("ROLE_MANAGE")))
+		this.mockMvc.perform(get("/admin/roles/" + UNKNOWN_ID).with(as("ROLE_MANAGE")))
 			.andExpect(status().isNotFound())
 			.andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PROBLEM_JSON_VALUE))
 			.andExpect(jsonPath("$.type").value("urn:problem:resource-not-found"))
 			.andExpect(jsonPath("$.detail").value("Role was not found."));
-		this.mockMvc.perform(get("/admin/groups/missing").with(as("GROUP_MANAGE")))
+		this.mockMvc.perform(get("/admin/groups/" + UNKNOWN_ID).with(as("GROUP_MANAGE")))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.detail").value("Group was not found."));
-		this.mockMvc.perform(get("/admin/users/missing").with(as("USER_MANAGE")))
+		this.mockMvc.perform(get("/admin/users/" + UNKNOWN_ID).with(as("USER_MANAGE")))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.detail").value("User was not found."));
 	}
 
 	@Test
+	void malformedIdsAreRejectedBeforeAnyLookup() throws Exception {
+		this.mockMvc.perform(get("/admin/roles/missing").with(as("ROLE_MANAGE")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.type").value("urn:problem:validation-failed"));
+		this.mockMvc.perform(get("/admin/users").param("groupId", "' or 1=1 --").with(as("USER_MANAGE")))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
 	void duplicateNameReturnsConflictProblemDetail() throws Exception {
 		this.mockMvc
-			.perform(post("/admin/groups").with(as("GROUP_MANAGE"))
+			.perform(post("/admin/groups").with(recentAdmin())
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{\"name\":\"Administrators\"}"))
@@ -124,12 +148,79 @@ class AdminApiIntegrationTest {
 
 	@Test
 	void groupsAndRolesInUseCannotBeDeleted() throws Exception {
-		this.mockMvc.perform(delete("/admin/groups/" + ADMINISTRATORS_GROUP_ID).with(as("GROUP_MANAGE")).with(csrf()))
+		this.mockMvc.perform(delete("/admin/groups/" + ADMINISTRATORS_GROUP_ID).with(recentAdmin()).with(csrf()))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.detail").value("Group contains users."));
-		this.mockMvc.perform(delete("/admin/roles/" + USER_MANAGE_ROLE_ID).with(as("ROLE_MANAGE")).with(csrf()))
+		this.mockMvc.perform(delete("/admin/roles/" + APPLICATION_USER_ROLE_ID).with(recentAdmin()).with(csrf()))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.detail").value("Role is assigned to a group."));
+	}
+
+	/**
+	 * The seeded {@code admin} holds the three management roles but not
+	 * {@code APPLICATION_USER}, so it can grant only those, cannot change its own access,
+	 * and cannot delete a reserved role.
+	 */
+	@Test
+	@Transactional
+	void anAdministratorCannotGrantMoreThanTheyHold() throws Exception {
+		this.mockMvc
+			.perform(post("/admin/users").with(recentAdmin())
+				.with(csrf())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"username\":\"new-user\",\"displayName\":\"New User\",\"enabled\":true,\"groupIds\":[\""
+						+ TEST_USERS_GROUP_ID + "\"]}"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.type").value("urn:problem:access-denied"));
+		this.mockMvc
+			.perform(put("/admin/groups/" + ADMINISTRATORS_GROUP_ID).with(recentAdmin())
+				.with(csrf())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"name\":\"Administrators\",\"roleIds\":[\"" + USER_MANAGE_ROLE_ID + "\",\""
+						+ APPLICATION_USER_ROLE_ID + "\"]}"))
+			.andExpect(status().isForbidden());
+		this.mockMvc
+			.perform(put("/admin/users/" + ADMIN_USER_ID).with(recentAdmin())
+				.with(csrf())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"displayName\":\"Administrator\",\"enabled\":false,\"groupIds\":[\""
+						+ ADMINISTRATORS_GROUP_ID + "\"]}"))
+			.andExpect(status().isForbidden());
+		this.mockMvc.perform(delete("/admin/roles/" + USER_MANAGE_ROLE_ID).with(recentAdmin()).with(csrf()))
+			.andExpect(status().isForbidden());
+	}
+
+	@Test
+	@Transactional
+	void aChangeNeedsARecentLoginButAReadDoesNot() throws Exception {
+		Instant longAgo = Instant.now().minus(Duration.ofHours(1));
+		this.mockMvc
+			.perform(post("/admin/roles").with(admin(longAgo))
+				.with(csrf())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"name\":\"REPORT_VIEW\"}"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.type").value("urn:problem:reauthentication-required"))
+			.andExpect(jsonPath("$.max_age").value(900));
+		this.mockMvc
+			.perform(post("/admin/roles").with(as("ROLE_MANAGE"))
+				.with(csrf())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"name\":\"REPORT_VIEW\"}"))
+			.andExpect(status().isUnauthorized());
+		this.mockMvc.perform(get("/admin/roles").with(admin(longAgo))).andExpect(status().isOk());
+	}
+
+	@Test
+	@Transactional
+	void endingSessionsDoesNotNeedARecentLogin() throws Exception {
+		Instant longAgo = Instant.now().minus(Duration.ofHours(1));
+		this.mockMvc.perform(delete("/admin/users/" + TEST_USER_ID + "/sessions").with(admin(longAgo)).with(csrf()))
+			.andExpect(status().isNoContent());
+		this.mockMvc.perform(delete("/admin/users/sessions").with(admin(longAgo)).with(csrf()))
+			.andExpect(status().isNoContent());
+		this.mockMvc.perform(delete("/admin/users/sessions").with(as("GROUP_MANAGE")).with(csrf()))
+			.andExpect(status().isForbidden());
 	}
 
 	@Test
@@ -150,7 +241,7 @@ class AdminApiIntegrationTest {
 	@Transactional
 	void roleLifecycle() throws Exception {
 		String location = this.mockMvc
-			.perform(post("/admin/roles").with(as("ROLE_MANAGE"))
+			.perform(post("/admin/roles").with(recentAdmin())
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{\"name\":\"REPORT_VIEW\"}"))
@@ -162,41 +253,40 @@ class AdminApiIntegrationTest {
 		assertThat(location).startsWith("/admin/roles/");
 
 		this.mockMvc
-			.perform(put(location).with(as("ROLE_MANAGE"))
+			.perform(put(location).with(recentAdmin())
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{\"name\":\"REPORT_EXPORT\"}"))
+			.andExpect(status().isMethodNotAllowed());
+		this.mockMvc.perform(get(location).with(recentAdmin()))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.name").value("REPORT_EXPORT"));
-		this.mockMvc.perform(get(location).with(as("ROLE_MANAGE")))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.name").value("REPORT_EXPORT"));
+			.andExpect(jsonPath("$.name").value("REPORT_VIEW"));
 
-		this.mockMvc.perform(delete(location).with(as("ROLE_MANAGE")).with(csrf())).andExpect(status().isNoContent());
-		this.mockMvc.perform(get(location).with(as("ROLE_MANAGE"))).andExpect(status().isNotFound());
+		this.mockMvc.perform(delete(location).with(recentAdmin()).with(csrf())).andExpect(status().isNoContent());
+		this.mockMvc.perform(get(location).with(recentAdmin())).andExpect(status().isNotFound());
 	}
 
 	@Test
 	@Transactional
 	void groupLifecycle() throws Exception {
 		String location = this.mockMvc
-			.perform(post("/admin/groups").with(as("GROUP_MANAGE"))
+			.perform(post("/admin/groups").with(recentAdmin())
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"name\":\"Report Viewers\",\"roleIds\":[\"" + APPLICATION_USER_ROLE_ID + "\"]}"))
+				.content("{\"name\":\"Report Viewers\",\"roleIds\":[\"" + USER_MANAGE_ROLE_ID + "\"]}"))
 			.andExpect(status().isCreated())
-			.andExpect(jsonPath("$.roles[0].name").value("APPLICATION_USER"))
+			.andExpect(jsonPath("$.roles[0].name").value("USER_MANAGE"))
 			.andReturn()
 			.getResponse()
 			.getHeader(HttpHeaders.LOCATION);
 		assertThat(location).startsWith("/admin/groups/");
 
-		this.mockMvc.perform(get("/admin/groups").param("roleId", APPLICATION_USER_ROLE_ID).with(as("GROUP_MANAGE")))
+		this.mockMvc.perform(get("/admin/groups").param("roleId", USER_MANAGE_ROLE_ID).with(recentAdmin()))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.items[*].name").value(hasItem("Report Viewers")));
 
 		this.mockMvc
-			.perform(put(location).with(as("GROUP_MANAGE"))
+			.perform(put(location).with(recentAdmin())
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{\"name\":\"Report Readers\",\"roleIds\":[]}"))
@@ -204,18 +294,36 @@ class AdminApiIntegrationTest {
 			.andExpect(jsonPath("$.name").value("Report Readers"))
 			.andExpect(jsonPath("$.roles").isEmpty());
 
-		this.mockMvc.perform(delete(location).with(as("GROUP_MANAGE")).with(csrf())).andExpect(status().isNoContent());
-		this.mockMvc.perform(get(location).with(as("GROUP_MANAGE"))).andExpect(status().isNotFound());
+		this.mockMvc.perform(delete(location).with(recentAdmin()).with(csrf())).andExpect(status().isNoContent());
+		this.mockMvc.perform(get(location).with(recentAdmin())).andExpect(status().isNotFound());
 	}
 
 	/**
-	 * Authenticates as a user holding one local role, with the authority
-	 * {@code AppUserLocalAuthorityLookup} grants for it. The test user builder's
+	 * Authenticates as a user holding the given local roles, with the authorities
+	 * {@code AppUserLocalAuthorityLookup} grants for them. The test user builder's
 	 * {@code roles()} cannot be used, because it rejects {@code ROLE_MANAGE} for starting
 	 * with {@code ROLE_}.
 	 */
-	private static RequestPostProcessor as(String role) {
-		return user("administrator").authorities(new SimpleGrantedAuthority("ROLE_" + role));
+	/**
+	 * Logs in through OpenID Connect as the seeded {@code admin}, just now.
+	 */
+	private static RequestPostProcessor recentAdmin() {
+		return admin(Instant.now());
+	}
+
+	/**
+	 * Logs in through OpenID Connect as the seeded {@code admin} at the given time.
+	 * {@code LocalAuthorityRefreshFilter} replaces the login's authorities with the
+	 * administrator's local roles.
+	 */
+	private static RequestPostProcessor admin(Instant authTime) {
+		return oidcLogin()
+			.idToken(idToken -> idToken.claim("preferred_username", "admin").claim("auth_time", authTime));
+	}
+
+	private static RequestPostProcessor as(String... roles) {
+		return user("administrator")
+			.authorities(Arrays.stream(roles).map(role -> new SimpleGrantedAuthority("ROLE_" + role)).toList());
 	}
 
 }

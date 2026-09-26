@@ -30,7 +30,8 @@ fields where available and documents its intentional project extensions.
 | Requested session not found | INFO | `authentication` | `info` | `resume_session` | [Event reference](event-reference.md#requested-session-not-found-resume_session) |
 | User changed | INFO | `iam` | `user`, plus `creation`, `change`, or `deletion` | `create_user`, `update_user`, `delete_user` | [Event reference](event-reference.md#user-changed-create_user-update_user-delete_user) |
 | Group changed | INFO | `iam` | `group`, plus `creation`, `change`, or `deletion` | `create_group`, `update_group`, `delete_group` | [Event reference](event-reference.md#group-changed-create_group-update_group-delete_group) |
-| Role changed | INFO | `iam` | `admin`, plus `creation`, `change`, or `deletion` | `create_role`, `update_role`, `delete_role` | [Event reference](event-reference.md#role-changed-create_role-update_role-delete_role) |
+| Role changed | INFO | `iam` | `admin`, plus `creation` or `deletion` | `create_role`, `delete_role` | [Event reference](event-reference.md#role-changed-create_role-delete_role) |
+| Sessions revoked | INFO | `iam` | `user`, `change` | `revoke_sessions` | [Event reference](event-reference.md#sessions-revoked-revoke_sessions) |
 | Administration change rejected | WARN | `iam` | As the rejected change | As the rejected change | [Event reference](event-reference.md#administration-change-rejected) |
 | Unexpected request failure | ERROR | `web` | `error` | `process_request` | [Event reference](event-reference.md#request-processing-failed-process_request) |
 | Application starting | INFO | `process` | `start` | `start_application` | [Event reference](event-reference.md#application-starting-start_application) |
@@ -60,7 +61,7 @@ fields where available and documents its intentional project extensions.
 | `event.type` | `keyword[]` | Lifecycle/subcategory classification. |
 | `event.action` | `keyword` | Stable lower-snake-case operation identifier. Do not encode outcome in this field. |
 | `event.outcome` | `keyword` | `success`, `failure`, or `unknown` where applicable. |
-| `event.reason` | `keyword` | Controlled reason for a session event (`privilege_change`, `session_not_found`) or a rejected administration change (`username_exists`, `name_exists`, `group_has_users`, `role_in_use`). |
+| `event.reason` | `keyword` | Controlled reason for a session event (`privilege_change`, `session_not_found`) a rejected administration change (`username_exists`, `name_exists`, `group_has_users`, `role_in_use`, `exceeds_actor_privileges`, `self_modification`, `reserved_role`), or an access denial (`reauthentication_required`). |
 | `event.start`, `event.end` | `date` | Request lifecycle boundaries. |
 | `event.duration` | `long` | Request duration in nanoseconds. |
 | `http.request.id` | `keyword` | Correlation ID established by `RequestCorrelationContextFilter`; generated as a UUID unless the configured `RequestIdResolver` supplies an upstream ID. It is not authentication material. |
@@ -95,7 +96,8 @@ fields where available and documents its intentional project extensions.
 | `group.roles`, `group.changes.roles` | `keyword[]` | Stored names of the roles a group granted before an administration change, and after it when they changed. |
 | `group.changes.name` | `keyword` | A group's new name. |
 | `group.affected_user_count` | `long` | Number of users in a group whose roles changed. |
-| `role.id`, `role.name`, `role.changes.name` | `keyword` | The role an administration change affects, its stored name before the change, and its new name. ECS has no role field set. |
+| `role.id`, `role.name` | `keyword` | The role an administration change affects, and its stored name. ECS has no role field set. |
+| `session.revoked_count` | `long` | Number of sessions a `revoke_sessions` event ended. |
 
 ## Correlation and lifecycle semantics
 
@@ -129,9 +131,9 @@ context (see [ADR 0011](../../../adr/0011-trace-correlated-structured-logging.md
 `url.query` redacts values for the OAuth/OIDC parameters `access_token`,
 `client_assertion`, `client_secret`, `code`, `code_verifier`, `id_token`,
 `id_token_hint`, `logout_token`, `refresh_token`, `session_state`, and
-`state`, and for the session-ID parameters `id` (the session cookie's name),
-`jsessionid`, `session`, and `sessionid`. The application only ever reads
-the session ID from the `id` cookie, but a client that sends it in the query
+`state`, and for the session-ID parameters `__host-id` and `id` (the session
+cookie's names), `jsessionid`, `session`, and `sessionid`. The application only
+ever reads the session ID from the session cookie, but a client that sends it in the query
 string anyway, such as `?jsessionid=<session ID>`, has it logged as
 `jsessionid=[REDACTED]`. Names match case-insensitively, so `SESSION` is
 redacted too. No controller uses any of these names as a query parameter

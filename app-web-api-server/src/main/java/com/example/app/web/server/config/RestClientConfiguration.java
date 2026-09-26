@@ -1,5 +1,7 @@
 package com.example.app.web.server.config;
 
+import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.time.Duration;
 
 import org.springframework.context.annotation.Bean;
@@ -21,7 +23,17 @@ public class RestClientConfiguration {
 
 	@Bean
 	RestClient restClient(OAuth2AuthorizedClientManager authorizedClientManager) {
-		SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+		// Never follow a redirect: the calls go to the configured issuer only, and a
+		// redirect elsewhere would carry the user's access token with it (ASVS V15.3.2).
+		SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory() {
+
+			@Override
+			protected void prepareConnection(HttpURLConnection connection, String httpMethod) throws IOException {
+				super.prepareConnection(connection, httpMethod);
+				connection.setInstanceFollowRedirects(false);
+			}
+
+		};
 		requestFactory.setConnectTimeout(CONNECT_TIMEOUT);
 		requestFactory.setReadTimeout(READ_TIMEOUT);
 		return RestClient.builder()

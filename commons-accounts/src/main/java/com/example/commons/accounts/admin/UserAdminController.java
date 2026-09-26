@@ -9,6 +9,7 @@ import java.util.Set;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import org.springframework.data.domain.Page;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.commons.accounts.validation.ResourceId;
 import com.example.commons.accounts.domain.AppUser;
 
 @RestController
@@ -44,9 +46,10 @@ public class UserAdminController {
 	}
 
 	@GetMapping
-	public PageResponse<UserResponse> list(@RequestParam(required = false) String username,
-			@RequestParam(required = false) String displayName, @RequestParam(required = false) Boolean enabled,
-			@RequestParam(required = false) String groupId, @RequestParam(defaultValue = "0") @Min(0) int page,
+	public PageResponse<UserResponse> list(@RequestParam(required = false) @Size(max = 100) String username,
+			@RequestParam(required = false) @Size(max = 100) String displayName,
+			@RequestParam(required = false) Boolean enabled, @RequestParam(required = false) @ResourceId String groupId,
+			@RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
 			@RequestParam(required = false) String sort) {
 		Page<AppUser> result = this.service.users(username, displayName, enabled, groupId, AdminPageable.create(page,
@@ -56,18 +59,39 @@ public class UserAdminController {
 	}
 
 	@GetMapping("/{id}")
-	public UserResponse get(@PathVariable String id) {
+	public UserResponse get(@PathVariable @ResourceId String id) {
 		return response(this.service.user(id));
 	}
 
 	@PutMapping("/{id}")
-	public UserResponse update(@PathVariable String id, @Valid @RequestBody UserUpdateRequest request) {
+	public UserResponse update(@PathVariable @ResourceId String id, @Valid @RequestBody UserUpdateRequest request) {
 		return response(this.service.updateUser(id, request));
 	}
 
 	@DeleteMapping("/{id}")
-	public ResponseEntity<Void> delete(@PathVariable String id) {
+	public ResponseEntity<Void> delete(@PathVariable @ResourceId String id) {
 		this.service.deleteUser(id);
+		return ResponseEntity.noContent().build();
+	}
+
+	/**
+	 * Ends every session of one user without changing their account.
+	 * @param id the user ID
+	 * @return no content
+	 */
+	@DeleteMapping("/{id}/sessions")
+	public ResponseEntity<Void> revokeSessions(@PathVariable @ResourceId String id) {
+		this.service.revokeSessions(id);
+		return ResponseEntity.noContent().build();
+	}
+
+	/**
+	 * Ends every user's sessions except the caller's, for incident response.
+	 * @return no content
+	 */
+	@DeleteMapping("/sessions")
+	public ResponseEntity<Void> revokeAllSessions() {
+		this.service.revokeAllSessions();
 		return ResponseEntity.noContent().build();
 	}
 

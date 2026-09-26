@@ -25,6 +25,7 @@
 		<java.version>17</java.version>
 		<spring-javaformat-maven-plugin.version>0.0.48</spring-javaformat-maven-plugin.version>
 		<jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
+		<dependency-check-maven.version>13.0.0</dependency-check-maven.version>
 		<spring-cloud-aws.version>4.1.1</spring-cloud-aws.version>
 		<!-- Only app-* modules have a main class; each one sets this back to false so
 			spring-boot:run can be invoked from the root with -pl and -am. -->
@@ -98,4 +99,47 @@
 			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<profile>
+			<!-- Checks every module's dependencies against known vulnerabilities and fails
+				the build on any scored 7.0 (High) or above (ASVS V15.2.1). Run it with
+				./mvnw -Pvulnerability-scan verify from any CI. It downloads the NVD data
+				feed, so set NVD_API_KEY, or point nvdDatafeedUrl at a mirror where the
+				build has no internet access. Accept a finding that cannot be fixed yet only
+				in dependency-check-suppressions.xml, with an expiry date. -->
+			<id>vulnerability-scan</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.owasp</groupId>
+						<artifactId>dependency-check-maven</artifactId>
+						<version>${dependency-check-maven.version}</version>
+						<inherited>false</inherited>
+						<configuration>
+							<failBuildOnCVSS>7</failBuildOnCVSS>
+							<nvdApiKeyEnvironmentVariable>NVD_API_KEY</nvdApiKeyEnvironmentVariable>
+							<suppressionFiles>
+								<suppressionFile>${maven.multiModuleProjectDirectory}/dependency-check-suppressions.xml</suppressionFile>
+							</suppressionFiles>
+							<!-- Sonatype OSS Index needs its own credentials; the NVD is the
+								source this profile relies on. -->
+							<ossIndexAnalyzerEnabled>false</ossIndexAnalyzerEnabled>
+							<formats>
+								<format>HTML</format>
+								<format>JSON</format>
+							</formats>
+						</configuration>
+						<executions>
+							<execution>
+								<goals>
+									<goal>aggregate</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 </project>

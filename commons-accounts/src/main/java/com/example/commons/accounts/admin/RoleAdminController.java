@@ -9,11 +9,13 @@ import java.util.Set;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import org.springframework.data.domain.Page;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import com.example.commons.accounts.validation.ResourceId;
 import com.example.commons.accounts.domain.AppRole;
 
 @RestController
@@ -41,7 +43,7 @@ public class RoleAdminController {
 	}
 
 	@GetMapping
-	public PageResponse<RoleResponse> list(@RequestParam(required = false) String name,
+	public PageResponse<RoleResponse> list(@RequestParam(required = false) @Size(max = 100) String name,
 			@RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
 			@RequestParam(required = false) String sort) {
@@ -52,19 +54,13 @@ public class RoleAdminController {
 	}
 
 	@GetMapping("/{id}")
-	public RoleResponse get(@PathVariable String id) {
+	public RoleResponse get(@PathVariable @ResourceId String id) {
 		AppRole role = this.service.role(id);
 		return new RoleResponse(role.getId(), role.getName());
 	}
 
-	@PutMapping("/{id}")
-	public RoleResponse update(@PathVariable String id, @Valid @RequestBody RoleRequest request) {
-		AppRole role = this.service.updateRole(id, request);
-		return new RoleResponse(role.getId(), role.getName());
-	}
-
 	@DeleteMapping("/{id}")
-	public ResponseEntity<Void> delete(@PathVariable String id) {
+	public ResponseEntity<Void> delete(@PathVariable @ResourceId String id) {
 		this.service.deleteRole(id);
 		return ResponseEntity.noContent().build();
 	}

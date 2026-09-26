@@ -162,7 +162,7 @@ actual deployed version.
 | 9.14 | Disallow cross-context requests | Implemented | The context sets `crossContext=false`. Reassess if several web applications are ever hosted in one JVM.<br><br>**Application code:** `TomcatHardeningAutoConfiguration.tomcatSecurityHardening()`; **Test code:** `TomcatHardeningIntegrationTest.disallowsCrossContextRequests()`. |
 | 9.15 | Do not resolve host names in logging | Inherited from framework | The connector's `enableLookups` keeps Tomcat's default of `false`, which Spring Boot does not change, so the container performs no reverse DNS lookup. The template's own request logging records `source.ip` and `client.ip` as literal addresses, and its client-IP resolvers reject any value that is not a literal IP before parsing it, so a header value never triggers a DNS lookup. No test asserts `enableLookups`.<br><br>**Framework default:** Apache Tomcat `Connector` `enableLookups`; **Application code:** `RequestCorrelationContextFilter`, `TrustedProxyMatcher`; **Test code:** `TrustedProxyMatcherTest`. |
 | 9.16 | Enable the memory-leak listener | Implemented | `JreMemoryLeakPreventionListener` is added to the embedded Tomcat `Server` before it is initialized.<br><br>**Application code:** `TomcatHardeningAutoConfiguration.tomcatServletWebServerFactory()`; **Test code:** `TomcatHardeningIntegrationTest.enablesJreMemoryLeakPrevention()`. |
-| 9.17 | Set the Security Lifecycle Listener | Not implemented | `SecurityListener` ships in embedded Tomcat and could be added to the `Server` the way 9.16's listener is, but the template does not add it. Its check that the process is not running as a forbidden OS user, `root` by default, would work embedded; its `umask` check reads a system property that only the Catalina startup scripts set, so it would only log a warning. Whether to add it, or rely on the image's non-root user and `umask` alone, is a pending decision, item 1 of the [Required production decisions](#required-production-decisions).<br><br>**Application code:** `TomcatHardeningAutoConfiguration.tomcatServletWebServerFactory()`. |
+| 9.17 | Set the Security Lifecycle Listener | Implemented | `SecurityListener` is added to the embedded Tomcat `Server` the way 9.16's listener is, so Tomcat refuses to start as `root`. Its `umask` check reads a system property only the Catalina startup scripts set, so embedded it only logs a warning; the image sets the `umask`.<br><br>**Application code:** `TomcatHardeningAutoConfiguration.JreMemoryLeakPreventionTomcatServletWebServerFactory`. |
 | 9.18 | Use `logEffectiveWebXml` and `metadata-complete` in production | Not applicable | There is no `web.xml` to mark `metadata-complete` or to log: Spring Boot registers the application's servlets and filters in code. Control component discovery through dependency and source review. |
 | 9.19 | Encrypt Manager application passwords | Not applicable | There is no `tomcat-users.xml` or Manager application. |
 <!-- /ocsv:generated -->
@@ -199,8 +199,9 @@ Before production use, the template adopter must record and implement
 decisions for:
 
 1. Build a minimal, patched, non-root, immutable image; mount only narrowly scoped
-   writable paths, protect deployment configuration and secrets, and decide whether to
-   add Tomcat's `SecurityListener` (9.17) on top of the image's non-root user.
+   writable paths, and protect deployment configuration and secrets. Tomcat's
+   `SecurityListener` (9.17) refuses to start as `root`, so the image must run as
+   another user.
 2. Decide where TLS terminates. Enforce HTTPS at the public edge, configure trusted
    proxy forwarding when applicable, and provide production certificate and key material.
 3. Set connector and request limits deliberately: exposed ports, connection timeout,

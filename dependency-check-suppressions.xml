@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Accepted vulnerability findings for the vulnerability-scan profile. Each entry must
+	name the dependency and the CVE it accepts, say why in its notes, and carry an
+	until date, after which the finding fails the build again and is reviewed. -->
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+</suppressions>

@@ -64,6 +64,28 @@ The administration API is the sole mechanism for maintaining local users,
 groups, roles, and their relationships, once the first administrator exists
 (see [Bootstrapping the first administrator](#bootstrapping-the-first-administrator)).
 
+Each management authority stays within its family because an administrator
+cannot grant more than they hold
+([ADR 0022](../../../adr/0022-administrators-cannot-grant-beyond-their-own-roles.md)). An administration
+change by an authenticated administrator is rejected with 403 when it would:
+
+* grant a role the administrator does not hold, by giving a user a group or a
+  group a role;
+* change the administrator's own groups or enabled status, or delete them; or
+* delete `USER_MANAGE`, `GROUP_MANAGE`, or `ROLE_MANAGE`, which the API requires.
+
+Role names cannot be changed, because a role's name is the authority the
+application checks: there is no `PUT /admin/roles/{id}`. Without these rules,
+each management role could reach the other two: by adding its holder to
+`Administrators`, by adding `USER_MANAGE` to its holder's group, or by
+renaming a role its holder has to a management role's name.
+
+Every change also needs a login no older than 15 minutes
+([ADR 0023](../../../adr/0023-recent-login-for-administration-changes.md)). Nothing keeps at
+least one administrator: if the last holders of a management role lose it,
+restore it with a changeset as for the first administrator below. Requiring a
+second administrator's approval for changes is left to adopters.
+
 ## Bootstrapping the first administrator
 
 Liquibase applies the four roles above and the `Administrators` group, which
@@ -85,8 +107,8 @@ to the environments that should have it with a required context (for
 example `context:@production`) that only those migration runs request.
 
 ```sql
-INSERT INTO app_user (id, username, display_name, enabled, created_at, updated_at)
-VALUES ('<new UUID>', '<Keycloak preferred_username>', '<display name>', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT INTO app_user (id, username, display_name, enabled, created_at, updated_at, created_by, updated_by)
+VALUES ('<new UUID>', '<Keycloak preferred_username>', '<display name>', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system');
 INSERT INTO app_user_group (user_id, group_id)
 VALUES ('<the same UUID>', '00000000-0000-0000-0000-000000000011');
 ```
@@ -102,7 +124,7 @@ administration API.
 `LocalAuthorityRefreshFilter` reloads a user's `ROLE_` authorities from the
 local user, group, and role model on every request, rather than trusting the
 authorities computed once at login. Any authorization-relevant change,
-including removing a role from a group or renaming a role, takes effect on
+including removing a role from a group or deleting a role, takes effect on
 the affected user's very next request, not just at their next login.
 
 A local user who has been disabled or deleted since login is deauthenticated
@@ -140,7 +162,7 @@ Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.
 <!-- ocsv:generated source="cheatsheets/Authorization_Cheat_Sheet.md" source-ref="0b43888" code-ref="26770b1" -->
 | Recommendation | Status | Implementation Statement |
 | --- | --- | --- |
-| **Enforce Least Privileges** | Partial | **Vertically (role-based):** each administration path requires the specific management authority for that resource family, not a general "admin" grant: `/admin/users/**` requires `ROLE_USER_MANAGE`, `/admin/groups/**` requires `ROLE_GROUP_MANAGE`, `/admin/roles/**` requires `ROLE_ROLE_MANAGE`.<br><br>**Horizontally (per-owner/per-tenant):** not applicable today. There is no per-owner or per-tenant resource boundary to separate, because the template has no multi-tenancy; any holder of a management role administers the entire corresponding collection by design. An adopter that introduces multi-tenancy or per-user resource ownership must add its own horizontal checks.<br><br>**Application code:** `WebSecurityConfiguration.securityFilterChain()` (`.hasRole("USER_MANAGE")`, `.hasRole("GROUP_MANAGE")`, `.hasAuthority("ROLE_ROLE_MANAGE")`), `@PreAuthorize` on `UserAdminController`, `GroupAdminController`, `RoleAdminController`. |
+| **Enforce Least Privileges** | Implemented | **Vertically (role-based):** each administration path requires the specific management authority for that resource family, not a general "admin" grant: `/admin/users/**` requires `ROLE_USER_MANAGE`, `/admin/groups/**` requires `ROLE_GROUP_MANAGE`, `/admin/roles/**` requires `ROLE_ROLE_MANAGE`. Within a family, an administrator cannot grant a role they do not hold, change their own access, or delete a reserved role, so no management authority can reach another (see [Management authority boundary](#management-authority-boundary)).<br><br>**Horizontally (per-owner/per-tenant):** not applicable today. There is no per-owner or per-tenant resource boundary to separate, because the template has no multi-tenancy; any holder of a management role administers the entire corresponding collection by design. An adopter that introduces multi-tenancy or per-user resource ownership must add its own horizontal checks.<br><br>**Application code:** `WebSecurityConfiguration.securityFilterChain()` (`.hasRole("USER_MANAGE")`, `.hasRole("GROUP_MANAGE")`, `.hasAuthority("ROLE_ROLE_MANAGE")`), `@PreAuthorize` on `UserAdminController`, `GroupAdminController`, `RoleAdminController`, `AdministrationService`; **Test code:** `AdministrationServiceTest`, `AdminApiIntegrationTest.anAdministratorCannotGrantMoreThanTheyHold()`; **Decision:** [ADR 0022](../../../adr/0022-administrators-cannot-grant-beyond-their-own-roles.md). |
 | **Deny by Default** | Implemented | Every request not explicitly permitted requires authentication (`.requestMatchers("/**").authenticated()`), and every administration path additionally requires its specific authority; nothing is reachable by an unauthenticated or under-privileged request unless a rule explicitly allows it.<br><br>**Application code:** `WebSecurityConfiguration.securityFilterChain()`. |
 | **Validate the Permissions on Every Request** | Implemented | Authorization is not decided once and cached: `@PreAuthorize`/`authorizeHttpRequests` re-evaluate on every request, and the user's `ROLE_` authorities themselves are reloaded from the database on every request rather than trusted from login, so a role or group change also takes effect immediately. Confirm against the deployed service that a group's role set change or a user's own group membership or enabled-status change takes effect on that user's very next request, without requiring re-login.<br><br>**Application code:** `LocalAuthorityRefreshFilter`; **Test code:** `LocalAuthorityRefreshFilterTest`; **Framework default:** Spring Security method security and `authorizeHttpRequests`; **Decision:** [ADR 0015](../../../adr/0015-per-request-local-authority-refresh.md). |
 | **Thoroughly Review the Authorization Logic of Chosen Tools and Technologies, Implementing Custom Logic if Necessary** | Partial | **Misconfiguration:** the template does not use Spring Security's `hasRole()` uncritically: the stored `ROLE_MANAGE` role name already begins with `ROLE_`, so `hasRole()` cannot express the check. The Java configuration form rejects an argument starting with `ROLE_`, and the `@PreAuthorize` expression form strips one leading `ROLE_` and so checks `ROLE_MANAGE` rather than `ROLE_ROLE_MANAGE` (see [Authority resolution](#authority-resolution)). `RoleAdminController` and `WebSecurityConfiguration` instead use `hasAuthority("ROLE_ROLE_MANAGE")` for that one case, with the reasoning recorded in code.<br><br>**Vulnerable components:** not implemented. The build (`pom.xml`) and CI workflow (`build-and-test.yml`) run no dependency vulnerability scan such as OWASP Dependency-Check, and the repository defines no process for detecting and responding to vulnerable components.<br><br>**Application code:** `RoleAdminController` (comment above its `@PreAuthorize`), `WebSecurityConfiguration.securityFilterChain()`. |

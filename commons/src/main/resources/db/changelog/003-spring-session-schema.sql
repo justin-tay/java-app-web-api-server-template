@@ -3,7 +3,8 @@
 --changeset app:003-spring-session-schema
 CREATE TABLE SPRING_SESSION (
     PRIMARY_ID CHAR(36) NOT NULL,
-    SESSION_ID CHAR(36) NOT NULL,
+    -- Wide enough for the 43-character IDs of SecureRandomSessionIdGenerator.
+    SESSION_ID VARCHAR(64) NOT NULL,
     CREATION_TIME BIGINT NOT NULL,
     LAST_ACCESS_TIME BIGINT NOT NULL,
     MAX_INACTIVE_INTERVAL INT NOT NULL,

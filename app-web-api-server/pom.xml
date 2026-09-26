@@ -89,6 +89,13 @@
 				<artifactId>native-maven-plugin</artifactId>
 			</plugin>
 			<plugin>
+				<!-- Writes this application's CycloneDX SBOM, covering every module it
+					depends on, into the jar as META-INF/sbom/application.cdx.json, using the
+					execution the Spring Boot parent configures (ASVS V15.1.2). -->
+				<groupId>org.cyclonedx</groupId>
+				<artifactId>cyclonedx-maven-plugin</artifactId>
+			</plugin>
+			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>

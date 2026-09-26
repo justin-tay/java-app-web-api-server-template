@@ -9,11 +9,13 @@ import java.util.Set;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import org.springframework.data.domain.Page;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import com.example.commons.accounts.validation.ResourceId;
 import com.example.commons.accounts.domain.AppGroup;
 
 @RestController
@@ -35,8 +37,9 @@ public class GroupAdminController {
 	}
 
 	@GetMapping
-	public PageResponse<GroupResponse> list(@RequestParam(required = false) String name,
-			@RequestParam(required = false) String roleId, @RequestParam(defaultValue = "0") @Min(0) int page,
+	public PageResponse<GroupResponse> list(@RequestParam(required = false) @Size(max = 100) String name,
+			@RequestParam(required = false) @ResourceId String roleId,
+			@RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
 			@RequestParam(required = false) String sort) {
 		Page<AppGroup> result = this.service.groups(name, roleId,
@@ -46,17 +49,17 @@ public class GroupAdminController {
 	}
 
 	@GetMapping("/{id}")
-	public GroupResponse get(@PathVariable String id) {
+	public GroupResponse get(@PathVariable @ResourceId String id) {
 		return response(this.service.group(id));
 	}
 
 	@PutMapping("/{id}")
-	public GroupResponse update(@PathVariable String id, @Valid @RequestBody GroupRequest request) {
+	public GroupResponse update(@PathVariable @ResourceId String id, @Valid @RequestBody GroupRequest request) {
 		return response(this.service.updateGroup(id, request));
 	}
 
 	@DeleteMapping("/{id}")
-	public ResponseEntity<Void> delete(@PathVariable String id) {
+	public ResponseEntity<Void> delete(@PathVariable @ResourceId String id) {
 		this.service.deleteGroup(id);
 		return ResponseEntity.noContent().build();
 	}

@@ -3,11 +3,13 @@ package com.example.commons.accounts.admin;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +19,9 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.data.domain.Pageable;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionInformation;
 import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.session.FindByIndexNameSessionRepository;
@@ -237,21 +242,140 @@ class AdministrationServiceTest {
 	}
 
 	@Test
-	void rejectsRenamingARoleToAnExistingName() {
+	void rejectsDeletingARoleThatIsAssignedToAGroup() {
 		AppRole reportView = this.entityManager.persist(new AppRole("REPORT_VIEW"));
+		this.administrators.getRoles().add(reportView);
 
-		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.updateRole(reportView.getId(), new AdminDtos.RoleRequest("USER_MANAGE")))
-			.withMessage("Role name already exists.");
-		assertThat(reload(reportView).getName()).isEqualTo("REPORT_VIEW");
+		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> this.service.deleteRole(reportView.getId()))
+			.withMessage("Role is assigned to a group.");
+		assertThat(this.roles.existsById(reportView.getId())).isTrue();
 	}
 
 	@Test
-	void rejectsDeletingARoleThatIsAssignedToAGroup() {
-		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.deleteRole(this.userManage.getId()))
-			.withMessage("Role is assigned to a group.");
-		assertThat(this.roles.existsById(this.userManage.getId())).isTrue();
+	void anAdministratorCannotGiveAUserAGroupGrantingARoleTheyDoNotHold(CapturedOutput output) {
+		AppRole groupManage = this.entityManager.persist(new AppRole("GROUP_MANAGE"));
+		this.administrators.getRoles().add(groupManage);
+		authenticate("admin", "USER_MANAGE");
+
+		assertThatExceptionOfType(AccessDeniedException.class)
+			.isThrownBy(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null,
+					true, Set.of(this.administrators.getId()))));
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
+				() -> this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User",
+						"test@example.test", true, Set.of(this.managers.getId(), this.administrators.getId()))));
+
+		assertThat(output).contains("\"exceeds_actor_privileges\"");
+		assertThat(this.users.existsByUsername("new-user")).isFalse();
+		assertThat(reload(this.testUser).getGroups()).extracting(AppGroup::getName).containsExactly("Managers");
+	}
+
+	@Test
+	void anAdministratorCanGiveAGroupGrantingOnlyRolesTheyHold() {
+		authenticate("admin", "USER_MANAGE");
+
+		AppUser user = this.service.createUser(
+				new AdminDtos.UserCreateRequest("new-user", "New User", null, true, Set.of(this.managers.getId())));
+
+		assertThat(user.getGroups()).extracting(AppGroup::getName).containsExactly("Managers");
+	}
+
+	@Test
+	void anAdministratorCannotChangeTheirOwnAccessOrDeleteThemselves(CapturedOutput output) {
+		authenticate("test-user", "USER_MANAGE");
+
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
+				() -> this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User",
+						"test@example.test", false, Set.of(this.managers.getId()))));
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
+				() -> this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User",
+						"test@example.test", true, Set.of(this.administrators.getId()))));
+		assertThatExceptionOfType(AccessDeniedException.class)
+			.isThrownBy(() -> this.service.deleteUser(this.testUser.getId()));
+
+		assertThat(output).contains("\"self_modification\"");
+		assertThat(sessionOf("test-user").isExpired()).isFalse();
+	}
+
+	@Test
+	void anAdministratorCanChangeTheirOwnDisplayNameAndEmail() {
+		authenticate("test-user", "USER_MANAGE");
+
+		this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Renamed User",
+				"renamed@example.test", true, Set.of(this.managers.getId())));
+
+		assertThat(reload(this.testUser).getDisplayName()).isEqualTo("Renamed User");
+	}
+
+	@Test
+	void anAdministratorCannotGiveAGroupARoleTheyDoNotHold(CapturedOutput output) {
+		AppRole reportView = this.entityManager.persist(new AppRole("REPORT_VIEW"));
+		authenticate("admin", "GROUP_MANAGE");
+
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
+				() -> this.service.createGroup(new AdminDtos.GroupRequest("Viewers", Set.of(reportView.getId()))));
+		assertThatExceptionOfType(AccessDeniedException.class)
+			.isThrownBy(() -> this.service.updateGroup(this.administrators.getId(),
+					new AdminDtos.GroupRequest("Administrators", Set.of(reportView.getId()))));
+
+		assertThat(output).contains("\"exceeds_actor_privileges\"");
+		assertThat(reload(this.administrators).getRoles()).isEmpty();
+	}
+
+	@Test
+	void anAdministratorCanKeepARoleTheyDoNotHoldOnAGroupTheyChange() {
+		authenticate("admin", "GROUP_MANAGE");
+
+		AppGroup group = this.service.updateGroup(this.managers.getId(),
+				new AdminDtos.GroupRequest("Team Managers", Set.of(this.userManage.getId())));
+
+		assertThat(group.getName()).isEqualTo("Team Managers");
+		assertThat(group.getRoles()).containsExactly(this.userManage);
+	}
+
+	@Test
+	void aReservedRoleCannotBeDeleted(CapturedOutput output) {
+		AppRole roleManage = this.entityManager.persist(new AppRole("ROLE_MANAGE"));
+		authenticate("admin", "ROLE_MANAGE");
+
+		assertThatExceptionOfType(AccessDeniedException.class)
+			.isThrownBy(() -> this.service.deleteRole(roleManage.getId()));
+
+		assertThat(output).contains("\"reserved_role\"");
+		assertThat(this.roles.existsById(roleManage.getId())).isTrue();
+	}
+
+	@Test
+	void revokesOneUsersSessionsWithoutChangingTheirAccount(CapturedOutput output) {
+		this.service.revokeSessions(this.testUser.getId());
+
+		assertThat(sessionOf("test-user").isExpired()).isTrue();
+		assertThat(reload(this.testUser).isEnabled()).isTrue();
+		assertThat(output).contains("\"administrative_revocation\"").contains("revoke_sessions");
+	}
+
+	@Test
+	void revokesEveryUsersSessionsExceptTheCallers() {
+		AppUser admin = new AppUser("admin", "Administrator", null, true);
+		admin.getGroups().add(this.managers);
+		this.entityManager.persist(admin);
+		signIn("session-2", "admin");
+		authenticate("admin", "USER_MANAGE");
+
+		this.service.revokeAllSessions();
+
+		assertThat(sessionOf("test-user").isExpired()).isTrue();
+		assertThat(sessionOf("admin").isExpired()).isFalse();
+	}
+
+	private void authenticate(String username, String... roles) {
+		SecurityContextHolder.getContext()
+			.setAuthentication(new TestingAuthenticationToken(username, null,
+					Arrays.stream(roles).map(role -> "ROLE_" + role).toArray(String[]::new)));
+	}
+
+	@AfterEach
+	void clearAuthentication() {
+		SecurityContextHolder.clearContext();
 	}
 
 	/**
