@@ -200,19 +200,21 @@ Base64-encoded, so that internal request resumes no session and the session
 survives. Deleting through the repository also avoids the application having
 to call itself at the URL Keycloak used.
 
-**Single instance only.** The `OidcSessionRegistry` is Spring Security's
-`InMemoryOidcSessionRegistry` (`OidcLoginSecurityAutoConfiguration.oidcSessionRegistry()`),
-held in memory on the instance that handled the login. A notification ends a
-session only if it reaches that instance. Sticky routing does not help: Keycloak
-sends the notification server-to-server with no session cookie, so a load
-balancer cannot route it to the instance holding the link. With more than one
-instance, a notification that reaches another instance is acknowledged but ends
-nothing, and the session lasts until local logout or its idle or absolute
-timeout. The registry is also emptied by a restart, and an entry for a session
-that ended any other way (local logout, timeout) stays in memory until a
-back-channel logout names it or the instance restarts. Running more than one
-instance with reliable back-channel logout needs a shared `OidcSessionRegistry`
-implementation, which the template does not provide.
+**Any instance.** The `OidcSessionRegistry` is `JdbcOidcSessionRegistry`
+(`OidcLoginSecurityAutoConfiguration.oidcSessionRegistry()`), which keeps each
+link in the `OIDC_SESSION` table (`005-oidc-session-registry.sql`) next to the
+session tables. Keycloak sends the notification server-to-server with no
+session cookie, so a load balancer cannot route it to the instance that handled
+the login; because the link is in the database, whichever instance receives it
+finds the session. A link is claimed by deleting its row, so when the
+notification reaches two instances at once, only one of them ends the session.
+
+The link is written at login, before Spring Session saves the session row, so
+the table has no foreign key to `SPRING_SESSION`. A link whose session has
+ended another way (local logout, timeout) is harmless, because a back-channel
+logout that finds it finds no session to end, and saving a new link deletes
+the links of sessions that no longer exist once they are older than ten
+minutes. Replace the registry by defining an `OidcSessionRegistry` bean.
 
 `OidcBackChannelLogoutIntegrationTest` logs in through a stub OpenID Provider
 and asserts that a back-channel logout removes the session's `SPRING_SESSION`

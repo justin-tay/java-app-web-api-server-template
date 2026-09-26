@@ -19,7 +19,8 @@ depends on it can run.
 
 This rule includes Spring Session. The `SPRING_SESSION` and
 `SPRING_SESSION_ATTRIBUTES` tables are defined in
-`003-spring-session-schema.sql`; Spring Boot's JDBC-session schema initializer
+`003-spring-session-schema.sql`, and the `OIDC_SESSION` table of the OIDC
+session registry in `005-oidc-session-registry.sql`; Spring Boot's JDBC-session schema initializer
 is disabled. Hibernate DDL generation is also disabled.
 
 Liquibase's own `DATABASECHANGELOG` and `DATABASECHANGELOGLOCK` tables are the

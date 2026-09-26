@@ -7,3 +7,5 @@ databaseChangeLog:
       file: db/changelog/003-spring-session-schema.sql
   - include:
       file: db/changelog/004-development-seed.sql
+  - include:
+      file: db/changelog/005-oidc-session-registry.sql

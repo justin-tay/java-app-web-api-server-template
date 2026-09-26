@@ -146,7 +146,7 @@ administration audit log, not these columns. The Keycloak
 is why usernames are treated as immutable once a user is provisioned (see
 `README.md`). The schema is in
 `commons-accounts/src/main/resources/db/changelog/001-authorisation-schema.sql`,
-and Spring Session's own tables are in commons' `003-spring-session-schema.sql`:
+Spring Session's own tables are in commons' `003-spring-session-schema.sql`, and the OIDC session registry's table is in commons' `005-oidc-session-registry.sql`:
 modules ship schema, applications ship data. The application seeds the roles
 and the `Administrators` group in its own `002-authorisation-seed.sql`, including
 the `USER_MANAGE`, `GROUP_MANAGE`, and `ROLE_MANAGE` roles the administration

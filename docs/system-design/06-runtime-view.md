@@ -130,7 +130,7 @@ sequenceDiagram
         App-->>Browser: redirect to /login?logout
     else Keycloak back-channel logout
         KC->>App: Back-channel logout token (server-to-server)
-        App->>App: resolve session by logout token sid or sub (in-memory OidcSessionRegistry)
+        App->>App: resolve session by logout token sid or sub (JDBC OidcSessionRegistry)
         App->>App: SessionRepositoryOidcBackChannelLogoutHandler (audit)
         App->>DB: delete JDBC session
     end
@@ -147,10 +147,9 @@ sequenceDiagram
    arrives as an OIDC back-channel logout token (`oidcLogout().backChannel()`)
    and is handled without any browser round trip.
    `SessionRepositoryOidcBackChannelLogoutHandler` finds the local session
-   linked to the token's `sid` or `sub` in the in-memory
+   linked to the token's `sid` or `sub` in the JDBC
    `OidcSessionRegistry` and deletes it from the JDBC repository. The link
-   exists only on the instance that handled the login, so this path is
-   reliable only with a single instance (see
+   is in the database, so the notification can reach any instance (see
    [Back-channel logout](08-crosscutting-concepts/02-security-and-authentication/authentication.md#back-channel-logout)).
 3. Both paths end the same JDBC-backed session and log a `destroy_session`
    event, whose `session.termination_reason` (`logout` or

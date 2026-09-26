@@ -20,19 +20,20 @@ session with JDBC-backed storage:
   Boot's JDBC session-schema initializer is disabled. See
   [ADR 0004](../../../adr/0004-database-schema-management.md).
 
-Two pieces of login state are held in memory on the instance that handled the
-login, not in the session, so a restart discards them and other instances
-cannot see them:
+One piece of login state is held in memory on the instance that handled the
+login, not in the session, so a restart discards it and other instances cannot
+see it:
 
 * **OAuth2 authorized clients** (the Keycloak access token `/account` uses):
   Spring Boot's default `InMemoryOAuth2AuthorizedClientService`, reached
   through `AuthenticatedPrincipalOAuth2AuthorizedClientRepository`, stores
   them per authenticated principal. A request for the access token on another
   instance, or after a restart, finds none and must re-authorize.
-* **The OIDC session registry** that links a Keycloak session to the local
-  session for back-channel logout (`InMemoryOidcSessionRegistry`), so
-  back-channel logout is reliable only with a single instance; see
-  [Back-channel logout](authentication.md#back-channel-logout).
+
+The link that back-channel logout uses between a Keycloak session and the local
+session is in the database (`JdbcOidcSessionRegistry`), so it survives a restart
+and any instance can resolve it; see
+[Back-channel logout](authentication.md#back-channel-logout).
 
 The application database account must have only the data-access permissions
 needed by the running service. The CI migration account owns DDL and migration
@@ -53,7 +54,7 @@ OAuth2 state.
 | `SameSite` | `Lax` | Adds CSRF defence while allowing the top-level OIDC redirect from Keycloak back to the application. |
 | Idle timeout | 15 minutes | Server-side inactivity expiry. |
 | Absolute timeout | 12 hours | Server-side maximum session lifetime, regardless of activity. |
-| Session schema | Liquibase changeset `003-spring-session-schema.sql` | Prevents schema creation at application startup. |
+| Session schema | Liquibase changesets `003-spring-session-schema.sql` and `005-oidc-session-registry.sql` | Prevents schema creation at application startup. |
 
 Every value above is a commons default (`commons-defaults.yaml` and
 `WebSecurityAutoConfiguration`), so each `app-*` module inherits it; the
@@ -171,7 +172,7 @@ Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_S
 <!-- ocsv:generated source="cheatsheets/Session_Management_Cheat_Sheet.md" source-ref="7deb20b" code-ref="dcf2e27" -->
 | Recommendation | Status | Implementation Statement |
 | --- | --- | --- |
-| **Logout Button**<br>Offer a visible logout control on every page that invalidates the session server-side. | Partial | **Server-side invalidation:** Spring Security's logout invalidates the session, `SessionLifecycleLogoutHandler` records it, and OIDC RP-initiated logout is configured (`OidcClientInitiatedLogoutSuccessHandler`). Keycloak back-channel logout (`http.oidcLogout(...)`) uses `SessionRepositoryOidcBackChannelLogoutHandler` instead of Spring Security's default handler, which cannot resume a session through the `id` cookie: it deletes each session linked to the logout token from the JDBC repository and logs it with `session.termination_reason` `back_channel_logout`. The link between the Keycloak session and the local session is held in an in-memory `OidcSessionRegistry`, so back-channel logout is reliable only with a single instance; a notification that reaches another instance ends nothing (see [Back-channel logout](authentication.md#back-channel-logout)). Confirm against the deployed service that local logout invalidates the JDBC session row.<br><br>**Visible control:** not implemented. The application renders no pages of its own beyond Spring Security's generated login and logout pages, so there is no header or menu to carry a logout control; provide one in any browser UI.<br><br>**Application code:** `WebSecurityAutoConfiguration.securityFilterChainCustomizer()` (`logout(...)` handler), `OidcLoginSecurityAutoConfiguration.oidcLoginFilterChainCustomizer()` (`oidcLogout(...)`, `logout(...)` success handler), `OidcLoginSecurityAutoConfiguration.oidcSessionRegistry()`, `SessionLifecycleLogoutHandler`, `SessionRepositoryOidcBackChannelLogoutHandler`; **Framework default:** Spring Security `SecurityContextLogoutHandler`, `OidcBackChannelLogoutFilter`, `InMemoryOidcSessionRegistry`; **Test code:** `OidcBackChannelLogoutIntegrationTest.backChannelLogoutDeletesTheSessionEstablishedByOidcLogin()`, `SessionRepositoryOidcBackChannelLogoutHandlerTest`. |
+| **Logout Button**<br>Offer a visible logout control on every page that invalidates the session server-side. | Partial | **Server-side invalidation:** Spring Security's logout invalidates the session, `SessionLifecycleLogoutHandler` records it, and OIDC RP-initiated logout is configured (`OidcClientInitiatedLogoutSuccessHandler`). Keycloak back-channel logout (`http.oidcLogout(...)`) uses `SessionRepositoryOidcBackChannelLogoutHandler` instead of Spring Security's default handler, which cannot resume a session through the `id` cookie: it deletes each session linked to the logout token from the JDBC repository and logs it with `session.termination_reason` `back_channel_logout`. The link between the Keycloak session and the local session is held in the database by `JdbcOidcSessionRegistry`, so a notification that reaches any instance ends the session (see [Back-channel logout](authentication.md#back-channel-logout)). Confirm against the deployed service that local logout invalidates the JDBC session row.<br><br>**Visible control:** not implemented. The application renders no pages of its own beyond Spring Security's generated login and logout pages, so there is no header or menu to carry a logout control; provide one in any browser UI.<br><br>**Application code:** `WebSecurityAutoConfiguration.securityFilterChainCustomizer()` (`logout(...)` handler), `OidcLoginSecurityAutoConfiguration.oidcLoginFilterChainCustomizer()` (`oidcLogout(...)`, `logout(...)` success handler), `OidcLoginSecurityAutoConfiguration.oidcSessionRegistry()`, `SessionLifecycleLogoutHandler`, `SessionRepositoryOidcBackChannelLogoutHandler`; **Framework default:** Spring Security `SecurityContextLogoutHandler`, `OidcBackChannelLogoutFilter`, `InMemoryOidcSessionRegistry`; **Test code:** `OidcBackChannelLogoutIntegrationTest.backChannelLogoutDeletesTheSessionEstablishedByOidcLogin()`, `SessionRepositoryOidcBackChannelLogoutHandlerTest`. |
 <!-- /ocsv:generated -->
 
 #### Web Content Caching and Clear-Site-Data

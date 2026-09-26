@@ -1,5 +1,6 @@
 package com.example.commons.security;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -13,12 +14,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.DefaultLoginPageConfigurer;
-import org.springframework.security.oauth2.client.oidc.session.InMemoryOidcSessionRegistry;
 import org.springframework.security.oauth2.client.oidc.session.OidcSessionRegistry;
 import org.springframework.security.oauth2.client.oidc.web.logout.OidcClientInitiatedLogoutSuccessHandler;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
@@ -40,6 +42,7 @@ import com.example.commons.security.authorization.LocalAuthorityLookup;
 import com.example.commons.security.authorization.LocalAuthorityRefreshFilter;
 import com.example.commons.security.oauth2.IdTokenDecryption;
 import com.example.commons.security.oauth2.OidcIdTokenDecoders;
+import com.example.commons.security.session.JdbcOidcSessionRegistry;
 import com.example.commons.security.session.SessionLifecycleAuditLogger;
 import com.example.commons.security.session.SessionRepositoryOidcBackChannelLogoutHandler;
 
@@ -56,7 +59,8 @@ import com.example.commons.security.session.SessionRepositoryOidcBackChannelLogo
  * {@link WebSecurityAutoConfiguration} still applies the rest of the security baseline
  * and leaves authentication to the application.
  */
-@AutoConfiguration(before = ServletWebSecurityAutoConfiguration.class)
+@AutoConfiguration(before = ServletWebSecurityAutoConfiguration.class,
+		afterName = "org.springframework.boot.jdbc.autoconfigure.JdbcClientAutoConfiguration")
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnClass({ HttpSecurity.class, ClientRegistrationRepository.class })
 @ConditionalOnBooleanProperty(name = "commons.security.enabled", matchIfMissing = true)
@@ -87,16 +91,20 @@ public class OidcLoginSecurityAutoConfiguration {
 	/**
 	 * Provides the registry that links an OpenID Provider session (its {@code sid} and
 	 * {@code sub}) to the local session created at login, so a back-channel logout token
-	 * can be resolved to the local session it ends. It is held in memory, so it only
-	 * resolves sessions that logged in through this instance; see the "Back-channel
-	 * logout" section of
-	 * docs/system-design/08-crosscutting-concepts/02-security-and-authentication/authentication.md.
-	 * @return the in-memory OIDC session registry
+	 * can be resolved to the local session it ends. It is held in the database next to
+	 * the sessions, so a token that reaches any instance resolves a session that logged
+	 * in through any other.
+	 * @param jdbcClient the JDBC client
+	 * @param clock the clock, if the application defines one
+	 * @param environment the environment, for the Spring Session table name
+	 * @return the JDBC OIDC session registry
 	 */
 	@Bean
 	@ConditionalOnMissingBean
-	OidcSessionRegistry oidcSessionRegistry() {
-		return new InMemoryOidcSessionRegistry();
+	OidcSessionRegistry oidcSessionRegistry(JdbcClient jdbcClient, ObjectProvider<Clock> clock,
+			Environment environment) {
+		return new JdbcOidcSessionRegistry(jdbcClient, clock.getIfAvailable(Clock::systemUTC),
+				environment.getProperty("spring.session.jdbc.table-name", "SPRING_SESSION"));
 	}
 
 	/**

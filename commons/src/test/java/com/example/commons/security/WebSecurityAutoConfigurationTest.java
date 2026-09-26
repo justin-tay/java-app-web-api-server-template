@@ -7,6 +7,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import javax.sql.DataSource;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.context.ConfigurationPropertiesAutoConfiguration;
@@ -14,6 +16,10 @@ import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.validation.autoconfigure.ValidationAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
+import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
+import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
@@ -31,6 +37,7 @@ import com.example.commons.security.oauth2.JwksController;
 import com.example.commons.security.oauth2.JwksHealthIndicator;
 import com.example.commons.security.oauth2.PrivateKeyJwtAutoConfiguration;
 import com.example.commons.security.oauth2.RefreshingJwks;
+import com.example.commons.security.session.JdbcOidcSessionRegistry;
 import com.example.commons.security.session.SessionRevocationService;
 
 class WebSecurityAutoConfigurationTest {
@@ -48,6 +55,7 @@ class WebSecurityAutoConfigurationTest {
 			.run(context -> assertThat(context).hasNotFailed()
 				.hasSingleBean(LocalAuthoritiesOidcUserService.class)
 				.hasSingleBean(SessionRevocationService.class)
+				.hasSingleBean(JdbcOidcSessionRegistry.class)
 				.hasSingleBean(SecurityAuditEventLogger.class)
 				.hasBean("securityFilterChainCustomizer")
 				.doesNotHaveBean(JwksController.class)
@@ -172,6 +180,16 @@ class WebSecurityAutoConfigurationTest {
 		@Bean
 		ClientRegistrationRepository clientRegistrationRepository() {
 			return new InMemoryClientRegistrationRepository(clientRegistration("test"));
+		}
+
+		@Bean
+		EmbeddedDatabase dataSource() {
+			return new EmbeddedDatabaseBuilder().setType(EmbeddedDatabaseType.H2).generateUniqueName(true).build();
+		}
+
+		@Bean
+		JdbcClient jdbcClient(DataSource dataSource) {
+			return JdbcClient.create(dataSource);
 		}
 
 		@Bean
