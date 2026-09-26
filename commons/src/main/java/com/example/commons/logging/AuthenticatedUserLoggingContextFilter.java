@@ -27,7 +27,7 @@ public class AuthenticatedUserLoggingContextFilter extends OncePerRequestFilter 
 			throws ServletException, IOException {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		if (isAuthenticated(authentication)) {
-			try (MDC.MDCCloseable userName = MDC.putCloseable(EcsFields.USER_NAME, authentication.getName())) {
+			try (MDC.MDCCloseable userName = MDC.putCloseable(LoggingContextKeys.USER_NAME, authentication.getName())) {
 				filterChain.doFilter(request, response);
 			}
 		}

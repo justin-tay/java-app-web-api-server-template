@@ -26,7 +26,6 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.context.request.NativeWebRequest;
 
-import com.example.commons.logging.EcsFields;
 import com.example.commons.web.problem.ConflictException;
 import com.example.commons.web.problem.ResourceNotFoundException;
 import com.example.commons.logging.LoggedUrlPath;
@@ -114,11 +113,11 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 	public ResponseEntity<ProblemDetail> handleReauthenticationRequired(ReauthenticationRequiredException ex,
 			HttpServletRequest request) {
 		LOGGER.atWarn()
-			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("web", "api"))
-			.addKeyValue(EcsFields.EVENT_TYPE, List.of("access", "denied"))
-			.addKeyValue(EcsFields.EVENT_ACTION, "authorize_access")
-			.addKeyValue(EcsFields.EVENT_OUTCOME, "failure")
-			.addKeyValue(EcsFields.EVENT_REASON, "reauthentication_required")
+			.addKeyValue("event.category", List.of("web", "api"))
+			.addKeyValue("event.type", List.of("access", "denied"))
+			.addKeyValue("event.action", "authorize_access")
+			.addKeyValue("event.outcome", "failure")
+			.addKeyValue("event.reason", "reauthentication_required")
 			.addKeyValue("http.response.status_code", HttpStatus.UNAUTHORIZED.value())
 			.addKeyValue("url.path", LoggedUrlPath.of(request.getRequestURI()))
 			.log("Recent authentication required");
@@ -205,10 +204,10 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 
 	private void logRequestProcessingFailure(Exception ex, HttpServletRequest request, int responseStatusCode) {
 		LOGGER.atError()
-			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("web"))
-			.addKeyValue(EcsFields.EVENT_TYPE, List.of("error"))
-			.addKeyValue(EcsFields.EVENT_ACTION, "process_request")
-			.addKeyValue(EcsFields.EVENT_OUTCOME, "failure")
+			.addKeyValue("event.category", List.of("web"))
+			.addKeyValue("event.type", List.of("error"))
+			.addKeyValue("event.action", "process_request")
+			.addKeyValue("event.outcome", "failure")
 			.addKeyValue("http.response.status_code", responseStatusCode)
 			.addKeyValue("url.path", LoggedUrlPath.of(request.getRequestURI()))
 			.setCause(ex)
@@ -218,10 +217,10 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 	private void logInputValidationFailure(HttpServletRequest request, Exception exception, String errorCode,
 			String validationField) {
 		LoggingEventBuilder event = LOGGER.atWarn()
-			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("web"))
-			.addKeyValue(EcsFields.EVENT_TYPE, List.of("error"))
-			.addKeyValue(EcsFields.EVENT_ACTION, "validate_input")
-			.addKeyValue(EcsFields.EVENT_OUTCOME, "failure")
+			.addKeyValue("event.category", List.of("web"))
+			.addKeyValue("event.type", List.of("error"))
+			.addKeyValue("event.action", "validate_input")
+			.addKeyValue("event.outcome", "failure")
 			.addKeyValue("http.response.status_code", HttpStatus.BAD_REQUEST.value())
 			.addKeyValue("url.path", LoggedUrlPath.of(request.getRequestURI()))
 			// setCause(exception) is deliberately not used here: this is an expected,

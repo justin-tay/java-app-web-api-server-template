@@ -14,7 +14,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.csrf.CsrfException;
 
-import com.example.commons.logging.EcsFields;
 import com.example.commons.web.problem.ProblemTypes;
 import com.example.commons.logging.LoggedUrlPath;
 
@@ -37,10 +36,10 @@ public class ProblemDetailAccessDeniedHandler implements AccessDeniedHandler {
 			throws IOException, ServletException {
 		if (exception instanceof CsrfException) {
 			LOGGER.atWarn()
-				.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("web", "api"))
-				.addKeyValue(EcsFields.EVENT_TYPE, List.of("access", "denied"))
-				.addKeyValue(EcsFields.EVENT_ACTION, "validate_csrf_token")
-				.addKeyValue(EcsFields.EVENT_OUTCOME, "failure")
+				.addKeyValue("event.category", List.of("web", "api"))
+				.addKeyValue("event.type", List.of("access", "denied"))
+				.addKeyValue("event.action", "validate_csrf_token")
+				.addKeyValue("event.outcome", "failure")
 				.addKeyValue("http.response.status_code", HttpStatus.FORBIDDEN.value())
 				.addKeyValue("url.path", LoggedUrlPath.of(request.getRequestURI()))
 				// setCause(exception) is deliberately not used here: a CSRF rejection is

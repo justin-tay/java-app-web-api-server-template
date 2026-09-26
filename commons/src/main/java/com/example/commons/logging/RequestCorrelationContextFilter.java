@@ -40,17 +40,17 @@ public class RequestCorrelationContextFilter extends OncePerRequestFilter {
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
 			throws ServletException, IOException {
-		try (MDC.MDCCloseable requestId = MDC.putCloseable(EcsFields.HTTP_REQUEST_ID, requestId(request));
-				MDC.MDCCloseable sourceIp = MDC.putCloseable(EcsFields.SOURCE_IP, request.getRemoteAddr())) {
+		try (MDC.MDCCloseable requestId = MDC.putCloseable(LoggingContextKeys.HTTP_REQUEST_ID, requestId(request));
+				MDC.MDCCloseable sourceIp = MDC.putCloseable(LoggingContextKeys.SOURCE_IP, request.getRemoteAddr())) {
 			String clientIp = this.clientIpResolver.resolve(request).orElse(null);
 			if (clientIp != null) {
-				MDC.put(EcsFields.CLIENT_IP, clientIp);
+				MDC.put(LoggingContextKeys.CLIENT_IP, clientIp);
 			}
 			try {
 				filterChain.doFilter(request, response);
 			}
 			finally {
-				MDC.remove(EcsFields.CLIENT_IP);
+				MDC.remove(LoggingContextKeys.CLIENT_IP);
 			}
 		}
 	}

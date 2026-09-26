@@ -12,7 +12,7 @@ import org.slf4j.MDC;
 import org.springframework.security.web.authentication.session.SessionFixationProtectionEvent;
 import org.springframework.session.Session;
 
-import com.example.commons.logging.EcsFields;
+import com.example.commons.logging.LoggingContextKeys;
 
 /**
  * Records session lifecycle events without ever recording the browser's session
@@ -97,11 +97,11 @@ public class SessionLifecycleAuditLogger {
 	 */
 	public void logRequestedSessionNotFound() {
 		LOGGER.atInfo()
-			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("authentication"))
-			.addKeyValue(EcsFields.EVENT_TYPE, List.of("info"))
-			.addKeyValue(EcsFields.EVENT_ACTION, "resume_session")
-			.addKeyValue(EcsFields.EVENT_OUTCOME, "failure")
-			.addKeyValue(EcsFields.EVENT_REASON, "session_not_found")
+			.addKeyValue("event.category", List.of("authentication"))
+			.addKeyValue("event.type", List.of("info"))
+			.addKeyValue("event.action", "resume_session")
+			.addKeyValue("event.outcome", "failure")
+			.addKeyValue("event.reason", "session_not_found")
 			.log("Requested session not found");
 	}
 
@@ -119,16 +119,16 @@ public class SessionLifecycleAuditLogger {
 			Collection<String> removed) {
 		logSessionCreatedIfNeeded(session);
 		var event = LOGGER.atInfo()
-			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("authentication"))
-			.addKeyValue(EcsFields.EVENT_TYPE, List.of("info"))
-			.addKeyValue(EcsFields.EVENT_ACTION, "update_session")
-			.addKeyValue(EcsFields.EVENT_OUTCOME, "success")
-			.addKeyValue(EcsFields.EVENT_REASON, "privilege_change")
+			.addKeyValue("event.category", List.of("authentication"))
+			.addKeyValue("event.type", List.of("info"))
+			.addKeyValue("event.action", "update_session")
+			.addKeyValue("event.outcome", "success")
+			.addKeyValue("event.reason", "privilege_change")
 			.addKeyValue("session.id", auditSessionId(session))
 			.addKeyValue("roles.added", added.stream().sorted().toList())
 			.addKeyValue("roles.removed", removed.stream().sorted().toList());
-		if (MDC.get(EcsFields.USER_NAME) == null) {
-			event.addKeyValue(EcsFields.USER_NAME, username);
+		if (MDC.get(LoggingContextKeys.USER_NAME) == null) {
+			event.addKeyValue(LoggingContextKeys.USER_NAME, username);
 		}
 		event.log("Session privileges changed");
 	}
@@ -140,10 +140,10 @@ public class SessionLifecycleAuditLogger {
 
 	private void log(String action, String type, String auditSessionId, String reason) {
 		var event = LOGGER.atInfo()
-			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("authentication"))
-			.addKeyValue(EcsFields.EVENT_TYPE, List.of(type))
-			.addKeyValue(EcsFields.EVENT_ACTION, action)
-			.addKeyValue(EcsFields.EVENT_OUTCOME, "success")
+			.addKeyValue("event.category", List.of("authentication"))
+			.addKeyValue("event.type", List.of(type))
+			.addKeyValue("event.action", action)
+			.addKeyValue("event.outcome", "success")
 			.addKeyValue("session.id", auditSessionId);
 		if (reason != null) {
 			event.addKeyValue("session.termination_reason", reason);
