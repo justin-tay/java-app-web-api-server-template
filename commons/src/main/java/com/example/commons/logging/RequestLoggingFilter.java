@@ -40,12 +40,6 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(RequestLoggingFilter.class);
 
-	private static final String HTTP_REQUEST_ID = "http.request.id";
-
-	private static final String CLIENT_IP = "client.ip";
-
-	private static final String SOURCE_IP = "source.ip";
-
 	private final Set<String> queryParameterRedactList;
 
 	public RequestLoggingFilter(Collection<String> queryParameterRedactList) {
@@ -75,9 +69,9 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
 	private void logRequestReceived(HttpServletRequest request, Instant startedAt) {
 		LoggingEventBuilder event = LOGGER.atInfo()
-			.addKeyValue("event.category", "web")
-			.addKeyValue("event.type", List.of("access", "start"))
-			.addKeyValue("event.action", "receive_request")
+			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("web"))
+			.addKeyValue(EcsFields.EVENT_TYPE, List.of("access", "start"))
+			.addKeyValue(EcsFields.EVENT_ACTION, "receive_request")
 			.addKeyValue("event.start", startedAt)
 			.addKeyValue("http.request.method", request.getMethod())
 			.addKeyValue("url.scheme", request.getScheme())
@@ -97,15 +91,15 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 	private void logRequestCompleted(HttpServletRequest request, HttpServletResponse response, Instant startedAt,
 			Instant completedAt, RequestLogContext context) {
 		LoggingEventBuilder event = LOGGER.atInfo()
-			.addKeyValue("event.category", "web")
-			.addKeyValue("event.type", List.of("access", "end"))
-			.addKeyValue("event.action", "complete_request")
+			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("web"))
+			.addKeyValue(EcsFields.EVENT_TYPE, List.of("access", "end"))
+			.addKeyValue(EcsFields.EVENT_ACTION, "complete_request")
 			.addKeyValue("event.start", startedAt)
 			.addKeyValue("event.end", completedAt)
 			.addKeyValue("event.duration", Duration.between(startedAt, completedAt).toNanos())
 			.addKeyValue("http.request.method", request.getMethod())
 			.addKeyValue("http.response.status_code", response.getStatus())
-			.addKeyValue("event.outcome", outcome(response.getStatus()))
+			.addKeyValue(EcsFields.EVENT_OUTCOME, outcome(response.getStatus()))
 			.addKeyValue("url.scheme", request.getScheme())
 			.addKeyValue("server.address", request.getServerName())
 			.addKeyValue("server.port", request.getServerPort())
@@ -150,26 +144,26 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 	}
 
 	private void addRequestId(LoggingEventBuilder event, String requestId) {
-		if (requestId != null && MDC.get(HTTP_REQUEST_ID) == null) {
-			event.addKeyValue(HTTP_REQUEST_ID, requestId);
+		if (requestId != null && MDC.get(EcsFields.HTTP_REQUEST_ID) == null) {
+			event.addKeyValue(EcsFields.HTTP_REQUEST_ID, requestId);
 		}
 	}
 
 	private void addUser(LoggingEventBuilder event, String username) {
-		if (username != null && MDC.get("user.name") == null) {
-			event.addKeyValue("user.name", username);
+		if (username != null && MDC.get(EcsFields.USER_NAME) == null) {
+			event.addKeyValue(EcsFields.USER_NAME, username);
 		}
 	}
 
 	private void addSourceIp(LoggingEventBuilder event, String sourceIp) {
-		if (sourceIp != null && MDC.get(SOURCE_IP) == null) {
-			event.addKeyValue(SOURCE_IP, sourceIp);
+		if (sourceIp != null && MDC.get(EcsFields.SOURCE_IP) == null) {
+			event.addKeyValue(EcsFields.SOURCE_IP, sourceIp);
 		}
 	}
 
 	private void addClientIp(LoggingEventBuilder event, String clientIp) {
-		if (clientIp != null && MDC.get(CLIENT_IP) == null) {
-			event.addKeyValue(CLIENT_IP, clientIp);
+		if (clientIp != null && MDC.get(EcsFields.CLIENT_IP) == null) {
+			event.addKeyValue(EcsFields.CLIENT_IP, clientIp);
 		}
 	}
 
@@ -192,7 +186,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 	}
 
 	private RequestLogContext requestLogContext() {
-		return new RequestLogContext(MDC.get(HTTP_REQUEST_ID), username(), MDC.get(CLIENT_IP));
+		return new RequestLogContext(MDC.get(EcsFields.HTTP_REQUEST_ID), username(), MDC.get(EcsFields.CLIENT_IP));
 	}
 
 	private record RequestLogContext(String requestId, String username, String clientIp) {

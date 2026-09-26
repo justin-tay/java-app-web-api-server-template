@@ -22,14 +22,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 public class AuthenticatedUserLoggingContextFilter extends OncePerRequestFilter {
 
-	private static final String USER_NAME = "user.name";
-
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
 			throws ServletException, IOException {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		if (isAuthenticated(authentication)) {
-			try (MDC.MDCCloseable userName = MDC.putCloseable(USER_NAME, authentication.getName())) {
+			try (MDC.MDCCloseable userName = MDC.putCloseable(EcsFields.USER_NAME, authentication.getName())) {
 				filterChain.doFilter(request, response);
 			}
 		}

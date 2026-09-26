@@ -59,7 +59,7 @@ class SecurityAuditEventLoggerTest {
 		this.securityAuditEventLogger
 			.onAuthenticationSuccess(new InteractiveAuthenticationSuccessEvent(authentication, getClass()));
 
-		assertLog(Level.INFO, "User authenticated", new KeyValuePair("event.category", "authentication"),
+		assertLog(Level.INFO, "User authenticated", new KeyValuePair("event.category", List.of("authentication")),
 				new KeyValuePair("event.action", "login"), new KeyValuePair("event.outcome", "success"));
 		assertThat(this.logEvents.list.get(0).getMDCPropertyMap()).containsEntry("user.name", "alice");
 	}
@@ -71,7 +71,7 @@ class SecurityAuditEventLoggerTest {
 		this.securityAuditEventLogger.onAuthenticationFailure(new AuthenticationFailureBadCredentialsEvent(
 				authentication, new BadCredentialsException("secret detail")));
 
-		assertLog(Level.WARN, "Authentication failed", new KeyValuePair("event.category", "authentication"),
+		assertLog(Level.WARN, "Authentication failed", new KeyValuePair("event.category", List.of("authentication")),
 				new KeyValuePair("event.action", "login"), new KeyValuePair("event.outcome", "failure"),
 				new KeyValuePair("user.target.name", "alice"),
 				new KeyValuePair("error.type", "BadCredentialsException"));
@@ -97,7 +97,7 @@ class SecurityAuditEventLoggerTest {
 	void logsLogoutSuccess() {
 		this.securityAuditEventLogger.onLogoutSuccess(new LogoutSuccessEvent(authentication("alice")));
 
-		assertLog(Level.INFO, "User logged out", new KeyValuePair("event.category", "authentication"),
+		assertLog(Level.INFO, "User logged out", new KeyValuePair("event.category", List.of("authentication")),
 				new KeyValuePair("event.action", "logout"), new KeyValuePair("event.outcome", "success"));
 		assertThat(this.logEvents.list.get(0).getMDCPropertyMap()).containsEntry("user.name", "alice");
 	}

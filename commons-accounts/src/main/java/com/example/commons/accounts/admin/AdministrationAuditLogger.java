@@ -19,6 +19,7 @@ import com.example.commons.accounts.domain.AppGroup;
 import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.Auditor;
+import com.example.commons.logging.EcsFields;
 
 /**
  * Records every change to the local user, group, and role model as an ECS {@code iam}
@@ -246,26 +247,26 @@ public class AdministrationAuditLogger {
 	}
 
 	private static LoggingEventBuilder event(String action, String object, String type, String targetUsername) {
-		return categorized(LOGGER.atInfo(), action, object, type, targetUsername).addKeyValue("event.outcome",
+		return categorized(LOGGER.atInfo(), action, object, type, targetUsername).addKeyValue(EcsFields.EVENT_OUTCOME,
 				"success");
 	}
 
 	private static LoggingEventBuilder rejected(String action, String object, String type, String targetUsername,
 			String reason) {
 		return categorized(LOGGER.atWarn(), action, object, type, targetUsername)
-			.addKeyValue("event.outcome", "failure")
-			.addKeyValue("event.reason", reason);
+			.addKeyValue(EcsFields.EVENT_OUTCOME, "failure")
+			.addKeyValue(EcsFields.EVENT_REASON, reason);
 	}
 
 	private static LoggingEventBuilder categorized(LoggingEventBuilder event, String action, String object, String type,
 			String targetUsername) {
-		event.addKeyValue("event.category", List.of("iam"))
-			.addKeyValue("event.type", List.of(object, type))
-			.addKeyValue("event.action", action);
+		event.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("iam"))
+			.addKeyValue(EcsFields.EVENT_TYPE, List.of(object, type))
+			.addKeyValue(EcsFields.EVENT_ACTION, action);
 		String actor = Auditor.current();
 		boolean authenticated = !Auditor.SYSTEM.equals(actor);
-		if (authenticated && MDC.get("user.name") == null) {
-			event.addKeyValue("user.name", actor);
+		if (authenticated && MDC.get(EcsFields.USER_NAME) == null) {
+			event.addKeyValue(EcsFields.USER_NAME, actor);
 		}
 		SortedSet<String> related = new TreeSet<>();
 		if (authenticated) {

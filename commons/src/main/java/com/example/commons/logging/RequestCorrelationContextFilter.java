@@ -26,13 +26,7 @@ import com.example.commons.logging.request.RequestIdResolver;
  */
 public class RequestCorrelationContextFilter extends OncePerRequestFilter {
 
-	private static final String HTTP_REQUEST_ID = "http.request.id";
-
-	private static final String CLIENT_IP = "client.ip";
-
 	private static final String REQUEST_ID_ATTRIBUTE = RequestCorrelationContextFilter.class.getName() + ".REQUEST_ID";
-
-	private static final String SOURCE_IP = "source.ip";
 
 	private final ClientIpResolver clientIpResolver;
 
@@ -46,17 +40,17 @@ public class RequestCorrelationContextFilter extends OncePerRequestFilter {
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
 			throws ServletException, IOException {
-		try (MDC.MDCCloseable requestId = MDC.putCloseable(HTTP_REQUEST_ID, requestId(request));
-				MDC.MDCCloseable sourceIp = MDC.putCloseable(SOURCE_IP, request.getRemoteAddr())) {
+		try (MDC.MDCCloseable requestId = MDC.putCloseable(EcsFields.HTTP_REQUEST_ID, requestId(request));
+				MDC.MDCCloseable sourceIp = MDC.putCloseable(EcsFields.SOURCE_IP, request.getRemoteAddr())) {
 			String clientIp = this.clientIpResolver.resolve(request).orElse(null);
 			if (clientIp != null) {
-				MDC.put(CLIENT_IP, clientIp);
+				MDC.put(EcsFields.CLIENT_IP, clientIp);
 			}
 			try {
 				filterChain.doFilter(request, response);
 			}
 			finally {
-				MDC.remove(CLIENT_IP);
+				MDC.remove(EcsFields.CLIENT_IP);
 			}
 		}
 	}

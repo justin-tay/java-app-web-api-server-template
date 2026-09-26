@@ -13,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.web.firewall.RequestRejectedException;
 import org.springframework.security.web.firewall.RequestRejectedHandler;
 
+import com.example.commons.logging.EcsFields;
 import com.example.commons.web.problem.ProblemTypes;
 import com.example.commons.logging.LoggedUrlPath;
 
@@ -52,10 +53,10 @@ public class ProblemDetailRequestRejectedHandler implements RequestRejectedHandl
 	public void handle(HttpServletRequest request, HttpServletResponse response,
 			RequestRejectedException requestRejectedException) throws IOException, ServletException {
 		LOGGER.atWarn()
-			.addKeyValue("event.category", List.of("web"))
-			.addKeyValue("event.type", List.of("error"))
-			.addKeyValue("event.action", "reject_request")
-			.addKeyValue("event.outcome", "failure")
+			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("web"))
+			.addKeyValue(EcsFields.EVENT_TYPE, List.of("error"))
+			.addKeyValue(EcsFields.EVENT_ACTION, "reject_request")
+			.addKeyValue(EcsFields.EVENT_OUTCOME, "failure")
 			.addKeyValue("http.response.status_code", HttpStatus.BAD_REQUEST.value())
 			.addKeyValue("http.request.method", request.getMethod())
 			.addKeyValue("url.path", LoggedUrlPath.of(request.getRequestURI()))

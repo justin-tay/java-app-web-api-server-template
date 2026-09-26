@@ -43,38 +43,38 @@ public class ApplicationLifecycleEventLogger implements ApplicationListener<Appl
 
 	private void logApplicationStarting() {
 		LOGGER.atInfo()
-			.addKeyValue("event.category", "process")
-			.addKeyValue("event.type", List.of("start"))
-			.addKeyValue("event.action", "start_application")
-			.addKeyValue("event.outcome", "unknown")
+			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("process"))
+			.addKeyValue(EcsFields.EVENT_TYPE, List.of("start"))
+			.addKeyValue(EcsFields.EVENT_ACTION, "start_application")
+			.addKeyValue(EcsFields.EVENT_OUTCOME, "unknown")
 			.log("Application starting");
 	}
 
 	private void logApplicationStarted() {
 		LOGGER.atInfo()
-			.addKeyValue("event.category", "process")
-			.addKeyValue("event.type", List.of("start"))
-			.addKeyValue("event.action", "start_application")
-			.addKeyValue("event.outcome", "success")
+			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("process"))
+			.addKeyValue(EcsFields.EVENT_TYPE, List.of("start"))
+			.addKeyValue(EcsFields.EVENT_ACTION, "start_application")
+			.addKeyValue(EcsFields.EVENT_OUTCOME, "success")
 			.log("Application started");
 	}
 
 	private void logApplicationFailed(ApplicationFailedEvent event) {
 		LOGGER.atError()
-			.addKeyValue("event.category", "process")
-			.addKeyValue("event.type", List.of("start"))
-			.addKeyValue("event.action", "start_application")
-			.addKeyValue("event.outcome", "failure")
+			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("process"))
+			.addKeyValue(EcsFields.EVENT_TYPE, List.of("start"))
+			.addKeyValue(EcsFields.EVENT_ACTION, "start_application")
+			.addKeyValue(EcsFields.EVENT_OUTCOME, "failure")
 			.setCause(event.getException())
 			.log("Application failed to start");
 	}
 
 	private void logApplicationStopped() {
 		LOGGER.atInfo()
-			.addKeyValue("event.category", "process")
-			.addKeyValue("event.type", List.of("end"))
-			.addKeyValue("event.action", "stop_application")
-			.addKeyValue("event.outcome", "success")
+			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("process"))
+			.addKeyValue(EcsFields.EVENT_TYPE, List.of("end"))
+			.addKeyValue(EcsFields.EVENT_ACTION, "stop_application")
+			.addKeyValue(EcsFields.EVENT_OUTCOME, "success")
 			.log("Application stopped");
 	}
 

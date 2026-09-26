@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.commons.logging.EcsFields;
 import com.example.commons.logging.LoggedUrlPath;
 import com.example.commons.logging.MessageRedactedStackTraces;
 
@@ -38,10 +39,10 @@ public class ProblemDetailErrorController implements ErrorController {
 	public ResponseEntity<ProblemDetail> handleError(HttpServletRequest request) {
 		HttpStatus status = resolveStatus(request);
 		LoggingEventBuilder event = LOGGER.atError()
-			.addKeyValue("event.category", List.of("web"))
-			.addKeyValue("event.type", List.of("error"))
-			.addKeyValue("event.action", "process_request")
-			.addKeyValue("event.outcome", "failure")
+			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("web"))
+			.addKeyValue(EcsFields.EVENT_TYPE, List.of("error"))
+			.addKeyValue(EcsFields.EVENT_ACTION, "process_request")
+			.addKeyValue(EcsFields.EVENT_OUTCOME, "failure")
 			.addKeyValue("http.response.status_code", status.value());
 		addUrlPath(event, request);
 		addExceptionType(event, request);

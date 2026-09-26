@@ -16,6 +16,7 @@ import org.springframework.security.web.authentication.session.SessionFixationPr
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import com.example.commons.logging.EcsFields;
 import com.example.commons.security.session.SessionLifecycleAuditLogger;
 
 /**
@@ -36,20 +37,20 @@ public class SecurityAuditEventLogger {
 	void onAuthenticationSuccess(InteractiveAuthenticationSuccessEvent event) {
 		updateLoggingContextUser(event.getAuthentication());
 		LOGGER.atInfo()
-			.addKeyValue("event.category", "authentication")
-			.addKeyValue("event.type", List.of("info"))
-			.addKeyValue("event.action", "login")
-			.addKeyValue("event.outcome", "success")
+			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("authentication"))
+			.addKeyValue(EcsFields.EVENT_TYPE, List.of("info"))
+			.addKeyValue(EcsFields.EVENT_ACTION, "login")
+			.addKeyValue(EcsFields.EVENT_OUTCOME, "success")
 			.log("User authenticated");
 	}
 
 	@EventListener
 	void onAuthenticationFailure(AbstractAuthenticationFailureEvent event) {
 		LOGGER.atWarn()
-			.addKeyValue("event.category", "authentication")
-			.addKeyValue("event.type", List.of("denied"))
-			.addKeyValue("event.action", "login")
-			.addKeyValue("event.outcome", "failure")
+			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("authentication"))
+			.addKeyValue(EcsFields.EVENT_TYPE, List.of("denied"))
+			.addKeyValue(EcsFields.EVENT_ACTION, "login")
+			.addKeyValue(EcsFields.EVENT_OUTCOME, "failure")
 			// The attempted account is the target of the failed action, not an
 			// authenticated actor.
 			// See https://github.com/elastic/integrations/issues/20105.
@@ -67,12 +68,12 @@ public class SecurityAuditEventLogger {
 	void onAuthorizationDenied(AuthorizationDeniedEvent<?> event) {
 		Authentication authentication = event.getAuthentication().get();
 		LoggingEventBuilder logEvent = LOGGER.atWarn()
-			.addKeyValue("event.category", List.of("web", "api"))
-			.addKeyValue("event.type", List.of("access", "denied"))
-			.addKeyValue("event.action", "authorize_access")
-			.addKeyValue("event.outcome", "failure");
+			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("web", "api"))
+			.addKeyValue(EcsFields.EVENT_TYPE, List.of("access", "denied"))
+			.addKeyValue(EcsFields.EVENT_ACTION, "authorize_access")
+			.addKeyValue(EcsFields.EVENT_OUTCOME, "failure");
 		if (authentication == null) {
-			logEvent.addKeyValue("user.name", "anonymous");
+			logEvent.addKeyValue(EcsFields.USER_NAME, "anonymous");
 		}
 		else {
 			updateLoggingContextUser(authentication);
@@ -84,10 +85,10 @@ public class SecurityAuditEventLogger {
 	void onLogoutSuccess(LogoutSuccessEvent event) {
 		updateLoggingContextUser(event.getAuthentication());
 		LOGGER.atInfo()
-			.addKeyValue("event.category", "authentication")
-			.addKeyValue("event.type", List.of("info"))
-			.addKeyValue("event.action", "logout")
-			.addKeyValue("event.outcome", "success")
+			.addKeyValue(EcsFields.EVENT_CATEGORY, List.of("authentication"))
+			.addKeyValue(EcsFields.EVENT_TYPE, List.of("info"))
+			.addKeyValue(EcsFields.EVENT_ACTION, "logout")
+			.addKeyValue(EcsFields.EVENT_OUTCOME, "success")
 			.log("User logged out");
 	}
 
@@ -99,8 +100,12 @@ public class SecurityAuditEventLogger {
 		}
 	}
 
+	/**
+	 * Deliberately not scoped: the user must stay in the MDC until the request completes
+	 * so the request's final log event carries it. LoggingContextCleanupFilter clears it.
+	 */
 	private void updateLoggingContextUser(Authentication authentication) {
-		MDC.put("user.name", authentication.getName());
+		MDC.put(EcsFields.USER_NAME, authentication.getName());
 	}
 
 }
