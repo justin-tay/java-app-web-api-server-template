@@ -201,7 +201,7 @@ survives. Deleting through the repository also avoids the application having
 to call itself at the URL Keycloak used.
 
 **Single instance only.** The `OidcSessionRegistry` is Spring Security's
-`InMemoryOidcSessionRegistry` (`WebSecurityAutoConfiguration.oidcSessionRegistry()`),
+`InMemoryOidcSessionRegistry` (`OidcLoginSecurityAutoConfiguration.oidcSessionRegistry()`),
 held in memory on the instance that handled the login. A notification ends a
 session only if it reaches that instance. Sticky routing does not help: Keycloak
 sends the notification server-to-server with no session cookie, so a load

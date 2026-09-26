@@ -1,5 +1,6 @@
 com.example.commons.logging.LoggingAutoConfiguration
 com.example.commons.web.problem.ProblemDetailsAutoConfiguration
+com.example.commons.security.OidcLoginSecurityAutoConfiguration
 com.example.commons.security.WebSecurityAutoConfiguration
 com.example.commons.security.oauth2.PrivateKeyJwtAutoConfiguration
 com.example.commons.web.tomcat.TomcatHardeningAutoConfiguration

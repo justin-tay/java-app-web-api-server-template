@@ -58,7 +58,7 @@ rules, its Liquibase master changelog, and its configuration.
 
 | Building Block | Responsibility | Interfaces | Code Location |
 | --- | --- | --- | --- |
-| `commons` `security` | Security filter chain baseline: OIDC login with local authorities, security headers, session management (absolute timeout, one session per user), OIDC back-channel and RP-initiated logout, method security, security audit events | `WebSecurityAutoConfiguration`, `WebSecurityProperties` (`commons.security.*`), `SecurityAuditEventLogger`; `commons.security.enabled` | `commons/src/main/java/com/example/commons/security/` |
+| `commons` `security` | Security filter chain baseline: security headers, session management (absolute timeout, one session per user), method security, security audit events; OIDC login with local authorities and OIDC back-channel and RP-initiated logout, added when the OAuth2 client is on the classpath | `WebSecurityAutoConfiguration`, `OidcLoginSecurityAutoConfiguration`, `WebSecurityProperties` (`commons.security.*`), `SecurityAuditEventLogger`; `commons.security.enabled` | `commons/src/main/java/com/example/commons/security/` |
 | `commons` `security.authentication` | Converts Spring Security authentication failures into RFC 9457 Problem Details; local-authority-aware OIDC user loading | `ProblemDetailAuthenticationEntryPoint`, `LocalAuthoritiesOidcUserService` | `commons/src/main/java/com/example/commons/security/authentication/` |
 | `commons` `security.authorization` | The source of local authorities; per-request local authority refresh; RFC 9457 access-denied responses | `LocalAuthorityLookup`, `LocalAuthorityRefreshFilter`, `ProblemDetailAccessDeniedHandler` | `commons/src/main/java/com/example/commons/security/authorization/` |
 | `commons` `security.session` | Session lifecycle: absolute timeout, concurrent-session eviction, audit logging, revocation on authority change | `AbsoluteSessionTimeoutFilter`, `SessionLifecycleAuditLogger`, `SessionRevocationService`, `SessionLifecycleAuditInitializationFilter` | `commons/src/main/java/com/example/commons/security/session/` |
@@ -177,8 +177,8 @@ The commons module assembles this chain through ordered
 application's own `SecurityFilterChain` bean: `LoggingAutoConfiguration` adds
 `AuthenticatedUserLoggingContextFilter` and `RequestLoggingFilter` (and registers
 the two servlet filters outside the chain), then `WebSecurityAutoConfiguration`
-adds the session and authority filters next to them, anchored on Spring
-Security's own filters. The application's `WebSecurityConfiguration` adds only its
+adds the session filters next to them, and `OidcLoginSecurityAutoConfiguration` adds
+the authority filter and OIDC login, anchored on Spring Security's own filters. The application's `WebSecurityConfiguration` adds only its
 authorization rules. Filter order is deliberate and documented inline (see source references in
 [ADR 0010](../adr/0010-ecs-structured-logging.md) and
 [ADR 0012](../adr/0012-request-correlation-ahead-of-security-chain.md)).

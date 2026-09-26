@@ -36,9 +36,9 @@ import com.example.commons.security.session.SessionRevocationService;
 class WebSecurityAutoConfigurationTest {
 
 	private final WebApplicationContextRunner contextRunner = new WebApplicationContextRunner()
-		.withConfiguration(
-				AutoConfigurations.of(ConfigurationPropertiesAutoConfiguration.class, ValidationAutoConfiguration.class,
-						WebSecurityAutoConfiguration.class, PrivateKeyJwtAutoConfiguration.class))
+		.withConfiguration(AutoConfigurations.of(ConfigurationPropertiesAutoConfiguration.class,
+				ValidationAutoConfiguration.class, OidcLoginSecurityAutoConfiguration.class,
+				WebSecurityAutoConfiguration.class, PrivateKeyJwtAutoConfiguration.class))
 		.withPropertyValues("commons.security.session.absolute-timeout=12h")
 		.withUserConfiguration(ApplicationBeansConfiguration.class);
 
@@ -102,14 +102,14 @@ class WebSecurityAutoConfigurationTest {
 
 	@Test
 	void redirectsBrowsersToTheOnlyClientRegistration() {
-		assertThat(WebSecurityAutoConfiguration
+		assertThat(OidcLoginSecurityAutoConfiguration
 			.authorizationRequestUri(new InMemoryClientRegistrationRepository(clientRegistration("keycloak"))))
 			.isEqualTo("/oauth2/authorization/keycloak");
 	}
 
 	@Test
 	void redirectsBrowsersToTheLoginPageWhenThereAreSeveralClientRegistrations() {
-		assertThat(WebSecurityAutoConfiguration.authorizationRequestUri(
+		assertThat(OidcLoginSecurityAutoConfiguration.authorizationRequestUri(
 				new InMemoryClientRegistrationRepository(clientRegistration("keycloak"), clientRegistration("other"))))
 			.isEqualTo("/login");
 	}

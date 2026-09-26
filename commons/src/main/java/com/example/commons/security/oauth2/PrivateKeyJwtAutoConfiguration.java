@@ -22,9 +22,10 @@ import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResp
 import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
 import org.springframework.security.oauth2.client.endpoint.RestClientAuthorizationCodeTokenResponseClient;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 
-import com.example.commons.security.WebSecurityAutoConfiguration;
+import com.example.commons.security.OidcLoginSecurityAutoConfiguration;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.proc.JWEKeySelector;
 import com.nimbusds.jose.proc.SecurityContext;
@@ -45,9 +46,9 @@ import com.nimbusds.jose.proc.SecurityContext;
  * {@code client-authentication-method: private_key_jwt}. It then requires
  * {@code commons.security.oauth2.jwks}, and startup fails when it is unset.
  */
-@AutoConfiguration(after = WebSecurityAutoConfiguration.class)
+@AutoConfiguration(after = OidcLoginSecurityAutoConfiguration.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnClass(HttpSecurity.class)
+@ConditionalOnClass({ HttpSecurity.class, ClientRegistrationRepository.class })
 @ConditionalOnBooleanProperty(name = "commons.security.enabled", matchIfMissing = true)
 @ConditionalOnPrivateKeyJwtClientRegistration
 @EnableConfigurationProperties(JwksProperties.class)
@@ -102,7 +103,7 @@ public class PrivateKeyJwtAutoConfiguration {
 	 * @return the customizer
 	 */
 	@Bean
-	@Order(WebSecurityAutoConfiguration.FILTER_CHAIN_CUSTOMIZER_ORDER)
+	@Order(OidcLoginSecurityAutoConfiguration.FILTER_CHAIN_CUSTOMIZER_ORDER)
 	Customizer<HttpSecurity> privateKeyJwtFilterChainCustomizer(RefreshingJwks jwks) {
 		OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient = accessTokenResponseClient(
 				jwks);

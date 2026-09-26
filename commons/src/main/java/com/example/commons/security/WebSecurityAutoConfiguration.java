@@ -1,11 +1,6 @@
 package com.example.commons.security;
 
-import java.net.URI;
 import java.time.Clock;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -25,23 +20,11 @@ import org.springframework.security.authentication.event.AbstractAuthenticationF
 import org.springframework.security.authorization.AuthorizationEventPublisher;
 import org.springframework.security.authorization.SpringAuthorizationEventPublisher;
 import org.springframework.security.config.Customizer;
-import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
-import org.springframework.security.config.annotation.web.configurers.DefaultLoginPageConfigurer;
 import org.springframework.security.core.session.SessionRegistry;
-import org.springframework.security.oauth2.client.oidc.session.InMemoryOidcSessionRegistry;
-import org.springframework.security.oauth2.client.oidc.session.OidcSessionRegistry;
-import org.springframework.security.oauth2.client.oidc.web.logout.OidcClientInitiatedLogoutSuccessHandler;
-import org.springframework.security.oauth2.client.registration.ClientRegistration;
-import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
-import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtDecoderFactory;
-import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
-import org.springframework.security.web.authentication.ui.DefaultLoginPageGeneratingFilter;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.header.HeaderWriterFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
@@ -56,31 +39,24 @@ import org.springframework.session.security.SpringSessionBackedSessionRegistry;
 
 import com.example.commons.logging.LoggingAutoConfiguration;
 import com.example.commons.security.authentication.ProblemDetailAuthenticationEntryPoint;
-import com.example.commons.security.authentication.oidc.LocalAuthoritiesOidcUserService;
-import com.example.commons.security.authentication.oidc.MaxAgeAuthorizationRequestResolver;
-import com.example.commons.security.authorization.LocalAuthorityLookup;
-import com.example.commons.security.authorization.LocalAuthorityRefreshFilter;
 import com.example.commons.security.authorization.ProblemDetailAccessDeniedHandler;
 import com.example.commons.security.firewall.ProblemDetailRequestRejectedHandler;
-import com.example.commons.security.oauth2.IdTokenDecryption;
-import com.example.commons.security.oauth2.OidcIdTokenDecoders;
 import com.example.commons.security.session.AbsoluteSessionTimeoutFilter;
 import com.example.commons.security.session.AuditingInvalidSessionStrategy;
 import com.example.commons.security.session.ContentNegotiatingSessionExpiredStrategy;
 import com.example.commons.security.session.SessionLifecycleAuditInitializationFilter;
 import com.example.commons.security.session.SessionLifecycleAuditLogger;
 import com.example.commons.security.session.SessionLifecycleLogoutHandler;
-import com.example.commons.security.session.SessionRepositoryOidcBackChannelLogoutHandler;
 import com.example.commons.security.session.SecureRandomSessionIdGenerator;
 import com.example.commons.security.session.SessionRevocationService;
 
 /**
  * Configures the security baseline every application's Spring Security filter chain
- * shares: OIDC login with locally managed authorities, security response headers, RFC
- * 9457 Problem Details for authentication, authorization, session, and firewall failures,
- * JDBC-backed session management with an absolute timeout and a single session per user,
- * session lifecycle and security audit logging, OIDC back-channel and RP-initiated
- * logout, and method security.
+ * shares: security response headers, RFC 9457 Problem Details for authentication,
+ * authorization, session, and firewall failures, JDBC-backed session management with an
+ * absolute timeout and a single session per user, session lifecycle and security audit
+ * logging, and method security. OIDC login is added by
+ * {@link OidcLoginSecurityAutoConfiguration}.
  *
  * <p>
  * The filter chain settings are applied through a {@code Customizer<HttpSecurity>} bean,
@@ -93,12 +69,12 @@ import com.example.commons.security.session.SessionRevocationService;
  *
  * <p>
  * Applied whenever commons is on the classpath of a servlet application. Set
- * {@code commons.security.enabled=false} to turn it off. Every application must define a
- * {@link LocalAuthorityLookup} bean.
+ * {@code commons.security.enabled=false} to turn it off.
  */
-@AutoConfiguration(before = ServletWebSecurityAutoConfiguration.class, after = LoggingAutoConfiguration.class)
+@AutoConfiguration(before = ServletWebSecurityAutoConfiguration.class,
+		after = { LoggingAutoConfiguration.class, OidcLoginSecurityAutoConfiguration.class })
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnClass({ HttpSecurity.class, ClientRegistrationRepository.class, JdbcIndexedSessionRepository.class })
+@ConditionalOnClass({ HttpSecurity.class, JdbcIndexedSessionRepository.class })
 @ConditionalOnBooleanProperty(name = "commons.security.enabled", matchIfMissing = true)
 @EnableConfigurationProperties(WebSecurityProperties.class)
 @EnableMethodSecurity
@@ -115,9 +91,21 @@ public class WebSecurityAutoConfiguration {
 
 	private static final String PERMISSIONS_POLICY = "camera=(), geolocation=(), microphone=(), payment=(), usb=()";
 
-	private static final String LOGIN_PAGE_URI = "/login";
+	static final String LOGIN_PAGE_URI = "/login";
 
-	private static final String LOGOUT_SUCCESS_URI = LOGIN_PAGE_URI + "?logout";
+	static final String LOGOUT_SUCCESS_URI = LOGIN_PAGE_URI + "?logout";
+
+	/**
+	 * Provides the entry point for unauthenticated requests when no OIDC login is
+	 * configured: a browser is redirected to the login page, and a non-browser client
+	 * receives an RFC 9457 Problem Details response.
+	 * @return the entry point
+	 */
+	@Bean
+	@ConditionalOnMissingBean
+	ProblemDetailAuthenticationEntryPoint authenticationEntryPoint() {
+		return new ProblemDetailAuthenticationEntryPoint(LOGIN_PAGE_URI);
+	}
 
 	@Bean
 	@ConditionalOnMissingBean
@@ -164,21 +152,6 @@ public class WebSecurityAutoConfiguration {
 		return new ContentNegotiatingSessionExpiredStrategy(sessionLifecycleAuditLogger);
 	}
 
-	/**
-	 * Provides the registry that links an OpenID Provider session (its {@code sid} and
-	 * {@code sub}) to the local session created at login, so a back-channel logout token
-	 * can be resolved to the local session it ends. It is held in memory, so it only
-	 * resolves sessions that logged in through this instance; see the "Back-channel
-	 * logout" section of
-	 * docs/system-design/08-crosscutting-concepts/02-security-and-authentication/authentication.md.
-	 * @return the in-memory OIDC session registry
-	 */
-	@Bean
-	@ConditionalOnMissingBean
-	OidcSessionRegistry oidcSessionRegistry() {
-		return new InMemoryOidcSessionRegistry();
-	}
-
 	@Bean
 	SessionRevocationService sessionRevocationService(SessionRegistry sessionRegistry,
 			FindByIndexNameSessionRepository<? extends Session> sessionRepository,
@@ -212,25 +185,6 @@ public class WebSecurityAutoConfiguration {
 	}
 
 	/**
-	 * Configures the JWT decoder used to decode the ID Token. The default
-	 * {@code OidcIdTokenDecoderFactory} offers limited customization, for instance if the
-	 * ID token needs to be decrypted: when an {@link IdTokenDecryption} bean exists, as
-	 * it does for a {@code private_key_jwt} client with {@code enc} keys (see
-	 * docs/adr/0020), an ID token encrypted to the application is decrypted before its
-	 * signature is verified, and a plain signed ID token is rejected while encryption is
-	 * required.
-	 * @param idTokenDecryption the ID token decryption, if any
-	 * @return the JWT decoder factory to decode the ID Token
-	 */
-	@Bean
-	@ConditionalOnMissingBean
-	JwtDecoderFactory<ClientRegistration> idTokenDecoderFactory(ObjectProvider<IdTokenDecryption> idTokenDecryption) {
-		Map<String, JwtDecoder> jwtDecoders = new ConcurrentHashMap<>();
-		return clientRegistration -> jwtDecoders.computeIfAbsent(clientRegistration.getRegistrationId(),
-				key -> OidcIdTokenDecoders.create(clientRegistration, idTokenDecryption.getIfAvailable()));
-	}
-
-	/**
 	 * Logs a request rejected by Spring Security's {@code HttpFirewall} (the default
 	 * {@code StrictHttpFirewall}) in the application's structured logging format and
 	 * returns an RFC 9457 Problem Details response, instead of the framework default of a
@@ -242,12 +196,6 @@ public class WebSecurityAutoConfiguration {
 		return web -> web.requestRejectedHandler(new ProblemDetailRequestRejectedHandler());
 	}
 
-	@Bean
-	LocalAuthoritiesOidcUserService localAuthoritiesOidcUserService(
-			ObjectProvider<LocalAuthorityLookup> localAuthorityLookup) {
-		return new LocalAuthoritiesOidcUserService(requireLocalAuthorityLookup(localAuthorityLookup));
-	}
-
 	/**
 	 * Applies the security baseline to every {@code HttpSecurity}.
 	 *
@@ -256,29 +204,23 @@ public class WebSecurityAutoConfiguration {
 	 * order: {@code AuthenticatedUserLoggingContextFilter} (commons logging),
 	 * {@link SessionLifecycleAuditInitializationFilter},
 	 * {@link SecurityContextHolderFilter}, {@link AbsoluteSessionTimeoutFilter},
-	 * {@code RequestLoggingFilter} (commons logging),
-	 * {@link LocalAuthorityRefreshFilter}, {@link HeaderWriterFilter}. Filters that share
-	 * a position keep the order they were added in, which is why this customizer runs
-	 * after the logging one.
+	 * {@code RequestLoggingFilter} (commons logging), {@link HeaderWriterFilter}.
+	 * {@link OidcLoginSecurityAutoConfiguration} adds {@code LocalAuthorityRefreshFilter}
+	 * just before {@link HeaderWriterFilter}. Filters that share a position keep the
+	 * order they were added in, which is why this customizer runs after the logging one.
 	 * @return the customizer
 	 */
 	@Bean
 	@Order(FILTER_CHAIN_CUSTOMIZER_ORDER)
 	Customizer<HttpSecurity> securityFilterChainCustomizer(WebSecurityProperties properties,
-			ObjectProvider<Clock> clock, ClientRegistrationRepository clientRegistrationRepository,
-			AuthenticationEventPublisher authenticationEventPublisher,
-			LocalAuthoritiesOidcUserService localAuthoritiesOidcUserService,
-			ObjectProvider<LocalAuthorityLookup> localAuthorityLookup, SessionRegistry sessionRegistry,
+			ObjectProvider<Clock> clock, ProblemDetailAuthenticationEntryPoint authenticationEntryPoint,
+			AuthenticationEventPublisher authenticationEventPublisher, SessionRegistry sessionRegistry,
 			SessionInformationExpiredStrategy sessionExpiredStrategy,
-			SessionLifecycleAuditLogger sessionLifecycleAuditLogger, OidcSessionRegistry oidcSessionRegistry,
-			FindByIndexNameSessionRepository<? extends Session> sessionRepository, Environment environment) {
-		LocalAuthorityLookup lookup = requireLocalAuthorityLookup(localAuthorityLookup);
+			SessionLifecycleAuditLogger sessionLifecycleAuditLogger, Environment environment) {
 		String healthPath = environment.getProperty("management.endpoints.web.base-path", "/actuator") + "/health";
 		return http -> {
 			http.getSharedObject(AuthenticationManagerBuilder.class)
 				.authenticationEventPublisher(authenticationEventPublisher);
-			ProblemDetailAuthenticationEntryPoint authenticationEntryPoint = new ProblemDetailAuthenticationEntryPoint(
-					authorizationRequestUri(clientRegistrationRepository));
 			ProblemDetailAccessDeniedHandler accessDeniedHandler = new ProblemDetailAccessDeniedHandler();
 			// The request cache is a shared object set while the chain is built, so it is
 			// resolved when a request arrives rather than now.
@@ -291,8 +233,6 @@ public class WebSecurityAutoConfiguration {
 						new AbsoluteSessionTimeoutFilter(properties.getSession().getAbsoluteTimeout(),
 								clock.getIfAvailable(Clock::systemDefaultZone), sessionLifecycleAuditLogger),
 						SecurityContextHolderFilter.class)
-				.addFilterBefore(new LocalAuthorityRefreshFilter(lookup, sessionLifecycleAuditLogger, sessionRegistry),
-						HeaderWriterFilter.class)
 				.headers(headers -> headers
 					.contentSecurityPolicy(
 							contentSecurityPolicy -> contentSecurityPolicy.policyDirectives(CONTENT_SECURITY_POLICY))
@@ -319,76 +259,9 @@ public class WebSecurityAutoConfiguration {
 					.maxSessionsPreventsLogin(false)
 					.sessionRegistry(sessionRegistry)
 					.expiredSessionStrategy(sessionExpiredStrategy))
-				.oauth2Login(oauth2Login -> oauth2Login
-					.authorizationEndpoint(authorizationEndpoint -> authorizationEndpoint.authorizationRequestResolver(
-							new MaxAgeAuthorizationRequestResolver(clientRegistrationRepository)))
-					.userInfoEndpoint(
-							userInfoEndpoint -> userInfoEndpoint.oidcUserService(localAuthoritiesOidcUserService)))
-				.oidcLogout(oidcLogout -> oidcLogout.backChannel(
-						backChannel -> backChannel.logoutHandler(new SessionRepositoryOidcBackChannelLogoutHandler(
-								oidcSessionRegistry, sessionRepository, sessionLifecycleAuditLogger))))
 				.logout(logout -> logout
-					.addLogoutHandler(new SessionLifecycleLogoutHandler(sessionLifecycleAuditLogger))
-					.logoutSuccessHandler(oidcLogoutSuccessHandler(clientRegistrationRepository)))
-				.with(new DefaultLoginPageConfigurer<>(),
-						defaultLoginPage -> defaultLoginPage.withObjectPostProcessor(new ObjectPostProcessor<Object>() {
-							@Override
-							public <O> O postProcess(O object) {
-								if (object instanceof DefaultLoginPageGeneratingFilter filter) {
-									// Show the logout message after the post-logout
-									// redirect.
-									filter.setLogoutSuccessUrl(LOGOUT_SUCCESS_URI);
-								}
-								return object;
-							}
-						}));
+					.addLogoutHandler(new SessionLifecycleLogoutHandler(sessionLifecycleAuditLogger)));
 		};
-	}
-
-	/**
-	 * Gets the entry point a browser is redirected to when it is not authenticated: the
-	 * authorization request URI of the only client registration, exactly as Spring
-	 * Security's own default entry point would choose, or the login page when there are
-	 * several.
-	 * @param clientRegistrationRepository the client registrations
-	 * @return the browser login entry point URI
-	 */
-	static String authorizationRequestUri(ClientRegistrationRepository clientRegistrationRepository) {
-		List<String> registrationIds = new ArrayList<>();
-		if (clientRegistrationRepository instanceof Iterable<?> registrations) {
-			for (Object registration : registrations) {
-				registrationIds.add(((ClientRegistration) registration).getRegistrationId());
-			}
-		}
-		if (registrationIds.size() == 1) {
-			return OAuth2AuthorizationRequestRedirectFilter.DEFAULT_AUTHORIZATION_REQUEST_BASE_URI + "/"
-					+ registrationIds.get(0);
-		}
-		return LOGIN_PAGE_URI;
-	}
-
-	private static LocalAuthorityLookup requireLocalAuthorityLookup(
-			ObjectProvider<LocalAuthorityLookup> localAuthorityLookup) {
-		return localAuthorityLookup.getIfAvailable(() -> {
-			throw new IllegalStateException(
-					"The commons security configuration requires a LocalAuthorityLookup bean that returns "
-							+ "the application's local authorities for a username; define one, for example backed by the "
-							+ "application's user repository (see docs/adr/0005 and docs/adr/0019)");
-		});
-	}
-
-	/**
-	 * Gets the OIDC logout success handler that calls the OpenID Provider's
-	 * {@code end_session_endpoint}.
-	 * @param clientRegistrationRepository the client registrations
-	 * @return the logout success handler
-	 */
-	private static LogoutSuccessHandler oidcLogoutSuccessHandler(
-			ClientRegistrationRepository clientRegistrationRepository) {
-		OidcClientInitiatedLogoutSuccessHandler oidcLogoutSuccessHandler = new OidcClientInitiatedLogoutSuccessHandler(
-				clientRegistrationRepository);
-		oidcLogoutSuccessHandler.setPostLogoutRedirectUri("{baseUrl}" + LOGOUT_SUCCESS_URI);
-		return oidcLogoutSuccessHandler;
 	}
 
 }

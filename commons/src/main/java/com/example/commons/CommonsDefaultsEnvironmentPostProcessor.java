@@ -16,6 +16,7 @@ import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.PropertySource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
+import org.springframework.util.ClassUtils;
 
 import com.example.commons.security.oauth2.ConditionalOnPrivateKeyJwtClientRegistration.OnPrivateKeyJwtClientRegistrationCondition;
 
@@ -53,6 +54,8 @@ public class CommonsDefaultsEnvironmentPostProcessor implements EnvironmentPostP
 		return Ordered.LOWEST_PRECEDENCE;
 	}
 
+	private static final String OAUTH2_CLIENT_PROPERTIES_CLASS = "org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientProperties";
+
 	@Override
 	public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
 		MutablePropertySources propertySources = environment.getPropertySources();
@@ -69,8 +72,10 @@ public class CommonsDefaultsEnvironmentPostProcessor implements EnvironmentPostP
 		}
 		// Only a private_key_jwt application has the jwks health contributor, and naming
 		// a missing contributor in a health group fails startup, so this default is added
-		// only then, just above the other defaults.
+		// only then, just above the other defaults. Without the OAuth2 client on the
+		// classpath there is no client registration to check.
 		if (propertySources.contains(PROPERTY_SOURCE_NAME)
+				&& ClassUtils.isPresent(OAUTH2_CLIENT_PROPERTIES_CLASS, getClass().getClassLoader())
 				&& OnPrivateKeyJwtClientRegistrationCondition.matches(environment)) {
 			propertySources.addBefore(PROPERTY_SOURCE_NAME, new MapPropertySource(JWKS_READINESS_PROPERTY_SOURCE_NAME,
 					Map.of("management.endpoint.health.group.readiness.include", JWKS_READINESS_GROUP_INCLUDE)));

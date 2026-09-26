@@ -60,6 +60,8 @@ scan picks up a commons class.
   `commons.logging.enabled` (`LoggingAutoConfiguration`),
   `commons.web.problem-details.enabled` (`ProblemDetailsAutoConfiguration`), and
   `commons.security.enabled` (`WebSecurityAutoConfiguration`, plus
+  `OidcLoginSecurityAutoConfiguration`, which applies only when
+  `spring-security-oauth2-client` is on the classpath, and
   `PrivateKeyJwtAutoConfiguration`, which applies only when a client registration
   uses `private_key_jwt`). `commons-accounts` adds `commons.accounts.enabled`
   (`AccountsAutoConfiguration`) and `commons.accounts.admin.enabled` for the
