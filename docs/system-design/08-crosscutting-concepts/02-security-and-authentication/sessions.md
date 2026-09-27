@@ -54,6 +54,7 @@ OAuth2 state.
 | `SameSite` | `Lax` | Adds CSRF defence while allowing the top-level OIDC redirect from Keycloak back to the application. |
 | Idle timeout | 15 minutes | Server-side inactivity expiry. |
 | Absolute timeout | 12 hours | Server-side maximum session lifetime, regardless of activity. |
+| Passkey session absolute timeout | 8 hours, only when [passkeys](authentication.md#passkeys) are enabled | A passkey session has no Keycloak session to end it by back-channel logout, so it also ends this long after the passkey login (`commons.security.passkeys.session-absolute-timeout`), counted from the login rather than from the session's creation. |
 | Session schema | Liquibase changesets `003-spring-session-schema.sql` and `005-oidc-session-registry.sql` | Prevents schema creation at application startup. |
 
 Every value above is a commons default (`commons-defaults.yaml` and

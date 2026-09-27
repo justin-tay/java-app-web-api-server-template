@@ -110,6 +110,24 @@ flowchart TB
 | `AdministrationAuditLogger` | Logs every change, after commit, and every rejected change as an ECS `iam` event with the prior state, the changes, and the roles and groups granted or withdrawn (see [ADR 0021](../adr/0021-authorisation-change-audit-log-events.md)). |
 | `AdminDtos` | Request/response DTOs, including `PageResponse` for paginated listings. |
 
+### Passkeys (White Box)
+
+Present only when `commons.security.passkeys.enabled` is set (see
+[ADR 0024](../adr/0024-passkey-login-bound-to-local-user.md)). Spring Security's
+`webauthn()` support supplies the login and registration endpoints and the
+credential storage; these components fit it to the local user model.
+
+| Component | Responsibility |
+| --- | --- |
+| `PasskeySecurityAutoConfiguration` | Adds the WebAuthn configuration to every filter chain behind the opt-in property, and fails startup without a relying party ID and allowed origins. The policy is discoverable credentials, required user verification, and no attestation. |
+| `PasskeyUserDirectory` (`AppUserPasskeyUserDirectory` in commons-accounts) | Finds the enabled local user for a username; the user's UUID is the WebAuthn user handle. |
+| `DirectoryBackedUserEntityRepository` | Stores the passkey user entity of a directory user only, so Spring never creates a random handle. |
+| `AuditedUserCredentialRepository` | Limits passkeys per user, refuses a login whose signature counter did not increase, and records each registration and removal through `PasskeyAuditLogger`. |
+| `PasskeyRegistrationGuardFilter` | Requires authentication, a recent login, and room under the per-user limit before a passkey can be registered. |
+| `PasskeyLocalAuthorityRefresher` | Lets `LocalAuthorityRefreshFilter` reload the local roles of a passkey session, and end it when the local user is disabled or deleted. |
+| `PasskeySessionFilters` | Records the time of a passkey login for the recent-login checks, and ends a passkey session at its own absolute timeout. |
+| `PasskeyManager` (`PasskeyController`, `UserPasskeyAdminController`) | Lists, renames, and revokes passkeys for the user and for an administrator, and removes them when a user is deleted. |
+
 ### Domain Model
 
 ```mermaid
@@ -146,8 +164,12 @@ administration audit log, not these columns. The Keycloak
 is why usernames are treated as immutable once a user is provisioned (see
 `README.md`). The schema is in
 `commons-accounts/src/main/resources/db/changelog/001-authorisation-schema.sql`,
-Spring Session's own tables are in commons' `003-spring-session-schema.sql`, and the OIDC session registry's table is in commons' `005-oidc-session-registry.sql`:
-modules ship schema, applications ship data. The application seeds the roles
+Spring Session's own tables are in commons' `003-spring-session-schema.sql`, the OIDC session registry's table is in commons' `005-oidc-session-registry.sql`, and the
+passkey tables Spring Security's WebAuthn support expects (`user_entities` and
+`user_credentials`, used only when passkeys are enabled) are in
+`commons-accounts`' `006-passkey-schema.sql`, with no foreign key from
+`user_entities` to `app_user` because the user handle is the UUID's bytes, so
+deleting a user deletes their passkeys in code: modules ship schema, applications ship data. The application seeds the roles
 and the `Administrators` group in its own `002-authorisation-seed.sql`, including
 the `USER_MANAGE`, `GROUP_MANAGE`, and `ROLE_MANAGE` roles the administration
 API requires by name. Each changelog keeps its original `db/changelog/`

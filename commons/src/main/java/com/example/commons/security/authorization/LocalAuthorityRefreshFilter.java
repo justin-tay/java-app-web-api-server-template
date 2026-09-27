@@ -1,8 +1,9 @@
 package com.example.commons.security.authorization;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -17,9 +18,6 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionInformation;
 import org.springframework.security.core.session.SessionRegistry;
-import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
-import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
-import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -45,6 +43,9 @@ import com.example.commons.security.session.SessionLifecycleAuditLogger;
  * {@code privilege_change} session event, naming the added and removed roles by their
  * stored names, and the refreshed authentication is saved to the session, so the change
  * is logged once rather than on every later request.
+ * <p>
+ * Each way of logging in is handled by a {@link LocalAuthorityRefresher}: OpenID Connect
+ * always, and any others passed to the constructor, such as passkeys.
  */
 public class LocalAuthorityRefreshFilter extends OncePerRequestFilter {
 
@@ -54,48 +55,55 @@ public class LocalAuthorityRefreshFilter extends OncePerRequestFilter {
 
 	private final SessionRegistry sessionRegistry;
 
+	private final List<LocalAuthorityRefresher> refreshers;
+
 	private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
 
 	public LocalAuthorityRefreshFilter(LocalAuthorityLookup localAuthorityLookup,
 			SessionLifecycleAuditLogger sessionLifecycleAuditLogger, SessionRegistry sessionRegistry) {
+		this(localAuthorityLookup, sessionLifecycleAuditLogger, sessionRegistry, List.of());
+	}
+
+	public LocalAuthorityRefreshFilter(LocalAuthorityLookup localAuthorityLookup,
+			SessionLifecycleAuditLogger sessionLifecycleAuditLogger, SessionRegistry sessionRegistry,
+			List<LocalAuthorityRefresher> additionalRefreshers) {
 		this.localAuthorityLookup = localAuthorityLookup;
 		this.sessionLifecycleAuditLogger = sessionLifecycleAuditLogger;
 		this.sessionRegistry = sessionRegistry;
+		List<LocalAuthorityRefresher> refreshers = new ArrayList<>();
+		refreshers.add(new OidcLocalAuthorityRefresher());
+		refreshers.addAll(additionalRefreshers);
+		this.refreshers = List.copyOf(refreshers);
 	}
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
 			throws ServletException, IOException {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-		if (authentication instanceof OAuth2AuthenticationToken oauthToken
-				&& oauthToken.getPrincipal() instanceof OidcUser oidcUser) {
-			refresh(request, response, oauthToken, oidcUser);
+		if (authentication != null) {
+			for (LocalAuthorityRefresher refresher : this.refreshers) {
+				if (refresher.supports(authentication)) {
+					refresh(request, response, authentication, refresher);
+					break;
+				}
+			}
 		}
 		filterChain.doFilter(request, response);
 	}
 
-	private void refresh(HttpServletRequest request, HttpServletResponse response, OAuth2AuthenticationToken oauthToken,
-			OidcUser oidcUser) {
-		String username = oidcUser.getClaimAsString("preferred_username");
+	private void refresh(HttpServletRequest request, HttpServletResponse response, Authentication authentication,
+			LocalAuthorityRefresher refresher) {
+		String username = refresher.username(authentication);
 		Collection<GrantedAuthority> localAuthorities = (username != null)
 				? this.localAuthorityLookup.findAuthorities(username).orElse(null) : null;
 		if (localAuthorities == null) {
 			deauthenticate(request);
 			return;
 		}
-		Set<GrantedAuthority> authorities = oidcUser.getAuthorities()
-			.stream()
-			.filter(authority -> !authority.getAuthority().startsWith("ROLE_"))
-			.collect(Collectors.toCollection(HashSet::new));
-		authorities.addAll(localAuthorities);
-		OidcUser refreshedUser = new DefaultOidcUser(authorities, oidcUser.getIdToken(), oidcUser.getUserInfo(),
-				"preferred_username");
-		OAuth2AuthenticationToken refreshedToken = new OAuth2AuthenticationToken(refreshedUser, authorities,
-				oauthToken.getAuthorizedClientRegistrationId());
-		refreshedToken.setDetails(oauthToken.getDetails());
-		SecurityContextHolder.getContext().setAuthentication(refreshedToken);
-		Set<String> previousRoles = roleNames(oauthToken.getAuthorities());
-		Set<String> currentRoles = roleNames(authorities);
+		Authentication refreshed = refresher.refresh(authentication, localAuthorities);
+		SecurityContextHolder.getContext().setAuthentication(refreshed);
+		Set<String> previousRoles = roleNames(authentication.getAuthorities());
+		Set<String> currentRoles = roleNames(refreshed.getAuthorities());
 		if (!previousRoles.equals(currentRoles)) {
 			privilegeChanged(request, response, username, previousRoles, currentRoles);
 		}

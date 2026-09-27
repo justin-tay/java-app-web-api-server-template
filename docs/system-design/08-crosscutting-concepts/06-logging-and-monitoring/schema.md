@@ -61,7 +61,7 @@ fields where available and documents its intentional project extensions.
 | `event.type` | `keyword[]` | Lifecycle/subcategory classification. |
 | `event.action` | `keyword` | Stable lower-snake-case operation identifier. Do not encode outcome in this field. |
 | `event.outcome` | `keyword` | `success`, `failure`, or `unknown` where applicable. |
-| `event.reason` | `keyword` | Controlled reason for a session event (`privilege_change`, `session_not_found`) a rejected administration change (`username_exists`, `name_exists`, `group_has_users`, `role_in_use`, `exceeds_actor_privileges`, `self_modification`, `reserved_role`), or an access denial (`reauthentication_required`). |
+| `event.reason` | `keyword` | Controlled reason for a session event (`privilege_change`, `session_not_found`) a rejected administration change (`username_exists`, `name_exists`, `group_has_users`, `role_in_use`, `exceeds_actor_privileges`, `self_modification`, `reserved_role`), an access denial (`reauthentication_required`, `passkey_limit_reached`), or a refused passkey login (`passkey_signature_counter_regression`). |
 | `event.start`, `event.end` | `date` | Request lifecycle boundaries. |
 | `event.duration` | `long` | Request duration in nanoseconds. |
 | `http.request.id` | `keyword` | Correlation ID established by `RequestCorrelationContextFilter`; generated as a UUID unless the configured `RequestIdResolver` supplies an upstream ID. It is not authentication material. |
@@ -97,6 +97,8 @@ fields where available and documents its intentional project extensions.
 | `group.changes.name` | `keyword` | A group's new name. |
 | `group.affected_user_count` | `long` | Number of users in a group whose roles changed. |
 | `role.id`, `role.name` | `keyword` | The role an administration change affects, and its stored name. ECS has no role field set. |
+| `authentication.method` | `keyword` | How a user authenticated or tried to: `oidc` or `passkey`. Present on `login` events when the method is known. |
+| `passkey.label` | `keyword` | The label a user gave a passkey, on the passkey registration, removal, and refused-login events. The credential itself is never logged. |
 | `session.revoked_count` | `long` | Number of sessions a `revoke_sessions` event ended. |
 
 ## Correlation and lifecycle semantics

@@ -9,6 +9,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
@@ -41,6 +42,46 @@ class RecentAuthenticationTest {
 				Duration.ofMinutes(15), this.clock))
 			.isFalse();
 		assertThat(RecentAuthentication.isWithin(null, Duration.ofMinutes(15), this.clock)).isFalse();
+	}
+
+	@Test
+	void aPasskeyLoginIsRecentByTheTimeRecordedInTheSession() {
+		TestingAuthenticationToken passkeyLogin = new TestingAuthenticationToken("alice", null, "ROLE_USER");
+
+		assertThat(RecentAuthentication.isWithin(passkeyLogin, requestLoggedInAt(NOW.minus(Duration.ofMinutes(15))),
+				Duration.ofMinutes(15), this.clock))
+			.isTrue();
+		assertThat(RecentAuthentication.isWithin(passkeyLogin, requestLoggedInAt(NOW.minus(Duration.ofMinutes(16))),
+				Duration.ofMinutes(15), this.clock))
+			.isFalse();
+	}
+
+	@Test
+	void aLoginWithNoRecordedTimeIsNotRecentWhateverItsKind() {
+		TestingAuthenticationToken passkeyLogin = new TestingAuthenticationToken("alice", null, "ROLE_USER");
+
+		assertThat(RecentAuthentication.isWithin(passkeyLogin, new MockHttpServletRequest(), Duration.ofMinutes(15),
+				this.clock))
+			.isFalse();
+		assertThat(
+				RecentAuthentication.isWithin(null, new MockHttpServletRequest(), Duration.ofMinutes(15), this.clock))
+			.isFalse();
+		assertThat(RecentAuthentication.isWithin(authenticatedAt(NOW.minus(Duration.ofMinutes(16))),
+				requestLoggedInAt(NOW), Duration.ofMinutes(15), this.clock))
+			.isFalse();
+	}
+
+	@Test
+	void anOidcLoginIsStillRecentByItsAuthTimeWithARequest() {
+		assertThat(RecentAuthentication.isWithin(authenticatedAt(NOW.minus(Duration.ofMinutes(1))),
+				new MockHttpServletRequest(), Duration.ofMinutes(15), this.clock))
+			.isTrue();
+	}
+
+	private static MockHttpServletRequest requestLoggedInAt(Instant loggedInAt) {
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		request.getSession(true).setAttribute(RecentAuthentication.PASSKEY_AUTHENTICATED_AT_ATTRIBUTE, loggedInAt);
+		return request;
 	}
 
 	private static OAuth2AuthenticationToken authenticatedAt(Instant authTime) {

@@ -37,7 +37,7 @@ public class AdminReauthenticationInterceptor implements HandlerInterceptor {
 	@Override
 	public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
 		if (!SAFE_METHODS.contains(request.getMethod()) && !RecentAuthentication
-			.isWithin(SecurityContextHolder.getContext().getAuthentication(), this.maxAge, this.clock)) {
+			.isWithin(SecurityContextHolder.getContext().getAuthentication(), request, this.maxAge, this.clock)) {
 			throw new ReauthenticationRequiredException(this.maxAge);
 		}
 		return true;

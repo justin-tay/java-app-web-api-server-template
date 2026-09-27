@@ -40,6 +40,7 @@ import com.example.commons.security.authentication.oidc.LocalAuthoritiesOidcUser
 import com.example.commons.security.authentication.oidc.MaxAgeAuthorizationRequestResolver;
 import com.example.commons.security.authorization.LocalAuthorityLookup;
 import com.example.commons.security.authorization.LocalAuthorityRefreshFilter;
+import com.example.commons.security.authorization.LocalAuthorityRefresher;
 import com.example.commons.security.oauth2.IdTokenDecryption;
 import com.example.commons.security.oauth2.OidcIdTokenDecoders;
 import com.example.commons.security.session.JdbcOidcSessionRegistry;
@@ -143,6 +144,8 @@ public class OidcLoginSecurityAutoConfiguration {
 	 * @param sessionLifecycleAuditLogger the session lifecycle audit logger
 	 * @param sessionRegistry the session registry
 	 * @param localAuthorityLookup the local authority lookup
+	 * @param localAuthorityRefreshers the refreshers of other kinds of login, such as
+	 * passkeys, whose sessions the local authority refresh covers too
 	 * @return the customizer
 	 */
 	@Bean
@@ -151,11 +154,12 @@ public class OidcLoginSecurityAutoConfiguration {
 			LocalAuthoritiesOidcUserService localAuthoritiesOidcUserService, OidcSessionRegistry oidcSessionRegistry,
 			FindByIndexNameSessionRepository<? extends Session> sessionRepository,
 			SessionLifecycleAuditLogger sessionLifecycleAuditLogger, SessionRegistry sessionRegistry,
-			ObjectProvider<LocalAuthorityLookup> localAuthorityLookup) {
+			ObjectProvider<LocalAuthorityLookup> localAuthorityLookup,
+			ObjectProvider<LocalAuthorityRefresher> localAuthorityRefreshers) {
 		LocalAuthorityLookup lookup = requireLocalAuthorityLookup(localAuthorityLookup);
 		return http -> http
-			.addFilterBefore(new LocalAuthorityRefreshFilter(lookup, sessionLifecycleAuditLogger, sessionRegistry),
-					HeaderWriterFilter.class)
+			.addFilterBefore(new LocalAuthorityRefreshFilter(lookup, sessionLifecycleAuditLogger, sessionRegistry,
+					localAuthorityRefreshers.orderedStream().toList()), HeaderWriterFilter.class)
 			.oauth2Login(oauth2Login -> oauth2Login
 				.authorizationEndpoint(authorizationEndpoint -> authorizationEndpoint
 					.authorizationRequestResolver(new MaxAgeAuthorizationRequestResolver(clientRegistrationRepository)))

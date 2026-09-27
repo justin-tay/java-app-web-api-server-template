@@ -3,8 +3,10 @@ package com.example.commons.accounts;
 import java.time.Clock;
 import java.time.Duration;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
@@ -22,10 +24,13 @@ import com.example.commons.accounts.admin.AdministrationService;
 import com.example.commons.accounts.admin.GroupAdminController;
 import com.example.commons.accounts.admin.RoleAdminController;
 import com.example.commons.accounts.admin.UserAdminController;
+import com.example.commons.accounts.admin.UserPasskeyAdminController;
 import com.example.commons.accounts.domain.AppGroupRepository;
 import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppUserRepository;
 import com.example.commons.security.WebSecurityAutoConfiguration;
+import com.example.commons.security.authentication.passkey.PasskeyManager;
+import com.example.commons.security.authentication.passkey.PasskeyUserDirectory;
 import com.example.commons.security.authorization.LocalAuthorityLookup;
 import com.example.commons.security.session.SessionRevocationService;
 
@@ -60,7 +65,8 @@ import com.example.commons.security.session.SessionRevocationService;
  * application's filter chain has.
  */
 @AutoConfiguration(before = { HibernateJpaAutoConfiguration.class, DataJpaRepositoriesAutoConfiguration.class },
-		after = WebSecurityAutoConfiguration.class)
+		after = WebSecurityAutoConfiguration.class,
+		afterName = "com.example.commons.security.authentication.passkey.PasskeySecurityAutoConfiguration")
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnBooleanProperty(name = "commons.accounts.enabled", matchIfMissing = true)
 @AutoConfigurationPackage
@@ -70,6 +76,18 @@ public class AccountsAutoConfiguration {
 	@ConditionalOnMissingBean(LocalAuthorityLookup.class)
 	AppUserLocalAuthorityLookup appUserLocalAuthorityLookup(AppUserRepository users) {
 		return new AppUserLocalAuthorityLookup(users);
+	}
+
+	/**
+	 * Finds the local user a passkey is registered to, when passkeys are enabled.
+	 * @param users the user repository
+	 * @return the passkey user directory
+	 */
+	@Bean
+	@ConditionalOnBooleanProperty(name = "commons.security.passkeys.enabled")
+	@ConditionalOnMissingBean(PasskeyUserDirectory.class)
+	AppUserPasskeyUserDirectory appUserPasskeyUserDirectory(AppUserRepository users) {
+		return new AppUserPasskeyUserDirectory(users);
 	}
 
 	/**
@@ -87,8 +105,22 @@ public class AccountsAutoConfiguration {
 		@Bean
 		AdministrationService administrationService(AppUserRepository users, AppGroupRepository groups,
 				AppRoleRepository roles, SessionRevocationService sessionRevocationService,
-				AdministrationAuditLogger administrationAuditLogger) {
-			return new AdministrationService(users, groups, roles, sessionRevocationService, administrationAuditLogger);
+				AdministrationAuditLogger administrationAuditLogger, ObjectProvider<PasskeyManager> passkeyManager) {
+			return new AdministrationService(users, groups, roles, sessionRevocationService, administrationAuditLogger,
+					passkeyManager.getIfAvailable());
+		}
+
+		/**
+		 * The administrator's view of a user's passkeys, when passkeys are enabled.
+		 * @param administrationService the administration service
+		 * @param passkeyManager the passkey manager
+		 * @return the controller
+		 */
+		@Bean
+		@ConditionalOnBean(PasskeyManager.class)
+		UserPasskeyAdminController userPasskeyAdminController(AdministrationService administrationService,
+				PasskeyManager passkeyManager) {
+			return new UserPasskeyAdminController(administrationService, passkeyManager);
 		}
 
 		/**

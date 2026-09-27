@@ -36,7 +36,7 @@ public class SecurityAuditEventLogger {
 	@EventListener
 	void onAuthenticationSuccess(InteractiveAuthenticationSuccessEvent event) {
 		updateLoggingContextUser(event.getAuthentication());
-		LOGGER.atInfo()
+		withAuthenticationMethod(LOGGER.atInfo(), event.getAuthentication())
 			.addKeyValue("event.category", List.of("authentication"))
 			.addKeyValue("event.type", List.of("info"))
 			.addKeyValue("event.action", "login")
@@ -46,7 +46,7 @@ public class SecurityAuditEventLogger {
 
 	@EventListener
 	void onAuthenticationFailure(AbstractAuthenticationFailureEvent event) {
-		LOGGER.atWarn()
+		withAuthenticationMethod(LOGGER.atWarn(), event.getAuthentication())
 			.addKeyValue("event.category", List.of("authentication"))
 			.addKeyValue("event.type", List.of("denied"))
 			.addKeyValue("event.action", "login")
@@ -98,6 +98,25 @@ public class SecurityAuditEventLogger {
 				&& attributes.getRequest().getSession(false) != null) {
 			this.sessionLifecycleAuditLogger.logSessionRenewed(event, attributes.getRequest().getSession(false));
 		}
+	}
+
+	/**
+	 * Adds {@code authentication.method}, {@code oidc} for an OpenID Connect login and
+	 * {@code passkey} for a passkey login, so the two are told apart in the audit log
+	 * (see docs/adr/0024). It is decided by the authentication's class name, because the
+	 * OAuth2 client and WebAuthn support are optional dependencies; any other kind of
+	 * authentication gets no method.
+	 */
+	private static LoggingEventBuilder withAuthenticationMethod(LoggingEventBuilder event,
+			Authentication authentication) {
+		String type = authentication.getClass().getSimpleName();
+		if (type.startsWith("WebAuthn")) {
+			return event.addKeyValue("authentication.method", "passkey");
+		}
+		if (type.startsWith("OAuth2")) {
+			return event.addKeyValue("authentication.method", "oidc");
+		}
+		return event;
 	}
 
 	/**

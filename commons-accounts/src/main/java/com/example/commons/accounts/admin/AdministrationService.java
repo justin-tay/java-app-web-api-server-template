@@ -21,6 +21,7 @@ import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
+import com.example.commons.security.authentication.passkey.PasskeyManager;
 import com.example.commons.security.session.SessionRevocationService;
 import com.example.commons.web.problem.ConflictException;
 import com.example.commons.web.problem.ResourceNotFoundException;
@@ -57,13 +58,27 @@ public class AdministrationService {
 
 	private final AdministrationAuditLogger auditLogger;
 
+	private final PasskeyManager passkeyManager;
+
 	public AdministrationService(AppUserRepository users, AppGroupRepository groups, AppRoleRepository roles,
 			SessionRevocationService sessionRevocationService, AdministrationAuditLogger auditLogger) {
+		this(users, groups, roles, sessionRevocationService, auditLogger, null);
+	}
+
+	/**
+	 * Creates the service.
+	 * @param passkeyManager the passkey manager, or null when passkeys are not enabled,
+	 * used to delete a deleted user's passkeys
+	 */
+	public AdministrationService(AppUserRepository users, AppGroupRepository groups, AppRoleRepository roles,
+			SessionRevocationService sessionRevocationService, AdministrationAuditLogger auditLogger,
+			PasskeyManager passkeyManager) {
 		this.users = users;
 		this.groups = groups;
 		this.roles = roles;
 		this.sessionRevocationService = sessionRevocationService;
 		this.auditLogger = auditLogger;
+		this.passkeyManager = passkeyManager;
 	}
 
 	public AppUser createUser(AdminDtos.UserCreateRequest request) {
@@ -117,6 +132,9 @@ public class AdministrationService {
 			throw new AccessDeniedException("Administrators cannot delete themselves.");
 		}
 		this.sessionRevocationService.revoke(user.getUsername(), "account_deleted");
+		if (this.passkeyManager != null) {
+			this.passkeyManager.removeAll(user.getId());
+		}
 		this.users.delete(user);
 		this.auditLogger.userDeleted(before);
 	}

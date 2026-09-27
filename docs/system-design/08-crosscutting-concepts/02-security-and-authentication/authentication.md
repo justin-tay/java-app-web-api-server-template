@@ -25,6 +25,76 @@ Each Keycloak client configured for the application uses `private_key_jwt`,
 publishes the application's public keys through `/oauth2/jwks`, and is
 configured for back-channel logout.
 
+## Passkeys
+
+Passkeys are an optional second way to authenticate as the same local user, for
+a deployment that needs a direct sign-in that does not redirect to Keycloak
+([ADR 0024](../../../adr/0024-passkey-login-bound-to-local-user.md)). Keycloak
+stays the way a user first signs in and registers a passkey, and the fallback
+when a passkey is lost. The application, not Keycloak, is the WebAuthn relying
+party, because the identity provider is managed elsewhere.
+
+They are off by default. Enabling them needs the relying party ID and the exact
+origins that may use a passkey, and startup fails without them:
+
+```yaml
+commons:
+  security:
+    passkeys:
+      enabled: true
+      rp-id: app.example.com
+      rp-name: Example application
+      allowed-origins:
+      - https://app.example.com
+```
+
+The relying party ID is part of every passkey, so changing it later invalidates
+all of them; choose it once. The remaining properties have defaults:
+`max-per-user` (10), `registration-max-age` (15 minutes), and
+`session-absolute-timeout` (8 hours).
+
+| Request | Purpose |
+| --- | --- |
+| `POST /webauthn/authenticate/options`, `POST /login/webauthn` | Log in. Public. |
+| `POST /webauthn/register/options`, `POST /webauthn/register` | Register a passkey. |
+| `DELETE /webauthn/register/{id}` | Remove one of the caller's own passkeys. |
+| `GET /account/passkeys`, `PATCH /account/passkeys/{id}` | List and rename the caller's passkeys. |
+| `GET /admin/users/{id}/passkeys`, `DELETE /admin/users/{id}/passkeys/{credentialId}` | List and revoke a user's passkeys (`USER_MANAGE`). |
+
+Every state-changing request carries a CSRF token like any other.
+
+* **One identity.** A passkey does not create a separate user. The user's
+  `app_user.id`, a random UUID that never changes, is the WebAuthn user handle,
+  as Keycloak uses the user's internal ID. Usernames cannot be renamed, so the
+  username stored beside the handle never has to be synchronised. Deleting a
+  user deletes their passkeys.
+* **Roles are local.** After a passkey login the session carries the same local
+  `ROLE_` authorities an OIDC login would, from the user, group, and role model.
+  `LocalAuthorityRefreshFilter` reloads them on every request for a passkey
+  session too, so disabling or deleting the user ends it on the next request,
+  and no call to Keycloak is made. The passkey proves who the user is; it
+  carries no roles of its own.
+* **Policy.** Credentials must be discoverable, user verification is required,
+  and attestation is `none`, so the authenticator's make and model is not asked
+  for. Restricting which authenticators are allowed is left to the adopter.
+* **Registration needs a recent login.** Registering a passkey needs an OIDC
+  login whose `auth_time`, or a passkey login, no older than
+  `registration-max-age`; otherwise the request is answered with the
+  `reauthentication-required` problem of the administration API
+  ([ADR 0023](../../../adr/0023-recent-login-for-administration-changes.md)), so
+  a taken-over session cannot enrol an attacker's passkey. The same recentness
+  check now admits a fresh passkey login for administration changes.
+* **Cloned authenticators.** A login whose signature counter did not increase
+  is refused and logged as `passkey_signature_counter_regression`. A counter
+  that is zero both times is allowed, because synced passkeys report zero.
+* **Sessions.** A passkey login gets a new session ID and the concurrent-session
+  limit of an OIDC login, so a user has one session across both methods. There
+  is no Keycloak session behind it, so back-channel logout cannot end it; it has
+  its own [absolute timeout](sessions.md#current-configuration), and a Keycloak
+  account disabled at the provider is not seen until the local user is disabled.
+  A deployment that needs the provider to stay authoritative should leave
+  passkeys off.
+
 ## Client authentication
 
 Keycloak uses the `private_key_jwt` client-authentication method. In the

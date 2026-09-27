@@ -69,6 +69,21 @@ class DatabaseChangelogTest {
 				""", String.class)).containsExactlyInAnyOrder("USER_MANAGE", "GROUP_MANAGE", "ROLE_MANAGE");
 	}
 
+	@Test
+	void deletingAPasskeyUserEntityDeletesItsCredentials() throws Exception {
+		migrate(this.database, null);
+		this.jdbcTemplate
+			.update("INSERT INTO user_entities (id, name, display_name) VALUES ('handle', 'alice', 'Alice')");
+		this.jdbcTemplate.update("""
+				INSERT INTO user_credentials (credential_id, user_entity_user_id, public_key, backup_eligible,
+				backup_state, label) VALUES ('cred', 'handle', X'01', FALSE, FALSE, 'laptop')
+				""");
+
+		this.jdbcTemplate.update("DELETE FROM user_entities WHERE id = 'handle'");
+
+		assertThat(count("user_credentials")).isZero();
+	}
+
 	private static void migrate(DataSource dataSource, String contexts) throws Exception {
 		SpringLiquibase liquibase = new SpringLiquibase();
 		liquibase.setDataSource(dataSource);

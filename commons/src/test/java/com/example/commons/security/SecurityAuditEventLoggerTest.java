@@ -23,6 +23,14 @@ import org.springframework.security.authentication.event.LogoutSuccessEvent;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.event.AuthorizationDeniedEvent;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.core.oidc.OidcIdToken;
+import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
+import org.springframework.security.web.webauthn.api.Bytes;
+import org.springframework.security.web.webauthn.api.ImmutablePublicKeyCredentialUserEntity;
+import org.springframework.security.web.webauthn.api.PublicKeyCredentialUserEntity;
+import org.springframework.security.web.webauthn.authentication.WebAuthnAuthentication;
+import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationRequestToken;
 
 import com.example.commons.security.session.SessionLifecycleAuditLogger;
 
@@ -113,6 +121,42 @@ class SecurityAuditEventLoggerTest {
 				.doesNotContain(new KeyValuePair("user.name", "event-user")));
 		assertThat(this.logEvents.list.get(0).getMDCPropertyMap()).containsEntry("user.name", "event-user");
 		assertThat(MDC.get("user.name")).isEqualTo("event-user");
+	}
+
+	@Test
+	void aPasskeyLoginIsToldApartFromAnOpenIdConnectLogin() {
+		PublicKeyCredentialUserEntity alice = ImmutablePublicKeyCredentialUserEntity.builder()
+			.id(Bytes.random())
+			.name("alice")
+			.displayName("Alice")
+			.build();
+		DefaultOidcUser oidcUser = new DefaultOidcUser(List.of(),
+				OidcIdToken.withTokenValue("id-token").subject("alice").claim("preferred_username", "alice").build(),
+				"preferred_username");
+
+		this.securityAuditEventLogger.onAuthenticationSuccess(
+				new InteractiveAuthenticationSuccessEvent(new WebAuthnAuthentication(alice, List.of()), getClass()));
+		this.securityAuditEventLogger.onAuthenticationSuccess(new InteractiveAuthenticationSuccessEvent(
+				new OAuth2AuthenticationToken(oidcUser, List.of(), "keycloak"), getClass()));
+
+		assertThat(this.logEvents.list).hasSize(2);
+		assertThat(this.logEvents.list.get(0).getKeyValuePairs())
+			.contains(new KeyValuePair("authentication.method", "passkey"));
+		assertThat(this.logEvents.list.get(1).getKeyValuePairs())
+			.contains(new KeyValuePair("authentication.method", "oidc"));
+	}
+
+	@Test
+	void aFailedPasskeyLoginIsLoggedAsAPasskeyLogin() {
+		WebAuthnAuthenticationRequestToken attempt = org.mockito.Mockito.mock(WebAuthnAuthenticationRequestToken.class);
+		org.mockito.Mockito.when(attempt.getName()).thenReturn("alice");
+
+		this.securityAuditEventLogger.onAuthenticationFailure(
+				new AuthenticationFailureBadCredentialsEvent(attempt, new BadCredentialsException("bad")));
+
+		assertThat(this.logEvents.list).singleElement()
+			.satisfies(event -> assertThat(event.getKeyValuePairs())
+				.contains(new KeyValuePair("authentication.method", "passkey")));
 	}
 
 	private Authentication authentication(String username) {
