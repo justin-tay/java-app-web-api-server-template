@@ -39,9 +39,10 @@ import org.springframework.transaction.annotation.Transactional;
  * as its WebAuthn user handle, and a user's passkeys can be listed, renamed, and revoked
  * by the user and by an administrator, and go when the user is deleted.
  */
-@SpringBootTest(properties = { "commons.security.passkeys.enabled=true", "commons.security.passkeys.rp-id=localhost",
-		"commons.security.passkeys.rp-name=Test Application",
-		"commons.security.passkeys.allowed-origins=http://localhost:8081" })
+@SpringBootTest(
+		properties = { "commons.security.passkeys.enabled=true", "commons.security.passkeys.relying-party.id=localhost",
+				"commons.security.passkeys.relying-party.name=Test Application",
+				"commons.security.passkeys.allowed-origins=http://localhost:8081" })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional

@@ -36,13 +36,13 @@ class PasskeySecurityAutoConfigurationTest {
 		properties.setAllowedOrigins(Set.of("https://app.example.com"));
 
 		assertThatIllegalArgumentException().isThrownBy(() -> operations(properties))
-			.withMessageContaining("commons.security.passkeys.rp-id");
+			.withMessageContaining("commons.security.passkeys.relying-party.id");
 	}
 
 	@Test
 	void startupFailsWhenThePasskeysAreEnabledWithoutAllowedOrigins() {
 		PasskeyProperties properties = new PasskeyProperties();
-		properties.setRpId("app.example.com");
+		properties.getRelyingParty().setId("app.example.com");
 
 		assertThatIllegalArgumentException().isThrownBy(() -> operations(properties))
 			.withMessageContaining("commons.security.passkeys.allowed-origins");
@@ -51,7 +51,7 @@ class PasskeySecurityAutoConfigurationTest {
 	@Test
 	void thePolicyRequiresDiscoverableCredentialsAndUserVerificationWithNoAttestation() {
 		PasskeyProperties properties = new PasskeyProperties();
-		properties.setRpId("app.example.com");
+		properties.getRelyingParty().setId("app.example.com");
 		properties.setAllowedOrigins(Set.of("https://app.example.com"));
 		String userId = UUID.randomUUID().toString();
 		WebAuthnRelyingPartyOperations operations = operations(properties, new DirectoryBackedUserEntityRepository(

@@ -42,8 +42,9 @@ commons:
   security:
     passkeys:
       enabled: true
-      rp-id: app.example.com
-      rp-name: Example application
+      relying-party:
+        id: app.example.com
+        name: Example application
       allowed-origins:
       - https://app.example.com
 ```

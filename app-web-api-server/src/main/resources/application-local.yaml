@@ -4,6 +4,16 @@ commons:
       # Development-only private JWKS; production supplies its own (see docs/adr/0018).
       jwks:
       - file:src/test/resources/jwks.json
+    passkeys:
+      # Local-only: lets the frontend template's account security page register and
+      # manage passkeys (see docs/adr/0024). The origin is the frontend dev server's, not
+      # this server's own, since that is where the WebAuthn ceremony runs in the browser.
+      enabled: true
+      relying-party:
+        id: localhost
+        name: java-app-web-api-server
+      allowed-origins:
+      - http://localhost:5173
 server:
   ssl:
     enabled: false

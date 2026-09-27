@@ -20,8 +20,9 @@ import org.springframework.test.web.servlet.MockMvc;
  * JavaScript can read, and a state-changing request presents it in the
  * {@code X-XSRF-TOKEN} header.
  */
-@SpringBootTest(properties = { "commons.security.passkeys.enabled=true", "commons.security.passkeys.rp-id=localhost",
-		"commons.security.passkeys.allowed-origins=http://localhost:8081" })
+@SpringBootTest(
+		properties = { "commons.security.passkeys.enabled=true", "commons.security.passkeys.relying-party.id=localhost",
+				"commons.security.passkeys.allowed-origins=http://localhost:8081" })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class CookieCsrfIntegrationTest {

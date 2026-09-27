@@ -36,8 +36,9 @@ import org.springframework.test.web.servlet.MockMvc;
  * records when it happened, is refused for a user who is not enabled locally, and gets a
  * new session ID (see docs/adr/0024).
  */
-@SpringBootTest(properties = { "commons.security.passkeys.enabled=true", "commons.security.passkeys.rp-id=localhost",
-		"commons.security.passkeys.allowed-origins=http://localhost:8081" })
+@SpringBootTest(
+		properties = { "commons.security.passkeys.enabled=true", "commons.security.passkeys.relying-party.id=localhost",
+				"commons.security.passkeys.allowed-origins=http://localhost:8081" })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class PasskeyLoginIntegrationTest {

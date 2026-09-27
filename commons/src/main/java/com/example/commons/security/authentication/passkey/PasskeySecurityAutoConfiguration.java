@@ -109,12 +109,15 @@ public class PasskeySecurityAutoConfiguration {
 	@Bean
 	WebAuthnRelyingPartyOperations passkeyRelyingPartyOperations(PasskeyProperties properties,
 			PublicKeyCredentialUserEntityRepository userEntities, AuditedUserCredentialRepository userCredentials) {
-		Assert.hasText(properties.getRpId(), "commons.security.passkeys.rp-id must be set when passkeys are enabled");
+		Assert.hasText(properties.getRelyingParty().getId(),
+				"commons.security.passkeys.relying-party.id must be set when passkeys are enabled");
 		Assert.notEmpty(properties.getAllowedOrigins(),
 				"commons.security.passkeys.allowed-origins must be set when passkeys are enabled");
-		String rpName = (properties.getRpName() != null) ? properties.getRpName() : properties.getRpId();
+		String rpName = (properties.getRelyingParty().getName() != null) ? properties.getRelyingParty().getName()
+				: properties.getRelyingParty().getId();
 		Webauthn4JRelyingPartyOperations operations = new Webauthn4JRelyingPartyOperations(userEntities,
-				userCredentials, PublicKeyCredentialRpEntity.builder().id(properties.getRpId()).name(rpName).build(),
+				userCredentials,
+				PublicKeyCredentialRpEntity.builder().id(properties.getRelyingParty().getId()).name(rpName).build(),
 				properties.getAllowedOrigins());
 		operations.setCustomizeCreationOptions(
 				options -> options.authenticatorSelection(AuthenticatorSelectionCriteria.builder()

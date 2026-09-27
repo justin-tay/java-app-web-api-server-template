@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
@@ -12,9 +13,9 @@ import org.springframework.validation.annotation.Validated;
 
 /**
  * Passkey (WebAuthn) properties under {@code commons.security.passkeys}. Passkeys are off
- * unless {@code enabled} is set, and then {@code rp-id} and {@code allowed-origins} must
- * be set too, which {@link PasskeySecurityAutoConfiguration} checks at startup (see
- * docs/adr/0024).
+ * unless {@code enabled} is set, and then {@code relying-party.id} and
+ * {@code allowed-origins} must be set too, which {@link PasskeySecurityAutoConfiguration}
+ * checks at startup (see docs/adr/0024).
  */
 @ConfigurationProperties(prefix = "commons.security.passkeys")
 @Validated
@@ -25,16 +26,8 @@ public class PasskeyProperties {
 	 */
 	private boolean enabled = false;
 
-	/**
-	 * The relying party ID: the registrable domain every passkey is bound to, such as
-	 * {@code app.example.com}. Changing it later invalidates every registered passkey.
-	 */
-	private String rpId;
-
-	/**
-	 * The relying party name the authenticator shows to the user.
-	 */
-	private String rpName;
+	@Valid
+	private final RelyingParty relyingParty = new RelyingParty();
 
 	/**
 	 * The exact origins, such as {@code https://app.example.com}, that may use a passkey.
@@ -77,20 +70,8 @@ public class PasskeyProperties {
 		this.enabled = enabled;
 	}
 
-	public String getRpId() {
-		return this.rpId;
-	}
-
-	public void setRpId(String rpId) {
-		this.rpId = rpId;
-	}
-
-	public String getRpName() {
-		return this.rpName;
-	}
-
-	public void setRpName(String rpName) {
-		this.rpName = rpName;
+	public RelyingParty getRelyingParty() {
+		return this.relyingParty;
 	}
 
 	public Set<String> getAllowedOrigins() {
@@ -115,6 +96,41 @@ public class PasskeyProperties {
 
 	public void setRegistrationMaxAge(Duration registrationMaxAge) {
 		this.registrationMaxAge = registrationMaxAge;
+	}
+
+	/**
+	 * The WebAuthn relying party: the site every passkey is registered against.
+	 */
+	public static class RelyingParty {
+
+		/**
+		 * The relying party ID: the registrable domain every passkey is bound to, such as
+		 * {@code app.example.com}. Changing it later invalidates every registered
+		 * passkey.
+		 */
+		private String id;
+
+		/**
+		 * The relying party name the authenticator shows to the user.
+		 */
+		private String name;
+
+		public String getId() {
+			return this.id;
+		}
+
+		public void setId(String id) {
+			this.id = id;
+		}
+
+		public String getName() {
+			return this.name;
+		}
+
+		public void setName(String name) {
+			this.name = name;
+		}
+
 	}
 
 }
