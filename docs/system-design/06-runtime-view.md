@@ -27,7 +27,7 @@ sequenceDiagram
     App->>DB: JDBC session write (Spring Session)
     App-->>Browser: 302 to original URL, Set-Cookie: id=...
     Browser->>App: GET /login-user (with session cookie)
-    App-->>Browser: 200, ID token claims as JSON
+    App-->>Browser: 200, local user and roles as JSON
 ```
 
 **Steps:**

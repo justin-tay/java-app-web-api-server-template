@@ -74,7 +74,7 @@ rules, its Liquibase master changelog, and its configuration.
 | `commons-accounts` `admin` | Administration REST API for users, groups, and roles | `/admin/users/**`, `/admin/groups/**`, `/admin/roles/**` (each individually role-gated) | `commons-accounts/src/main/java/com/example/commons/accounts/admin/` |
 | `commons-accounts` `domain` | JPA entities (`AppUser`, `AppGroup`, `AppRole`) and Spring Data repositories | Repository interfaces consumed by `admin` and `AppUserLocalAuthorityLookup` | `commons-accounts/src/main/java/com/example/commons/accounts/domain/` |
 | `commons-accounts` `validation` | Reusable Bean Validation constraints for account input | `@Username`, `@DisplayName`, `@ResourceName` | `commons-accounts/src/main/java/com/example/commons/accounts/validation/` |
-| `api` | Public, non-administrative REST endpoints: login-user claims, Keycloak account proxy | `GET /login-user`, `GET /account` | `app-web-api-server/src/main/java/com/example/app/web/server/api/` |
+| `api` | Public, non-administrative REST endpoints: caller's local identity and roles, Keycloak account proxy | `GET /login-user`, `GET /account` | `app-web-api-server/src/main/java/com/example/app/web/server/api/` |
 | `config` | Spring `@Configuration` classes: the application's authorization rules, REST client | `WebSecurityConfiguration`; otherwise wiring only | `app-web-api-server/src/main/java/com/example/app/web/server/config/` |
 
 Full detail on the security and logging crosscutting behavior is documented

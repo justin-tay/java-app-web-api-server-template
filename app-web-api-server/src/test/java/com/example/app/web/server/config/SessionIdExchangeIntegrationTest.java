@@ -84,7 +84,7 @@ class SessionIdExchangeIntegrationTest extends OidcLoginITSupport {
 				HttpResponse.BodyHandlers.ofString());
 
 		assertThat(cookieResponse.statusCode()).isEqualTo(HttpStatus.OK.value());
-		assertThat(cookieResponse.body()).contains("\"preferred_username\":\"test-user\"");
+		assertThat(cookieResponse.body()).contains("\"username\":\"test-user\"");
 		assertThat(lastAccessTime(sessionId)).isGreaterThan(oldLastAccessTime);
 	}
 

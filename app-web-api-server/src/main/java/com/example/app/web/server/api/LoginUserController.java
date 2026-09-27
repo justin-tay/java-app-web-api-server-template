@@ -1,39 +1,57 @@
 package com.example.app.web.server.api;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.http.MediaType;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.core.oidc.StandardClaimNames;
-import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.commons.accounts.domain.AppUser;
+import com.example.commons.accounts.domain.AppUserRepository;
+
 /**
- * Login user endpoint: the caller's identity from their ID token, limited to the claims
- * that describe who they are. Token metadata such as {@code nonce}, {@code sid},
- * {@code at_hash}, and {@code azp}, and any claim a provider adds later, are never
- * returned.
+ * Login user endpoint: who is signed in and what they may do, read from the local user,
+ * group, and role model rather than the identity provider. A passkey login never reaches
+ * Keycloak (see docs/adr/0024), so the response is built the same way, from the same
+ * local user, regardless of which method the caller signed in with; {@code id} is the
+ * local {@code app_user.id}, not the identity provider's {@code sub}, and is the one
+ * identifier stable across both login methods.
  */
 @RestController
 public class LoginUserController {
 
-	static final List<String> CLAIMS = List.of(StandardClaimNames.SUB, StandardClaimNames.PREFERRED_USERNAME,
-			StandardClaimNames.NAME, StandardClaimNames.GIVEN_NAME, StandardClaimNames.FAMILY_NAME,
-			StandardClaimNames.EMAIL, StandardClaimNames.EMAIL_VERIFIED);
+	private final AppUserRepository users;
+
+	public LoginUserController(AppUserRepository users) {
+		this.users = users;
+	}
+
+	/**
+	 * The fields returned to the caller.
+	 *
+	 * @param id the local user's id, stable across both OIDC and passkey logins
+	 * @param username the username
+	 * @param displayName the display name
+	 * @param email the email address, when the user has one
+	 * @param roles the caller's {@code ROLE_} authorities, exactly as
+	 * {@code hasAuthority()} checks them, for the frontend to decide which routes to show
+	 */
+	public record LoginUserResponse(String id, String username, String displayName, String email, List<String> roles) {
+	}
 
 	@GetMapping(path = "/login-user", produces = MediaType.APPLICATION_JSON_VALUE)
-	public Map<String, Object> loginUser(@AuthenticationPrincipal OidcUser principal) {
-		Map<String, Object> claims = new LinkedHashMap<>();
-		for (String claim : CLAIMS) {
-			Object value = principal.getClaims().get(claim);
-			if (value != null) {
-				claims.put(claim, value);
-			}
-		}
-		return claims;
+	public LoginUserResponse loginUser(Authentication authentication) {
+		// LocalAuthorityRefreshFilter deauthenticates a disabled or deleted user on every
+		// request, so the local user for an authenticated caller always exists here.
+		AppUser user = this.users.findByUsernameAndEnabledTrue(authentication.getName()).orElseThrow();
+		List<String> roles = authentication.getAuthorities()
+			.stream()
+			.map(GrantedAuthority::getAuthority)
+			.sorted()
+			.toList();
+		return new LoginUserResponse(user.getId(), user.getUsername(), user.getDisplayName(), user.getEmail(), roles);
 	}
 
 }
