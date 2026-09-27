@@ -27,7 +27,6 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
-import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.header.HeaderWriterFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.savedrequest.RequestCache;
@@ -257,15 +256,13 @@ public class WebSecurityAutoConfiguration {
 	 * in the {@code XSRF-TOKEN} cookie, which JavaScript may read (so it is not
 	 * {@code HttpOnly}), and a request presents it in the {@code X-XSRF-TOKEN} header.
 	 * The cookie is {@code SameSite=Lax}, and {@code Secure} whenever the request is
-	 * HTTPS. The token is written on every response that does not already carry it, not
-	 * only where it is rendered, since a single-page application never renders one.
+	 * HTTPS. Spring Security's {@code spa()} support reads the header value as the plain
+	 * token.
 	 */
 	private static void applyCookieCsrf(HttpSecurity http) {
 		CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
 		repository.setCookieCustomizer(cookie -> cookie.sameSite("Lax"));
-		http.csrf(
-				csrf -> csrf.csrfTokenRepository(repository).csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler()))
-			.addFilterAfter(new CsrfCookieFilter(), CsrfFilter.class);
+		http.csrf(csrf -> csrf.spa().csrfTokenRepository(repository));
 	}
 
 	private static void applyExceptionHandling(HttpSecurity http,
