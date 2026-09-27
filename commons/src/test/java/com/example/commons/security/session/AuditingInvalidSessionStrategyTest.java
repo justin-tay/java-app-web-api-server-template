@@ -37,6 +37,7 @@ class AuditingInvalidSessionStrategyTest {
 			.doesNotContain("unknown-session-id");
 		assertThat(this.requestCache.getRequest(this.request, this.response)).isNotNull();
 		assertThat(this.response.getStatus()).isEqualTo(401);
+		assertThat(this.request.getSession(false)).isNotNull();
 	}
 
 	@Test
@@ -49,6 +50,7 @@ class AuditingInvalidSessionStrategyTest {
 		assertThat(this.response.getErrorMessage()).isEqualTo(MissingCsrfTokenException.class.getSimpleName());
 		assertThat(output).doesNotContain("resume_session");
 		assertThat(this.requestCache.getRequest(post, this.response)).isNull();
+		assertThat(post.getSession(false)).isNull();
 	}
 
 }

@@ -16,19 +16,25 @@ import org.springframework.security.web.session.InvalidSessionStrategy;
 
 /**
  * Logs a request that presents a session ID the session repository no longer (or never)
- * held, then responds exactly as an unauthenticated request is answered: the request is
- * saved in the request cache, as {@code ExceptionTranslationFilter} does, and the
- * application's authentication entry point redirects a browser to login or returns a 401
- * Problem Details response.
+ * held, creates a fresh session, then responds exactly as an unauthenticated request is
+ * answered: the request is saved in the request cache, as
+ * {@code ExceptionTranslationFilter} does, and the application's authentication entry
+ * point redirects a browser to login or returns a 401 Problem Details response.
  * <p>
  * Spring Session returns no session for an ID past its idle timeout, so this is where
  * idle expiry is detected, on the session's next use. It is indistinguishable here from
  * an ended or forged ID, so the event says only that the requested session was not found.
  * <p>
+ * The fresh session is created before the response is answered, the same precaution
+ * {@code SimpleRedirectInvalidSessionStrategy} takes with its {@code createNewSession}
+ * option, so the client is not left replaying the same dead session ID: a browser follows
+ * the redirect with a session the login page can use, and a caller that retries the
+ * request after the 401 does so with a session that resolves.
+ * <p>
  * Spring Security also calls the invalid-session strategy from {@code CsrfFilter} for any
  * {@link MissingCsrfTokenException}, including a request that presented no session ID at
  * all. Such a request is not an invalid session: it is answered by the access-denied
- * handler as the CSRF failure it is, and nothing is logged here.
+ * handler as the CSRF failure it is, and nothing is logged or created here.
  */
 public class AuditingInvalidSessionStrategy implements InvalidSessionStrategy {
 
@@ -67,6 +73,7 @@ public class AuditingInvalidSessionStrategy implements InvalidSessionStrategy {
 			return;
 		}
 		this.sessionLifecycleAuditLogger.logRequestedSessionNotFound();
+		request.getSession();
 		RequestCache cache = this.requestCache.get();
 		if (cache != null) {
 			cache.saveRequest(request, response);
