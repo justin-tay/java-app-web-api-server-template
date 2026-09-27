@@ -244,6 +244,12 @@ prefix; see [Authorization](authorization.md).
 `{baseUrl}/login?logout`. The redirect URI must also be a valid post logout
 redirect URI of the Keycloak client.
 
+When ID tokens are encrypted ([ADR 0020](../../../adr/0020-jwks-rotation-from-aws-secrets-manager.md)),
+the `id_token_hint` is the signed JWT nested in the JWE, not the JWE, which is
+encrypted to the application's key and which Keycloak could not read. The ID
+token decoder gives the decoded token that value, as OpenID Connect Core
+(section 3.1.2.1) has the client do before using an ID token as a hint.
+
 A browser navigation is redirected to Keycloak. A single-page application calls
 logout with `fetch`, which cannot follow that redirect, so a request that
 accepts `application/json` and not `text/html` is answered with `200` and

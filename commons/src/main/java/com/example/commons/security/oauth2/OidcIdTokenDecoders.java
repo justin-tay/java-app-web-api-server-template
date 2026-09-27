@@ -2,6 +2,14 @@ package com.example.commons.security.oauth2;
 
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.security.Key;
+import java.text.ParseException;
+
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.KeySourceException;
+import com.nimbusds.jose.crypto.factories.DefaultJWEDecrypterFactory;
+import com.nimbusds.jwt.EncryptedJWT;
+import com.nimbusds.jwt.SignedJWT;
 
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.KeyUse;
@@ -53,12 +61,49 @@ public final class OidcIdTokenDecoders {
 			return jwtDecoder;
 		}
 		return token -> {
-			if (decryption.isRequired() && !isJwe(token)) {
+			boolean encrypted = isJwe(token);
+			if (decryption.isRequired() && !encrypted) {
 				throw new BadJwtException(
 						"The ID token is not encrypted, but this client requires encrypted ID tokens");
 			}
-			return jwtDecoder.decode(token);
+			Jwt jwt = jwtDecoder.decode(token);
+			return encrypted ? withSignedTokenValue(jwt, token, decryption) : jwt;
 		};
+	}
+
+	/**
+	 * Gives an ID token that arrived encrypted the signed JWT nested in it as its token
+	 * value, in place of the JWE. Spring Security keeps the token string it was given,
+	 * but the token value is what the application sends the provider as the
+	 * {@code id_token_hint} at logout, and a JWE is encrypted to the application's key,
+	 * so the provider could not read it. OpenID Connect Core (section 3.1.2.1) has the
+	 * client decrypt the ID token to use it as a hint. The token has already been
+	 * decrypted and verified by then, so this only unwraps it again.
+	 */
+	private static Jwt withSignedTokenValue(Jwt jwt, String jwe, IdTokenDecryption decryption) {
+		try {
+			EncryptedJWT encryptedJwt = EncryptedJWT.parse(jwe);
+			for (Key key : decryption.keySelector().selectJWEKeys(encryptedJwt.getHeader(), null)) {
+				try {
+					encryptedJwt
+						.decrypt(new DefaultJWEDecrypterFactory().createJWEDecrypter(encryptedJwt.getHeader(), key));
+				}
+				catch (JOSEException ex) {
+					continue;
+				}
+				SignedJWT signedJwt = encryptedJwt.getPayload().toSignedJWT();
+				if (signedJwt != null) {
+					return Jwt.withTokenValue(signedJwt.serialize())
+						.headers(headers -> headers.putAll(signedJwt.getHeader().toJSONObject()))
+						.claims(claims -> claims.putAll(jwt.getClaims()))
+						.build();
+				}
+			}
+		}
+		catch (ParseException | KeySourceException ex) {
+			throw new BadJwtException("The encrypted ID token could not be unwrapped", ex);
+		}
+		throw new BadJwtException("The encrypted ID token does not contain a signed JWT");
 	}
 
 	/**
