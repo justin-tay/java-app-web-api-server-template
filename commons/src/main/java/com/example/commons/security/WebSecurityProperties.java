@@ -19,8 +19,37 @@ public class WebSecurityProperties {
 	@Valid
 	private final Session session = new Session();
 
+	@Valid
+	private final Csrf csrf = new Csrf();
+
 	public Session getSession() {
 		return this.session;
+	}
+
+	public Csrf getCsrf() {
+		return this.csrf;
+	}
+
+	/**
+	 * CSRF protection properties.
+	 */
+	public static class Csrf {
+
+		/**
+		 * Whether the CSRF token is also sent to the browser as a cookie that frontend
+		 * JavaScript reads and echoes in the {@code X-XSRF-TOKEN} header. Off by default,
+		 * where the token is kept only in the session.
+		 */
+		private boolean cookieEnabled = false;
+
+		public boolean isCookieEnabled() {
+			return this.cookieEnabled;
+		}
+
+		public void setCookieEnabled(boolean cookieEnabled) {
+			this.cookieEnabled = cookieEnabled;
+		}
+
 	}
 
 	/**

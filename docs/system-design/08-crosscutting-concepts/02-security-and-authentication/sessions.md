@@ -57,6 +57,15 @@ OAuth2 state.
 | Passkey session absolute timeout | 8 hours, only when [passkeys](authentication.md#passkeys) are enabled | A passkey session has no Keycloak session to end it by back-channel logout, so it also ends this long after the passkey login (`commons.security.passkeys.session-absolute-timeout`), counted from the login rather than from the session's creation. |
 | Session schema | Liquibase changesets `003-spring-session-schema.sql` and `005-oidc-session-registry.sql` | Prevents schema creation at application startup. |
 
+By default the CSRF token lives only in the session. A frontend that cannot
+render it can opt in to cookie-to-header CSRF with
+`commons.security.csrf.cookie-enabled=true`: every response then carries the
+token in an `XSRF-TOKEN` cookie that JavaScript may read (`SameSite=Lax`,
+`Secure` on HTTPS, path `/`), and a state-changing request echoes it in the
+`X-XSRF-TOKEN` header. The cookie is not a credential, since a request is
+accepted only when the header matches the token, and the session cookie stays
+`HttpOnly`. A form-rendered token is still accepted in its encoded form.
+
 Every value above is a commons default (`commons-defaults.yaml` and
 `WebSecurityAutoConfiguration`), so each `app-*` module inherits it; the
 `local` and `test` profiles override only `Secure`. The Liquibase changeset ships

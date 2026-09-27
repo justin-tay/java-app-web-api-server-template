@@ -26,6 +26,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.header.HeaderWriterFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.savedrequest.RequestCache;
@@ -220,6 +222,9 @@ public class WebSecurityAutoConfiguration {
 			ProblemDetailAccessDeniedHandler accessDeniedHandler = new ProblemDetailAccessDeniedHandler();
 			applySessionFilters(http, properties, clock, sessionLifecycleAuditLogger);
 			applyHeaders(http);
+			if (properties.getCsrf().isCookieEnabled()) {
+				applyCookieCsrf(http);
+			}
 			applyExceptionHandling(http, authenticationEntryPoint, accessDeniedHandler);
 			applyHealthEndpointRules(http, healthPath);
 			applySessionManagement(http, sessionRegistry, sessionExpiredStrategy, sessionLifecycleAuditLogger,
@@ -245,6 +250,22 @@ public class WebSecurityAutoConfiguration {
 			.referrerPolicy(referrerPolicy -> referrerPolicy
 				.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
 			.permissionsPolicyHeader(permissionsPolicy -> permissionsPolicy.policy(PERMISSIONS_POLICY)));
+	}
+
+	/**
+	 * Lets a frontend echo the CSRF token from a cookie into a header: the token is sent
+	 * in the {@code XSRF-TOKEN} cookie, which JavaScript may read (so it is not
+	 * {@code HttpOnly}), and a request presents it in the {@code X-XSRF-TOKEN} header.
+	 * The cookie is {@code SameSite=Lax}, and {@code Secure} whenever the request is
+	 * HTTPS. The token is written on every response that does not already carry it, not
+	 * only where it is rendered, since a single-page application never renders one.
+	 */
+	private static void applyCookieCsrf(HttpSecurity http) {
+		CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+		repository.setCookieCustomizer(cookie -> cookie.sameSite("Lax"));
+		http.csrf(
+				csrf -> csrf.csrfTokenRepository(repository).csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler()))
+			.addFilterAfter(new CsrfCookieFilter(), CsrfFilter.class);
 	}
 
 	private static void applyExceptionHandling(HttpSecurity http,

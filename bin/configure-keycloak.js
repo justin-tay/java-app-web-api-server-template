@@ -6,8 +6,15 @@ const KEYCLOAK_HTTP_CLIENT =
   process.env.KEYCLOAK_HTTP_CLIENT ?? 'java-app-web-api-server';
 const KEYCLOAK_HTTPS_CLIENT =
   process.env.KEYCLOAK_HTTPS_CLIENT ?? 'java-app-web-api-server-secure';
+// The local frontend (typescript-react-app-web-frontend-template) proxies the login
+// paths to this application, so Keycloak must also accept its origin for redirects.
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL ?? 'http://localhost:5173';
 const CLIENTS = [
-  { id: KEYCLOAK_HTTP_CLIENT, appBaseUrl: 'http://localhost:8081' },
+  {
+    id: KEYCLOAK_HTTP_CLIENT,
+    appBaseUrl: 'http://localhost:8081',
+    frontendBaseUrls: [FRONTEND_BASE_URL],
+  },
   { id: KEYCLOAK_HTTPS_CLIENT, appBaseUrl: 'https://localhost:8081' },
 ];
 
@@ -34,13 +41,14 @@ const credentials = async ({ server, user, password }) => {
   return token.access_token;
 };
 
-const upsertClient = async (headers, { id, appBaseUrl }) => {
+const upsertClient = async (headers, { id, appBaseUrl, frontendBaseUrls = [] }) => {
   // Exact URIs only, no wildcards, so Keycloak compares them by exact string match.
   // The redirect URI is Spring Security's default for the 'keycloak' registration,
   // {baseUrl}/{action}/oauth2/code/{registrationId}; the post-logout redirect URI is
   // the one WebSecurityConfiguration.oidcLogoutSuccessHandler() sends.
-  const redirectUris = [`${appBaseUrl}/login/oauth2/code/keycloak`];
-  const postLogoutRedirectUris = [`${appBaseUrl}/login?logout`];
+  const baseUrls = [appBaseUrl, ...frontendBaseUrls];
+  const redirectUris = baseUrls.map((url) => `${url}/login/oauth2/code/keycloak`);
+  const postLogoutRedirectUris = baseUrls.map((url) => `${url}/login?logout`);
   const clientRepresentation = {
     attributes: {
       'backchannel.logout.revoke.offline.tokens': 'false',
@@ -70,7 +78,7 @@ const upsertClient = async (headers, { id, appBaseUrl }) => {
     rootUrl: '',
     serviceAccountsEnabled: false,
     standardFlowEnabled: true,
-    webOrigins: [appBaseUrl],
+    webOrigins: baseUrls,
   };
   const clientUrl = `${KEYCLOAK_SERVER}/admin/realms/${KEYCLOAK_REALM}/clients`;
   let response = await fetch(`${clientUrl}?clientId=${encodeURIComponent(id)}`, { headers });
