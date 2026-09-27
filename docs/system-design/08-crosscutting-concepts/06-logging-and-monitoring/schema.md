@@ -27,6 +27,7 @@ fields where available and documents its intentional project extensions.
 | Session ID renewed | INFO | `authentication` | `info` | `renew_session` | [Event reference](event-reference.md#session-id-renewed-renew_session) |
 | Session destroyed | INFO | `authentication` | `end` | `destroy_session` | [Event reference](event-reference.md#session-destroyed-destroy_session) |
 | Session privileges changed | INFO | `authentication` | `info` | `update_session` | [Event reference](event-reference.md#session-privileges-changed-update_session) |
+| Session client IP anomaly | INFO | `authentication` | `info` | `update_session` | [Event reference](event-reference.md#session-client-ip-anomaly-update_session) |
 | Requested session not found | INFO | `authentication` | `info` | `resume_session` | [Event reference](event-reference.md#requested-session-not-found-resume_session) |
 | User changed | INFO | `iam` | `user`, plus `creation`, `change`, or `deletion` | `create_user`, `update_user`, `delete_user` | [Event reference](event-reference.md#user-changed-create_user-update_user-delete_user) |
 | Group changed | INFO | `iam` | `group`, plus `creation`, `change`, or `deletion` | `create_group`, `update_group`, `delete_group` | [Event reference](event-reference.md#group-changed-create_group-update_group-delete_group) |
@@ -100,6 +101,7 @@ fields where available and documents its intentional project extensions.
 | `authentication.method` | `keyword` | How a user authenticated or tried to: `oidc` or `passkey`. Present on `login` events when the method is known. |
 | `passkey.label` | `keyword` | The label a user gave a passkey, on the passkey registration, removal, and refused-login events. The credential itself is never logged. |
 | `session.revoked_count` | `long` | Number of sessions a `revoke_sessions` event ended. |
+| `session.bound_client_ip` | `keyword` | The client IP a session was previously bound to, on the `update_session` event logged for a client IP anomaly. A plain string field, unlike ECS's typed `client.ip`, since it is a project extension the ECS formatter does not recognize by name. See [ADR 0026](../../../adr/0026-session-bound-to-user-agent-and-client-ip.md). |
 
 ## Correlation and lifecycle semantics
 

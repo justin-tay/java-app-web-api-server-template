@@ -39,12 +39,14 @@ import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
 import org.springframework.session.security.SpringSessionBackedSessionRegistry;
 
 import com.example.commons.logging.LoggingAutoConfiguration;
+import com.example.commons.logging.client.ClientIpResolver;
 import com.example.commons.security.authentication.ProblemDetailAuthenticationEntryPoint;
 import com.example.commons.security.authorization.ProblemDetailAccessDeniedHandler;
 import com.example.commons.security.firewall.ProblemDetailRequestRejectedHandler;
 import com.example.commons.security.session.AbsoluteSessionTimeoutFilter;
 import com.example.commons.security.session.AuditingInvalidSessionStrategy;
 import com.example.commons.security.session.ContentNegotiatingSessionExpiredStrategy;
+import com.example.commons.security.session.SessionBindingFilter;
 import com.example.commons.security.session.SessionLifecycleAuditInitializationFilter;
 import com.example.commons.security.session.SessionLifecycleAuditLogger;
 import com.example.commons.security.session.SessionLifecycleLogoutHandler;
@@ -55,9 +57,9 @@ import com.example.commons.security.session.SessionRevocationService;
  * Configures the security baseline every application's Spring Security filter chain
  * shares: security response headers, RFC 9457 Problem Details for authentication,
  * authorization, session, and firewall failures, JDBC-backed session management with an
- * absolute timeout and a single session per user, session lifecycle and security audit
- * logging, and method security. OIDC login is added by
- * {@link OidcLoginSecurityAutoConfiguration}.
+ * absolute timeout, a single session per user, User-Agent/client-IP binding (see
+ * docs/adr/0026), session lifecycle and security audit logging, and method security. OIDC
+ * login is added by {@link OidcLoginSecurityAutoConfiguration}.
  *
  * <p>
  * The filter chain settings are applied through a {@code Customizer<HttpSecurity>} bean,
@@ -201,10 +203,11 @@ public class WebSecurityAutoConfiguration {
 	 * order: {@code AuthenticatedUserLoggingContextFilter} (commons logging),
 	 * {@link SessionLifecycleAuditInitializationFilter},
 	 * {@link SecurityContextHolderFilter}, {@link AbsoluteSessionTimeoutFilter},
-	 * {@code RequestLoggingFilter} (commons logging), {@link HeaderWriterFilter}.
-	 * {@link OidcLoginSecurityAutoConfiguration} adds {@code LocalAuthorityRefreshFilter}
-	 * just before {@link HeaderWriterFilter}. Filters that share a position keep the
-	 * order they were added in, which is why this customizer runs after the logging one.
+	 * {@link SessionBindingFilter}, {@code RequestLoggingFilter} (commons logging),
+	 * {@link HeaderWriterFilter}. {@link OidcLoginSecurityAutoConfiguration} adds
+	 * {@code LocalAuthorityRefreshFilter} just before {@link HeaderWriterFilter}. Filters
+	 * that share a position keep the order they were added in, which is why this
+	 * customizer runs after the logging one.
 	 * @return the customizer
 	 */
 	@Bean
@@ -213,13 +216,15 @@ public class WebSecurityAutoConfiguration {
 			ObjectProvider<Clock> clock, ProblemDetailAuthenticationEntryPoint authenticationEntryPoint,
 			AuthenticationEventPublisher authenticationEventPublisher, SessionRegistry sessionRegistry,
 			SessionInformationExpiredStrategy sessionExpiredStrategy,
-			SessionLifecycleAuditLogger sessionLifecycleAuditLogger, Environment environment) {
+			SessionLifecycleAuditLogger sessionLifecycleAuditLogger, ObjectProvider<ClientIpResolver> clientIpResolver,
+			Environment environment) {
 		String healthPath = environment.getProperty("management.endpoints.web.base-path", "/actuator") + "/health";
 		return http -> {
 			http.getSharedObject(AuthenticationManagerBuilder.class)
 				.authenticationEventPublisher(authenticationEventPublisher);
 			ProblemDetailAccessDeniedHandler accessDeniedHandler = new ProblemDetailAccessDeniedHandler();
-			applySessionFilters(http, properties, clock, sessionLifecycleAuditLogger);
+			applySessionFilters(http, properties, clock, sessionLifecycleAuditLogger,
+					clientIpResolver.getIfAvailable(ClientIpResolver::none));
 			applyHeaders(http);
 			applyCookieCsrf(http);
 			applyExceptionHandling(http, authenticationEntryPoint, accessDeniedHandler);
@@ -231,13 +236,19 @@ public class WebSecurityAutoConfiguration {
 	}
 
 	private static void applySessionFilters(HttpSecurity http, WebSecurityProperties properties,
-			ObjectProvider<Clock> clock, SessionLifecycleAuditLogger sessionLifecycleAuditLogger) {
+			ObjectProvider<Clock> clock, SessionLifecycleAuditLogger sessionLifecycleAuditLogger,
+			ClientIpResolver clientIpResolver) {
+		WebSecurityProperties.Session sessionProperties = properties.getSession();
 		http.addFilterBefore(new SessionLifecycleAuditInitializationFilter(sessionLifecycleAuditLogger),
 				SecurityContextHolderFilter.class)
 			.addFilterAfter(
-					new AbsoluteSessionTimeoutFilter(properties.getSession().getAbsoluteTimeout(),
+					new AbsoluteSessionTimeoutFilter(sessionProperties.getAbsoluteTimeout(),
 							clock.getIfAvailable(Clock::systemDefaultZone), sessionLifecycleAuditLogger),
-					SecurityContextHolderFilter.class);
+					SecurityContextHolderFilter.class)
+			.addFilterAfter(
+					new SessionBindingFilter(sessionProperties.isHijackingProtection(),
+							sessionProperties.isAnomalyDetection(), clientIpResolver, sessionLifecycleAuditLogger),
+					AbsoluteSessionTimeoutFilter.class);
 	}
 
 	private static void applyHeaders(HttpSecurity http) {

@@ -34,12 +34,39 @@ public class WebSecurityProperties {
 		@NotNull
 		private Duration absoluteTimeout;
 
+		/**
+		 * Whether a change in the session's bound User-Agent invalidates it.
+		 */
+		private boolean hijackingProtection = true;
+
+		/**
+		 * Whether a change in the session's bound client IP is logged as an anomaly.
+		 * Never invalidates the session.
+		 */
+		private boolean anomalyDetection = true;
+
 		public Duration getAbsoluteTimeout() {
 			return this.absoluteTimeout;
 		}
 
 		public void setAbsoluteTimeout(Duration absoluteTimeout) {
 			this.absoluteTimeout = absoluteTimeout;
+		}
+
+		public boolean isHijackingProtection() {
+			return this.hijackingProtection;
+		}
+
+		public void setHijackingProtection(boolean hijackingProtection) {
+			this.hijackingProtection = hijackingProtection;
+		}
+
+		public boolean isAnomalyDetection() {
+			return this.anomalyDetection;
+		}
+
+		public void setAnomalyDetection(boolean anomalyDetection) {
+			this.anomalyDetection = anomalyDetection;
 		}
 
 	}

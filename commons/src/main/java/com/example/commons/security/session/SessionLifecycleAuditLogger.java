@@ -133,6 +133,32 @@ public class SessionLifecycleAuditLogger {
 		event.log("Session privileges changed");
 	}
 
+	/**
+	 * Records a change in the client IP a session's requests present, without
+	 * invalidating it: unlike a User-Agent change, an IP change alone does not
+	 * necessarily indicate hijacking (see docs/adr/0026). Recorded only when the audit
+	 * identifier was established earlier, for the same reason
+	 * {@link #logSessionDestroyed(HttpSession, String)} guards against logging an unknown
+	 * session credential.
+	 * @param session the session whose bound client IP changed
+	 * @param previousClientIp the client IP the session was previously bound to
+	 */
+	public void logClientIpAnomaly(HttpSession session, String previousClientIp) {
+		String auditSessionId = auditSessionId(session);
+		if (auditSessionId == null) {
+			return;
+		}
+		LOGGER.atInfo()
+			.addKeyValue("event.category", List.of("authentication"))
+			.addKeyValue("event.type", List.of("info"))
+			.addKeyValue("event.action", "update_session")
+			.addKeyValue("event.outcome", "success")
+			.addKeyValue("event.reason", "client_ip_changed")
+			.addKeyValue("session.id", auditSessionId)
+			.addKeyValue("session.bound_client_ip", previousClientIp)
+			.log("Session client IP changed");
+	}
+
 	private String auditSessionId(HttpSession session) {
 		Object value = session.getAttribute(AUDIT_SESSION_ID_ATTRIBUTE);
 		return (value instanceof String auditSessionId) ? auditSessionId : null;

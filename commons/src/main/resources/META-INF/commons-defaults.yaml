@@ -50,6 +50,12 @@ commons:
     session:
       # Maximum lifetime of a session from its creation, regardless of activity.
       absolute-timeout: 12h
+      # Invalidates the session if its bound User-Agent changes; see docs/adr/0026.
+      hijacking-protection: true
+      # Logs an anomaly if the session's bound client IP changes; never invalidates
+      # the session. Silently inactive unless a trusted ClientIpResolver is
+      # configured; see docs/adr/0026.
+      anomaly-detection: true
 server:
   servlet:
     session:
