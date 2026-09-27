@@ -36,5 +36,7 @@ whether a change warrants a new ADR.
 | [ADR 0023](../adr/0023-recent-login-for-administration-changes.md) : Recent login for administration changes | Administration changes need an ID token `auth_time` within 15 minutes, answered otherwise with a `reauthentication-required` problem and a re-login with `max_age=0`; ending sessions is exempt. |
 | [ADR 0024](../adr/0024-passkey-login-bound-to-local-user.md) : Passkey login bound to the local user | An optional passkey login, with the application as relying party and Spring Security's WebAuthn support, authenticates as the same local user (the user's UUID is the user handle) with the same local roles, and registering one needs a recent login. |
 
+| [ADR 0025](../adr/0025-json-logout-url-for-single-page-applications.md) : JSON logout URL for single-page applications | A logout request that accepts JSON and not HTML is answered with the Keycloak `end_session_endpoint` URL to navigate to, instead of a redirect a `fetch` cannot follow, so Keycloak's session ends too. |
+
 <!-- arc42-manual: Add a row here when a new ADR is accepted. Do not restate an ADR's Context/Decision/Consequences in this table; link to it instead. -->
 <!-- /arc42-manual -->

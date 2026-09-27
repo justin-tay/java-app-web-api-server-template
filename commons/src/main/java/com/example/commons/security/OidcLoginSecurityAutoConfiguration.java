@@ -22,7 +22,6 @@ import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.DefaultLoginPageConfigurer;
 import org.springframework.security.oauth2.client.oidc.session.OidcSessionRegistry;
-import org.springframework.security.oauth2.client.oidc.web.logout.OidcClientInitiatedLogoutSuccessHandler;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
@@ -36,6 +35,7 @@ import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.session.Session;
 
 import com.example.commons.security.authentication.ProblemDetailAuthenticationEntryPoint;
+import com.example.commons.security.authentication.oidc.JsonAwareOidcLogoutSuccessHandler;
 import com.example.commons.security.authentication.oidc.LocalAuthoritiesOidcUserService;
 import com.example.commons.security.authentication.oidc.MaxAgeAuthorizationRequestResolver;
 import com.example.commons.security.authorization.LocalAuthorityLookup;
@@ -146,6 +146,10 @@ public class OidcLoginSecurityAutoConfiguration {
 	 * @param localAuthorityLookup the local authority lookup
 	 * @param localAuthorityRefreshers the refreshers of other kinds of login, such as
 	 * passkeys, whose sessions the local authority refresh covers too
+	 * @param environment the environment, for
+	 * {@code commons.security.logout.post-logout-redirect-uri}, where the provider sends
+	 * the browser after logout (default: the login page's logout message; a single-page
+	 * application sets its own route)
 	 * @return the customizer
 	 */
 	@Bean
@@ -155,8 +159,10 @@ public class OidcLoginSecurityAutoConfiguration {
 			FindByIndexNameSessionRepository<? extends Session> sessionRepository,
 			SessionLifecycleAuditLogger sessionLifecycleAuditLogger, SessionRegistry sessionRegistry,
 			ObjectProvider<LocalAuthorityLookup> localAuthorityLookup,
-			ObjectProvider<LocalAuthorityRefresher> localAuthorityRefreshers) {
+			ObjectProvider<LocalAuthorityRefresher> localAuthorityRefreshers, Environment environment) {
 		LocalAuthorityLookup lookup = requireLocalAuthorityLookup(localAuthorityLookup);
+		String postLogoutRedirectUri = environment.getProperty("commons.security.logout.post-logout-redirect-uri",
+				"{baseUrl}" + LoginPaths.LOGOUT_SUCCESS_URI);
 		return http -> http
 			.addFilterBefore(new LocalAuthorityRefreshFilter(lookup, sessionLifecycleAuditLogger, sessionRegistry,
 					localAuthorityRefreshers.orderedStream().toList()), HeaderWriterFilter.class)
@@ -168,7 +174,8 @@ public class OidcLoginSecurityAutoConfiguration {
 			.oidcLogout(oidcLogout -> oidcLogout
 				.backChannel(backChannel -> backChannel.logoutHandler(new SessionRepositoryOidcBackChannelLogoutHandler(
 						oidcSessionRegistry, sessionRepository, sessionLifecycleAuditLogger))))
-			.logout(logout -> logout.logoutSuccessHandler(oidcLogoutSuccessHandler(clientRegistrationRepository)))
+			.logout(logout -> logout
+				.logoutSuccessHandler(oidcLogoutSuccessHandler(clientRegistrationRepository, postLogoutRedirectUri)))
 			.with(new DefaultLoginPageConfigurer<>(),
 					defaultLoginPage -> defaultLoginPage.withObjectPostProcessor(new ObjectPostProcessor<Object>() {
 						@Override
@@ -212,10 +219,10 @@ public class OidcLoginSecurityAutoConfiguration {
 	 * @return the logout success handler
 	 */
 	private static LogoutSuccessHandler oidcLogoutSuccessHandler(
-			ClientRegistrationRepository clientRegistrationRepository) {
-		OidcClientInitiatedLogoutSuccessHandler oidcLogoutSuccessHandler = new OidcClientInitiatedLogoutSuccessHandler(
+			ClientRegistrationRepository clientRegistrationRepository, String postLogoutRedirectUri) {
+		JsonAwareOidcLogoutSuccessHandler oidcLogoutSuccessHandler = new JsonAwareOidcLogoutSuccessHandler(
 				clientRegistrationRepository);
-		oidcLogoutSuccessHandler.setPostLogoutRedirectUri("{baseUrl}" + LoginPaths.LOGOUT_SUCCESS_URI);
+		oidcLogoutSuccessHandler.setPostLogoutRedirectUri(postLogoutRedirectUri);
 		return oidcLogoutSuccessHandler;
 	}
 

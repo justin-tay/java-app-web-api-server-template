@@ -236,10 +236,32 @@ prefix; see [Authorization](authorization.md).
 
 ### Relying-party initiated logout
 
-`OidcClientInitiatedLogoutSuccessHandler` uses Keycloak's
+`JsonAwareOidcLogoutSuccessHandler`, a subclass of Spring Security's
+`OidcClientInitiatedLogoutSuccessHandler`, uses Keycloak's
 `end_session_endpoint` when the application logs a user out. It supplies an
 `id_token_hint`; after logout, Keycloak redirects the browser to
-`{baseUrl}/login?logout`.
+`commons.security.logout.post-logout-redirect-uri`, by default
+`{baseUrl}/login?logout`. The redirect URI must also be a valid post logout
+redirect URI of the Keycloak client.
+
+A browser navigation is redirected to Keycloak. A single-page application calls
+logout with `fetch`, which cannot follow that redirect, so a request that
+accepts `application/json` and not `text/html` is answered with `200` and
+`{"logoutUrl": "..."}` instead, and the application must then set
+`window.location` to that URL, or Keycloak's session stays alive
+([ADR 0025](../../../adr/0025-json-logout-url-for-single-page-applications.md)):
+
+```js
+const response = await fetch('/logout', {
+  method: 'POST',
+  headers: { Accept: 'application/json', 'X-XSRF-TOKEN': xsrfToken },
+});
+const { logoutUrl } = await response.json();
+window.location.assign(logoutUrl);
+```
+
+A user who logged in with a passkey has no Keycloak session to end, so the URL
+is the application's own.
 
 ### Back-channel logout
 

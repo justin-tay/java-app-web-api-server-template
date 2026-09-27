@@ -25,4 +25,17 @@ public final class ContentNegotiation {
 		return accept != null && accept.contains(MediaType.TEXT_HTML_VALUE);
 	}
 
+	/**
+	 * Reports whether the request's {@code Accept} header asks for JSON and not for a
+	 * browser navigation's HTML, as a {@code fetch} call from a single-page application
+	 * does.
+	 * @param request the request
+	 * @return {@code true} if the request accepts {@code application/json} but not
+	 * {@code text/html}
+	 */
+	public static boolean prefersJson(HttpServletRequest request) {
+		String accept = request.getHeader("Accept");
+		return accept != null && accept.contains(MediaType.APPLICATION_JSON_VALUE) && !acceptsHtml(request);
+	}
+
 }
