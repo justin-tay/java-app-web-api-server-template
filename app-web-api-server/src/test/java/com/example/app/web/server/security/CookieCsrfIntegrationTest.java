@@ -16,13 +16,11 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * Tests the cookie-to-header CSRF support a frontend uses when
- * {@code commons.security.csrf.cookie-enabled} is set: the token arrives in a cookie
+ * Tests the cookie-to-header CSRF support a frontend uses: the token arrives in a cookie
  * JavaScript can read, and a state-changing request presents it in the
  * {@code X-XSRF-TOKEN} header.
  */
-@SpringBootTest(properties = { "commons.security.csrf.cookie-enabled=true", "commons.security.passkeys.enabled=true",
-		"commons.security.passkeys.rp-id=localhost",
+@SpringBootTest(properties = { "commons.security.passkeys.enabled=true", "commons.security.passkeys.rp-id=localhost",
 		"commons.security.passkeys.allowed-origins=http://localhost:8081" })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")

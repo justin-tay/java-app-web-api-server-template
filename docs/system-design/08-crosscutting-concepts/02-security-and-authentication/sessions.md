@@ -57,14 +57,20 @@ OAuth2 state.
 | Passkey session absolute timeout | 8 hours, only when [passkeys](authentication.md#passkeys) are enabled | A passkey session has no Keycloak session to end it by back-channel logout, so it also ends this long after the passkey login (`commons.security.passkeys.session-absolute-timeout`), counted from the login rather than from the session's creation. |
 | Session schema | Liquibase changesets `003-spring-session-schema.sql` and `005-oidc-session-registry.sql` | Prevents schema creation at application startup. |
 
-By default the CSRF token lives only in the session. A frontend that cannot
-render it can opt in to cookie-to-header CSRF with
-`commons.security.csrf.cookie-enabled=true`: every response then carries the
-token in an `XSRF-TOKEN` cookie that JavaScript may read (`SameSite=Lax`,
-`Secure` on HTTPS, path `/`), and a state-changing request echoes it in the
-`X-XSRF-TOKEN` header. The cookie is not a credential, since a request is
-accepted only when the header matches the token, and the session cookie stays
-`HttpOnly`. A form-rendered token is still accepted in its encoded form.
+A frontend that cannot render the CSRF token uses cookie-to-header CSRF (Spring
+Security's `csrf.spa()`): every response carries the token in an `XSRF-TOKEN`
+cookie that JavaScript may read (`SameSite=Lax`, `Secure` on HTTPS, path `/`),
+and a state-changing request echoes it in the `X-XSRF-TOKEN` header. The cookie
+is not a credential, and the session cookie stays `HttpOnly`. A form-rendered
+token is still accepted in its encoded form.
+
+This is a double-submit check: the server keeps no copy of the token to compare
+with, so a request passes when its cookie and header agree. An attacker who can
+set a cookie for the application's domain, for example from a sibling
+subdomain, can therefore supply both. The `__Host-` prefix stops that for the
+session cookie but cannot be used on `XSRF-TOKEN`, which JavaScript must read.
+Keep every subdomain of the application's domain under the same control, and do
+not serve untrusted content from one.
 
 Every value above is a commons default (`commons-defaults.yaml` and
 `WebSecurityAutoConfiguration`), so each `app-*` module inherits it; the

@@ -221,9 +221,7 @@ public class WebSecurityAutoConfiguration {
 			ProblemDetailAccessDeniedHandler accessDeniedHandler = new ProblemDetailAccessDeniedHandler();
 			applySessionFilters(http, properties, clock, sessionLifecycleAuditLogger);
 			applyHeaders(http);
-			if (properties.getCsrf().isCookieEnabled()) {
-				applyCookieCsrf(http);
-			}
+			applyCookieCsrf(http);
 			applyExceptionHandling(http, authenticationEntryPoint, accessDeniedHandler);
 			applyHealthEndpointRules(http, healthPath);
 			applySessionManagement(http, sessionRegistry, sessionExpiredStrategy, sessionLifecycleAuditLogger,
