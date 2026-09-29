@@ -9,11 +9,14 @@ import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration;
 import org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.core.env.Environment;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -79,6 +82,16 @@ public class AccountsAutoConfiguration {
 	}
 
 	/**
+	 * Audit logging of changes to the local user, group, and role model.
+	 * @return the audit logger
+	 */
+	@Bean
+	@ConditionalOnMissingBean
+	AdministrationAuditLogger administrationAuditLogger() {
+		return new AdministrationAuditLogger();
+	}
+
+	/**
 	 * Records each user's last sign-in time (see docs/adr/0028).
 	 * @param users the user repository
 	 * @return the recorder
@@ -102,16 +115,34 @@ public class AccountsAutoConfiguration {
 	}
 
 	/**
+	 * Disables users who have not signed in for longer than
+	 * {@code commons.accounts.dormancy.threshold} (for example {@code 90d}), checking
+	 * every {@code commons.accounts.dormancy.check-interval} (one hour by default). Off
+	 * unless a threshold is set, since how long is too long is a policy for the adopter
+	 * to choose (see docs/adr/0028).
+	 */
+	@Configuration(proxyBeanMethods = false)
+	@ConditionalOnProperty(name = "commons.accounts.dormancy.threshold")
+	@EnableScheduling
+	static class DormancyConfiguration {
+
+		@Bean
+		DormantUserDisabler dormantUserDisabler(AppUserRepository users,
+				SessionRevocationService sessionRevocationService, AdministrationAuditLogger auditLogger,
+				Environment environment) {
+			return new DormantUserDisabler(users, sessionRevocationService, auditLogger,
+					Binder.get(environment).bind("commons.accounts.dormancy.threshold", Duration.class).get(),
+					Clock.systemUTC());
+		}
+
+	}
+
+	/**
 	 * The administration API.
 	 */
 	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnBooleanProperty(name = "commons.accounts.admin.enabled", matchIfMissing = true)
 	static class AdministrationConfiguration {
-
-		@Bean
-		AdministrationAuditLogger administrationAuditLogger() {
-			return new AdministrationAuditLogger();
-		}
 
 		@Bean
 		AdministrationService administrationService(AppUserRepository users, AppGroupRepository groups,

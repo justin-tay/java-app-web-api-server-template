@@ -29,12 +29,18 @@ and failed-attempt data belongs in logging.
   otherwise. It is derived, so no column or activation flow is added. The
   admin list exposes `status` as a filter (ADR 0027) and `lastLoginAt` as a
   field and sort property.
-* **Dormant account disabling:** a scheduled job disables enabled users whose
-  last sign-in (or `createdAt`, if never signed in) is older than
-  `commons.accounts.dormancy.threshold`. It is off by default, since the
-  threshold is a policy for adopters to set. Each disabled user has their
-  sessions revoked through `SessionRevocationService`, and a dedicated audit
-  event is logged. An administrator can re-enable the account.
+* **Dormant account disabling:** a scheduled job, `DormantUserDisabler`,
+  disables enabled users with no sign-in, creation or administrative change
+  (`updatedAt`) for longer than `commons.accounts.dormancy.threshold`, for
+  example `90d`. It runs every `commons.accounts.dormancy.check-interval`
+  (one hour by default) and is off unless a threshold is set, since how long
+  is too long is a policy for adopters to choose. Each disabled user has
+  their sessions revoked through `SessionRevocationService` with reason
+  `dormant_account`, and the change is logged as an `update_user` event with
+  `event.reason` `dormant_account`. An administrator can re-enable the
+  account; that change restarts the clock, so the user has a full threshold
+  to sign in before being disabled again, instead of being disabled on the
+  next run.
 * **Notification:** notifying users of a sign-in after long inactivity is not
   part of this decision; it needs a delivery channel the template lacks.
 

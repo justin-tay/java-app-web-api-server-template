@@ -32,6 +32,14 @@ public interface AppUserRepository extends JpaRepository<AppUser, String>, JpaSp
 	@Query("update AppUser u set u.lastLoginAt = :at where u.username = :username")
 	void recordLogin(@Param("username") String username, @Param("at") Instant at);
 
+	/**
+	 * Returns the enabled users with no sign-in, creation, or administrative change since
+	 * the cutoff.
+	 */
+	@EntityGraph(attributePaths = { "groups", "groups.roles" })
+	@Query("select u from AppUser u where u.enabled = true and u.createdAt < :cutoff and u.updatedAt < :cutoff and (u.lastLoginAt is null or u.lastLoginAt < :cutoff)")
+	List<AppUser> findEnabledInactiveSince(@Param("cutoff") Instant cutoff);
+
 	@Query("select u.username from AppUser u")
 	List<String> findAllUsernames();
 

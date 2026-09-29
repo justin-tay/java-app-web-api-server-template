@@ -58,7 +58,7 @@ public class AdministrationAuditLogger {
 	public record UserState(String id, String username, boolean enabled, SortedSet<String> groups,
 			SortedSet<String> roles, String email, String name) {
 
-		static UserState of(AppUser user) {
+		public static UserState of(AppUser user) {
 			return new UserState(user.getId(), user.getUsername(), user.isEnabled(),
 					names(user.getGroups().stream().map(AppGroup::getName).toList()),
 					names(user.getGroups()
@@ -112,8 +112,21 @@ public class AdministrationAuditLogger {
 	}
 
 	public void userUpdated(UserState before, UserState after) {
+		userUpdated(before, after, null);
+	}
+
+	/**
+	 * Records a user change made by the application itself, with the reason it was made.
+	 * @param before the user's state before the change
+	 * @param after the user's state after the change
+	 * @param reason the controlled reason, such as {@code dormant_account}, or null
+	 */
+	public void userUpdated(UserState before, UserState after, String reason) {
 		afterCommit(() -> {
 			LoggingEventBuilder event = event("update_user", "user", "change", before.username());
+			if (reason != null) {
+				event.addKeyValue("event.reason", reason);
+			}
 			target(event, before);
 			if (before.enabled() != after.enabled()) {
 				event.addKeyValue("user.changes.enabled", after.enabled());

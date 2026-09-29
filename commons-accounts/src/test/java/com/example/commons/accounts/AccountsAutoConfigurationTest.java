@@ -52,6 +52,13 @@ class AccountsAutoConfigurationTest {
 	}
 
 	@Test
+	void disablesDormantUsersOnlyWhenAThresholdIsSet() {
+		this.contextRunner.run(context -> assertThat(context).doesNotHaveBean(DormantUserDisabler.class));
+		this.contextRunner.withPropertyValues("commons.accounts.dormancy.threshold=90d")
+			.run(context -> assertThat(context).hasSingleBean(DormantUserDisabler.class));
+	}
+
+	@Test
 	void backsOffWhenDisabled() {
 		this.contextRunner.withPropertyValues("commons.accounts.enabled=false")
 			.run(context -> assertThat(context).doesNotHaveBean(AccountsAutoConfiguration.class)
