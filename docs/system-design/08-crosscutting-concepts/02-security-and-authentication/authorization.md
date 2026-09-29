@@ -107,8 +107,8 @@ to the environments that should have it with a required context (for
 example `context:@production`) that only those migration runs request.
 
 ```sql
-INSERT INTO app_user (id, username, display_name, enabled, created_at, updated_at, created_by, updated_by)
-VALUES ('<new UUID>', '<Keycloak preferred_username>', '<display name>', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system');
+INSERT INTO app_user (id, username, name, enabled, created_at, updated_at, created_by, updated_by)
+VALUES ('<new UUID>', '<Keycloak preferred_username>', '<name>', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system');
 INSERT INTO app_user_group (user_id, group_id)
 VALUES ('<the same UUID>', '00000000-0000-0000-0000-000000000011');
 ```

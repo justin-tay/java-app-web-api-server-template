@@ -104,7 +104,7 @@ com.example.app.web.server
 
 | Table / entity | Columns | Relationships and constraints |
 |---|---|---|
-| `app_user` / `AppUser` | `id`, `username`, `display_name`, `email`, `enabled`, `created_at`, `updated_at`, `created_by`, `updated_by` | primary key; `username` unique and not null; display name, enabled, timestamps, and actors not null |
+| `app_user` / `AppUser` | `id`, `username`, `name`, `email`, `enabled`, `created_at`, `updated_at`, `created_by`, `updated_by` | primary key; `username` unique and not null; name, enabled, timestamps, and actors not null |
 | `app_group` / `AppGroup` | `id`, `name`, `created_at`, `updated_at`, `created_by`, `updated_by` | primary key; name unique and not null |
 | `app_role` / `AppRole` | `id`, `name`, `created_at`, `updated_at`, `created_by`, `updated_by` | primary key; name unique and not null |
 | `app_user_group` | `user_id`, `group_id` | composite primary key; both foreign keys; a user requires at least one link at service level |
@@ -125,13 +125,13 @@ Bean Validation is applied in two places, with shared rules:
 
 - **JPA entities:** annotate persistent fields and collections so invalid state
   cannot be written by any application path. Examples include `@NotBlank` and
-  `@Size` on username, display name, and names; `@Email` on a supplied email; and
+  `@Size` on username and names; `@Email` on a supplied email; and
   `@NotEmpty` on a user's groups.
 - **Request DTOs:** apply the same constraints to request fields and mark
   controller `@RequestBody` parameters with `@Valid`. This is what turns invalid
   HTTP input into a `400 ProblemDetail` before service logic runs.
 - **Shared constraints:** define reusable composed constraints such as
-  `@Username`, `@DisplayName`, and `@ResourceName` in a validation package. Use
+  `@Username` and `@ResourceName` in a validation package. Use
   them on both entity and DTO properties. Common length limits live in public
   constants used by the composed annotations; no request DTO is mapped directly
   to a JPA entity.
@@ -166,8 +166,8 @@ returns `204 No Content`. Requests and responses use UUID string IDs.
 
 | Request | Fields |
 |---|---|
-| `CreateUserRequest` | `username`, `displayName`, optional `email`, `enabled`, non-empty `groupIds` |
-| `UpdateUserRequest` | `displayName`, optional `email`, `enabled`, non-empty `groupIds` |
+| `CreateUserRequest` | `username`, `name`, optional `email`, `enabled`, non-empty `groupIds` |
+| `UpdateUserRequest` | `name`, optional `email`, `enabled`, non-empty `groupIds` |
 | `GroupRequest` | `name`, `roleIds` (empty allowed) |
 | `RoleRequest` | `name` |
 
@@ -181,9 +181,11 @@ against their supported field sets before repository queries execute.
 
 ### List contract
 
-All list resources accept `page`, `size`, and `sort=property,(asc|desc)`. Defaults
-are `page=0`, `size=20`, and ascending username/name. `size` must be 1–100.
-Responses use:
+All list resources accept `page`, `size`, a repeatable `sort=property,(asc|desc)`
+(at most 3, each property once), and a `search` text parameter. Defaults are
+`page=0`, `size=20`, and ascending username/name. `size` must be 1–100. See
+[ADR 0027](../../adr/0027-admin-list-api-contract.md) for why these are fixed
+parameters rather than a filter language. Responses use:
 
 ```json
 {
@@ -199,12 +201,15 @@ Allowed filter and sort fields are deliberately finite:
 
 | Resource | Filters | Sort fields |
 |---|---|---|
-| Users | `username`, `displayName`, `enabled`, `groupId` | `username`, `displayName`, `createdAt`, `updatedAt` |
+| Users | `username`, `name`, `email`, `enabled`, `groupId`, `createdFrom`, `createdTo` | `username`, `name`, `createdAt`, `updatedAt` |
 | Groups | `name`, `roleId` | `name`, `createdAt`, `updatedAt` |
 | Roles | `name` | `name`, `createdAt`, `updatedAt` |
 
-Name filters perform case-insensitive contains matching. An invalid filter or sort
-property returns `400`.
+Text filters perform case-insensitive contains matching, with `%` and `_` matched
+literally. `search` is one text box ORed across fields: a user's username, name, or
+email (or an exact ID), and a group's or role's name. It combines with the other
+filters by AND. `createdFrom` and `createdTo` are inclusive ISO 8601 dates in UTC.
+An invalid filter, date, or sort property returns `400`.
 
 ## Security configuration
 
@@ -269,8 +274,8 @@ adds an `errors` extension containing a list of field-level error objects:
   "errors": [
     {
       "code": "NotBlank",
-      "message": "Display name is required.",
-      "source": { "pointer": "/displayName" }
+      "message": "Name is required.",
+      "source": { "pointer": "/name" }
     },
     {
       "code": "InvalidCombination",
@@ -283,7 +288,7 @@ adds an `errors` extension containing a list of field-level error objects:
 The advice handles DTO `@Valid` failures, method/query-parameter validation
 failures, and malformed JSON as distinct `400` cases. It returns stable field
 paths, validation codes, and safe messages only. `source.pointer` is a JSON Pointer
-to the request member (for example `/displayName`, `/groupIds`, or `/groupIds/0`),
+to the request member (for example `/name`, `/groupIds`, or `/groupIds/0`),
 so a frontend can attach the message to that input. An error without
 `source.pointer` is a global form error when the violation cannot honestly be
 attributed to one field. Rejected values, entity class names, stack traces, SQL

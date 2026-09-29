@@ -53,8 +53,8 @@ maintained once, in
 
 ## Query composition
 
-List endpoints accept independent optional filters (name, role, group,
-enabled) that combine with logical AND only when supplied. Rather than
+List endpoints accept independent optional filters (search, name, role, group,
+enabled, created date range) that combine with logical AND only when supplied. Rather than
 branching over every filter combination, `AdministrationService` builds a
 `Specification<T>` per non-null filter and combines them with
 `Specification.allOf(...)`, wrapping the result in a `distinct(...)` helper

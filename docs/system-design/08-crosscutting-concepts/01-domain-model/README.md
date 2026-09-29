@@ -12,7 +12,7 @@ an adopter builds one.
 
 | Entity | Table | Purpose |
 | --- | --- | --- |
-| `AppUser` | `app_user` | A local account: username, display name, email, enabled flag, and a `ManyToMany` set of `AppGroup` memberships. Authorization roles are derived transitively through groups, never assigned to a user directly. |
+| `AppUser` | `app_user` | A local account: username, name, email, enabled flag, and a `ManyToMany` set of `AppGroup` memberships. Authorization roles are derived transitively through groups, never assigned to a user directly. |
 | `AppGroup` | `app_group` | A named collection of roles, and the sole mechanism for granting roles to users. |
 | `AppRole` | `app_role` | A named authorization role, assigned to groups through the `app_group_role` join table. |
 | `AbstractAuditableEntity` | (mapped superclass) | Supplies a random UUID `id` and `createdAt`/`updatedAt` timestamps to every entity above via `@PrePersist`/`@PreUpdate` callbacks. `touch()` lets a caller stamp `updatedAt` immediately after mutating a collection association that JPA's own dirty-checking would not otherwise flag as a field change. |
@@ -38,7 +38,7 @@ The conventions this template follows:
   serialized directly as a response, and no response type is ever bound
   directly from a request body.
 * **Bean Validation on the request record's components.** Constraints
-  (`@Username`, `@DisplayName`, `@Email`, `@NotEmpty`) are declared once, on
+  (`@Username`, `@ResourceName`, `@Email`, `@NotEmpty`) are declared once, on
   the request record itself, and enforced by `@Valid @RequestBody` in the
   controller; see [Error responses](../02-security-and-authentication/error-responses.md) for how a
   rejected constraint becomes a `urn:problem:validation-failed` response.
@@ -72,12 +72,11 @@ so a name is validated identically wherever it is accepted:
 | Constraint | Applied to | Rule |
 | --- | --- | --- |
 | `@Username` | `AppUser.username`, `UserCreateRequest.username` | Not blank, at most 100 characters. |
-| `@DisplayName` | `AppUser.displayName`, `UserCreateRequest`/`UserUpdateRequest.displayName` | Not blank, at most 100 characters. |
-| `@ResourceName` | `AppGroup.name`, `AppRole.name`, `GroupRequest.name`, `RoleRequest.name` | Not blank, at most 100 characters. |
+| `@ResourceName` | `AppUser.name`, `AppGroup.name`, `AppRole.name`, `UserCreateRequest`/`UserUpdateRequest.name`, `GroupRequest.name`, `RoleRequest.name` | Not blank, at most 100 characters. |
 
-The three are structurally identical today; they are kept as distinct
+The two are structurally identical today; they are kept as distinct
 annotations, each with its own message key
-(`{validation.username}`, `{validation.display-name}`,
+(`{validation.username}`,
 `{validation.resource-name}` in
 [`ValidationMessages.properties`](../../../../commons-accounts/src/main/resources/ValidationMessages.properties)),
 so a username rule and a resource name rule can diverge later without a
