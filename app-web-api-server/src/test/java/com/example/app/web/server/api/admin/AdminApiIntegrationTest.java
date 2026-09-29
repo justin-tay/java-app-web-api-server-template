@@ -96,7 +96,7 @@ class AdminApiIntegrationTest {
 			.perform(post("/admin/users").with(as("GROUP_MANAGE"))
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"username\":\"new-user\",\"displayName\":\"New User\",\"enabled\":true,\"groupIds\":[\""
+				.content("{\"username\":\"new-user\",\"name\":\"New User\",\"enabled\":true,\"groupIds\":[\""
 						+ ADMINISTRATORS_GROUP_ID + "\"]}"))
 			.andExpect(status().isForbidden());
 		this.mockMvc
@@ -168,7 +168,7 @@ class AdminApiIntegrationTest {
 			.perform(post("/admin/users").with(recentAdmin())
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"username\":\"new-user\",\"displayName\":\"New User\",\"enabled\":true,\"groupIds\":[\""
+				.content("{\"username\":\"new-user\",\"name\":\"New User\",\"enabled\":true,\"groupIds\":[\""
 						+ TEST_USERS_GROUP_ID + "\"]}"))
 			.andExpect(status().isForbidden())
 			.andExpect(jsonPath("$.type").value("urn:problem:access-denied"));
@@ -183,8 +183,8 @@ class AdminApiIntegrationTest {
 			.perform(put("/admin/users/" + ADMIN_USER_ID).with(recentAdmin())
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"displayName\":\"Administrator\",\"enabled\":false,\"groupIds\":[\""
-						+ ADMINISTRATORS_GROUP_ID + "\"]}"))
+				.content("{\"name\":\"Administrator\",\"enabled\":false,\"groupIds\":[\"" + ADMINISTRATORS_GROUP_ID
+						+ "\"]}"))
 			.andExpect(status().isForbidden());
 		this.mockMvc.perform(delete("/admin/roles/" + USER_MANAGE_ROLE_ID).with(recentAdmin()).with(csrf()))
 			.andExpect(status().isForbidden());
@@ -278,7 +278,7 @@ class AdminApiIntegrationTest {
 		this.mockMvc.perform(get("/admin/users").param("sort", "username", "username,desc").with(as("USER_MANAGE")))
 			.andExpect(status().isBadRequest());
 		this.mockMvc
-			.perform(get("/admin/users").param("sort", "username", "displayName", "createdAt", "updatedAt")
+			.perform(get("/admin/users").param("sort", "username", "name", "createdAt", "updatedAt")
 				.with(as("USER_MANAGE")))
 			.andExpect(status().isBadRequest());
 	}

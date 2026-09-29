@@ -53,10 +53,10 @@ public class AdministrationAuditLogger {
 	 * @param groups the names of the user's groups
 	 * @param roles the names of the roles the user's groups grant
 	 * @param email the email address, compared but never logged
-	 * @param displayName the display name, compared but never logged
+	 * @param name the name, compared but never logged
 	 */
 	public record UserState(String id, String username, boolean enabled, SortedSet<String> groups,
-			SortedSet<String> roles, String email, String displayName) {
+			SortedSet<String> roles, String email, String name) {
 
 		static UserState of(AppUser user) {
 			return new UserState(user.getId(), user.getUsername(), user.isEnabled(),
@@ -66,7 +66,7 @@ public class AdministrationAuditLogger {
 						.flatMap(group -> group.getRoles().stream())
 						.map(AppRole::getName)
 						.toList()),
-					user.getEmail(), user.getDisplayName());
+					user.getEmail(), user.getName());
 		}
 
 	}
@@ -128,7 +128,7 @@ public class AdministrationAuditLogger {
 			if (!Objects.equals(before.email(), after.email())) {
 				fields.add("email");
 			}
-			if (!Objects.equals(before.displayName(), after.displayName())) {
+			if (!Objects.equals(before.name(), after.name())) {
 				fields.add("full_name");
 			}
 			if (!fields.isEmpty()) {

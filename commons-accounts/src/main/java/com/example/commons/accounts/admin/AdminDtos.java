@@ -7,7 +7,6 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 
-import com.example.commons.accounts.validation.DisplayName;
 import com.example.commons.accounts.validation.ResourceId;
 import com.example.commons.accounts.validation.ResourceName;
 import com.example.commons.accounts.validation.Username;
@@ -17,12 +16,12 @@ public final class AdminDtos {
 	private AdminDtos() {
 	}
 
-	public record UserCreateRequest(@Username String username, @DisplayName String displayName,
+	public record UserCreateRequest(@Username String username, @ResourceName String name,
 			@Email @Size(max = 254) String email, boolean enabled, @NotEmpty Set<@ResourceId String> groupIds) {
 	}
 
-	public record UserUpdateRequest(@DisplayName String displayName, @Email @Size(max = 254) String email,
-			boolean enabled, @NotEmpty Set<@ResourceId String> groupIds) {
+	public record UserUpdateRequest(@ResourceName String name, @Email @Size(max = 254) String email, boolean enabled,
+			@NotEmpty Set<@ResourceId String> groupIds) {
 	}
 
 	public record GroupRequest(@ResourceName String name, Set<@ResourceId String> roleIds) {
@@ -37,7 +36,7 @@ public final class AdminDtos {
 	public record Summary(String id, String name) {
 	}
 
-	public record UserResponse(String id, String username, String displayName, String email, boolean enabled,
+	public record UserResponse(String id, String username, String name, String email, boolean enabled,
 			List<Summary> groups) {
 	}
 

@@ -51,7 +51,7 @@ public class UserAdminController {
 	@GetMapping
 	public PageResponse<UserResponse> list(@RequestParam(required = false) @Size(max = 100) String search,
 			@RequestParam(required = false) @Size(max = 100) String username,
-			@RequestParam(required = false) @Size(max = 100) String displayName,
+			@RequestParam(required = false) @Size(max = 100) String name,
 			@RequestParam(required = false) @Size(max = 100) String email,
 			@RequestParam(required = false) Boolean enabled, @RequestParam(required = false) @ResourceId String groupId,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdFrom,
@@ -59,10 +59,10 @@ public class UserAdminController {
 			@RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size, HttpServletRequest request) {
 		Page<AppUser> result = this.service.users(
-				new AdministrationService.UserQuery(search, username, displayName, email, enabled, groupId, createdFrom,
+				new AdministrationService.UserQuery(search, username, name, email, enabled, groupId, createdFrom,
 						createdTo),
 				AdminPageable.create(page, size, request.getParameterValues("sort"),
-						Set.of("username", "displayName", "createdAt", "updatedAt"), "username"));
+						Set.of("username", "name", "createdAt", "updatedAt"), "username"));
 		return new PageResponse<>(result.map(this::response).toList(), result.getNumber(), result.getSize(),
 				result.getTotalElements(), result.getTotalPages());
 	}
@@ -105,8 +105,7 @@ public class UserAdminController {
 	}
 
 	private UserResponse response(AppUser user) {
-		return new UserResponse(user.getId(), user.getUsername(), user.getDisplayName(), user.getEmail(),
-				user.isEnabled(),
+		return new UserResponse(user.getId(), user.getUsername(), user.getName(), user.getEmail(), user.isEnabled(),
 				user.getGroups().stream().map(group -> new Summary(group.getId(), group.getName())).toList());
 	}
 

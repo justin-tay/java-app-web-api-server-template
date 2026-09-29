@@ -12,7 +12,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 
-import com.example.commons.accounts.validation.DisplayName;
+import com.example.commons.accounts.validation.ResourceName;
 import com.example.commons.accounts.validation.Username;
 
 @Entity
@@ -22,8 +22,8 @@ public class AppUser extends AbstractAuditableEntity {
 	@Username
 	private String username;
 
-	@DisplayName
-	private String displayName;
+	@ResourceName
+	private String name;
 
 	@Email
 	@Size(max = 254)
@@ -40,9 +40,9 @@ public class AppUser extends AbstractAuditableEntity {
 	protected AppUser() {
 	}
 
-	public AppUser(String username, String displayName, String email, boolean enabled) {
+	public AppUser(String username, String name, String email, boolean enabled) {
 		this.username = username;
-		this.displayName = displayName;
+		this.name = name;
 		this.email = email;
 		this.enabled = enabled;
 	}
@@ -51,8 +51,8 @@ public class AppUser extends AbstractAuditableEntity {
 		return this.username;
 	}
 
-	public String getDisplayName() {
-		return this.displayName;
+	public String getName() {
+		return this.name;
 	}
 
 	public String getEmail() {
@@ -67,8 +67,8 @@ public class AppUser extends AbstractAuditableEntity {
 		return this.groups;
 	}
 
-	public void update(String displayName, String email, boolean enabled) {
-		this.displayName = displayName;
+	public void update(String name, String email, boolean enabled) {
+		this.name = name;
 		this.email = email;
 		this.enabled = enabled;
 		touch();

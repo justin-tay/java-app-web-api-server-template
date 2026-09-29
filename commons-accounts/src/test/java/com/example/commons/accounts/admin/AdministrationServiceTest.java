@@ -119,7 +119,7 @@ class AdministrationServiceTest {
 				"test@example.test", true, Set.of(this.managers.getId())));
 
 		assertThat(sessionOf("test-user").isExpired()).isFalse();
-		assertThat(reload(this.testUser).getDisplayName()).isEqualTo("New Display Name");
+		assertThat(reload(this.testUser).getName()).isEqualTo("New Display Name");
 	}
 
 	@Test
@@ -299,13 +299,13 @@ class AdministrationServiceTest {
 	}
 
 	@Test
-	void anAdministratorCanChangeTheirOwnDisplayNameAndEmail() {
+	void anAdministratorCanChangeTheirOwnNameAndEmail() {
 		authenticate("test-user", "USER_MANAGE");
 
 		this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Renamed User",
 				"renamed@example.test", true, Set.of(this.managers.getId())));
 
-		assertThat(reload(this.testUser).getDisplayName()).isEqualTo("Renamed User");
+		assertThat(reload(this.testUser).getName()).isEqualTo("Renamed User");
 	}
 
 	@Test

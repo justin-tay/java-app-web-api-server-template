@@ -33,12 +33,12 @@ public class LoginUserController {
 	 *
 	 * @param id the local user's id, stable across both OIDC and passkey logins
 	 * @param username the username
-	 * @param displayName the display name
+	 * @param name the name
 	 * @param email the email address, when the user has one
 	 * @param roles the caller's {@code ROLE_} authorities, exactly as
 	 * {@code hasAuthority()} checks them, for the frontend to decide which routes to show
 	 */
-	public record LoginUserResponse(String id, String username, String displayName, String email, List<String> roles) {
+	public record LoginUserResponse(String id, String username, String name, String email, List<String> roles) {
 	}
 
 	@GetMapping(path = "/login-user", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -51,7 +51,7 @@ public class LoginUserController {
 			.map(GrantedAuthority::getAuthority)
 			.sorted()
 			.toList();
-		return new LoginUserResponse(user.getId(), user.getUsername(), user.getDisplayName(), user.getEmail(), roles);
+		return new LoginUserResponse(user.getId(), user.getUsername(), user.getName(), user.getEmail(), roles);
 	}
 
 }

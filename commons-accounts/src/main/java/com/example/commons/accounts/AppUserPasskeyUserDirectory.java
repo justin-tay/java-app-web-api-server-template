@@ -20,7 +20,7 @@ public class AppUserPasskeyUserDirectory implements PasskeyUserDirectory {
 	@Override
 	public Optional<PasskeyUser> findByUsername(String username) {
 		return this.users.findByUsernameAndEnabledTrue(username)
-			.map(user -> new PasskeyUser(user.getId(), user.getUsername(), user.getDisplayName()));
+			.map(user -> new PasskeyUser(user.getId(), user.getUsername(), user.getName()));
 	}
 
 }

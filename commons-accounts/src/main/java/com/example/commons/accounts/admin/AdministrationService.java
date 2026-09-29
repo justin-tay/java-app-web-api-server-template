@@ -93,7 +93,7 @@ public class AdministrationService {
 			this.auditLogger.userCreationRejected(request.username(), "exceeds_actor_privileges");
 			throw new AccessDeniedException("Cannot grant a role the administrator does not hold.");
 		}
-		AppUser user = new AppUser(request.username(), request.displayName(), request.email(), request.enabled());
+		AppUser user = new AppUser(request.username(), request.name(), request.email(), request.enabled());
 		user.getGroups().addAll(requestedGroups);
 		AppUser saved = this.users.save(user);
 		this.auditLogger.userCreated(UserState.of(saved));
@@ -116,7 +116,7 @@ public class AdministrationService {
 			this.auditLogger.userUpdateRejected(before, "exceeds_actor_privileges");
 			throw new AccessDeniedException("Cannot grant a role the administrator does not hold.");
 		}
-		user.update(request.displayName(), request.email(), request.enabled());
+		user.update(request.name(), request.email(), request.enabled());
 		user.getGroups().clear();
 		user.getGroups().addAll(requestedGroups);
 		if ((before.enabled() && !user.isEnabled()) || !previousGroupIds.equals(request.groupIds())) {
@@ -173,22 +173,21 @@ public class AdministrationService {
 
 	/**
 	 * Criteria for listing users. Every non-null value narrows the result, and
-	 * {@code search} matches a username, display name, or email containing it, or an
-	 * exact ID.
+	 * {@code search} matches a username, name, or email containing it, or an exact ID.
 	 */
-	public record UserQuery(String search, String username, String displayName, String email, Boolean enabled,
-			String groupId, LocalDate createdFrom, LocalDate createdTo) {
+	public record UserQuery(String search, String username, String name, String email, Boolean enabled, String groupId,
+			LocalDate createdFrom, LocalDate createdTo) {
 	}
 
 	public Page<AppUser> users(UserQuery query, Pageable pageable) {
 		Specification<AppUser> search = isBlank(query.search()) ? null
 				: Specification.anyOf(this.<AppUser>contains("username", query.search()),
-						this.<AppUser>contains("displayName", query.search()),
-						this.<AppUser>contains("email", query.search()), this.<AppUser>equals("id", query.search()));
+						this.<AppUser>contains("name", query.search()), this.<AppUser>contains("email", query.search()),
+						this.<AppUser>equals("id", query.search()));
 		Specification<AppUser> specification = Specification.allOf(Stream
 			.of(search, this.<AppUser>contains("username", query.username()),
-					this.<AppUser>contains("displayName", query.displayName()),
-					this.<AppUser>contains("email", query.email()), this.<AppUser>equals("enabled", query.enabled()),
+					this.<AppUser>contains("name", query.name()), this.<AppUser>contains("email", query.email()),
+					this.<AppUser>equals("enabled", query.enabled()),
 					query.groupId() == null
 							? null
 							: (Specification<AppUser>) (root, criteria, builder) -> builder

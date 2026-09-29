@@ -54,7 +54,7 @@ class AdminControllerTest {
 					.idToken(idToken -> idToken.claim("preferred_username", "admin").claim("auth_time", Instant.now())))
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"username\":\"\",\"displayName\":\"\",\"email\":null,\"enabled\":false,\"groupIds\":[]}"))
+				.content("{\"username\":\"\",\"name\":\"\",\"email\":null,\"enabled\":false,\"groupIds\":[]}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].source.pointer").exists());
 	}
