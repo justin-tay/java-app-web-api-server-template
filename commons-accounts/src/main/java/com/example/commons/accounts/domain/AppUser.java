@@ -1,5 +1,6 @@
 package com.example.commons.accounts.domain;
 
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -31,6 +32,8 @@ public class AppUser extends AbstractAuditableEntity {
 
 	private boolean enabled;
 
+	private Instant lastLoginAt;
+
 	@NotEmpty
 	@ManyToMany
 	@JoinTable(name = "app_user_group", joinColumns = @JoinColumn(name = "user_id"),
@@ -61,6 +64,10 @@ public class AppUser extends AbstractAuditableEntity {
 
 	public boolean isEnabled() {
 		return this.enabled;
+	}
+
+	public Instant getLastLoginAt() {
+		return this.lastLoginAt;
 	}
 
 	public Set<AppGroup> getGroups() {

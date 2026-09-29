@@ -22,6 +22,7 @@ import com.example.commons.accounts.domain.AppGroupRepository;
 import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppUser;
+import com.example.commons.accounts.domain.UserStatus;
 import com.example.commons.accounts.domain.AppUserRepository;
 import com.example.commons.security.authentication.passkey.PasskeyManager;
 import com.example.commons.security.session.SessionRevocationService;
@@ -175,8 +176,8 @@ public class AdministrationService {
 	 * Criteria for listing users. Every non-null value narrows the result, and
 	 * {@code search} matches a username, name, or email containing it, or an exact ID.
 	 */
-	public record UserQuery(String search, String username, String name, String email, Boolean enabled, String groupId,
-			LocalDate createdFrom, LocalDate createdTo) {
+	public record UserQuery(String search, String username, String name, String email, Boolean enabled,
+			UserStatus status, String groupId, LocalDate createdFrom, LocalDate createdTo) {
 	}
 
 	public Page<AppUser> users(UserQuery query, Pageable pageable) {
@@ -187,9 +188,8 @@ public class AdministrationService {
 		Specification<AppUser> specification = Specification.allOf(Stream
 			.of(search, this.<AppUser>contains("username", query.username()),
 					this.<AppUser>contains("name", query.name()), this.<AppUser>contains("email", query.email()),
-					this.<AppUser>equals("enabled", query.enabled()),
-					query.groupId() == null
-							? null
+					this.<AppUser>equals("enabled", query.enabled()), status(query.status()),
+					query.groupId() == null ? null
 							: (Specification<AppUser>) (root, criteria, builder) -> builder
 								.equal(root.join("groups").get("id"), query.groupId()),
 					query.createdFrom() == null ? null
@@ -349,6 +349,19 @@ public class AdministrationService {
 	private <T> Specification<T> contains(String field, String value) {
 		return isBlank(value) ? null : (root, query, builder) -> builder.like(builder.lower(root.get(field)),
 				"%" + escapeLike(value.toLowerCase()) + "%", '\\');
+	}
+
+	private Specification<AppUser> status(UserStatus status) {
+		if (status == null) {
+			return null;
+		}
+		return switch (status) {
+			case DISABLED -> equals("enabled", false);
+			case ACTIVE -> (root, query, builder) -> builder.and(builder.isTrue(root.get("enabled")),
+					builder.isNotNull(root.get("lastLoginAt")));
+			case PENDING -> (root, query, builder) -> builder.and(builder.isTrue(root.get("enabled")),
+					builder.isNull(root.get("lastLoginAt")));
+		};
 	}
 
 	private static boolean isBlank(String value) {

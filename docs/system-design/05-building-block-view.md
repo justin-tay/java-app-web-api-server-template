@@ -143,6 +143,7 @@ erDiagram
         varchar name
         varchar email
         boolean enabled
+        timestamp last_login_at
     }
     APP_GROUP {
         char36 id PK

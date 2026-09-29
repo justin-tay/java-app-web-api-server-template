@@ -12,7 +12,7 @@ an adopter builds one.
 
 | Entity | Table | Purpose |
 | --- | --- | --- |
-| `AppUser` | `app_user` | A local account: username, name, email, enabled flag, and a `ManyToMany` set of `AppGroup` memberships. Authorization roles are derived transitively through groups, never assigned to a user directly. |
+| `AppUser` | `app_user` | A local account: username, name, email, enabled flag, the time of the last sign-in (`lastLoginAt`, null until the first, see [ADR 0028](../../../adr/0028-user-last-login-and-dormant-account-disabling.md)), and a `ManyToMany` set of `AppGroup` memberships. Authorization roles are derived transitively through groups, never assigned to a user directly. |
 | `AppGroup` | `app_group` | A named collection of roles, and the sole mechanism for granting roles to users. |
 | `AppRole` | `app_role` | A named authorization role, assigned to groups through the `app_group_role` join table. |
 | `AbstractAuditableEntity` | (mapped superclass) | Supplies a random UUID `id` and `createdAt`/`updatedAt` timestamps to every entity above via `@PrePersist`/`@PreUpdate` callbacks. `touch()` lets a caller stamp `updatedAt` immediately after mutating a collection association that JPA's own dirty-checking would not otherwise flag as a field change. |

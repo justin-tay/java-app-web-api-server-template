@@ -79,6 +79,17 @@ public class AccountsAutoConfiguration {
 	}
 
 	/**
+	 * Records each user's last sign-in time (see docs/adr/0028).
+	 * @param users the user repository
+	 * @return the recorder
+	 */
+	@Bean
+	@ConditionalOnMissingBean(LastLoginRecorder.class)
+	LastLoginRecorder lastLoginRecorder(AppUserRepository users) {
+		return new LastLoginRecorder(users, Clock.systemUTC());
+	}
+
+	/**
 	 * Finds the local user a passkey is registered to, when passkeys are enabled.
 	 * @param users the user repository
 	 * @return the passkey user directory

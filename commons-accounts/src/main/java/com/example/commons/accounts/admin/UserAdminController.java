@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.commons.accounts.validation.ResourceId;
 import com.example.commons.accounts.domain.AppUser;
+import com.example.commons.accounts.domain.UserStatus;
 
 @RestController
 @Validated
@@ -53,16 +55,18 @@ public class UserAdminController {
 			@RequestParam(required = false) @Size(max = 100) String username,
 			@RequestParam(required = false) @Size(max = 100) String name,
 			@RequestParam(required = false) @Size(max = 100) String email,
-			@RequestParam(required = false) Boolean enabled, @RequestParam(required = false) @ResourceId String groupId,
+			@RequestParam(required = false) Boolean enabled,
+			@RequestParam(required = false) @Pattern(regexp = "active|disabled|pending") String status,
+			@RequestParam(required = false) @ResourceId String groupId,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdFrom,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdTo,
 			@RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size, HttpServletRequest request) {
 		Page<AppUser> result = this.service.users(
-				new AdministrationService.UserQuery(search, username, name, email, enabled, groupId, createdFrom,
-						createdTo),
+				new AdministrationService.UserQuery(search, username, name, email, enabled,
+						status == null ? null : UserStatus.fromValue(status), groupId, createdFrom, createdTo),
 				AdminPageable.create(page, size, request.getParameterValues("sort"),
-						Set.of("username", "name", "createdAt", "updatedAt"), "username"));
+						Set.of("username", "name", "lastLoginAt", "createdAt", "updatedAt"), "username"));
 		return new PageResponse<>(result.map(this::response).toList(), result.getNumber(), result.getSize(),
 				result.getTotalElements(), result.getTotalPages());
 	}
@@ -106,6 +110,7 @@ public class UserAdminController {
 
 	private UserResponse response(AppUser user) {
 		return new UserResponse(user.getId(), user.getUsername(), user.getName(), user.getEmail(), user.isEnabled(),
+				user.getLastLoginAt(), UserStatus.of(user).value(),
 				user.getGroups().stream().map(group -> new Summary(group.getId(), group.getName())).toList());
 	}
 

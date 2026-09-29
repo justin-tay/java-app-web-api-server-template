@@ -23,6 +23,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.authentication.event.InteractiveAuthenticationSuccessEvent;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -65,6 +68,9 @@ class AdminApiIntegrationTest {
 
 	@Autowired
 	private MockMvc mockMvc;
+
+	@Autowired
+	private ApplicationEventPublisher eventPublisher;
 
 	/**
 	 * Each API admits its own management role and rejects the others. The role API is the
@@ -267,6 +273,32 @@ class AdminApiIntegrationTest {
 			.andExpect(jsonPath("$.totalItems").value(0));
 		this.mockMvc.perform(get("/admin/users").param("createdFrom", "yesterday").with(as("USER_MANAGE")))
 			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	@Transactional
+	void statusIsPendingUntilTheFirstSignInThenActive() throws Exception {
+		this.mockMvc.perform(get("/admin/users").param("status", "pending").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.totalItems").value(3))
+			.andExpect(jsonPath("$.items[0].status").value("pending"))
+			.andExpect(jsonPath("$.items[0].lastLoginAt").doesNotExist());
+		this.mockMvc.perform(get("/admin/users").param("status", "active").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.totalItems").value(0));
+
+		this.eventPublisher.publishEvent(new InteractiveAuthenticationSuccessEvent(
+				new TestingAuthenticationToken("test-user", "n/a"), getClass()));
+
+		this.mockMvc.perform(get("/admin/users").param("status", "active").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("test-user")))
+			.andExpect(jsonPath("$.items[0].lastLoginAt").exists());
+		this.mockMvc.perform(get("/admin/users").param("status", "pending").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.totalItems").value(2));
+		this.mockMvc.perform(get("/admin/users").param("status", "disabled").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.totalItems").value(0));
+		this.mockMvc.perform(get("/admin/users").param("status", "unknown").with(as("USER_MANAGE")))
+			.andExpect(status().isBadRequest());
+		this.mockMvc.perform(get("/admin/users").param("sort", "lastLoginAt,desc").with(as("USER_MANAGE")))
+			.andExpect(status().isOk());
 	}
 
 	@Test

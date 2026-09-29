@@ -1,5 +1,6 @@
 package com.example.commons.accounts.admin;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 
@@ -37,7 +38,7 @@ public final class AdminDtos {
 	}
 
 	public record UserResponse(String id, String username, String name, String email, boolean enabled,
-			List<Summary> groups) {
+			Instant lastLoginAt, String status, List<Summary> groups) {
 	}
 
 	public record GroupResponse(String id, String name, List<Summary> roles) {

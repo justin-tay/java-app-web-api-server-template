@@ -13,3 +13,5 @@ databaseChangeLog:
       file: db/changelog/006-passkey-schema.sql
   - include:
       file: db/changelog/007-user-name.sql
+  - include:
+      file: db/changelog/008-user-last-login.sql

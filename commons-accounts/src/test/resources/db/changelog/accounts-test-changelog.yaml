@@ -3,3 +3,5 @@ databaseChangeLog:
       file: db/changelog/001-authorisation-schema.sql
   - include:
       file: db/changelog/007-user-name.sql
+  - include:
+      file: db/changelog/008-user-last-login.sql
