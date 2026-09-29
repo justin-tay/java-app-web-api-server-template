@@ -238,6 +238,52 @@ class AdminApiIntegrationTest {
 	}
 
 	@Test
+	void searchMatchesAnyUserFieldOrExactId() throws Exception {
+		this.mockMvc.perform(get("/admin/users").param("search", "GROUP").with(as("USER_MANAGE")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("multi-group-user")));
+		this.mockMvc.perform(get("/admin/users").param("search", "Test User").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("test-user")));
+		this.mockMvc.perform(get("/admin/users").param("search", TEST_USER_ID).with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("test-user")));
+		this.mockMvc.perform(get("/admin/users").param("search", "%").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.totalItems").value(0));
+		this.mockMvc.perform(get("/admin/groups").param("search", "admin").with(as("GROUP_MANAGE")))
+			.andExpect(jsonPath("$.items[*].name").value(containsInAnyOrder("Administrators")));
+		this.mockMvc.perform(get("/admin/roles").param("search", "user_").with(as("ROLE_MANAGE")))
+			.andExpect(jsonPath("$.items[*].name").value(containsInAnyOrder("USER_MANAGE")));
+	}
+
+	@Test
+	void usersFilterByCreatedDateRangeInclusively() throws Exception {
+		this.mockMvc
+			.perform(get("/admin/users").param("createdFrom", "2025-12-31")
+				.param("createdTo", "2026-01-01")
+				.with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.totalItems").value(3));
+		this.mockMvc.perform(get("/admin/users").param("createdFrom", "2026-01-02").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.totalItems").value(0));
+		this.mockMvc.perform(get("/admin/users").param("createdTo", "2025-12-30").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.totalItems").value(0));
+		this.mockMvc.perform(get("/admin/users").param("createdFrom", "yesterday").with(as("USER_MANAGE")))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void sortAcceptsRepeatedParametersWithLimits() throws Exception {
+		this.mockMvc
+			.perform(get("/admin/users").param("sort", "createdAt,asc", "username,desc").with(as("USER_MANAGE")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items[0].username").value("test-user"));
+		this.mockMvc.perform(get("/admin/users").param("sort", "username", "username,desc").with(as("USER_MANAGE")))
+			.andExpect(status().isBadRequest());
+		this.mockMvc
+			.perform(get("/admin/users").param("sort", "username", "displayName", "createdAt", "updatedAt")
+				.with(as("USER_MANAGE")))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
 	@Transactional
 	void roleLifecycle() throws Exception {
 		String location = this.mockMvc

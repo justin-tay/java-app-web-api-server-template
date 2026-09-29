@@ -6,6 +6,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.Set;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -43,12 +44,12 @@ public class RoleAdminController {
 	}
 
 	@GetMapping
-	public PageResponse<RoleResponse> list(@RequestParam(required = false) @Size(max = 100) String name,
+	public PageResponse<RoleResponse> list(@RequestParam(required = false) @Size(max = 100) String search,
+			@RequestParam(required = false) @Size(max = 100) String name,
 			@RequestParam(defaultValue = "0") @Min(0) int page,
-			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
-			@RequestParam(required = false) String sort) {
-		Page<AppRole> result = this.service.roles(name,
-				AdminPageable.create(page, size, sort, Set.of("name", "createdAt", "updatedAt"), "name"));
+			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size, HttpServletRequest request) {
+		Page<AppRole> result = this.service.roles(search, name, AdminPageable.create(page, size,
+				request.getParameterValues("sort"), Set.of("name", "createdAt", "updatedAt"), "name"));
 		return new PageResponse<>(result.map(role -> new RoleResponse(role.getId(), role.getName())).toList(),
 				result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
 	}

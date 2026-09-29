@@ -6,6 +6,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.Set;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -37,13 +38,13 @@ public class GroupAdminController {
 	}
 
 	@GetMapping
-	public PageResponse<GroupResponse> list(@RequestParam(required = false) @Size(max = 100) String name,
+	public PageResponse<GroupResponse> list(@RequestParam(required = false) @Size(max = 100) String search,
+			@RequestParam(required = false) @Size(max = 100) String name,
 			@RequestParam(required = false) @ResourceId String roleId,
 			@RequestParam(defaultValue = "0") @Min(0) int page,
-			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
-			@RequestParam(required = false) String sort) {
-		Page<AppGroup> result = this.service.groups(name, roleId,
-				AdminPageable.create(page, size, sort, Set.of("name", "createdAt", "updatedAt"), "name"));
+			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size, HttpServletRequest request) {
+		Page<AppGroup> result = this.service.groups(search, name, roleId, AdminPageable.create(page, size,
+				request.getParameterValues("sort"), Set.of("name", "createdAt", "updatedAt"), "name"));
 		return new PageResponse<>(result.map(this::response).toList(), result.getNumber(), result.getSize(),
 				result.getTotalElements(), result.getTotalPages());
 	}

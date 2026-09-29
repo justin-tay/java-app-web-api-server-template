@@ -1,5 +1,7 @@
 package com.example.commons.accounts.admin;
 
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
@@ -169,16 +171,36 @@ public class AdministrationService {
 		return this.users.findById(id).orElseThrow(() -> new ResourceNotFoundException("User"));
 	}
 
-	public Page<AppUser> users(String username, String displayName, Boolean enabled, String groupId,
-			Pageable pageable) {
-		if ((username == null || username.isBlank()) && (displayName == null || displayName.isBlank())
-				&& enabled == null && groupId == null)
-			return this.users.findAll(pageable);
+	/**
+	 * Criteria for listing users. Every non-null value narrows the result, and
+	 * {@code search} matches a username, display name, or email containing it, or an
+	 * exact ID.
+	 */
+	public record UserQuery(String search, String username, String displayName, String email, Boolean enabled,
+			String groupId, LocalDate createdFrom, LocalDate createdTo) {
+	}
+
+	public Page<AppUser> users(UserQuery query, Pageable pageable) {
+		Specification<AppUser> search = isBlank(query.search()) ? null
+				: Specification.anyOf(this.<AppUser>contains("username", query.search()),
+						this.<AppUser>contains("displayName", query.search()),
+						this.<AppUser>contains("email", query.search()), this.<AppUser>equals("id", query.search()));
 		Specification<AppUser> specification = Specification.allOf(Stream
-			.of(this.<AppUser>contains("username", username), this.<AppUser>contains("displayName", displayName),
-					this.<AppUser>equals("enabled", enabled),
-					groupId == null ? null
-							: (root, query, builder) -> builder.equal(root.join("groups").get("id"), groupId))
+			.of(search, this.<AppUser>contains("username", query.username()),
+					this.<AppUser>contains("displayName", query.displayName()),
+					this.<AppUser>contains("email", query.email()), this.<AppUser>equals("enabled", query.enabled()),
+					query.groupId() == null
+							? null
+							: (Specification<AppUser>) (root, criteria, builder) -> builder
+								.equal(root.join("groups").get("id"), query.groupId()),
+					query.createdFrom() == null ? null
+							: (Specification<AppUser>) (root, criteria, builder) -> builder.greaterThanOrEqualTo(
+									root.get("createdAt"),
+									query.createdFrom().atStartOfDay(ZoneOffset.UTC).toInstant()),
+					query.createdTo() == null ? null
+							: (Specification<AppUser>) (root, criteria, builder) -> builder.lessThan(
+									root.get("createdAt"),
+									query.createdTo().plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()))
 			.filter(value -> value != null)
 			.toList());
 		return this.users.findAll(distinct(specification), pageable);
@@ -238,15 +260,15 @@ public class AdministrationService {
 		return this.groups.findById(id).orElseThrow(() -> new ResourceNotFoundException("Group"));
 	}
 
-	public Page<AppGroup> groups(String name, String roleId, Pageable pageable) {
-		if ((name == null || name.isBlank()) && roleId == null)
-			return this.groups.findAll(pageable);
-		Specification<AppGroup> specification = Specification.allOf(Stream
-			.of(this.<AppGroup>contains("name", name),
-					roleId == null ? null
-							: (root, query, builder) -> builder.equal(root.join("roles").get("id"), roleId))
-			.filter(value -> value != null)
-			.toList());
+	public Page<AppGroup> groups(String search, String name, String roleId, Pageable pageable) {
+		Specification<AppGroup> specification = Specification
+			.allOf(Stream
+				.of(this.<AppGroup>contains("name", search), this.<AppGroup>contains("name", name),
+						roleId == null ? null
+								: (Specification<AppGroup>) (root, query, builder) -> builder
+									.equal(root.join("roles").get("id"), roleId))
+				.filter(value -> value != null)
+				.toList());
 		return this.groups.findAll(distinct(specification), pageable);
 	}
 
@@ -279,13 +301,12 @@ public class AdministrationService {
 		return this.roles.findById(id).orElseThrow(() -> new ResourceNotFoundException("Role"));
 	}
 
-	public Page<AppRole> roles(String name, Pageable pageable) {
-		if (name == null || name.isBlank())
-			return this.roles.findAll(pageable);
-		return this.roles.findAll(
-				distinct(Specification
-					.allOf(Stream.of(this.<AppRole>contains("name", name)).filter(value -> value != null).toList())),
-				pageable);
+	public Page<AppRole> roles(String search, String name, Pageable pageable) {
+		Specification<AppRole> specification = Specification
+			.allOf(Stream.of(this.<AppRole>contains("name", search), this.<AppRole>contains("name", name))
+				.filter(value -> value != null)
+				.toList());
+		return this.roles.findAll(distinct(specification), pageable);
 	}
 
 	/**
@@ -327,8 +348,19 @@ public class AdministrationService {
 	}
 
 	private <T> Specification<T> contains(String field, String value) {
-		return value == null || value.isBlank() ? null : (root, query, builder) -> builder
-			.like(builder.lower(root.get(field)), "%" + value.toLowerCase() + "%");
+		return isBlank(value) ? null : (root, query, builder) -> builder.like(builder.lower(root.get(field)),
+				"%" + escapeLike(value.toLowerCase()) + "%", '\\');
+	}
+
+	private static boolean isBlank(String value) {
+		return value == null || value.isBlank();
+	}
+
+	/**
+	 * Escapes LIKE wildcards so user input matches literally.
+	 */
+	private static String escapeLike(String value) {
+		return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
 	}
 
 	private <T> Specification<T> equals(String field, Object value) {

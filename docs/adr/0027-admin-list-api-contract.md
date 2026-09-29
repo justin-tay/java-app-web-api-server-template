@@ -45,7 +45,7 @@ specifications. No filter language is introduced.
   input are escaped.
 * **Filters added:** users gain `email` (contains), `status` (`active`,
   `disabled` or `pending`, see ADR 0028), `createdFrom` and `createdTo`
-  (inclusive ISO 8601 dates). Existing filters are unchanged.
+  (inclusive ISO 8601 dates, UTC). Existing filters are unchanged.
 * **Pickers:** group and role pickers use `search` with normal paging (type-ahead,
   next page on scroll). No unpaged or larger-cap endpoint is added.
 * **Rename:** the user field `displayName` becomes `name` in the entity,
