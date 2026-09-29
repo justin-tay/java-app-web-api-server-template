@@ -38,7 +38,7 @@ specifications. No filter language is introduced.
   matching Spring Data. Each property must be in the endpoint's whitelist, at
   most 3 sorts are accepted, and a repeated property is rejected. A single
   `sort` behaves as it does today.
-* **Search:** a `q` parameter (max 100 characters) is a case-insensitive
+* **Search:** a `search` parameter (max 100 characters) is a case-insensitive
   contains match, ORed across the endpoint's search fields and ANDed with
   the other filters. Users search `username`, `name` and `email`, plus an
   exact match on `id`. Groups and roles search `name`. LIKE wildcards in the
@@ -46,7 +46,7 @@ specifications. No filter language is introduced.
 * **Filters added:** users gain `email` (contains), `status` (`active`,
   `disabled` or `pending`, see ADR 0028), `createdFrom` and `createdTo`
   (inclusive ISO 8601 dates). Existing filters are unchanged.
-* **Pickers:** group and role pickers use `q` with normal paging (type-ahead,
+* **Pickers:** group and role pickers use `search` with normal paging (type-ahead,
   next page on scroll). No unpaged or larger-cap endpoint is added.
 * **Rename:** the user field `displayName` becomes `name` in the entity,
   database column, DTOs, filter, sort whitelist and claim mapping, in the same
@@ -63,7 +63,7 @@ paging from its state with no client-side filtering. Adopters add a filter by
 adding a whitelisted parameter and a specification, and cannot be handed an
 unbounded or arbitrary query.
 
-Contains matches on `q` cannot use an ordinary B-tree index, which is
+Contains matches on `search` cannot use an ordinary B-tree index, which is
 acceptable at admin-list sizes and should be revisited if user counts grow
 large. The `displayName` rename is a breaking change for any existing client
 of these endpoints, including the companion frontend.
