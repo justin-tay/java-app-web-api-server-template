@@ -4,6 +4,7 @@ import static com.example.commons.accounts.admin.AdminDtos.*;
 
 import java.net.URI;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -144,7 +145,11 @@ public class UserAdminController {
 		return new UserResponse(user.getId(), user.getUsername(), user.getName(), user.getEmail(),
 				user.getLastLoginAt(), user.getStatus().name().toLowerCase(Locale.ROOT), user.getSuspendedAt(),
 				user.getSuspensionReasonCode(), user.getSuspensionNote(),
-				user.getGroups().stream().map(group -> new Summary(group.getId(), group.getName())).toList());
+				user.getGroups()
+					.stream()
+					.map(group -> new Summary(group.getId(), group.getName()))
+					.sorted(Comparator.comparing(Summary::name, String.CASE_INSENSITIVE_ORDER))
+					.toList());
 	}
 
 }

@@ -3,6 +3,7 @@ package com.example.commons.accounts.admin;
 import static com.example.commons.accounts.admin.AdminDtos.*;
 
 import java.net.URI;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
@@ -70,6 +71,8 @@ public class GroupAdminController {
 				group.getRoles()
 					.stream()
 					.map(role -> new RoleSummary(role.getId(), role.getName(), role.getDisplayName()))
+					.sorted(Comparator.comparing(RoleSummary::displayName, String.CASE_INSENSITIVE_ORDER)
+						.thenComparing(RoleSummary::name))
 					.toList());
 	}
 

@@ -165,6 +165,9 @@ three fields). `POST` takes an optional `displayName` that defaults to the name.
 single language and is set at creation or in the seed data: there is no role update endpoint, so
 changing one later needs a migration. `/login-user` still returns role names, which are authorities.
 
+The roles of a group are returned sorted by `displayName`, then by `name`, and the groups of a user
+are returned sorted by `name`, both ignoring case, so the order does not change between requests.
+
 `POST` returns `201 Created` with `Location`; `PUT` returns `200 OK`; `DELETE`
 returns `204 No Content`. Requests and responses use UUID string IDs.
 
