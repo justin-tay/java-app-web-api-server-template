@@ -25,7 +25,7 @@ public interface LocalAuthorityLookup {
 	/**
 	 * Returns the authorities of the enabled local user with the given username.
 	 * @param username the username from the identity provider's
-	 * {@code preferred_username} claim
+	 * {@code user-name-attribute} claim
 	 * @return the user's {@code ROLE_} authorities, or empty when there is no enabled
 	 * local user with that username, which denies the login or ends the session
 	 */

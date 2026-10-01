@@ -15,8 +15,8 @@ together and where to find the control-by-control evidence.
 Keycloak owns credential collection, password policy, hashing, brute-force
 protection, and (optionally) multi-factor authentication; the application
 never receives, stores, or compares a password. The application's own
-responsibility begins at the OIDC `preferred_username` claim: it resolves
-that claim to the immutable local `username` field and denies authentication
+responsibility begins at the OIDC username claim, the one the registration's
+`user-name-attribute` names: it resolves that claim to the immutable local `username` field and denies authentication
 outright for a missing claim, an unknown local user, or a disabled local
 user. Keycloak realm and client roles are never translated into application
 authorities; a successful OIDC authentication only proves identity, not

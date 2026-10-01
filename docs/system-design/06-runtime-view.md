@@ -46,8 +46,8 @@ sequenceDiagram
 4. `LocalAuthoritiesOidcUserService` resolves the user's local authorities
    through the application's `LocalAuthorityLookup` (here commons-accounts'
    `AppUserLocalAuthorityLookup`, reading `app_user`/`app_group`/`app_role`) by
-   matching Keycloak's
-   `preferred_username` claim, per
+   matching the claim named by the registration's `user-name-attribute`
+   (`preferred_username` for Keycloak), per
    [ADR 0005](../adr/0005-keycloak-authentication-local-authorisation.md).
 5. A server-side session is created and persisted via Spring Session JDBC;
    the browser receives only the opaque `id` session cookie.

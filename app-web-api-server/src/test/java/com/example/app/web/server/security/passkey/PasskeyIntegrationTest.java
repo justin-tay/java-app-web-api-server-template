@@ -3,7 +3,7 @@ package com.example.app.web.server.security.passkey;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
+import static com.example.app.web.server.test.OidcLogins.oidcLoginAs;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -237,8 +237,7 @@ class PasskeyIntegrationTest {
 	 * user's local roles.
 	 */
 	private static RequestPostProcessor loginAt(String username, Instant authTime) {
-		return oidcLogin()
-			.idToken(idToken -> idToken.claim("preferred_username", username).claim("auth_time", authTime));
+		return oidcLoginAs(username, authTime);
 	}
 
 }

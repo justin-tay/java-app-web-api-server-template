@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
+import static com.example.app.web.server.test.OidcLogins.oidcLoginAs;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -395,8 +395,7 @@ class AdminApiIntegrationTest {
 	 * administrator's local roles.
 	 */
 	private static RequestPostProcessor admin(Instant authTime) {
-		return oidcLogin()
-			.idToken(idToken -> idToken.claim("preferred_username", "admin").claim("auth_time", authTime));
+		return oidcLoginAs("admin", authTime);
 	}
 
 	private static RequestPostProcessor as(String... roles) {

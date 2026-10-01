@@ -169,7 +169,7 @@ class LocalAuthorityRefreshFilterTest {
 	private OAuth2AuthenticationToken oauthToken(String preferredUsername, GrantedAuthority... authorities) {
 		OidcIdToken idToken = new OidcIdToken("token-value", Instant.now(), Instant.now().plusSeconds(300),
 				Map.of("sub", "subject", "preferred_username", preferredUsername));
-		DefaultOidcUser principal = new DefaultOidcUser(List.of(authorities), idToken);
+		DefaultOidcUser principal = new DefaultOidcUser(List.of(authorities), idToken, "preferred_username");
 		return new OAuth2AuthenticationToken(principal, principal.getAuthorities(), "keycloak");
 	}
 

@@ -20,8 +20,17 @@ this covers how that model is enforced and assessed.
 
 ## Identity resolution
 
-The application resolves the OIDC `preferred_username` claim to the immutable
-local `username` field.
+The application resolves the claim named by the identity provider registration's
+`spring.security.oauth2.client.provider.<id>.user-name-attribute` to the immutable
+local `username` field. As in Spring Security, the attribute defaults to `sub`
+when unset, so a registration whose local usernames are not the provider's
+subject identifiers must name the claim that holds them (this application's
+Keycloak registration sets `preferred_username`). The value may also be a dotted
+path to a claim nested in an object, such as `xyz.preferred_username`; a claim
+whose name is the whole value, such as a URL-style claim, is used as it is
+before the value is read as a path. Spring Security reads the attribute only as
+a top-level claim name, so `LocalAuthoritiesOidcUserService` resolves a nested
+one itself and the principal's name is the resulting username.
 
 Authentication succeeds only when a matching enabled local user exists. A
 missing claim, an unknown local user, a disabled local user, or a local lookup

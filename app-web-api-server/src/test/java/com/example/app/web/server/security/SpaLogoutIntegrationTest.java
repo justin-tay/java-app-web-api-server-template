@@ -1,7 +1,7 @@
 package com.example.app.web.server.security;
 
+import static com.example.app.web.server.test.OidcLogins.oidcLoginAs;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -30,10 +30,7 @@ class SpaLogoutIntegrationTest {
 
 	@Test
 	void aClientThatAsksForJsonIsGivenTheLogoutUrl() throws Exception {
-		this.mockMvc
-			.perform(post("/logout").with(oidcLogin().idToken(token -> token.claim("preferred_username", "admin")))
-				.with(csrf())
-				.accept(MediaType.APPLICATION_JSON))
+		this.mockMvc.perform(post("/logout").with(oidcLoginAs("admin")).with(csrf()).accept(MediaType.APPLICATION_JSON))
 			.andExpect(status().isOk())
 			.andExpect(header().doesNotExist("Location"))
 			.andExpect(jsonPath("$.logoutUrl").isNotEmpty());
@@ -41,10 +38,7 @@ class SpaLogoutIntegrationTest {
 
 	@Test
 	void aBrowserNavigationIsRedirected() throws Exception {
-		this.mockMvc
-			.perform(post("/logout").with(oidcLogin().idToken(token -> token.claim("preferred_username", "admin")))
-				.with(csrf())
-				.accept(MediaType.TEXT_HTML))
+		this.mockMvc.perform(post("/logout").with(oidcLoginAs("admin")).with(csrf()).accept(MediaType.TEXT_HTML))
 			.andExpect(status().is3xxRedirection());
 	}
 

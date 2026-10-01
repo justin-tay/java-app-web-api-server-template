@@ -228,8 +228,9 @@ Keycloak 26.0 or later.
 
 The application does not read Keycloak realm or client roles (such as the
 `realm_access.roles` claim) from the access token or ID token.
-`LocalAuthoritiesOidcUserService` resolves the OIDC user's `preferred_username`
-claim to an enabled local user and derives authorities from the roles of that
+`LocalAuthoritiesOidcUserService` resolves the OIDC user's username claim (the
+registration's `user-name-attribute`, see [Authorization](authorization.md#identity-resolution))
+to an enabled local user and derives authorities from the roles of that
 user's local groups, exposing each as a Spring authority with the `ROLE_`
 prefix; see [Authorization](authorization.md).
 

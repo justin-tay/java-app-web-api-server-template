@@ -162,7 +162,8 @@ There is no direct user-to-role assignment. All three entities extend
 `AbstractAuditableEntity` (`created_at`/`updated_at`, and `created_by`/`updated_by`
 holding the authenticated actor or `system`); the history of changes is the
 administration audit log, not these columns. The Keycloak
-`preferred_username` claim is matched against `app_user.username`, which
+`preferred_username` claim, which the provider registration's
+`user-name-attribute` names, is matched against `app_user.username`, which
 is why usernames are treated as immutable once a user is provisioned (see
 `README.md`). The schema is in
 `commons-accounts/src/main/resources/db/changelog/001-authorisation-schema.sql`,
