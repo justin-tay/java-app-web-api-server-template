@@ -13,6 +13,8 @@ public final class ProblemTypes {
 
 	public static final URI HTTP_ERROR = type("http-error");
 
+	public static final URI IDENTITY_PROVIDER_UNAVAILABLE = type("identity-provider-unavailable");
+
 	public static final URI INTERNAL_ERROR = type("internal-error");
 
 	public static final URI MALFORMED_REQUEST = type("malformed-request");

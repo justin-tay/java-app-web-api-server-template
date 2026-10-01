@@ -42,6 +42,8 @@ import com.example.commons.security.authorization.LocalAuthorityLookup;
 import com.example.commons.security.authorization.LocalAuthorityRefreshFilter;
 import com.example.commons.security.authorization.LocalAuthorityRefresher;
 import com.example.commons.security.oauth2.IdTokenDecryption;
+import com.example.commons.security.oauth2.IdentityProviderUnavailableFilter;
+import com.example.commons.security.oauth2.LazyClientRegistrationRepository;
 import com.example.commons.security.oauth2.OidcIdTokenDecoders;
 import com.example.commons.security.session.JdbcOidcSessionRegistry;
 import com.example.commons.security.session.SessionLifecycleAuditLogger;
@@ -166,6 +168,8 @@ public class OidcLoginSecurityAutoConfiguration {
 		return http -> http
 			.addFilterBefore(new LocalAuthorityRefreshFilter(lookup, sessionLifecycleAuditLogger, sessionRegistry,
 					localAuthorityRefreshers.orderedStream().toList()), HeaderWriterFilter.class)
+			.addFilterBefore(new IdentityProviderUnavailableFilter(clientRegistrationRepository),
+					OAuth2AuthorizationRequestRedirectFilter.class)
 			.oauth2Login(oauth2Login -> oauth2Login
 				.authorizationEndpoint(authorizationEndpoint -> authorizationEndpoint
 					.authorizationRequestResolver(new MaxAgeAuthorizationRequestResolver(clientRegistrationRepository)))
@@ -200,7 +204,12 @@ public class OidcLoginSecurityAutoConfiguration {
 	 */
 	static String authorizationRequestUri(ClientRegistrationRepository clientRegistrationRepository) {
 		List<String> registrationIds = new ArrayList<>();
-		if (clientRegistrationRepository instanceof Iterable<?> registrations) {
+		if (clientRegistrationRepository instanceof LazyClientRegistrationRepository lazy) {
+			// Iterating would resolve every registration, which fails while the provider
+			// is down (see docs/adr/0029).
+			registrationIds.addAll(lazy.registrationIds());
+		}
+		else if (clientRegistrationRepository instanceof Iterable<?> registrations) {
 			for (Object registration : registrations) {
 				registrationIds.add(((ClientRegistration) registration).getRegistrationId());
 			}

@@ -5,3 +5,4 @@ com.example.commons.security.WebSecurityAutoConfiguration
 com.example.commons.security.authentication.passkey.PasskeySecurityAutoConfiguration
 com.example.commons.security.oauth2.PrivateKeyJwtAutoConfiguration
 com.example.commons.web.tomcat.TomcatHardeningAutoConfiguration
+com.example.commons.security.oauth2.OidcDiscoveryAutoConfiguration

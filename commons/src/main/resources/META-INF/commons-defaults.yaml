@@ -24,7 +24,9 @@ management:
       # Liveness and readiness groups at /app/health/liveness and
       # /app/health/readiness on the management port. A private_key_jwt application
       # also has the jwks contributor in its readiness group, so it is not ready until
-      # its JWKS has a signing key; see docs/adr/0020.
+      # its JWKS has a signing key (see docs/adr/0020); an application with an
+      # issuer-uri has the oidcDiscovery contributor, so it is not ready until its
+      # OpenID Provider has been reached once (see docs/adr/0029).
       probes:
         enabled: true
   tracing:

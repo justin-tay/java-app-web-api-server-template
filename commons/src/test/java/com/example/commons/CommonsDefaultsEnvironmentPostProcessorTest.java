@@ -55,6 +55,33 @@ class CommonsDefaultsEnvironmentPostProcessorTest {
 	}
 
 	@Test
+	void addsOidcDiscoveryToTheReadinessGroupWhenAProviderHasAnIssuerUri() {
+		this.environment.getPropertySources()
+			.addLast(new MapPropertySource("applicationConfig",
+					Map.of("spring.security.oauth2.client.provider.keycloak.issuer-uri",
+							"https://issuer.example.test/realms/test")));
+
+		this.postProcessor.postProcessEnvironment(this.environment, new SpringApplication());
+
+		assertThat(this.environment.getProperty("management.endpoint.health.group.readiness.include"))
+			.isEqualTo("readinessState,oidcDiscovery");
+	}
+
+	@Test
+	void addsBothToTheReadinessGroupForAPrivateKeyJwtClientWithAnIssuerUri() {
+		this.environment.getPropertySources()
+			.addLast(new MapPropertySource("applicationConfig",
+					Map.of("spring.security.oauth2.client.registration.keycloak.client-authentication-method",
+							"private_key_jwt", "spring.security.oauth2.client.provider.keycloak.issuer-uri",
+							"https://issuer.example.test/realms/test")));
+
+		this.postProcessor.postProcessEnvironment(this.environment, new SpringApplication());
+
+		assertThat(this.environment.getProperty("management.endpoint.health.group.readiness.include"))
+			.isEqualTo("readinessState,jwks,oidcDiscovery");
+	}
+
+	@Test
 	void ranksBelowApplicationConfiguration() {
 		this.environment.getPropertySources()
 			.addLast(new MapPropertySource("applicationConfig", Map.of("management.server.port", "9000")));

@@ -18,6 +18,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.util.ClassUtils;
 
+import com.example.commons.security.oauth2.ConditionalOnIssuerUriClientRegistration.OnIssuerUriClientRegistrationCondition;
 import com.example.commons.security.oauth2.ConditionalOnPrivateKeyJwtClientRegistration.OnPrivateKeyJwtClientRegistrationCondition;
 
 /**
@@ -38,14 +39,13 @@ public class CommonsDefaultsEnvironmentPostProcessor implements EnvironmentPostP
 
 	static final String PROPERTY_SOURCE_NAME = "commonsDefaults";
 
-	static final String JWKS_READINESS_PROPERTY_SOURCE_NAME = "commonsJwksReadinessDefaults";
-
 	/**
-	 * The readiness group when a client registration uses {@code private_key_jwt}: the
-	 * application's own readiness state and the {@code jwks} health contributor, which
-	 * only exists then (see docs/adr/0020).
+	 * The readiness group adds the {@code jwks} health contributor when a client
+	 * registration uses {@code private_key_jwt} (see docs/adr/0020) and the
+	 * {@code oidcDiscovery} one when a client provider has an {@code issuer-uri} (see
+	 * docs/adr/0029), as those only exist then.
 	 */
-	static final String JWKS_READINESS_GROUP_INCLUDE = "readinessState,jwks";
+	static final String READINESS_PROPERTY_SOURCE_NAME = "commonsReadinessDefaults";
 
 	@Override
 	public int getOrder() {
@@ -70,15 +70,24 @@ public class CommonsDefaultsEnvironmentPostProcessor implements EnvironmentPostP
 				propertySources.addLast(defaults);
 			}
 		}
-		// Only a private_key_jwt application has the jwks health contributor, and naming
-		// a missing contributor in a health group fails startup, so this default is added
-		// only then, just above the other defaults. Without the OAuth2 client on the
-		// classpath there is no client registration to check.
+		// Only a private_key_jwt application has the jwks health contributor, and only an
+		// application with an issuer-uri has the oidcDiscovery one. Naming a missing
+		// contributor in a health group fails startup, so each is added only then, just
+		// above the other defaults. Without the OAuth2 client on the classpath there is
+		// no client registration to check.
 		if (propertySources.contains(PROPERTY_SOURCE_NAME)
-				&& ClassUtils.isPresent(OAUTH2_CLIENT_PROPERTIES_CLASS, getClass().getClassLoader())
-				&& OnPrivateKeyJwtClientRegistrationCondition.matches(environment)) {
-			propertySources.addBefore(PROPERTY_SOURCE_NAME, new MapPropertySource(JWKS_READINESS_PROPERTY_SOURCE_NAME,
-					Map.of("management.endpoint.health.group.readiness.include", JWKS_READINESS_GROUP_INCLUDE)));
+				&& ClassUtils.isPresent(OAUTH2_CLIENT_PROPERTIES_CLASS, getClass().getClassLoader())) {
+			StringBuilder include = new StringBuilder("readinessState");
+			if (OnPrivateKeyJwtClientRegistrationCondition.matches(environment)) {
+				include.append(",jwks");
+			}
+			if (OnIssuerUriClientRegistrationCondition.matches(environment)) {
+				include.append(",oidcDiscovery");
+			}
+			if (include.indexOf(",") >= 0) {
+				propertySources.addBefore(PROPERTY_SOURCE_NAME, new MapPropertySource(READINESS_PROPERTY_SOURCE_NAME,
+						Map.of("management.endpoint.health.group.readiness.include", include.toString())));
+			}
 		}
 	}
 
