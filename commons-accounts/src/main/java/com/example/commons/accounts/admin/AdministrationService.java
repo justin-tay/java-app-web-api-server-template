@@ -35,12 +35,13 @@ import com.example.commons.web.problem.ResourceNotFoundException;
  *
  * <p>
  * Each management role is kept from granting more than its holder has (see
- * docs/adr/0022): an administrator cannot grant a role they do not hold, whether by
- * giving a user a group or by giving a group a role; cannot change their own groups, or
- * suspend, unsuspend, or remove themselves (see {@link AccountLifecycleService}); and
- * cannot delete a {@link #RESERVED_ROLES reserved role}. Role names cannot be changed at
- * all, because a role's name is the authority the application checks. These checks apply
- * to an authenticated administrator; a change the application makes itself, with no
+ * docs/adr/0022): an administrator cannot grant a role they do not hold, other than one
+ * in {@link #GRANTABLE_WITHOUT_HOLDING}, whether by giving a user a group or by giving a
+ * group a role; cannot change their own groups, or suspend, unsuspend, or remove
+ * themselves (see {@link AccountLifecycleService}); and cannot delete a
+ * {@link #RESERVED_ROLES reserved role}. Role names cannot be changed at all, because a
+ * role's name is the authority the application checks. These checks apply to an
+ * authenticated administrator; a change the application makes itself, with no
  * authenticated user, is trusted.
  */
 @Transactional
@@ -51,6 +52,13 @@ public class AdministrationService {
 	 * administrator out of the part of the API it guards.
 	 */
 	public static final Set<String> RESERVED_ROLES = Set.of("USER_MANAGE", "GROUP_MANAGE", "ROLE_MANAGE");
+
+	/**
+	 * Roles an administrator can grant without holding them. Reviewing accounts is kept
+	 * apart from administering them, so administrators do not hold it, yet they maintain
+	 * who does (see docs/adr/0032). Granting it is audited like any other change.
+	 */
+	public static final Set<String> GRANTABLE_WITHOUT_HOLDING = Set.of("ACCOUNT_REVIEWER");
 
 	private final AppUserRepository users;
 
@@ -301,7 +309,9 @@ public class AdministrationService {
 	 */
 	private boolean holds(Collection<AppRole> roles) {
 		return Actor.current()
-			.map(actor -> roles.stream().map(AppRole::getName).allMatch(actor.roles()::contains))
+			.map(actor -> roles.stream()
+				.map(AppRole::getName)
+				.allMatch(name -> GRANTABLE_WITHOUT_HOLDING.contains(name) || actor.roles().contains(name)))
 			.orElse(true);
 	}
 

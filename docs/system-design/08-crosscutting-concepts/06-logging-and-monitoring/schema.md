@@ -92,7 +92,7 @@ fields where available and documents its intentional project extensions.
 | `validation.field` | `keyword` | Rejected request field or parameter path. It must never contain the rejected value. |
 | `roles.added`, `roles.removed` | `keyword[]` | Stored role names, without the `ROLE_` prefix, that an event grants or withdraws: to a user or group by an administration change, or to an active session by `update_session`. Top-level because the ECS `user.changes.roles` field is a keyword and cannot also hold `added` and `removed`. |
 | `groups.added`, `groups.removed` | `keyword[]` | Group names an administration change adds a user to or removes them from. |
-| `user.target.enabled`, `user.changes.enabled` | `boolean` | Whether the affected user was enabled before an administration change, and the new status when it changed. |
+| `user.target.status`, `user.changes.status` | `keyword` | The affected account's status, `active` or `suspended`, before an account change, and the new status when it changed. |
 | `user.changes.fields` | `keyword[]` | ECS names (`email`, `full_name`) of the personal-data fields an administration change altered; never their values. |
 | `group.roles`, `group.changes.roles` | `keyword[]` | Stored names of the roles a group granted before an administration change, and after it when they changed. |
 | `group.changes.name` | `keyword` | A group's new name. |

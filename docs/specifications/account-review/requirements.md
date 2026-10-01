@@ -75,7 +75,7 @@ clear.
    THEN the system SHALL reject it as in ADR 0022.
 8. WHEN the reason codes are listed, THEN they SHALL be `inactive_account`,
    `left_organisation`, `no_longer_required`, `policy_violation` and `other`.
-   `inactive_account` is reserved for the system.
+   `inactive_account` is reserved for the system, so the API does not accept it.
 
 ### R2: Automated inactivity handling
 

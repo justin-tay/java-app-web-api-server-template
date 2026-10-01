@@ -44,6 +44,26 @@ that is not trusted fails startup instead of reading as Keycloak being down.
 
 <!-- arc42-manual: Record how each deployment environment actually supplies CERTIFICATE_PEM/PRIVATE_KEY_PEM/CA_BUNDLE_PEM, the Keycloak issuer-uri, and any database connection properties (not shown in application.yaml, so presumably supplied entirely by the deployment platform) -->
 
+## Scheduled jobs and application settings
+
+Two scheduled jobs run in every instance, and are safe to run on several at once:
+
+| Job | Does | Controlled by |
+| --- | --- | --- |
+| `InactiveUserSuspender` | Suspends accounts not in use for `inactivity.suspendAfterDays` and removes those not in use for `inactivity.removeAfterDays` | The `inactivity.*` settings; the check interval is `commons.accounts.inactivity.check-interval` (one hour by default) |
+| `AccountReviewScheduler` | Creates the account review task for the current review window | The `review.*` settings; the check interval is `commons.accounts.review.check-interval` (one hour by default) and the time zone that aligns windows to the calendar is `commons.accounts.review.time-zone` (the system time zone by default) |
+
+The policy is not in configuration files. It is five rows of the `app_setting`
+table, read on every run and edited at `/admin/settings` by a settings
+administrator, so a change needs no deployment and is audited. The migration seeds
+them on: suspend after 90 days, remove after 180, review every 3 months. The
+sample application's `dev` data turns both jobs off so its fixtures are never
+suspended, removed, or put into a review ([ADR 0031](../../../adr/0031-inactive-account-suspension-and-removal.md),
+[ADR 0032](../../../adr/0032-periodic-account-review.md)). Upgrading gives every
+existing account a fresh inactivity clock, so nobody is suspended or removed on the
+first run. Removal is permanent: the audit trail and review items are the only
+record afterwards, and nothing purges them.
+
 ## Management and health surface
 
 Spring Boot Actuator runs on its own embedded server, `management.server.port:

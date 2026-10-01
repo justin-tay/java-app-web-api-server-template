@@ -125,8 +125,9 @@ produced which event:
   ID is not called expired or forged, and JDBC cleanup of a session never
   used again is not logged (see
   [ADR 0017](../../../adr/0017-invalid-session-and-privilege-change-logging.md)).
-* `AdministrationAuditLogger` emits an ECS `iam` event for every create,
-  update, and delete of a local user, group, or role, and for each one
+* `AccountAuditLogger` emits an ECS `iam` event for every create,
+  update, suspension, unsuspension, and removal of a local user, and every create,
+  update, and delete of a group or role, and for each one
   rejected by a business rule, with the administrator, the object's state
   before the change, only the values that changed, and the roles and groups
   granted or withdrawn (`roles.added`, `roles.removed`, `groups.added`,

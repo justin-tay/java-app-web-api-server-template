@@ -8,6 +8,11 @@ created locally before login, can belong to one or more groups, and gain local
 roles through all their groups. Keycloak remains responsible for authentication,
 credentials, and its user records.
 
+Account lifecycle, inactivity handling, the periodic account review, and the audit
+trail extend this model in [Account Lifecycle and Periodic Account Review](../account-review/requirements.md).
+Where the two differ, that one governs: a user's `enabled` flag is replaced by a
+lifecycle status, and the seeded development users are renamed there.
+
 ## Terminology
 
 - **Local user:** An application record for a person authenticated by Keycloak.

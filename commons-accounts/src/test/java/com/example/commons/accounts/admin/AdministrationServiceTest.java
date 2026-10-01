@@ -311,6 +311,33 @@ class AdministrationServiceTest {
 	}
 
 	@Test
+	void anAdministratorCanMaintainAccountReviewersWithoutHoldingTheRole() {
+		AppRole reviewer = this.entityManager.persist(new AppRole("ACCOUNT_REVIEWER"));
+		AppGroup reviewers = this.entityManager.persist(new AppGroup("Account Reviewers"));
+		reviewers.getRoles().add(reviewer);
+		authenticate("admin", "USER_MANAGE", "GROUP_MANAGE");
+
+		AppUser user = this.service.createUser(
+				new AdminDtos.UserCreateRequest("new-reviewer", "New Reviewer", null, Set.of(reviewers.getId())));
+		this.service.createGroup(new AdminDtos.GroupRequest("More Reviewers", Set.of(reviewer.getId())));
+
+		assertThat(user.getGroups()).extracting(AppGroup::getName).containsExactly("Account Reviewers");
+		assertThat(this.groups.existsByName("More Reviewers")).isTrue();
+	}
+
+	@Test
+	void anAdministratorCannotMakeThemselvesAnAccountReviewer() {
+		AppRole reviewer = this.entityManager.persist(new AppRole("ACCOUNT_REVIEWER"));
+		AppGroup reviewers = this.entityManager.persist(new AppGroup("Account Reviewers"));
+		reviewers.getRoles().add(reviewer);
+		authenticate("test-user", "USER_MANAGE");
+
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
+				() -> this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User",
+						"test@example.test", Set.of(this.managers.getId(), reviewers.getId()))));
+	}
+
+	@Test
 	void anAdministratorCanGiveAGroupGrantingOnlyRolesTheyHold() {
 		authenticate("admin", "USER_MANAGE");
 

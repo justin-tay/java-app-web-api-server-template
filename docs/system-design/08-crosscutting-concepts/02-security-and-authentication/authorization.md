@@ -11,7 +11,7 @@ this covers how that model is enforced and assessed.
 ## Architectural principles
 
 - Authorisation is independent of identity-provider realm and client roles.
-- Access requires an enabled local user record.
+- Access requires an active local user record; a suspended account is denied.
 - Permissions are granted through organisational groups.
 - Users cannot receive roles directly.
 - Any role or group change takes effect immediately, because authorities
@@ -32,8 +32,8 @@ before the value is read as a path. Spring Security reads the attribute only as
 a top-level claim name, so `LocalAuthoritiesOidcUserService` resolves a nested
 one itself and the principal's name is the resulting username.
 
-Authentication succeeds only when a matching enabled local user exists. A
-missing claim, an unknown local user, a disabled local user, or a local lookup
+Authentication succeeds only when a matching active local user exists. A
+missing claim, an unknown local user, a suspended local user, or a local lookup
 failure denies authentication. Successful authentication does not by itself
 grant application permissions.
 
@@ -68,6 +68,9 @@ strips one leading `ROLE_` before prepending it again, so
 | User administration | `ROLE_USER_MANAGE` |
 | Group administration | `ROLE_GROUP_MANAGE` |
 | Role administration | `ROLE_ROLE_MANAGE` |
+| Application settings | `ROLE_SETTINGS_MANAGE` |
+| Tasks and the account review | `ROLE_ACCOUNT_REVIEWER` |
+| Audit trail | `ROLE_ACCOUNT_REVIEWER` or `ROLE_USER_MANAGE` |
 
 The administration API is the sole mechanism for maintaining local users,
 groups, roles, and their relationships, once the first administrator exists
@@ -79,9 +82,18 @@ cannot grant more than they hold
 change by an authenticated administrator is rejected with 403 when it would:
 
 * grant a role the administrator does not hold, by giving a user a group or a
-  group a role;
-* change the administrator's own groups or enabled status, or delete them; or
+  group a role, except `ACCOUNT_REVIEWER` (see below);
+* change the administrator's own groups, or suspend, unsuspend, or remove them; or
 * delete `USER_MANAGE`, `GROUP_MANAGE`, or `ROLE_MANAGE`, which the API requires.
+
+`ACCOUNT_REVIEWER` is exempt from that rule. Administrators do not hold it, so
+the people who maintain accounts do not review them, yet they maintain who
+does: they can put users in the `Account Reviewers` group without holding the
+role. This trades prevention for detection. An administrator still cannot give
+themselves the role, every grant is in the audit trail that reviewers read, and
+only two administrators acting together could make a colluding user a reviewer,
+a risk accepted for the small number of administrators a deployment is expected
+to have ([ADR 0032](../../../adr/0032-periodic-account-review.md)).
 
 Role names cannot be changed, because a role's name is the authority the
 application checks: there is no `PUT /admin/roles/{id}`. Without these rules,
@@ -95,12 +107,20 @@ least one administrator: if the last holders of a management role lose it,
 restore it with a changeset as for the first administrator below. Requiring a
 second administrator's approval for changes is left to adopters.
 
+The inactivity job can make this happen without anyone acting: it removes any
+account not in use for the removal threshold, 180 days by default, including the
+only holder of a management role who has not signed in for that long
+([ADR 0031](../../../adr/0031-inactive-account-suspension-and-removal.md)). The job has no
+exemption for the last administrator, so recovery is the first-administrator
+changeset below, and a deployment that cannot accept that risk turns the job off
+or lengthens the threshold in the settings.
+
 ## Bootstrapping the first administrator
 
 Liquibase applies the four roles above and the `Administrators` group, which
 holds the three management roles, in every environment
-(`002-authorisation-seed.sql`). The local users `admin`, `test-user`, and
-`multi-group-user`, and the `Test Users` group, are development and test
+(`002-authorisation-seed.sql`). The local users `admin`, `user`, `multi-group-user`, `account-reviewer-1`, and
+`account-reviewer-2`, and the `Users` group, are development and test
 fixtures (`004-development-seed.sql`): Liquibase applies them only when the
 `dev` context is explicitly requested, which the `local` and `test` profiles
 and `bin/start-api-server-tls.sh` do. A production migration must not request
@@ -116,8 +136,8 @@ to the environments that should have it with a required context (for
 example `context:@production`) that only those migration runs request.
 
 ```sql
-INSERT INTO app_user (id, username, name, enabled, created_at, updated_at, created_by, updated_by)
-VALUES ('<new UUID>', '<Keycloak preferred_username>', '<name>', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system');
+INSERT INTO app_user (id, username, name, status, inactivity_clock_started_at, created_at, updated_at, created_by, updated_by)
+VALUES ('<new UUID>', '<Keycloak preferred_username>', '<name>', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'system', 'system');
 INSERT INTO app_user_group (user_id, group_id)
 VALUES ('<the same UUID>', '00000000-0000-0000-0000-000000000011');
 ```
@@ -136,7 +156,7 @@ authorities computed once at login. Any authorization-relevant change,
 including removing a role from a group or deleting a role, takes effect on
 the affected user's very next request, not just at their next login.
 
-A local user who has been disabled or deleted since login is deauthenticated
+A local user who has been suspended or removed since login is deauthenticated
 immediately by the same filter: its session is invalidated and the request is
 treated as unauthenticated. `SessionRevocationService` additionally revokes a
 user's session as soon as an administrator disables their account, deletes

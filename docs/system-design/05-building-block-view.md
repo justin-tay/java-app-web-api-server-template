@@ -71,9 +71,11 @@ rules, its Liquibase master changelog, and its configuration.
 | `commons` defaults | Configuration defaults ranked below every application configuration source | `CommonsDefaultsEnvironmentPostProcessor` | `commons/src/main/resources/META-INF/commons-defaults.yaml` |
 | `commons-aws` `secretsmanager` | Resolves `aws-secretsmanager:<secret name or ARN>` resource locations to the secret's `AWSCURRENT` value, read with Spring Cloud AWS's `SecretsManagerClient` | `SecretsManagerResourceAutoConfiguration`, `SecretsManagerProtocolResolver`, `SecretsManagerResource`; `spring.cloud.aws.*` | `commons-aws/src/main/java/com/example/commons/aws/secretsmanager/` |
 | `commons-accounts` | Local account management wiring: registers the model, the authority lookup, and the administration API | `AccountsAutoConfiguration`, `AppUserLocalAuthorityLookup`; `commons.accounts.enabled`, `commons.accounts.admin.enabled` | `commons-accounts/src/main/java/com/example/commons/accounts/` |
-| `commons-accounts` `admin` | Administration REST API for users, groups, and roles | `/admin/users/**`, `/admin/groups/**`, `/admin/roles/**` (each individually role-gated) | `commons-accounts/src/main/java/com/example/commons/accounts/admin/` |
-| `commons-accounts` account lifecycle | Records each user's last sign-in (`LastLoginRecorder`) and, when `commons.accounts.dormancy.threshold` is set, disables dormant users (`DormantUserDisabler`) | `LastLoginRecorder`, `DormantUserDisabler` | `commons-accounts/src/main/java/com/example/commons/accounts/` |
-| `commons-accounts` `domain` | JPA entities (`AppUser`, `AppGroup`, `AppRole`) and Spring Data repositories | Repository interfaces consumed by `admin` and `AppUserLocalAuthorityLookup` | `commons-accounts/src/main/java/com/example/commons/accounts/domain/` |
+| `commons-accounts` `admin` | Administration REST API for users, groups, and roles, and the read-only audit trail | `/admin/users/**`, `/admin/groups/**`, `/admin/roles/**` (each individually role-gated), `/audit-events` (`ROLE_ACCOUNT_REVIEWER` or `ROLE_USER_MANAGE`) | `commons-accounts/src/main/java/com/example/commons/accounts/admin/` |
+| `commons-accounts` account lifecycle | Records each user's last sign-in (`LastLoginRecorder`); suspends, unsuspends, and removes accounts in one place (`AccountLifecycleService`); and suspends then removes inactive accounts according to the `inactivity.*` settings (`InactiveUserSuspender`, checked every `commons.accounts.inactivity.check-interval`) | `LastLoginRecorder`, `AccountLifecycleService`, `InactiveUserSuspender` | `commons-accounts/src/main/java/com/example/commons/accounts/` |
+| `commons-accounts` `settings` | The application settings, read from the `app_setting` table and edited through the API by a settings administrator | `SettingsService`, `/admin/settings` (`ROLE_SETTINGS_MANAGE`) | `commons-accounts/src/main/java/com/example/commons/accounts/settings/` |
+| `commons-accounts` `review` | The periodic account review: creates a review task per calendar-aligned window (`AccountReviewScheduler`, `commons.accounts.review.check-interval`, `commons.accounts.review.time-zone`) and lets account reviewers verify, remove, suspend, and unsuspend accounts (`AccountReviewService`) | `/tasks/**`, `/account-reviews/tasks/**` (`ROLE_ACCOUNT_REVIEWER`) | `commons-accounts/src/main/java/com/example/commons/accounts/review/` |
+| `commons-accounts` `domain` | JPA entities (`AppUser`, `AppGroup`, `AppRole`, `AppSetting`, `AccountAuditEvent`, `Task`, `ReviewItem`) and Spring Data repositories | Repository interfaces consumed by `admin` and `AppUserLocalAuthorityLookup` | `commons-accounts/src/main/java/com/example/commons/accounts/domain/` |
 | `commons-accounts` `validation` | Reusable Bean Validation constraints for account input | `@Username`, `@ResourceName` | `commons-accounts/src/main/java/com/example/commons/accounts/validation/` |
 | `api` | Public, non-administrative REST endpoints: caller's local identity and roles, Keycloak account proxy | `GET /login-user`, `GET /account` | `app-web-api-server/src/main/java/com/example/app/web/server/api/` |
 | `config` | Spring `@Configuration` classes: the application's authorization rules, REST client | `WebSecurityConfiguration`; otherwise wiring only | `app-web-api-server/src/main/java/com/example/app/web/server/config/` |
@@ -107,8 +109,9 @@ flowchart TB
 | --- | --- |
 | `UserAdminController` / `GroupAdminController` / `RoleAdminController` | Thin REST controllers; each is annotated `@PreAuthorize` (or matched in the security filter chain) with a distinct management authority, so a caller with only `USER_MANAGE` cannot administer groups or roles. Roles can be created and deleted but not renamed; `UserAdminController` also ends one user's or every user's sessions. |
 | `AdminReauthenticationInterceptor` | Rejects a change from a login older than 15 minutes with a `reauthentication-required` problem (see [ADR 0023](../adr/0023-recent-login-for-administration-changes.md)). |
-| `AdministrationService` | Application-layer orchestration for create/update/list/disable operations; translates domain conflicts (duplicate name) into `ConflictException`, missing resources into `ResourceNotFoundException`, and keeps an administrator from granting more than they hold (see [ADR 0022](../adr/0022-administrators-cannot-grant-beyond-their-own-roles.md)). |
-| `AdministrationAuditLogger` | Logs every change, after commit, and every rejected change as an ECS `iam` event with the prior state, the changes, and the roles and groups granted or withdrawn (see [ADR 0021](../adr/0021-authorisation-change-audit-log-events.md)). |
+| `AccountLifecycleService` | Suspends, unsuspends, and removes accounts for the administration API, the account review, and the inactivity job, so each applies the same rules: a reason is required, sessions are ended, removal deletes the account with its group memberships and passkeys in one transaction, and an authenticated actor cannot change their own account (see [ADR 0031](../adr/0031-inactive-account-suspension-and-removal.md)). |
+| `AdministrationService` | Application-layer orchestration for create/update/list operations; translates domain conflicts (duplicate name) into `ConflictException`, missing resources into `ResourceNotFoundException`, and keeps an administrator from granting more than they hold (see [ADR 0022](../adr/0022-administrators-cannot-grant-beyond-their-own-roles.md)). |
+| `AccountAuditLogger` | Logs every change, after commit, and every rejected change as an ECS `iam` event with the prior state, the changes, and the roles and groups granted or withdrawn (see [ADR 0021](../adr/0021-authorisation-change-audit-log-events.md)), and appends each successful change to the business audit trail table in the same transaction (see [ADR 0030](../adr/0030-business-audit-trail-table.md)). |
 | `AdminDtos` | Request/response DTOs, including `PageResponse` for paginated listings. |
 
 ### Passkeys (White Box)
@@ -121,11 +124,11 @@ credential storage; these components fit it to the local user model.
 | Component | Responsibility |
 | --- | --- |
 | `PasskeySecurityAutoConfiguration` | Adds the WebAuthn configuration to every filter chain behind the opt-in property, and fails startup without a relying party ID and allowed origins. The policy is discoverable credentials, required user verification, and no attestation. |
-| `PasskeyUserDirectory` (`AppUserPasskeyUserDirectory` in commons-accounts) | Finds the enabled local user for a username; the user's UUID is the WebAuthn user handle. |
+| `PasskeyUserDirectory` (`AppUserPasskeyUserDirectory` in commons-accounts) | Finds the active local user for a username; the user's UUID is the WebAuthn user handle. |
 | `DirectoryBackedUserEntityRepository` | Stores the passkey user entity of a directory user only, so Spring never creates a random handle. |
 | `AuditedUserCredentialRepository` | Limits passkeys per user, refuses a login whose signature counter did not increase, and records each registration and removal through `PasskeyAuditLogger`. |
 | `PasskeyRegistrationGuardFilter` | Requires authentication, a recent login, and room under the per-user limit before a passkey can be registered. |
-| `PasskeyLocalAuthorityRefresher` | Lets `LocalAuthorityRefreshFilter` reload the local roles of a passkey session, and end it when the local user is disabled or deleted. |
+| `PasskeyLocalAuthorityRefresher` | Lets `LocalAuthorityRefreshFilter` reload the local roles of a passkey session, and end it when the local user is suspended or removed. |
 | `PasskeySessionFilters` | Records the time of a passkey login for the recent-login checks, and ends a passkey session at its own absolute timeout. |
 | `PasskeyManager` (`PasskeyController`, `UserPasskeyAdminController`) | Lists, renames, and revokes passkeys for the user and for an administrator, and removes them when a user is deleted. |
 
@@ -137,13 +140,16 @@ erDiagram
     APP_GROUP ||--o{ APP_USER_GROUP : "has members"
     APP_GROUP ||--o{ APP_GROUP_ROLE : "grants"
     APP_ROLE ||--o{ APP_GROUP_ROLE : "granted via"
+    TASK ||--o{ REVIEW_ITEM : "has"
 
     APP_USER {
         char36 id PK
         varchar username UK
         varchar name
         varchar email
-        boolean enabled
+        varchar status
+        timestamp suspended_at
+        timestamp inactivity_clock_started_at
         timestamp last_login_at
     }
     APP_GROUP {
@@ -153,6 +159,29 @@ erDiagram
     APP_ROLE {
         char36 id PK
         varchar name UK
+    }
+    TASK {
+        char36 id PK
+        varchar type
+        varchar status
+        date start_date
+        date due_date
+    }
+    REVIEW_ITEM {
+        char36 id PK
+        char36 task_id FK
+        char36 user_id "no foreign key"
+        varchar review_status
+    }
+    ACCOUNT_AUDIT_EVENT {
+        char36 id PK
+        timestamp occurred_at
+        varchar action
+        varchar target_type
+    }
+    APP_SETTING {
+        varchar name PK
+        varchar setting_value
     }
 ```
 
@@ -177,8 +206,15 @@ and the `Administrators` group in its own `002-authorisation-seed.sql`, includin
 the `USER_MANAGE`, `GROUP_MANAGE`, and `ROLE_MANAGE` roles the administration
 API requires by name. Each changelog keeps its original `db/changelog/`
 classpath path, and the application's master changelog includes them in order.
-The development and test users are in the application's
-`004-development-seed.sql`, applied only when the `dev` Liquibase context is requested
+Account status and the inactivity clock, the audit table and the settings, and the
+task and review tables are in commons-accounts' `009-account-lifecycle.sql`,
+`010-account-audit-and-settings.sql`, and `011-tasks-and-account-review.sql`.
+`review_item` and `account_audit_event` hold the user's ID and username with no
+foreign key to `app_user`, so they outlive a removed account. The application
+seeds the `ACCOUNT_REVIEWER` and `SETTINGS_MANAGE` roles and the `Account Reviewers`
+group in `012-account-review-seed.sql`. The development and test users are in the
+application's `004-development-seed.sql` and `013-development-account-review-seed.sql`,
+applied only when the `dev` Liquibase context is requested
 ([ADR 0018](../adr/0018-development-fixtures-kept-out-of-production.md)).
 
 ### Security Filter Chain (White Box)

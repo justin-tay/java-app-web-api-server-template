@@ -40,9 +40,9 @@ the existing `AdministrationService` operation set, extended; it is not a second
 implementation.
 
 `AdministrationAuditLogger` is renamed `AccountAuditLogger` and keeps its ECS
-output. It additionally appends the audit row after the same transaction's work and
-before commit, so a rolled-back change leaves neither a log line nor a row (the log
-line is still emitted after commit, as in ADR 0021).
+output. It additionally appends the audit row inside the changing transaction, so a
+rolled-back change leaves neither a log line nor a row (the log line is still emitted
+after commit, as in ADR 0021).
 
 ## Decisions
 
@@ -98,7 +98,7 @@ or delete)
 | `id` | `CHAR(36)` |
 | `occurred_at` | `TIMESTAMP NOT NULL`, indexed |
 | `actor` | `VARCHAR(100) NOT NULL`, the username or `system` |
-| `action` | `VARCHAR(50) NOT NULL`, such as `suspend_user`, `remove_user`, `update_group`, `update_setting`, `verify_review_item` |
+| `action` | `VARCHAR(50) NOT NULL`, such as `suspend_user`, `delete_user`, `update_group`, `update_setting`, `verify_review_item` |
 | `target_type` | `VARCHAR(20) NOT NULL`: `USER`, `GROUP`, `ROLE`, `SETTING`, `REVIEW` |
 | `target_id`, `target_name` | the ID and the username, group, role, setting or task name |
 | `target_display_name` | `VARCHAR(100)`, filled for users so a removed account is recognisable |
@@ -158,7 +158,7 @@ never recomputed.
 
 - **Active:** items whose account exists with status `ACTIVE`.
 - **Suspended:** items whose account exists with status `SUSPENDED`.
-- **Removed:** audit events with `action = remove_user` and `occurred_at` inside the
+- **Removed:** audit events with `action = delete_user` and `occurred_at` inside the
   task's window, so removals of accounts that were never in the task also appear.
 
 The item table is joined to `app_user` on `user_id` for the live view. An item whose
@@ -207,10 +207,7 @@ repeatable `sort`, `search`, and the response envelope.
 
 ### Errors
 
-Problem Details as elsewhere. Additional types: `urn:problem:own-account-review`
-(`403`), `urn:problem:review-decision-conflict` (`409`, listing the item IDs that are
-already decided, in another task, or the caller's own), `urn:problem:invalid-settings`
-(`400`, field-level), and `urn:problem:reauthentication-required` (`401`).
+Problem Details as elsewhere. Reviewing one's own account is the ordinary access-denied `403`; a batch with items that are already decided or not in the task is a `409` whose message lists their IDs. Invalid settings are the usual validation-failed `400`, and a change after a stale login is `urn:problem:reauthentication-required` (`401`).
 
 ## Security configuration
 
