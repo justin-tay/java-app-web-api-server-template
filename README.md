@@ -89,11 +89,13 @@ Both local runs use two separate profiles that share the name `local`:
   runs against an in-memory H2 database that Liquibase creates on every start.
 - The `local` **Spring** profile (`app-web-api-server/src/main/resources/application-local.yaml`)
 
-The `local` profile also applies the `demo` context, which adds twelve sample accounts
+Both ways of running the server locally also apply the `demo` context, which adds twelve sample accounts
 to review (some recently active, some never signed in, some long unused, some suspended)
 and two already removed, and creates the account review shortly after startup. They have
 no Keycloak account; sign in as `account-reviewer-1` or `account-reviewer-2` to review
-them. The tests and production do not apply it.
+them. Either start command below gets it, over plain HTTP with `mvn` or over TLS with the
+script; recreate an existing local database first, since the sample data is a new changeset.
+The tests and production do not apply it.
   disables TLS, marks the session cookie as non-secure, loads the development-only
   JWKS from `app-web-api-server/src/test/resources/jwks.json`, and requests the Liquibase `dev` context
   that creates the development users. Outside the `local` and `test` profiles
