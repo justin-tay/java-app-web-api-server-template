@@ -15,9 +15,13 @@ that needs no login, and although an orchestrator restarting it in a loop
 only adds load to a provider that is already down. Keycloak is also often
 started after, or restarted independently of, the applications that use it.
 
-Spring Security's `ClientRegistrations` does the fetch with a `RestTemplate`
-that has no timeouts, and Spring Security iterates the repository at startup
-to build the default login page, so a repository that is merely wrapped still
+Spring Security's `ClientRegistrations` does the fetch with a static
+`RestTemplate` whose connect and read timeouts are fixed at 30 seconds, and
+whose HTTP client cannot be configured; the requests to make it configurable
+(spring-security#14176 and #14777, the second one asking for an `SSLContext`)
+were declined. A Keycloak behind a private CA therefore cannot be discovered
+through it at all. Spring Security also iterates the repository at startup to
+build the default login page, so a repository that is merely wrapped still
 resolves every registration when the filter chain is built.
 
 ## Decision
@@ -37,9 +41,26 @@ when a client provider has an `issuer-uri`:
   `commons.security.oauth2.discovery.connect-timeout` (default 2 seconds) and
   `read-timeout` (default 5 seconds), and its `issuer` must equal the
   configured `issuer-uri`.
+- A provider whose certificate is issued by a CA the JVM does not trust names
+  an SSL bundle in `commons.security.oauth2.client.provider.<id>.ssl-bundle`,
+  keyed by the same provider ID as `spring.security.oauth2.client.provider`.
+  The bundle's trust material applies to every call the application makes to
+  that provider, not only discovery: the discovery fetch, the token endpoint
+  (a token client for the authorization code grant that picks the client by
+  registration, so it works for `private_key_jwt` and for a client secret
+  alike), the ID token's JWK Set and the user info endpoint. A provider without
+  a bundle keeps Spring Security's own client for each of these, and so the
+  JVM's default trust. The bundle is a Spring Boot `spring.ssl.bundle`, so a PEM
+  CA supplied through an environment variable or a secrets manager needs no
+  file on disk and no JVM truststore setup. A provider ID that matches no
+  provider, or a bundle that does not exist, fails startup. These calls speak
+  HTTP/1.1 and do not follow redirects: a provider's endpoints answer where
+  they are configured, so a redirect is reported as a misconfiguration instead
+  of being followed.
 - Startup tries every registration once. A definitive failure (a 4xx response
-  other than 408 and 429, a document that is not JSON, or an issuer mismatch)
-  is a misconfiguration and fails startup. A transient one (no connection, a
+  other than 408 and 429, a document that is not JSON, an issuer mismatch, or a
+  TLS certificate the provider presented that is not trusted or does not match
+  the host) is a misconfiguration and fails startup. A transient one (no connection, a
   timeout, a 5xx response) does not.
 - After a failed attempt, further requests fail at once until
   `commons.security.oauth2.discovery.retry-interval` (default 30 seconds) has

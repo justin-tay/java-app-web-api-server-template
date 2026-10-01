@@ -35,7 +35,12 @@ the `oidcDiscovery` health contributor keeps the readiness group DOWN until
 it has. `commons.security.oauth2.discovery.retry-interval` (default 30
 seconds), `connect-timeout` (2 seconds) and `read-timeout` (5 seconds) tune
 the retries; a mistyped `issuer-uri` that Keycloak answers with a client error
-still fails startup ([ADR 0029](../../../adr/0029-lazy-oidc-discovery.md)).
+still fails startup ([ADR 0029](../../../adr/0029-lazy-oidc-discovery.md)). A
+Keycloak whose certificate is issued by a private CA is trusted by naming an
+SSL bundle that holds that CA in
+`commons.security.oauth2.client.provider.<id>.ssl-bundle`; it covers discovery,
+the token endpoint, the JWK Set and the user info endpoint, and a certificate
+that is not trusted fails startup instead of reading as Keycloak being down.
 
 <!-- arc42-manual: Record how each deployment environment actually supplies CERTIFICATE_PEM/PRIVATE_KEY_PEM/CA_BUNDLE_PEM, the Keycloak issuer-uri, and any database connection properties (not shown in application.yaml, so presumably supplied entirely by the deployment platform) -->
 
