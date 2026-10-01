@@ -25,3 +25,5 @@ databaseChangeLog:
       file: db/changelog/012-account-review-seed.sql
   - include:
       file: db/changelog/013-development-account-review-seed.sql
+  - include:
+      file: db/changelog/014-development-review-sample-data.sql

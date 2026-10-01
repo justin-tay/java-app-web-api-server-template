@@ -98,6 +98,30 @@ class DatabaseChangelogTest {
 	}
 
 	@Test
+	void migrationWithTheDemoContextAlsoCreatesSampleAccountsToReview() throws Exception {
+		migrate(this.database, "dev,demo");
+
+		assertThat(count("app_user")).isEqualTo(17);
+		assertThat(this.jdbcTemplate.queryForList("SELECT DISTINCT status FROM app_user", String.class))
+			.containsExactlyInAnyOrder("ACTIVE", "SUSPENDED");
+		assertThat(this.jdbcTemplate.queryForObject("SELECT COUNT(*) FROM app_user WHERE last_login_at IS NULL "
+				+ "AND status = 'ACTIVE' AND username IN ('kumar.raj', 'mei.ling.tan')", Integer.class))
+			.isEqualTo(2);
+		assertThat(this.jdbcTemplate
+			.queryForObject("SELECT COUNT(*) FROM account_audit_event WHERE action = 'delete_user'", Integer.class))
+			.isEqualTo(2);
+		assertThat(settings()).containsEntry("review.enabled", "true").containsEntry("inactivity.enabled", "false");
+	}
+
+	@Test
+	void migrationWithoutTheDemoContextCreatesNoSampleAccounts() throws Exception {
+		migrate(this.database, "dev");
+
+		assertThat(count("app_user")).isEqualTo(5);
+		assertThat(count("account_audit_event")).isZero();
+	}
+
+	@Test
 	void deletingAPasskeyUserEntityDeletesItsCredentials() throws Exception {
 		migrate(this.database, null);
 		this.jdbcTemplate

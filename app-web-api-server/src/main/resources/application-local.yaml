@@ -1,4 +1,9 @@
 commons:
+  accounts:
+    review:
+      # Local-only: creates the account review shortly after startup, not an hour later, so the
+      # sample accounts in 014-development-review-sample-data.sql can be reviewed at once.
+      check-interval: PT30S
   security:
     oauth2:
       # Development-only private JWKS; production supplies its own (see docs/adr/0018).
@@ -35,5 +40,6 @@ spring:
         # The development JWKS is a file, so no AWS Secrets Manager client is needed.
         enabled: false
   liquibase:
-    # Applies the development seed users in 004-development-seed.sql (see docs/adr/0018).
-    contexts: dev
+    # Applies the development seed users in 004-development-seed.sql (see docs/adr/0018), and
+    # the sample accounts to review in 014-development-review-sample-data.sql.
+    contexts: dev,demo
