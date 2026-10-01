@@ -43,7 +43,10 @@ Two shared support base classes remove duplication from integration tests:
 `RestTestClient`-based integration tests a common setup rather than each
 test class configuring its own. `OAuth2ClientTestConfiguration` supplies a
 stand-in OAuth2 client registration so security-chain tests do not depend on
-a live Keycloak instance. The `test` Spring profile
+a live Keycloak instance; `IdentityProviderDownIntegrationTest` turns it off
+with `test.oauth2-client.static-registration=false` to start the application
+against an `issuer-uri` that is not listening, and then brings a stub provider
+up ([ADR 0029](../../../adr/0029-lazy-oidc-discovery.md)). The `test` Spring profile
 (`application-test.yaml`) disables TLS, disables the `Secure` cookie
 attribute, and binds the management port to `0` (an OS-assigned ephemeral
 port) so parallel test runs never collide on the fixed `8082` management

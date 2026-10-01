@@ -29,7 +29,13 @@ etc.) supplies the actual values; see
 key-management rationale. The OAuth2 client's Keycloak `issuer-uri` in
 `application.yaml` is a local-development placeholder
 (`http://localhost:8080/realms/test`); a non-local deployment must override
-it.
+it. The application does not need Keycloak to start: its metadata is fetched
+on first use, login answers 503 with `Retry-After` until that succeeds, and
+the `oidcDiscovery` health contributor keeps the readiness group DOWN until
+it has. `commons.security.oauth2.discovery.retry-interval` (default 30
+seconds), `connect-timeout` (2 seconds) and `read-timeout` (5 seconds) tune
+the retries; a mistyped `issuer-uri` that Keycloak answers with a client error
+still fails startup ([ADR 0029](../../../adr/0029-lazy-oidc-discovery.md)).
 
 <!-- arc42-manual: Record how each deployment environment actually supplies CERTIFICATE_PEM/PRIVATE_KEY_PEM/CA_BUNDLE_PEM, the Keycloak issuer-uri, and any database connection properties (not shown in application.yaml, so presumably supplied entirely by the deployment platform) -->
 
