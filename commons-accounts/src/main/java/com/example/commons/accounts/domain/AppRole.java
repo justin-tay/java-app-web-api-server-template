@@ -17,15 +17,28 @@ public class AppRole extends AbstractAuditableEntity {
 	@ResourceName
 	private String name;
 
+	/** The label shown to people. Unlike the name, it can change. */
+	@ResourceName
+	private String displayName;
+
 	protected AppRole() {
 	}
 
 	public AppRole(String name) {
+		this(name, name);
+	}
+
+	public AppRole(String name, String displayName) {
 		this.name = name;
+		this.displayName = displayName;
 	}
 
 	public String getName() {
 		return this.name;
+	}
+
+	public String getDisplayName() {
+		return this.displayName;
 	}
 
 }

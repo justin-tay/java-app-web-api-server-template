@@ -12,10 +12,10 @@
 -- ROLE_MANAGE by name; APPLICATION_USER is this application's own role.
 
 --changeset app:002-authorisation-seed
-INSERT INTO app_role (id, name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000001', 'USER_MANAGE', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00', 'system', 'system');
-INSERT INTO app_role (id, name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000002', 'GROUP_MANAGE', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00', 'system', 'system');
-INSERT INTO app_role (id, name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000003', 'ROLE_MANAGE', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00', 'system', 'system');
-INSERT INTO app_role (id, name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000004', 'APPLICATION_USER', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00', 'system', 'system');
+INSERT INTO app_role (id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000001', 'USER_MANAGE', 'Manage users', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00', 'system', 'system');
+INSERT INTO app_role (id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000002', 'GROUP_MANAGE', 'Manage groups', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00', 'system', 'system');
+INSERT INTO app_role (id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000003', 'ROLE_MANAGE', 'Manage roles', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00', 'system', 'system');
+INSERT INTO app_role (id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000004', 'APPLICATION_USER', 'Application user', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00', 'system', 'system');
 INSERT INTO app_group (id, name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000011', 'Administrators', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00', 'system', 'system');
 INSERT INTO app_group_role (group_id, role_id) VALUES ('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000001');
 INSERT INTO app_group_role (group_id, role_id) VALUES ('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000002');

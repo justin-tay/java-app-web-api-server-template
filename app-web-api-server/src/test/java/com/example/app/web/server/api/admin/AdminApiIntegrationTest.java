@@ -352,6 +352,18 @@ class AdminApiIntegrationTest {
 			.andExpect(jsonPath("$.items[*].name").value(containsInAnyOrder("Administrators")));
 		this.mockMvc.perform(get("/admin/roles").param("search", "user_").with(as("ROLE_MANAGE")))
 			.andExpect(jsonPath("$.items[*].name").value(containsInAnyOrder("USER_MANAGE")));
+		this.mockMvc.perform(get("/admin/roles").param("search", "Account reviewer").with(as("ROLE_MANAGE")))
+			.andExpect(jsonPath("$.items[*].name").value(containsInAnyOrder("ACCOUNT_REVIEWER")))
+			.andExpect(jsonPath("$.items[0].displayName").value("Account reviewer"));
+		this.mockMvc.perform(get("/admin/roles").param("sort", "displayName").with(as("ROLE_MANAGE")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items[0].displayName").value("Account reviewer"));
+	}
+
+	@Test
+	void groupResponsesCarryTheRoleDisplayName() throws Exception {
+		this.mockMvc.perform(get("/admin/groups/" + ADMINISTRATORS_GROUP_ID).with(as("GROUP_MANAGE")))
+			.andExpect(jsonPath("$.roles[?(@.name == 'USER_MANAGE')].displayName").value("Manage users"));
 	}
 
 	@Test
@@ -444,6 +456,7 @@ class AdminApiIntegrationTest {
 				.content("{\"name\":\"REPORT_VIEW\"}"))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.name").value("REPORT_VIEW"))
+			.andExpect(jsonPath("$.displayName").value("REPORT_VIEW"))
 			.andReturn()
 			.getResponse()
 			.getHeader(HttpHeaders.LOCATION);

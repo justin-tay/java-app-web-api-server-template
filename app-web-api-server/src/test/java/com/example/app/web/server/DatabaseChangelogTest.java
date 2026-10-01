@@ -41,6 +41,9 @@ class DatabaseChangelogTest {
 
 		assertThat(names("app_role")).containsExactlyInAnyOrder("USER_MANAGE", "GROUP_MANAGE", "ROLE_MANAGE",
 				"APPLICATION_USER", "ACCOUNT_REVIEWER", "SETTINGS_MANAGE");
+		assertThat(roleDisplayNames()).containsExactlyInAnyOrderEntriesOf(Map.of("USER_MANAGE", "Manage users",
+				"GROUP_MANAGE", "Manage groups", "ROLE_MANAGE", "Manage roles", "APPLICATION_USER", "Application user",
+				"ACCOUNT_REVIEWER", "Account reviewer", "SETTINGS_MANAGE", "Manage settings"));
 		assertThat(names("app_group")).containsExactlyInAnyOrder("Administrators", "Account Reviewers");
 		assertThat(count("app_group_role")).isEqualTo(5);
 		assertThat(this.jdbcTemplate
@@ -143,6 +146,14 @@ class DatabaseChangelogTest {
 		liquibase.setContexts(contexts);
 		liquibase.setResourceLoader(new DefaultResourceLoader());
 		liquibase.afterPropertiesSet();
+	}
+
+	private Map<String, String> roleDisplayNames() {
+		Map<String, String> labels = new HashMap<>();
+		this.jdbcTemplate.query("SELECT name, display_name FROM app_role", rs -> {
+			labels.put(rs.getString("name"), rs.getString("display_name"));
+		});
+		return labels;
 	}
 
 	private List<String> names(String table) {

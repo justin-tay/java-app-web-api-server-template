@@ -67,7 +67,10 @@ public class GroupAdminController {
 
 	private GroupResponse response(AppGroup group) {
 		return new GroupResponse(group.getId(), group.getName(),
-				group.getRoles().stream().map(role -> new Summary(role.getId(), role.getName())).toList());
+				group.getRoles()
+					.stream()
+					.map(role -> new RoleSummary(role.getId(), role.getName(), role.getDisplayName()))
+					.toList());
 	}
 
 }

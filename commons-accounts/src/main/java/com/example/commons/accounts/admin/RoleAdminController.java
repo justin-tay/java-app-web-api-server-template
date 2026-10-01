@@ -39,8 +39,7 @@ public class RoleAdminController {
 	@PostMapping
 	public ResponseEntity<RoleResponse> create(@Valid @RequestBody RoleRequest request) {
 		AppRole role = this.service.createRole(request);
-		return ResponseEntity.created(URI.create("/admin/roles/" + role.getId()))
-			.body(new RoleResponse(role.getId(), role.getName()));
+		return ResponseEntity.created(URI.create("/admin/roles/" + role.getId())).body(response(role));
 	}
 
 	@GetMapping
@@ -49,15 +48,19 @@ public class RoleAdminController {
 			@RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size, HttpServletRequest request) {
 		Page<AppRole> result = this.service.roles(search, name, AdminPageable.create(page, size,
-				request.getParameterValues("sort"), Set.of("name", "createdAt", "updatedAt"), "name"));
-		return new PageResponse<>(result.map(role -> new RoleResponse(role.getId(), role.getName())).toList(),
-				result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
+				request.getParameterValues("sort"), Set.of("name", "displayName", "createdAt", "updatedAt"), "name"));
+		return new PageResponse<>(result.map(RoleAdminController::response).toList(), result.getNumber(),
+				result.getSize(), result.getTotalElements(), result.getTotalPages());
 	}
 
 	@GetMapping("/{id}")
 	public RoleResponse get(@PathVariable @ResourceId String id) {
 		AppRole role = this.service.role(id);
-		return new RoleResponse(role.getId(), role.getName());
+		return response(role);
+	}
+
+	private static RoleResponse response(AppRole role) {
+		return new RoleResponse(role.getId(), role.getName(), role.getDisplayName());
 	}
 
 	@DeleteMapping("/{id}")

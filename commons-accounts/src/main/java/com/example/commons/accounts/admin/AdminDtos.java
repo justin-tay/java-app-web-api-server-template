@@ -42,10 +42,16 @@ public final class AdminDtos {
 		}
 	}
 
-	public record RoleRequest(@ResourceName String name) {
+	public record RoleRequest(@ResourceName String name, @Size(max = 100) String displayName) {
+		public RoleRequest {
+			displayName = displayName == null || displayName.isBlank() ? name : displayName;
+		}
 	}
 
 	public record Summary(String id, String name) {
+	}
+
+	public record RoleSummary(String id, String name, String displayName) {
 	}
 
 	public record UserResponse(String id, String username, String name, String email, Instant lastLoginAt,
@@ -53,10 +59,10 @@ public final class AdminDtos {
 			List<Summary> groups) {
 	}
 
-	public record GroupResponse(String id, String name, List<Summary> roles) {
+	public record GroupResponse(String id, String name, List<RoleSummary> roles) {
 	}
 
-	public record RoleResponse(String id, String name) {
+	public record RoleResponse(String id, String name, String displayName) {
 	}
 
 	public record PageResponse<T>(List<T> items, int page, int size, long totalItems, int totalPages) {

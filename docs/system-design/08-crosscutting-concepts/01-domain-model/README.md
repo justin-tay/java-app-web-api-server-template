@@ -14,7 +14,7 @@ an adopter builds one.
 | --- | --- | --- |
 | `AppUser` | `app_user` | A local account: username, name, email, a status (`ACTIVE` or `SUSPENDED`, with when and why it was suspended), the inactivity clock (`inactivityClockStartedAt`, the creation or last unsuspension time), the time of the last sign-in (`lastLoginAt`, null until the first, set only by a sign-in, see [ADR 0028](../../../adr/0028-user-last-login-and-dormant-account-disabling.md) and [ADR 0031](../../../adr/0031-inactive-account-suspension-and-removal.md)), and a `ManyToMany` set of `AppGroup` memberships. Removing an account deletes the row. Authorization roles are derived transitively through groups, never assigned to a user directly. |
 | `AppGroup` | `app_group` | A named collection of roles, and the sole mechanism for granting roles to users. |
-| `AppRole` | `app_role` | A named authorization role, assigned to groups through the `app_group_role` join table. |
+| `AppRole` | `app_role` | A named authorization role with a human-readable `displayName` (the name is the stable authority and cannot change), assigned to groups through the `app_group_role` join table. |
 | `AccountAuditEvent` | `account_audit_event` | One append-only row of the business audit trail: when, who, what, the target, the reason, and the changed values as JSON. It has no foreign key to the account, so it outlives it ([ADR 0030](../../../adr/0030-business-audit-trail-table.md)). |
 | `AppSetting` | `app_setting` | One application setting: the inactivity thresholds and the review window. |
 | `Task` | `task` | Something to do by a date, such as the account review; the dashboard is written against it ([ADR 0032](../../../adr/0032-periodic-account-review.md)). |

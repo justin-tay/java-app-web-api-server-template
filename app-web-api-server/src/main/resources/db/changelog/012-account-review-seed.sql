@@ -7,8 +7,8 @@
 -- them. See docs/specifications/account-review.
 
 --changeset app:012-account-review-seed
-INSERT INTO app_role (id, name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000005', 'ACCOUNT_REVIEWER', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00', 'system', 'system');
-INSERT INTO app_role (id, name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000006', 'SETTINGS_MANAGE', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00', 'system', 'system');
+INSERT INTO app_role (id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000005', 'ACCOUNT_REVIEWER', 'Account reviewer', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00', 'system', 'system');
+INSERT INTO app_role (id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000006', 'SETTINGS_MANAGE', 'Manage settings', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00', 'system', 'system');
 INSERT INTO app_group (id, name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000013', 'Account Reviewers', TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00', 'system', 'system');
 INSERT INTO app_group_role (group_id, role_id) VALUES ('00000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000005');
 INSERT INTO app_group_role (group_id, role_id) VALUES ('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000006');

@@ -29,6 +29,7 @@ CREATE TABLE app_group (
 CREATE TABLE app_role (
     id CHAR(36) NOT NULL,
     name VARCHAR(100) NOT NULL,
+    display_name VARCHAR(100) NOT NULL,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL,
     created_by VARCHAR(100) NOT NULL,

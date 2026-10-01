@@ -276,9 +276,18 @@ class AdministrationServiceTest {
 	}
 
 	@Test
+	void aRoleDisplayNameDefaultsToTheNameWhenOmitted() {
+		assertThat(this.service.createRole(new AdminDtos.RoleRequest("REPORT_VIEW", null)).getDisplayName())
+			.isEqualTo("REPORT_VIEW");
+		assertThat(
+				this.service.createRole(new AdminDtos.RoleRequest("REPORT_EXPORT", "Export reports")).getDisplayName())
+			.isEqualTo("Export reports");
+	}
+
+	@Test
 	void rejectsADuplicateRoleName() {
 		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.createRole(new AdminDtos.RoleRequest("USER_MANAGE")))
+			.isThrownBy(() -> this.service.createRole(new AdminDtos.RoleRequest("USER_MANAGE", null)))
 			.withMessage("Role name already exists.");
 		assertThat(this.roles.count()).isEqualTo(1);
 	}

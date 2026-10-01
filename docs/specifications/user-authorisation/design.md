@@ -159,6 +159,12 @@ endpoint family:
 | `/admin/groups` | `POST`, `GET`; `/admin/groups/{id}`: `GET`, `PUT`, `DELETE` |
 | `/admin/roles` | `POST`, `GET`; `/admin/roles/{id}`: `GET`, `DELETE` (role names are immutable, see ADR 0022) |
 
+A role has a `name`, the stable authority identifier, and a `displayName`, the label clients show
+(`RoleResponse` is `id`, `name`, `displayName`, and the roles in a group response carry the same
+three fields). `POST` takes an optional `displayName` that defaults to the name. The label is a
+single language and is set at creation or in the seed data: there is no role update endpoint, so
+changing one later needs a migration. `/login-user` still returns role names, which are authorities.
+
 `POST` returns `201 Created` with `Location`; `PUT` returns `200 OK`; `DELETE`
 returns `204 No Content`. Requests and responses use UUID string IDs.
 
@@ -203,11 +209,11 @@ Allowed filter and sort fields are deliberately finite:
 |---|---|---|
 | Users | `username`, `name`, `email`, `enabled`, `status`, `groupId`, `createdFrom`, `createdTo` | `username`, `name`, `lastLoginAt`, `createdAt`, `updatedAt` |
 | Groups | `name`, `roleId` | `name`, `createdAt`, `updatedAt` |
-| Roles | `name` | `name`, `createdAt`, `updatedAt` |
+| Roles | `name` | `name`, `displayName`, `createdAt`, `updatedAt` |
 
 Text filters perform case-insensitive contains matching, with `%` and `_` matched
 literally. `search` is one text box ORed across fields: a user's username, name, or
-email (or an exact ID), and a group's or role's name. It combines with the other
+email (or an exact ID), and a group's name, or a role's name or display name. It combines with the other
 filters by AND. `status` is `active` or `suspended`. `neverSignedIn` is `true` for accounts with no `lastLoginAt` and `false` for accounts with one. `createdFrom` and `createdTo` are inclusive ISO 8601 dates in UTC.
 An invalid filter, date, or sort property returns `400`.
 

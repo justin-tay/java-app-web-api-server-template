@@ -41,7 +41,7 @@ specifications. No filter language is introduced.
 * **Search:** a `search` parameter (max 100 characters) is a case-insensitive
   contains match, ORed across the endpoint's search fields and ANDed with
   the other filters. Users search `username`, `name` and `email`, plus an
-  exact match on `id`. Groups and roles search `name`. LIKE wildcards in the
+  exact match on `id`. Groups search `name`, and roles search `name` and `displayName`. LIKE wildcards in the
   input are escaped.
 * **Filters added:** users gain `email` (contains), `status` (`active` or
   `suspended`) and `neverSignedIn` (see ADR 0033), `createdFrom` and `createdTo`

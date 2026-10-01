@@ -257,7 +257,7 @@ public class AdministrationService {
 			this.auditLogger.roleCreationRejected(request.name(), "name_exists");
 			throw new ConflictException("Role name already exists.");
 		}
-		AppRole saved = this.roles.save(new AppRole(request.name()));
+		AppRole saved = this.roles.save(new AppRole(request.name(), request.displayName()));
 		this.auditLogger.roleCreated(RoleState.of(saved));
 		return saved;
 	}
@@ -282,10 +282,10 @@ public class AdministrationService {
 	}
 
 	public Page<AppRole> roles(String search, String name, Pageable pageable) {
+		Specification<AppRole> anyName = isBlank(search) ? null : Specification
+			.anyOf(this.<AppRole>contains("name", search), this.<AppRole>contains("displayName", search));
 		Specification<AppRole> specification = Specification
-			.allOf(Stream.of(this.<AppRole>contains("name", search), this.<AppRole>contains("name", name))
-				.filter(value -> value != null)
-				.toList());
+			.allOf(Stream.of(anyName, this.<AppRole>contains("name", name)).filter(value -> value != null).toList());
 		return this.roles.findAll(distinct(specification), pageable);
 	}
 
