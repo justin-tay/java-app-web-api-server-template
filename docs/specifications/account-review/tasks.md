@@ -99,8 +99,10 @@ Each task is independently testable and ordered by its dependencies.
     ADR 0021 by reference to the new ADRs.
   - _Requirements: all_
 
-- [ ] 6.3 Full verification
+- [x] 6.3 Full verification
   - Run the Maven suite and formatter; exercise review end to end against the local
-    stack with two reviewers, including the self-review block. The Maven suite passes;
-    the local stack with Keycloak has not been run.
+    stack with two reviewers, including the self-review block. Done against the local
+    Keycloak: both reviewers signed in, a batch with the reviewer's own account was
+    refused with nothing changed, the other reviewer verified it, a removal needed a
+    reason, and the dashboard counts, removed category and audit trail followed.
   - _Requirements: all_

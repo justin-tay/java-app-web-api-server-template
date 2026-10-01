@@ -6,22 +6,32 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.RequestEntity;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.web.client.RestOperations;
 
 import com.example.commons.security.authorization.LocalAuthorityLookup;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class LocalAuthoritiesOidcUserServiceTest {
 
@@ -79,7 +89,35 @@ class LocalAuthoritiesOidcUserServiceTest {
 			.satisfies(ex -> assertThat(ex.getError().getErrorCode()).isEqualTo("local_user_not_authorized"));
 	}
 
+	/**
+	 * Keycloak grants the {@code profile} and {@code email} scopes by default whatever
+	 * the client asks for, so Spring Security calls the user info endpoint, and that call
+	 * rejects a registration with no user name attribute.
+	 */
+	@Test
+	void loadsTheUserWhenSpringSecurityCallsTheUserInfoEndpoint() {
+		RestOperations restOperations = mock(RestOperations.class);
+		given(restOperations.exchange(any(RequestEntity.class), any(ParameterizedTypeReference.class)))
+			.willReturn(ResponseEntity.ok(Map.of("sub", "subject", "preferred_username", "alice")));
+		DefaultOAuth2UserService userInfoService = new DefaultOAuth2UserService();
+		userInfoService.setRestOperations(restOperations);
+		LocalAuthoritiesOidcUserService service = new LocalAuthoritiesOidcUserService(this.lookup, userInfoService);
+		Map<String, Object> claims = Map.of("sub", "subject", "preferred_username", "alice");
+
+		OidcUser user = service.loadUser(
+				request("preferred_username", claims, "http://idp/userinfo", Set.of("openid", "profile", "email")));
+
+		assertThat(user.getName()).isEqualTo("alice");
+		assertThat(user.getAuthorities()).extracting(GrantedAuthority::getAuthority).contains("ROLE_USER");
+		verify(restOperations).exchange(any(RequestEntity.class), any(ParameterizedTypeReference.class));
+	}
+
 	private static OidcUserRequest request(String userNameAttribute, Map<String, Object> claims) {
+		return request(userNameAttribute, claims, null, Set.of("openid"));
+	}
+
+	private static OidcUserRequest request(String userNameAttribute, Map<String, Object> claims, String userInfoUri,
+			Set<String> grantedScopes) {
 		ClientRegistration.Builder registration = ClientRegistration.withRegistrationId("idp")
 			.clientId("client")
 			.clientSecret("secret")
@@ -89,6 +127,9 @@ class LocalAuthoritiesOidcUserServiceTest {
 			.authorizationUri("http://idp/authorize")
 			.tokenUri("http://idp/token")
 			.jwkSetUri("http://idp/jwks");
+		if (userInfoUri != null) {
+			registration.userInfoUri(userInfoUri);
+		}
 		if (userNameAttribute != null) {
 			registration.userNameAttributeName(userNameAttribute);
 		}
@@ -96,7 +137,7 @@ class LocalAuthoritiesOidcUserServiceTest {
 		idTokenClaims.put("iss", "http://idp");
 		OidcIdToken idToken = new OidcIdToken("id-token", Instant.now(), Instant.now().plusSeconds(300), idTokenClaims);
 		OAuth2AccessToken accessToken = new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "access-token",
-				Instant.now(), Instant.now().plusSeconds(300));
+				Instant.now(), Instant.now().plusSeconds(300), grantedScopes);
 		return new OidcUserRequest(registration.build(), accessToken, idToken);
 	}
 

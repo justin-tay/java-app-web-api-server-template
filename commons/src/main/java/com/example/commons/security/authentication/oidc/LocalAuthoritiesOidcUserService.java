@@ -85,11 +85,14 @@ public class LocalAuthoritiesOidcUserService implements OAuth2UserService<OidcUs
 	/**
 	 * The delegate would reject a nested {@code user-name-attribute} as a missing claim,
 	 * so it loads the user with {@code sub}, its default, and the attribute is resolved
-	 * here instead.
+	 * here instead. The name is set rather than left null because, when Spring Security
+	 * calls the user info endpoint, which it does whenever the provider grants the
+	 * {@code profile} or {@code email} scope, that call rejects a registration with no
+	 * user name attribute.
 	 */
 	private static OidcUserRequest withoutUserNameAttribute(OidcUserRequest request) {
 		ClientRegistration registration = ClientRegistration.withClientRegistration(request.getClientRegistration())
-			.userNameAttributeName(null)
+			.userNameAttributeName(IdTokenClaimNames.SUB)
 			.build();
 		return new OidcUserRequest(registration, request.getAccessToken(), request.getIdToken(),
 				request.getAdditionalParameters());
