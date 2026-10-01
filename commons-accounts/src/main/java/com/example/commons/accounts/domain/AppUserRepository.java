@@ -17,6 +17,8 @@ public interface AppUserRepository extends JpaRepository<AppUser, String>, JpaSp
 	@EntityGraph(attributePaths = { "groups", "groups.roles" })
 	Optional<AppUser> findByUsernameAndStatus(String username, AccountStatus status);
 
+	Optional<AppUser> findByUsername(String username);
+
 	boolean existsByUsername(String username);
 
 	boolean existsByGroups_Id(String groupId);

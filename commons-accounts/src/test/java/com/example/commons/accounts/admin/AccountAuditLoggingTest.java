@@ -99,7 +99,8 @@ class AccountAuditLoggingTest {
 				new InMemorySessionRepository(), new SessionLifecycleAuditLogger());
 		AccountAuditLogger auditLogger = new AccountAuditLogger(this.auditEvents, Clock.systemUTC());
 		this.service = new AdministrationService(this.users, this.groups, this.roles, revocation, auditLogger);
-		this.lifecycle = new AccountLifecycleService(this.users, revocation, auditLogger, null, Clock.systemUTC());
+		this.lifecycle = new AccountLifecycleService(this.users, revocation, auditLogger, null, null,
+				Clock.systemUTC());
 		inTransaction(() -> {
 			this.userManage = this.roles.save(new AppRole("USER_MANAGE"));
 			this.groupManage = this.roles.save(new AppRole("GROUP_MANAGE"));

@@ -89,7 +89,8 @@ class AdministrationServiceTest {
 				this.sessionLifecycleAuditLogger);
 		AccountAuditLogger auditLogger = new AccountAuditLogger();
 		this.service = new AdministrationService(this.users, this.groups, this.roles, revocation, auditLogger);
-		this.lifecycle = new AccountLifecycleService(this.users, revocation, auditLogger, null, Clock.systemUTC());
+		this.lifecycle = new AccountLifecycleService(this.users, revocation, auditLogger, null, null,
+				Clock.systemUTC());
 		this.userManage = this.entityManager.persist(new AppRole("USER_MANAGE"));
 		this.managers = this.entityManager.persist(new AppGroup("Managers"));
 		this.managers.getRoles().add(this.userManage);

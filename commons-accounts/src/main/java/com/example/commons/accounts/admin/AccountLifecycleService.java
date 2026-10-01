@@ -8,7 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.commons.accounts.admin.AccountAuditLogger.UserState;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
+import com.example.commons.accounts.domain.Auditor;
 import com.example.commons.accounts.domain.ReasonCode;
+import com.example.commons.accounts.review.ReviewItems;
 import com.example.commons.security.authentication.passkey.PasskeyManager;
 import com.example.commons.security.session.SessionRevocationService;
 import com.example.commons.web.problem.ConflictException;
@@ -37,19 +39,24 @@ public class AccountLifecycleService {
 
 	private final PasskeyManager passkeyManager;
 
+	private final ReviewItems reviewItems;
+
 	private final Clock clock;
 
 	/**
 	 * Creates the service.
 	 * @param passkeyManager the passkey manager, or null when passkeys are not enabled,
 	 * used to delete a removed account's passkeys
+	 * @param reviewItems marks the account's open review items removed, or null when
+	 * there is no account review
 	 */
 	public AccountLifecycleService(AppUserRepository users, SessionRevocationService sessionRevocationService,
-			AccountAuditLogger auditLogger, PasskeyManager passkeyManager, Clock clock) {
+			AccountAuditLogger auditLogger, PasskeyManager passkeyManager, ReviewItems reviewItems, Clock clock) {
 		this.users = users;
 		this.sessionRevocationService = sessionRevocationService;
 		this.auditLogger = auditLogger;
 		this.passkeyManager = passkeyManager;
+		this.reviewItems = reviewItems;
 		this.clock = clock;
 	}
 
@@ -93,6 +100,9 @@ public class AccountLifecycleService {
 		this.sessionRevocationService.revoke(user.getUsername(), "account_deleted");
 		if (this.passkeyManager != null) {
 			this.passkeyManager.removeAll(user.getId());
+		}
+		if (this.reviewItems != null) {
+			this.reviewItems.accountRemoved(user, Auditor.current(), reason, note);
 		}
 		this.users.delete(user);
 		this.auditLogger.userDeleted(before, reason, note);

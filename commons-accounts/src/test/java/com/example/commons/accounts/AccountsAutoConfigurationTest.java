@@ -22,6 +22,11 @@ import com.example.commons.accounts.domain.AppGroupRepository;
 import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppSettingRepository;
 import com.example.commons.accounts.domain.AppUserRepository;
+import com.example.commons.accounts.domain.ReviewItemRepository;
+import com.example.commons.accounts.domain.TaskRepository;
+import com.example.commons.accounts.review.AccountReviewController;
+import com.example.commons.accounts.review.AccountReviewScheduler;
+import com.example.commons.accounts.review.TaskController;
 import com.example.commons.accounts.settings.SettingsController;
 import com.example.commons.accounts.settings.SettingsService;
 import com.example.commons.security.authorization.LocalAuthorityLookup;
@@ -61,7 +66,10 @@ class AccountsAutoConfigurationTest {
 		this.contextRunner.run(context -> assertThat(context).hasSingleBean(InactiveUserSuspender.class)
 			.hasSingleBean(AccountLifecycleService.class)
 			.hasSingleBean(SettingsService.class)
-			.hasSingleBean(SettingsController.class));
+			.hasSingleBean(SettingsController.class)
+			.hasSingleBean(AccountReviewScheduler.class)
+			.hasSingleBean(TaskController.class)
+			.hasSingleBean(AccountReviewController.class));
 	}
 
 	@Test
@@ -103,6 +111,16 @@ class AccountsAutoConfigurationTest {
 		@Bean
 		AccountAuditEventRepository accountAuditEventRepository() {
 			return mock(AccountAuditEventRepository.class);
+		}
+
+		@Bean
+		TaskRepository taskRepository() {
+			return mock(TaskRepository.class);
+		}
+
+		@Bean
+		ReviewItemRepository reviewItemRepository() {
+			return mock(ReviewItemRepository.class);
 		}
 
 		@Bean

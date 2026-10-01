@@ -10,7 +10,7 @@ import org.springframework.data.domain.Sort;
 
 import com.example.commons.web.problem.BadRequestException;
 
-final class AdminPageable {
+public final class AdminPageable {
 
 	static final int MAX_SORTS = 3;
 
@@ -21,7 +21,7 @@ final class AdminPageable {
 	 * Builds a page request from repeated {@code sort} values, each {@code property} or
 	 * {@code property,asc|desc}. Every property must be allowed and appear only once.
 	 */
-	static PageRequest create(int page, int size, String[] sort, Set<String> allowed, String defaultProperty) {
+	public static PageRequest create(int page, int size, String[] sort, Set<String> allowed, String defaultProperty) {
 		String[] requested = sort == null || sort.length == 0 ? new String[] { defaultProperty } : sort;
 		if (requested.length > MAX_SORTS) {
 			throw new BadRequestException("Too many sort properties.");

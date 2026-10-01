@@ -126,7 +126,7 @@ class InactiveUserSuspenderTest {
 		AccountAuditLogger auditLogger = new AccountAuditLogger();
 		Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
 		AccountLifecycleService lifecycle = new AccountLifecycleService(this.users, this.sessionRevocationService,
-				auditLogger, null, clock);
+				auditLogger, null, null, clock);
 		return new InactiveUserSuspender(this.users, lifecycle, new SettingsService(this.settings, auditLogger), clock);
 	}
 

@@ -2,6 +2,7 @@ package com.example.commons.accounts;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.ZoneId;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -22,6 +23,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import com.example.commons.accounts.admin.AdminReauthenticationInterceptor;
 import com.example.commons.accounts.admin.AccountAuditLogger;
 import com.example.commons.accounts.admin.AccountLifecycleService;
+import com.example.commons.accounts.admin.AuditEventController;
 import com.example.commons.accounts.admin.AdministrationService;
 import com.example.commons.accounts.admin.GroupAdminController;
 import com.example.commons.accounts.admin.RoleAdminController;
@@ -32,6 +34,13 @@ import com.example.commons.accounts.domain.AppGroupRepository;
 import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppSettingRepository;
 import com.example.commons.accounts.domain.AppUserRepository;
+import com.example.commons.accounts.domain.ReviewItemRepository;
+import com.example.commons.accounts.domain.TaskRepository;
+import com.example.commons.accounts.review.AccountReviewController;
+import com.example.commons.accounts.review.AccountReviewScheduler;
+import com.example.commons.accounts.review.AccountReviewService;
+import com.example.commons.accounts.review.ReviewItems;
+import com.example.commons.accounts.review.TaskController;
 import com.example.commons.accounts.settings.SettingsController;
 import com.example.commons.accounts.settings.SettingsService;
 import com.example.commons.security.WebSecurityAutoConfiguration;
@@ -109,9 +118,21 @@ public class AccountsAutoConfiguration {
 	@ConditionalOnMissingBean
 	AccountLifecycleService accountLifecycleService(AppUserRepository users,
 			SessionRevocationService sessionRevocationService, AccountAuditLogger auditLogger,
-			ObjectProvider<PasskeyManager> passkeyManager) {
+			ObjectProvider<PasskeyManager> passkeyManager, ReviewItems reviewItems) {
 		return new AccountLifecycleService(users, sessionRevocationService, auditLogger,
-				passkeyManager.getIfAvailable(), Clock.systemUTC());
+				passkeyManager.getIfAvailable(), reviewItems, Clock.systemUTC());
+	}
+
+	/**
+	 * Keeps review items consistent when an account is removed (see docs/adr/0032).
+	 * @param items the review item repository
+	 * @param tasks the task repository
+	 * @return the component
+	 */
+	@Bean
+	@ConditionalOnMissingBean
+	ReviewItems reviewItems(ReviewItemRepository items, TaskRepository tasks) {
+		return new ReviewItems(items, tasks, Clock.systemUTC());
 	}
 
 	/**
@@ -168,6 +189,39 @@ public class AccountsAutoConfiguration {
 	}
 
 	/**
+	 * Creates the periodic account review task according to the {@code review.*}
+	 * settings, checking every {@code commons.accounts.review.check-interval} (one hour
+	 * by default), with windows aligned to the calendar in
+	 * {@code commons.accounts.review.time-zone} (the system time zone by default; see
+	 * docs/adr/0032).
+	 */
+	@Configuration(proxyBeanMethods = false)
+	@EnableScheduling
+	static class AccountReviewConfiguration {
+
+		@Bean
+		@ConditionalOnMissingBean
+		AccountReviewService accountReviewService(TaskRepository tasks, ReviewItemRepository items,
+				AppUserRepository users, AccountAuditEventRepository auditEvents, AccountLifecycleService lifecycle,
+				ReviewItems reviewItems, AccountAuditLogger auditLogger, Environment environment) {
+			return new AccountReviewService(tasks, items, users, auditEvents, lifecycle, reviewItems, auditLogger,
+					Clock.systemUTC(), zone(environment));
+		}
+
+		@Bean
+		@ConditionalOnMissingBean
+		AccountReviewScheduler accountReviewScheduler(TaskRepository tasks, AccountReviewService service,
+				SettingsService settings, Environment environment) {
+			return new AccountReviewScheduler(tasks, service, settings, Clock.systemUTC(), zone(environment));
+		}
+
+		private static ZoneId zone(Environment environment) {
+			return environment.getProperty("commons.accounts.review.time-zone", ZoneId.class, ZoneId.systemDefault());
+		}
+
+	}
+
+	/**
 	 * The administration API.
 	 */
 	@Configuration(proxyBeanMethods = false)
@@ -184,6 +238,21 @@ public class AccountsAutoConfiguration {
 		@Bean
 		SettingsController settingsController(SettingsService settingsService) {
 			return new SettingsController(settingsService);
+		}
+
+		@Bean
+		AuditEventController auditEventController(AccountAuditEventRepository events) {
+			return new AuditEventController(events);
+		}
+
+		@Bean
+		TaskController taskController(AccountReviewService service) {
+			return new TaskController(service);
+		}
+
+		@Bean
+		AccountReviewController accountReviewController(AccountReviewService service) {
+			return new AccountReviewController(service);
 		}
 
 		/**
@@ -217,7 +286,8 @@ public class AccountsAutoConfiguration {
 				@Override
 				public void addInterceptors(InterceptorRegistry registry) {
 					registry.addInterceptor(interceptor)
-						.addPathPatterns("/admin/users/**", "/admin/groups/**", "/admin/roles/**", "/admin/settings/**")
+						.addPathPatterns("/admin/users/**", "/admin/groups/**", "/admin/roles/**", "/admin/settings/**",
+								"/account-reviews/**")
 						.excludePathPatterns("/admin/users/sessions", "/admin/users/*/sessions");
 				}
 
