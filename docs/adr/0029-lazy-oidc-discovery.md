@@ -50,7 +50,15 @@ when a client provider has an `issuer-uri`:
   problem of type `urn:problem:identity-provider-unavailable` (ADR 0013) and a
   `Retry-After` header. A filter ahead of the OAuth2 filters does this,
   because Spring Security's authorization redirect filter turns an exception
-  from resolving the registration into a 401.
+  from resolving the registration into a 401. A browser navigation, which is
+  how a single-page application starts a login (`window.location` to the
+  authorization URL), would display that JSON, so a request that accepts
+  `text/html` is instead redirected with `Retry-After` to
+  `commons.security.oauth2.discovery.unavailable-redirect-uri` (default
+  `/?error=identity_provider_unavailable`, relative so it resolves against the
+  address the browser used). The application's login gate reads the `error`
+  parameter and says that single sign-on is unavailable, while a passkey
+  login, which needs no Keycloak (ADR 0024), stays usable.
 - An `oidcDiscovery` health contributor is DOWN until every registration with
   an `issuer-uri` has been resolved once, and UP from then on. The commons
   defaults add it to the readiness group whenever a provider has an
