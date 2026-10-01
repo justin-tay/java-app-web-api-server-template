@@ -21,8 +21,9 @@ for the front end, which is built separately; see [Screens](#screens).
 - **Account:** A local user record.
 - **Lifecycle status:** `active` or `suspended`. A suspended account cannot sign in.
 - **Never signed in:** An active account with no `lastLoginAt`. The administration
-  list calls this `pending` in its `status` filter (ADR 0028). It is unrelated to
-  the review status `pending_verification`.
+  list selects it with the `neverSignedIn` filter, which combines with `status`
+  (ADR 0033). It is not a status, and is unrelated to the review status
+  `pending_verification`.
 - **Inactivity clock:** The later of `lastLoginAt` and `inactivityClockStartedAt`,
   the time the account was created or last unsuspended. `lastLoginAt` is never set
   by anything other than a sign-in.

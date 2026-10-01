@@ -215,7 +215,7 @@ class AdminApiIntegrationTest {
 		this.mockMvc.perform(post("/admin/users/" + TEST_USER_ID + "/unsuspend").with(recentAdmin()).with(csrf()))
 			.andExpect(status().isNoContent());
 		this.mockMvc.perform(get("/admin/users/" + TEST_USER_ID).with(as("USER_MANAGE")))
-			.andExpect(jsonPath("$.status").value("pending"))
+			.andExpect(jsonPath("$.status").value("active"))
 			.andExpect(jsonPath("$.suspendedAt").doesNotExist());
 	}
 
@@ -371,28 +371,53 @@ class AdminApiIntegrationTest {
 
 	@Test
 	@Transactional
-	void statusIsPendingUntilTheFirstSignInThenActive() throws Exception {
-		this.mockMvc.perform(get("/admin/users").param("status", "pending").with(as("USER_MANAGE")))
-			.andExpect(jsonPath("$.totalItems").value(5))
-			.andExpect(jsonPath("$.items[0].status").value("pending"))
-			.andExpect(jsonPath("$.items[0].lastLoginAt").doesNotExist());
+	void neverSignedInIsAFilterAndActiveIncludesThoseUsers() throws Exception {
 		this.mockMvc.perform(get("/admin/users").param("status", "active").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.totalItems").value(5))
+			.andExpect(jsonPath("$.items[0].status").value("active"))
+			.andExpect(jsonPath("$.items[0].lastLoginAt").doesNotExist());
+		this.mockMvc.perform(get("/admin/users").param("neverSignedIn", "true").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.totalItems").value(5));
+		this.mockMvc.perform(get("/admin/users").param("neverSignedIn", "false").with(as("USER_MANAGE")))
 			.andExpect(jsonPath("$.totalItems").value(0));
 
 		this.eventPublisher.publishEvent(
 				new InteractiveAuthenticationSuccessEvent(new TestingAuthenticationToken("user", "n/a"), getClass()));
 
 		this.mockMvc.perform(get("/admin/users").param("status", "active").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.totalItems").value(5));
+		this.mockMvc.perform(get("/admin/users").param("neverSignedIn", "true").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.totalItems").value(4));
+		this.mockMvc.perform(get("/admin/users").param("neverSignedIn", "false").with(as("USER_MANAGE")))
 			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("user")))
 			.andExpect(jsonPath("$.items[0].lastLoginAt").exists());
-		this.mockMvc.perform(get("/admin/users").param("status", "pending").with(as("USER_MANAGE")))
-			.andExpect(jsonPath("$.totalItems").value(4));
 		this.mockMvc.perform(get("/admin/users").param("status", "suspended").with(as("USER_MANAGE")))
 			.andExpect(jsonPath("$.totalItems").value(0));
+		this.mockMvc.perform(get("/admin/users").param("status", "pending").with(as("USER_MANAGE")))
+			.andExpect(status().isBadRequest());
 		this.mockMvc.perform(get("/admin/users").param("status", "unknown").with(as("USER_MANAGE")))
+			.andExpect(status().isBadRequest());
+		this.mockMvc.perform(get("/admin/users").param("neverSignedIn", "maybe").with(as("USER_MANAGE")))
 			.andExpect(status().isBadRequest());
 		this.mockMvc.perform(get("/admin/users").param("sort", "lastLoginAt,desc").with(as("USER_MANAGE")))
 			.andExpect(status().isOk());
+	}
+
+	@Test
+	@Transactional
+	void neverSignedInComposesWithSuspendedStatus() throws Exception {
+		this.mockMvc
+			.perform(post("/admin/users/" + TEST_USER_ID + "/suspend").with(recentAdmin())
+				.with(csrf())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"reasonCode\":\"policy_violation\"}"))
+			.andExpect(status().isNoContent());
+		this.mockMvc.perform(
+				get("/admin/users").param("status", "suspended").param("neverSignedIn", "true").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("user")));
+		this.mockMvc.perform(
+				get("/admin/users").param("status", "active").param("neverSignedIn", "true").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.totalItems").value(4));
 	}
 
 	@Test

@@ -43,8 +43,8 @@ specifications. No filter language is introduced.
   the other filters. Users search `username`, `name` and `email`, plus an
   exact match on `id`. Groups and roles search `name`. LIKE wildcards in the
   input are escaped.
-* **Filters added:** users gain `email` (contains), `status` (`active`,
-  `disabled` or `pending`, see ADR 0028), `createdFrom` and `createdTo`
+* **Filters added:** users gain `email` (contains), `status` (`active` or
+  `suspended`) and `neverSignedIn` (see ADR 0033), `createdFrom` and `createdTo`
   (inclusive ISO 8601 dates, UTC). Existing filters are unchanged.
 * **Pickers:** group and role pickers use `search` with normal paging (type-ahead,
   next page on scroll). No unpaged or larger-cap endpoint is added.

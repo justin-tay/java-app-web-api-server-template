@@ -217,12 +217,12 @@ class AdministrationServiceTest {
 		this.entityManager.flush();
 
 		assertThat(this.service
-			.users(new AdministrationService.UserQuery(null, null, null, null, null, this.administrators.getId(), null,
-					null), Pageable.unpaged())
+			.users(new AdministrationService.UserQuery(null, null, null, null, null, null, this.administrators.getId(),
+					null, null), Pageable.unpaged())
 			.getContent()).extracting(AppUser::getUsername).containsExactlyInAnyOrder("test-user", "other-user");
 		assertThat(this.service
-			.users(new AdministrationService.UserQuery(null, null, null, null, null, this.managers.getId(), null, null),
-					Pageable.unpaged())
+			.users(new AdministrationService.UserQuery(null, null, null, null, null, null, this.managers.getId(), null,
+					null), Pageable.unpaged())
 			.getContent()).extracting(AppUser::getUsername).containsExactly("test-user");
 	}
 

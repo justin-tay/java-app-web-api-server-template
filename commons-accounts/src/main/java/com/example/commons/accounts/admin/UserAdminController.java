@@ -5,6 +5,7 @@ import static com.example.commons.accounts.admin.AdminDtos.*;
 import java.net.URI;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,7 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.commons.accounts.validation.ResourceId;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.ReasonCode;
-import com.example.commons.accounts.domain.UserStatus;
+import com.example.commons.accounts.domain.AccountStatus;
 
 @RestController
 @Validated
@@ -59,7 +60,8 @@ public class UserAdminController {
 			@RequestParam(required = false) @Size(max = 100) String username,
 			@RequestParam(required = false) @Size(max = 100) String name,
 			@RequestParam(required = false) @Size(max = 100) String email,
-			@RequestParam(required = false) @Pattern(regexp = "active|suspended|pending") String status,
+			@RequestParam(required = false) @Pattern(regexp = "active|suspended") String status,
+			@RequestParam(required = false) Boolean neverSignedIn,
 			@RequestParam(required = false) @ResourceId String groupId,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdFrom,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdTo,
@@ -67,7 +69,8 @@ public class UserAdminController {
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size, HttpServletRequest request) {
 		Page<AppUser> result = this.service.users(
 				new AdministrationService.UserQuery(search, username, name, email,
-						status == null ? null : UserStatus.fromValue(status), groupId, createdFrom, createdTo),
+						status == null ? null : AccountStatus.valueOf(status.toUpperCase(Locale.ROOT)), neverSignedIn,
+						groupId, createdFrom, createdTo),
 				AdminPageable.create(page, size, request.getParameterValues("sort"),
 						Set.of("username", "name", "lastLoginAt", "createdAt", "updatedAt"), "username"));
 		return new PageResponse<>(result.map(this::response).toList(), result.getNumber(), result.getSize(),
@@ -139,7 +142,7 @@ public class UserAdminController {
 
 	private UserResponse response(AppUser user) {
 		return new UserResponse(user.getId(), user.getUsername(), user.getName(), user.getEmail(),
-				user.getLastLoginAt(), UserStatus.of(user).value(), user.getSuspendedAt(),
+				user.getLastLoginAt(), user.getStatus().name().toLowerCase(Locale.ROOT), user.getSuspendedAt(),
 				user.getSuspensionReasonCode(), user.getSuspensionNote(),
 				user.getGroups().stream().map(group -> new Summary(group.getId(), group.getName())).toList());
 	}

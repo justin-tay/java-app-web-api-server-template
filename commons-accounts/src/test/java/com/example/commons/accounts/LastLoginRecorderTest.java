@@ -16,7 +16,7 @@ import com.example.commons.accounts.domain.AppGroup;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
 import com.example.commons.accounts.domain.ReasonCode;
-import com.example.commons.accounts.domain.UserStatus;
+import com.example.commons.accounts.domain.AccountStatus;
 
 @AccountsJpaTest
 class LastLoginRecorderTest {
@@ -36,7 +36,7 @@ class LastLoginRecorderTest {
 		this.entityManager.persist(alice);
 		this.entityManager.flush();
 		this.entityManager.clear();
-		assertThat(UserStatus.of(this.users.findById(alice.getId()).orElseThrow())).isEqualTo(UserStatus.PENDING);
+		assertThat(this.users.findById(alice.getId()).orElseThrow().getLastLoginAt()).isNull();
 		Instant updatedAt = this.users.findById(alice.getId()).orElseThrow().getUpdatedAt();
 		this.entityManager.clear();
 
@@ -47,14 +47,14 @@ class LastLoginRecorderTest {
 		AppUser reloaded = this.users.findById(alice.getId()).orElseThrow();
 		assertThat(reloaded.getLastLoginAt()).isEqualTo(NOW);
 		assertThat(reloaded.getUpdatedAt()).isEqualTo(updatedAt);
-		assertThat(UserStatus.of(reloaded)).isEqualTo(UserStatus.ACTIVE);
+		assertThat(reloaded.getStatus()).isEqualTo(AccountStatus.ACTIVE);
 	}
 
 	@Test
 	void aSuspendedUserIsSuspendedWhetherOrNotTheyHaveSignedIn() {
 		AppUser mallory = new AppUser("mallory", "Mallory", null);
 		mallory.suspend(NOW, ReasonCode.OTHER, null);
-		assertThat(UserStatus.of(mallory)).isEqualTo(UserStatus.SUSPENDED);
+		assertThat(mallory.getStatus()).isEqualTo(AccountStatus.SUSPENDED);
 	}
 
 }

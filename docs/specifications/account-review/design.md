@@ -49,9 +49,9 @@ after commit, as in ADR 0021).
 ### Status replaces `enabled`
 
 `app_user.enabled` is replaced by `status` (`ACTIVE`, `SUSPENDED`). Authentication
-treats `SUSPENDED` as it treated `enabled = false`. `UserStatus` (the derived
-`active`, `disabled`, `pending`) becomes `active`, `suspended`, `pending`, where
-`pending` is an active account that has never signed in.
+treats `SUSPENDED` as it treated `enabled = false`. The API `status` is the stored
+`AccountStatus`, `active` or `suspended` (ADR 0033), and `UserStatus` is removed. An
+active account that has never signed in is selected with the `neverSignedIn` filter.
 
 ### Inactivity clock
 

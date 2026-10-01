@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. The pending status is superseded by [ADR 0033](0033-user-status-is-lifecycle-only.md).
 
 ## Context
 

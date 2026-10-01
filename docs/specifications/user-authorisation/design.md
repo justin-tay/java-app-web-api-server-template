@@ -208,7 +208,7 @@ Allowed filter and sort fields are deliberately finite:
 Text filters perform case-insensitive contains matching, with `%` and `_` matched
 literally. `search` is one text box ORed across fields: a user's username, name, or
 email (or an exact ID), and a group's or role's name. It combines with the other
-filters by AND. `status` is `active`, `disabled`, or `pending` (enabled but never signed in). `createdFrom` and `createdTo` are inclusive ISO 8601 dates in UTC.
+filters by AND. `status` is `active` or `suspended`. `neverSignedIn` is `true` for accounts with no `lastLoginAt` and `false` for accounts with one. `createdFrom` and `createdTo` are inclusive ISO 8601 dates in UTC.
 An invalid filter, date, or sort property returns `400`.
 
 ## Security configuration
