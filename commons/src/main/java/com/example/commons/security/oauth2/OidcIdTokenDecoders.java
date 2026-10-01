@@ -2,6 +2,7 @@ package com.example.commons.security.oauth2;
 
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URL;
 import java.security.Key;
 import java.text.ParseException;
 
@@ -16,9 +17,11 @@ import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.jwk.source.JWKSourceBuilder;
 import com.nimbusds.jose.proc.JWSVerificationKeySelector;
+import com.nimbusds.jose.util.DefaultResourceRetriever;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jwt.proc.DefaultJWTProcessor;
 
+import org.springframework.boot.ssl.SslBundle;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.oidc.authentication.OidcIdTokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
@@ -45,7 +48,22 @@ public final class OidcIdTokenDecoders {
 	 * @return the decoder
 	 */
 	public static JwtDecoder create(ClientRegistration clientRegistration, IdTokenDecryption decryption) {
-		JWKSource<SecurityContext> jwkSource = jwkSource(clientRegistration);
+		return create(clientRegistration, decryption, null);
+	}
+
+	/**
+	 * Creates the ID token decoder for a client registration, fetching the provider's JWK
+	 * Set with the trust material of a bundle.
+	 * @param clientRegistration the client registration that receives the ID token
+	 * @param decryption the ID token decryption, or {@code null} when ID tokens are not
+	 * encrypted
+	 * @param sslBundle the bundle that validates the provider's TLS certificate, or
+	 * {@code null} for the JVM's default trust
+	 * @return the decoder
+	 */
+	public static JwtDecoder create(ClientRegistration clientRegistration, IdTokenDecryption decryption,
+			SslBundle sslBundle) {
+		JWKSource<SecurityContext> jwkSource = jwkSource(clientRegistration, sslBundle);
 		DefaultJWTProcessor<SecurityContext> jwtProcessor = new DefaultJWTProcessor<>();
 		jwtProcessor.setJWSKeySelector(new JWSVerificationKeySelector<>(JWSAlgorithm.RS256,
 				(jwkSelector, context) -> jwkSource.get(jwkSelector, context)
@@ -125,10 +143,17 @@ public final class OidcIdTokenDecoders {
 		return token.chars().filter(character -> character == '.').count() == 4;
 	}
 
-	private static JWKSource<SecurityContext> jwkSource(ClientRegistration clientRegistration) {
+	private static JWKSource<SecurityContext> jwkSource(ClientRegistration clientRegistration, SslBundle sslBundle) {
 		String jwkSetUri = clientRegistration.getProviderDetails().getJwkSetUri();
 		try {
-			return JWKSourceBuilder.create(URI.create(jwkSetUri).toURL()).retrying(true).build();
+			URL url = URI.create(jwkSetUri).toURL();
+			JWKSourceBuilder<SecurityContext> builder = (sslBundle == null) ? JWKSourceBuilder.create(url)
+					: JWKSourceBuilder.create(url,
+							new DefaultResourceRetriever(JWKSourceBuilder.DEFAULT_HTTP_CONNECT_TIMEOUT,
+									JWKSourceBuilder.DEFAULT_HTTP_READ_TIMEOUT,
+									JWKSourceBuilder.DEFAULT_HTTP_SIZE_LIMIT, true,
+									sslBundle.createSslContext().getSocketFactory()));
+			return builder.retrying(true).build();
 		}
 		catch (MalformedURLException | IllegalArgumentException ex) {
 			throw new IllegalArgumentException("Invalid JWK Set URI for client registration "

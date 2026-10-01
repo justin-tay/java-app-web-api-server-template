@@ -20,7 +20,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.client.endpoint.NimbusJwtClientAuthenticationParametersConverter;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
-import org.springframework.security.oauth2.client.endpoint.RestClientAuthorizationCodeTokenResponseClient;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -104,9 +103,9 @@ public class PrivateKeyJwtAutoConfiguration {
 	 */
 	@Bean
 	@Order(OidcLoginSecurityAutoConfiguration.FILTER_CHAIN_CUSTOMIZER_ORDER)
-	Customizer<HttpSecurity> privateKeyJwtFilterChainCustomizer(RefreshingJwks jwks) {
+	Customizer<HttpSecurity> privateKeyJwtFilterChainCustomizer(RefreshingJwks jwks, ProviderTrust providerTrust) {
 		OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient = accessTokenResponseClient(
-				jwks);
+				jwks, providerTrust);
 		return http -> http
 			.authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
 				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher(JwksController.JWKS_PATH))
@@ -121,16 +120,15 @@ public class PrivateKeyJwtAutoConfiguration {
 	 * key is used as soon as the JWKS is refreshed; when there is none the token request
 	 * fails.
 	 * @param jwks the JWKS
+	 * @param providerTrust the trust of each provider
 	 * @return the access token response client
 	 */
 	private static OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient(
-			RefreshingJwks jwks) {
+			RefreshingJwks jwks, ProviderTrust providerTrust) {
 		Function<ClientRegistration, JWK> jwkResolver = clientRegistration -> jwks.signingKey().orElse(null);
 		NimbusJwtClientAuthenticationParametersConverter<OAuth2AuthorizationCodeGrantRequest> parametersConverter = new NimbusJwtClientAuthenticationParametersConverter<>(
 				jwkResolver);
-		RestClientAuthorizationCodeTokenResponseClient accessTokenResponseClient = new RestClientAuthorizationCodeTokenResponseClient();
-		accessTokenResponseClient.addParametersConverter(parametersConverter);
-		return accessTokenResponseClient;
+		return providerTrust.accessTokenResponseClient(client -> client.addParametersConverter(parametersConverter));
 	}
 
 	/**

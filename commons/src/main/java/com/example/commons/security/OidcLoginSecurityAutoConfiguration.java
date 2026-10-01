@@ -45,6 +45,7 @@ import com.example.commons.security.oauth2.IdTokenDecryption;
 import com.example.commons.security.oauth2.IdentityProviderUnavailableFilter;
 import com.example.commons.security.oauth2.LazyClientRegistrationRepository;
 import com.example.commons.security.oauth2.OidcIdTokenDecoders;
+import com.example.commons.security.oauth2.ProviderTrust;
 import com.example.commons.security.session.JdbcOidcSessionRegistry;
 import com.example.commons.security.session.SessionLifecycleAuditLogger;
 import com.example.commons.security.session.SessionRepositoryOidcBackChannelLogoutHandler;
@@ -131,16 +132,19 @@ public class OidcLoginSecurityAutoConfiguration {
 	 */
 	@Bean
 	@ConditionalOnMissingBean
-	JwtDecoderFactory<ClientRegistration> idTokenDecoderFactory(ObjectProvider<IdTokenDecryption> idTokenDecryption) {
+	JwtDecoderFactory<ClientRegistration> idTokenDecoderFactory(ObjectProvider<IdTokenDecryption> idTokenDecryption,
+			ProviderTrust providerTrust) {
 		Map<String, JwtDecoder> jwtDecoders = new ConcurrentHashMap<>();
 		return clientRegistration -> jwtDecoders.computeIfAbsent(clientRegistration.getRegistrationId(),
-				key -> OidcIdTokenDecoders.create(clientRegistration, idTokenDecryption.getIfAvailable()));
+				key -> OidcIdTokenDecoders.create(clientRegistration, idTokenDecryption.getIfAvailable(),
+						providerTrust.forRegistration(key).orElse(null)));
 	}
 
 	@Bean
 	LocalAuthoritiesOidcUserService localAuthoritiesOidcUserService(
-			ObjectProvider<LocalAuthorityLookup> localAuthorityLookup) {
-		return new LocalAuthoritiesOidcUserService(requireLocalAuthorityLookup(localAuthorityLookup));
+			ObjectProvider<LocalAuthorityLookup> localAuthorityLookup, ProviderTrust providerTrust) {
+		return new LocalAuthoritiesOidcUserService(requireLocalAuthorityLookup(localAuthorityLookup),
+				providerTrust.userService());
 	}
 
 	/**

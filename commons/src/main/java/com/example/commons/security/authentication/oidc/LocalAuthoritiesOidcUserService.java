@@ -11,6 +11,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
@@ -18,6 +19,7 @@ import org.springframework.security.oauth2.core.oidc.IdTokenClaimNames;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 
 import com.example.commons.security.authorization.LocalAuthorityLookup;
 
@@ -45,6 +47,18 @@ public class LocalAuthoritiesOidcUserService implements OAuth2UserService<OidcUs
 
 	public LocalAuthoritiesOidcUserService(LocalAuthorityLookup localAuthorityLookup) {
 		this.localAuthorityLookup = localAuthorityLookup;
+	}
+
+	/**
+	 * Creates the service with the user info service that Spring Security's
+	 * {@code OidcUserService} calls for the user info endpoint.
+	 * @param localAuthorityLookup the local authority lookup
+	 * @param userService the user info service
+	 */
+	public LocalAuthoritiesOidcUserService(LocalAuthorityLookup localAuthorityLookup,
+			OAuth2UserService<OAuth2UserRequest, OAuth2User> userService) {
+		this(localAuthorityLookup);
+		this.delegate.setOauth2UserService(userService);
 	}
 
 	@Override

@@ -34,9 +34,10 @@ public class OidcDiscoveryAutoConfiguration {
 	@Bean
 	@ConditionalOnMissingBean(ClientRegistrationRepository.class)
 	LazyClientRegistrationRepository clientRegistrationRepository(OAuth2ClientProperties clientProperties,
-			OidcDiscoveryProperties properties, ObjectProvider<Clock> clock) {
+			OidcDiscoveryProperties properties, ProviderTrust providerTrust, ObjectProvider<Clock> clock) {
 		LazyClientRegistrationRepository repository = new LazyClientRegistrationRepository(clientProperties,
-				new OidcDiscoveryClient(properties.getConnectTimeout(), properties.getReadTimeout()),
+				new OidcDiscoveryClient(properties.getConnectTimeout(), properties.getReadTimeout(),
+						issuerUri -> providerTrust.forIssuerUri(issuerUri).orElse(null)),
 				properties.getRetryInterval(), clock.getIfAvailable(Clock::systemUTC));
 		repository.resolveAtStartup();
 		return repository;

@@ -12,6 +12,7 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.context.ConfigurationPropertiesAutoConfiguration;
+import org.springframework.boot.autoconfigure.ssl.SslAutoConfiguration;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.validation.autoconfigure.ValidationAutoConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -35,6 +36,7 @@ import com.example.commons.security.authorization.LocalAuthorityLookup;
 import com.example.commons.security.oauth2.IdTokenDecryption;
 import com.example.commons.security.oauth2.JwksController;
 import com.example.commons.security.oauth2.JwksHealthIndicator;
+import com.example.commons.security.oauth2.OAuth2ClientProviderTrustAutoConfiguration;
 import com.example.commons.security.oauth2.PrivateKeyJwtAutoConfiguration;
 import com.example.commons.security.oauth2.RefreshingJwks;
 import com.example.commons.security.session.JdbcOidcSessionRegistry;
@@ -44,7 +46,8 @@ class WebSecurityAutoConfigurationTest {
 
 	private final WebApplicationContextRunner contextRunner = new WebApplicationContextRunner()
 		.withConfiguration(AutoConfigurations.of(ConfigurationPropertiesAutoConfiguration.class,
-				ValidationAutoConfiguration.class, OidcLoginSecurityAutoConfiguration.class,
+				ValidationAutoConfiguration.class, SslAutoConfiguration.class,
+				OAuth2ClientProviderTrustAutoConfiguration.class, OidcLoginSecurityAutoConfiguration.class,
 				WebSecurityAutoConfiguration.class, PrivateKeyJwtAutoConfiguration.class))
 		.withPropertyValues("commons.security.session.absolute-timeout=12h")
 		.withUserConfiguration(ApplicationBeansConfiguration.class);
@@ -75,6 +78,7 @@ class WebSecurityAutoConfigurationTest {
 	void backsOffWhenDisabled() {
 		this.contextRunner
 			.withPropertyValues("commons.security.enabled=false",
+					"spring.security.oauth2.client.registration.test.client-id=test",
 					"spring.security.oauth2.client.registration.test.client-authentication-method=private_key_jwt")
 			.run(context -> assertThat(context).hasNotFailed()
 				.doesNotHaveBean(WebSecurityAutoConfiguration.class)
@@ -85,7 +89,7 @@ class WebSecurityAutoConfigurationTest {
 	@Test
 	void configuresPrivateKeyJwtWhenAClientRegistrationUsesIt() {
 		this.contextRunner.withUserConfiguration(LocalAuthorityLookupConfiguration.class)
-			.withPropertyValues(
+			.withPropertyValues("spring.security.oauth2.client.registration.test.client-id=test",
 					"spring.security.oauth2.client.registration.test.client-authentication-method=private_key_jwt",
 					"commons.security.oauth2.jwks=classpath:jwks.json")
 			.run(context -> assertThat(context).hasNotFailed()
@@ -100,7 +104,7 @@ class WebSecurityAutoConfigurationTest {
 	@Test
 	void requiresAJwksWhenAClientRegistrationUsesPrivateKeyJwt() {
 		this.contextRunner.withUserConfiguration(LocalAuthorityLookupConfiguration.class)
-			.withPropertyValues(
+			.withPropertyValues("spring.security.oauth2.client.registration.test.client-id=test",
 					"spring.security.oauth2.client.registration.test.client-authentication-method=private_key_jwt")
 			.run(context -> assertThat(context).hasFailed()
 				.getFailure()
