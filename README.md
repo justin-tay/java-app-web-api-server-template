@@ -88,14 +88,6 @@ Both local runs use two separate profiles that share the name `local`:
 - The `local` **Maven** profile (`-Plocal`) adds the H2 driver, so the application
   runs against an in-memory H2 database that Liquibase creates on every start.
 - The `local` **Spring** profile (`app-web-api-server/src/main/resources/application-local.yaml`)
-
-Both ways of running the server locally also apply the `demo` context, which adds twelve sample accounts
-to review (some recently active, some never signed in, some long unused, some suspended)
-and two already removed, and creates the account review shortly after startup. They have
-no Keycloak account; sign in as `account-reviewer-1` or `account-reviewer-2` to review
-them. Either start command below gets it, over plain HTTP with `mvn` or over TLS with the
-script; recreate an existing local database first, since the sample data is a new changeset.
-The tests and production do not apply it.
   disables TLS, marks the session cookie as non-secure, loads the development-only
   JWKS from `app-web-api-server/src/test/resources/jwks.json`, and requests the Liquibase `dev` context
   that creates the development users. Outside the `local` and `test` profiles
@@ -113,7 +105,7 @@ For local TLS development, use the helper instead. It creates development-only
 certificates under `.local/certs`, configures the HTTPS Keycloak client, and starts
 the application with TLS enabled. It activates only the `local` Maven profile and
 keeps the default Spring profile, so TLS and the secure session cookie stay on; it
-supplies the development JWKS and the Liquibase `dev` context itself through the
+supplies the development JWKS and the Liquibase `dev` and `demo` contexts itself through the
 `COMMONS_SECURITY_OAUTH2_JWKS` and `SPRING_LIQUIBASE_CONTEXTS` environment variables.
 
 ```shell
@@ -122,6 +114,14 @@ supplies the development JWKS and the Liquibase `dev` context itself through the
 
 Trust `.local/certs/local-ca.pem` in your browser or operating system before using
 the HTTPS endpoint.
+
+Both local start commands also apply the Liquibase `demo` context, which adds twelve
+sample accounts to review (some recently active, some never signed in, some long
+unused, some suspended) and two already removed, and creates the account review about
+30 seconds after startup. They have no Keycloak account, so sign in as
+`account-reviewer-1` or `account-reviewer-2` to review them. The sample data is a new
+changeset, so recreate an existing local database first. The tests and production do
+not apply it.
 
 ### Testing the example Relying Party
 
