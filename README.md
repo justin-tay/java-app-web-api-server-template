@@ -95,7 +95,14 @@ Both local runs use two separate profiles that share the name `local`:
   or the application fails to start.
 
 `-Plocal` does not activate the Spring profile, so for local HTTP development
-activate both:
+activate both. The helper does it, and finds a JDK on Windows when `JAVA_HOME` is unset
+or invalid:
+
+```shell
+./bin/start-api-server.sh
+```
+
+which runs:
 
 ```shell
 mvn -Plocal -pl app-web-api-server -am spring-boot:run -Dspring-boot.run.profiles=local
