@@ -13,12 +13,16 @@ import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.example.commons.security.ContentNegotiation;
 import com.example.commons.web.problem.ProblemTypes;
 
 /**
- * Answers 503 with an RFC 9457 Problem Details body and a {@code Retry-After} header when
- * a login request needs a client registration whose OpenID Provider cannot be reached yet
- * (see docs/adr/0029).
+ * Answers a login request whose client registration cannot be resolved yet because its
+ * OpenID Provider is unreachable (see docs/adr/0029). A browser navigation, which is what
+ * a single-page application's {@code window.location} to the authorization URL is, is
+ * redirected to {@code unavailableRedirectUri}, since it would otherwise display raw
+ * JSON; any other client receives 503 with an RFC 9457 Problem Details body. Both carry
+ * {@code Retry-After}.
  *
  * <p>
  * Spring Security's authorization redirect filter turns any exception from resolving the
@@ -38,8 +42,12 @@ public class IdentityProviderUnavailableFilter extends OncePerRequestFilter {
 
 	private final ClientRegistrationRepository clientRegistrationRepository;
 
-	public IdentityProviderUnavailableFilter(ClientRegistrationRepository clientRegistrationRepository) {
+	private final String unavailableRedirectUri;
+
+	public IdentityProviderUnavailableFilter(ClientRegistrationRepository clientRegistrationRepository,
+			String unavailableRedirectUri) {
 		this.clientRegistrationRepository = clientRegistrationRepository;
+		this.unavailableRedirectUri = unavailableRedirectUri;
 	}
 
 	@Override
@@ -57,8 +65,15 @@ public class IdentityProviderUnavailableFilter extends OncePerRequestFilter {
 				throw ex;
 			}
 			response.resetBuffer();
-			response.setStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
 			response.setHeader(HttpHeaders.RETRY_AFTER, String.valueOf(Math.max(1, ex.getRetryAfter().toSeconds())));
+			if (ContentNegotiation.acceptsHtml(request)) {
+				// Set the header rather than sendRedirect, so a relative URI resolves
+				// against the address the browser used, such as a development proxy's.
+				response.setStatus(HttpStatus.FOUND.value());
+				response.setHeader(HttpHeaders.LOCATION, this.unavailableRedirectUri);
+				return;
+			}
+			response.setStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
 			response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
 			response.setCharacterEncoding("UTF-8");
 			response.getWriter().write(PROBLEM_DETAIL);

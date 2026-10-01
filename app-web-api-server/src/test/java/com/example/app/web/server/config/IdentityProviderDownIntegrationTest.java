@@ -77,8 +77,8 @@ class IdentityProviderDownIntegrationTest extends RestTestClientITSupport {
 
 	@Test
 	@Order(2)
-	void answersLoginWithServiceUnavailableAndRetryAfterWhileKeycloakIsDown() throws Exception {
-		HttpResponse<String> response = get("/oauth2/authorization/keycloak");
+	void answersAnApiClientWithServiceUnavailableAndRetryAfterWhileKeycloakIsDown() throws Exception {
+		HttpResponse<String> response = get("/oauth2/authorization/keycloak", "application/json");
 
 		assertThat(response.statusCode()).isEqualTo(503);
 		assertThat(response.headers().firstValue(HttpHeaders.RETRY_AFTER)).isPresent();
@@ -88,12 +88,23 @@ class IdentityProviderDownIntegrationTest extends RestTestClientITSupport {
 	}
 
 	@Test
+	@Order(2)
+	void redirectsABrowserBackToTheApplicationWithAnErrorWhileKeycloakIsDown() throws Exception {
+		HttpResponse<String> response = get("/oauth2/authorization/keycloak", "text/html");
+
+		assertThat(response.statusCode()).isEqualTo(302);
+		assertThat(response.headers().firstValue(HttpHeaders.LOCATION))
+			.hasValue("/?error=identity_provider_unavailable");
+		assertThat(response.headers().firstValue(HttpHeaders.RETRY_AFTER)).isPresent();
+	}
+
+	@Test
 	@Order(3)
 	void recoversWithoutARestartOnceKeycloakIsUp() throws Exception {
 		startKeycloak();
 
 		await().atMost(Duration.ofSeconds(15)).pollInterval(Duration.ofMillis(500)).untilAsserted(() -> {
-			HttpResponse<String> response = get("/oauth2/authorization/keycloak");
+			HttpResponse<String> response = get("/oauth2/authorization/keycloak", "text/html");
 			assertThat(response.statusCode()).isEqualTo(302);
 			assertThat(response.headers().firstValue(HttpHeaders.LOCATION).orElseThrow())
 				.startsWith(ISSUER + "/protocol/openid-connect/auth");
@@ -101,12 +112,14 @@ class IdentityProviderDownIntegrationTest extends RestTestClientITSupport {
 		assertThat(this.oidcDiscovery.health().getStatus()).isEqualTo(Status.UP);
 	}
 
-	private HttpResponse<String> get(String path) throws Exception {
+	private HttpResponse<String> get(String path, String accept) throws Exception {
 		return HttpClient.newBuilder()
 			.followRedirects(HttpClient.Redirect.NEVER)
 			.build()
-			.send(HttpRequest.newBuilder(URI.create("http://localhost:" + this.port + path)).GET().build(),
-					HttpResponse.BodyHandlers.ofString());
+			.send(HttpRequest.newBuilder(URI.create("http://localhost:" + this.port + path))
+				.header(HttpHeaders.ACCEPT, accept)
+				.GET()
+				.build(), HttpResponse.BodyHandlers.ofString());
 	}
 
 	private static void startKeycloak() throws IOException {

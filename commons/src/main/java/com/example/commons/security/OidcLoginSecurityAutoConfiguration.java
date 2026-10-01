@@ -70,6 +70,14 @@ import com.example.commons.security.session.SessionRepositoryOidcBackChannelLogo
 public class OidcLoginSecurityAutoConfiguration {
 
 	/**
+	 * Where a browser is sent when its login cannot start because the OpenID Provider is
+	 * unreachable (see docs/adr/0029): the application's root with an {@code error}
+	 * parameter, for a single-page application's login gate to show. The URI is relative,
+	 * so it resolves against the address the browser used.
+	 */
+	static final String UNAVAILABLE_REDIRECT_URI = "/?error=identity_provider_unavailable";
+
+	/**
 	 * Order of {@link #oidcLoginFilterChainCustomizer}: after the core security
 	 * customizer, whose session management and logout handling it extends.
 	 */
@@ -165,10 +173,13 @@ public class OidcLoginSecurityAutoConfiguration {
 		LocalAuthorityLookup lookup = requireLocalAuthorityLookup(localAuthorityLookup);
 		String postLogoutRedirectUri = environment.getProperty("commons.security.logout.post-logout-redirect-uri",
 				"{baseUrl}" + LoginPaths.LOGOUT_SUCCESS_URI);
+		String unavailableRedirectUri = environment
+			.getProperty("commons.security.oauth2.discovery.unavailable-redirect-uri", UNAVAILABLE_REDIRECT_URI);
 		return http -> http
 			.addFilterBefore(new LocalAuthorityRefreshFilter(lookup, sessionLifecycleAuditLogger, sessionRegistry,
 					localAuthorityRefreshers.orderedStream().toList()), HeaderWriterFilter.class)
-			.addFilterBefore(new IdentityProviderUnavailableFilter(clientRegistrationRepository),
+			.addFilterBefore(
+					new IdentityProviderUnavailableFilter(clientRegistrationRepository, unavailableRedirectUri),
 					OAuth2AuthorizationRequestRedirectFilter.class)
 			.oauth2Login(oauth2Login -> oauth2Login
 				.authorizationEndpoint(authorizationEndpoint -> authorizationEndpoint
