@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 public interface AppUserRepository extends JpaRepository<AppUser, String>, JpaSpecificationExecutor<AppUser> {
 
 	@EntityGraph(attributePaths = { "groups", "groups.roles" })
-	Optional<AppUser> findByUsernameAndEnabledTrue(String username);
+	Optional<AppUser> findByUsernameAndStatus(String username, AccountStatus status);
 
 	boolean existsByUsername(String username);
 
@@ -33,12 +33,18 @@ public interface AppUserRepository extends JpaRepository<AppUser, String>, JpaSp
 	void recordLogin(@Param("username") String username, @Param("at") Instant at);
 
 	/**
-	 * Returns the enabled users with no sign-in, creation, or administrative change since
-	 * the cutoff.
+	 * Returns the IDs of the active accounts last in use before the cutoff, which the
+	 * inactivity job suspends. See {@link AppUser#lastActivityAt()}.
 	 */
-	@EntityGraph(attributePaths = { "groups", "groups.roles" })
-	@Query("select u from AppUser u where u.enabled = true and u.createdAt < :cutoff and u.updatedAt < :cutoff and (u.lastLoginAt is null or u.lastLoginAt < :cutoff)")
-	List<AppUser> findEnabledInactiveSince(@Param("cutoff") Instant cutoff);
+	@Query("select u.id from AppUser u where u.status = com.example.commons.accounts.domain.AccountStatus.ACTIVE and u.inactivityClockStartedAt < :cutoff and (u.lastLoginAt is null or u.lastLoginAt < :cutoff)")
+	List<String> findActiveIdsInactiveSince(@Param("cutoff") Instant cutoff);
+
+	/**
+	 * Returns the IDs of the accounts, active or suspended, last in use before the
+	 * cutoff, which the inactivity job removes.
+	 */
+	@Query("select u.id from AppUser u where u.inactivityClockStartedAt < :cutoff and (u.lastLoginAt is null or u.lastLoginAt < :cutoff)")
+	List<String> findIdsInactiveSince(@Param("cutoff") Instant cutoff);
 
 	@Query("select u.username from AppUser u")
 	List<String> findAllUsernames();

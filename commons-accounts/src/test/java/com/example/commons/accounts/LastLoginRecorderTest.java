@@ -15,6 +15,7 @@ import org.springframework.security.authentication.event.InteractiveAuthenticati
 import com.example.commons.accounts.domain.AppGroup;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
+import com.example.commons.accounts.domain.ReasonCode;
 import com.example.commons.accounts.domain.UserStatus;
 
 @AccountsJpaTest
@@ -30,7 +31,7 @@ class LastLoginRecorderTest {
 
 	@Test
 	void recordsTheSignInTimeAndMakesAPendingUserActiveWithoutTouchingAuditColumns() {
-		AppUser alice = new AppUser("alice", "Alice", null, true);
+		AppUser alice = new AppUser("alice", "Alice", null);
 		alice.getGroups().add(this.entityManager.persist(new AppGroup("users")));
 		this.entityManager.persist(alice);
 		this.entityManager.flush();
@@ -50,8 +51,10 @@ class LastLoginRecorderTest {
 	}
 
 	@Test
-	void aDisabledUserIsDisabledWhetherOrNotTheyHaveSignedIn() {
-		assertThat(UserStatus.of(new AppUser("mallory", "Mallory", null, false))).isEqualTo(UserStatus.DISABLED);
+	void aSuspendedUserIsSuspendedWhetherOrNotTheyHaveSignedIn() {
+		AppUser mallory = new AppUser("mallory", "Mallory", null);
+		mallory.suspend(NOW, ReasonCode.OTHER, null);
+		assertThat(UserStatus.of(mallory)).isEqualTo(UserStatus.SUSPENDED);
 	}
 
 }

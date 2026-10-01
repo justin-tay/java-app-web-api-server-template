@@ -67,7 +67,7 @@ class MethodSecurityAccessDeniedIntegrationTest extends MockMvcITSupport {
 	void methodSecurityDenialReturnsAccessDeniedProblemDetailAndIsAudited() {
 		assertThat(this.mockMvc.get()
 			.uri("/test/method-security/denied")
-			.with(user("test-user").roles("APPLICATION_USER"))
+			.with(user("user").roles("APPLICATION_USER"))
 			.accept(MediaType.APPLICATION_JSON)).hasStatus(HttpStatus.FORBIDDEN)
 			.hasContentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
 			.bodyJson()

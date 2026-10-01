@@ -1,8 +1,12 @@
 package com.example.commons.accounts.admin;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
@@ -14,17 +18,23 @@ import org.slf4j.MDC;
 import org.slf4j.spi.LoggingEventBuilder;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import tools.jackson.databind.json.JsonMapper;
 
+import com.example.commons.accounts.domain.AccountAuditEvent;
+import com.example.commons.accounts.domain.AccountAuditEventRepository;
 import com.example.commons.accounts.domain.AppGroup;
 import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.Auditor;
+import com.example.commons.accounts.domain.ReasonCode;
 import com.example.commons.logging.LoggingContextKeys;
 
 /**
- * Records every change to the local user, group, and role model as an ECS {@code iam}
- * event, so who granted or withdrew which access, and when, can be reconstructed from the
- * logs alone (see docs/adr/0021).
+ * Records every change to the local accounts, groups, roles, settings, and reviews. Each
+ * is logged as an ECS {@code iam} event, so who granted or withdrew which access, and
+ * when, can be reconstructed from the logs alone (see docs/adr/0021), and, when a
+ * repository is supplied, appended to the business audit trail that the application
+ * itself shows (see docs/adr/0030).
  *
  * <p>
  * Following ECS's user field usage, {@code user.target.*}, {@code group.*}, and
@@ -40,26 +50,50 @@ import com.example.commons.logging.LoggingContextKeys;
  * change that is rolled back is never logged and the request's correlation fields are
  * kept. A change rejected by a business rule is logged immediately.
  */
-public class AdministrationAuditLogger {
+public class AccountAuditLogger {
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(AdministrationAuditLogger.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(AccountAuditLogger.class);
+
+	private static final JsonMapper JSON = JsonMapper.builder().build();
+
+	private final AccountAuditEventRepository events;
+
+	private final Clock clock;
+
+	/**
+	 * Creates a logger that only writes log events, with no audit trail table.
+	 */
+	public AccountAuditLogger() {
+		this(null, Clock.systemUTC());
+	}
+
+	/**
+	 * Creates a logger that also appends each successful change to the audit trail, in
+	 * the caller's transaction.
+	 * @param events the audit event repository, or null for log events only
+	 * @param clock the clock that stamps each event
+	 */
+	public AccountAuditLogger(AccountAuditEventRepository events, Clock clock) {
+		this.events = events;
+		this.clock = clock;
+	}
 
 	/**
 	 * A user's security-relevant state.
 	 *
 	 * @param id the user ID
 	 * @param username the username
-	 * @param enabled whether the user is enabled
+	 * @param status the account status, {@code active} or {@code suspended}
 	 * @param groups the names of the user's groups
 	 * @param roles the names of the roles the user's groups grant
 	 * @param email the email address, compared but never logged
 	 * @param name the name, compared but never logged
 	 */
-	public record UserState(String id, String username, boolean enabled, SortedSet<String> groups,
+	public record UserState(String id, String username, String status, SortedSet<String> groups,
 			SortedSet<String> roles, String email, String name) {
 
 		public static UserState of(AppUser user) {
-			return new UserState(user.getId(), user.getUsername(), user.isEnabled(),
+			return new UserState(user.getId(), user.getUsername(), user.getStatus().name().toLowerCase(Locale.ROOT),
 					names(user.getGroups().stream().map(AppGroup::getName).toList()),
 					names(user.getGroups()
 						.stream()
@@ -102,6 +136,7 @@ public class AdministrationAuditLogger {
 	}
 
 	public void userCreated(UserState user) {
+		record("create_user", "USER", user, null, null, details("groups", user.groups(), "roles", user.roles()));
 		afterCommit(() -> {
 			LoggingEventBuilder event = event("create_user", "user", "creation", user.username());
 			target(event, user);
@@ -122,14 +157,29 @@ public class AdministrationAuditLogger {
 	 * @param reason the controlled reason, such as {@code dormant_account}, or null
 	 */
 	public void userUpdated(UserState before, UserState after, String reason) {
+		Map<String, Object> details = new LinkedHashMap<>();
+		details.put("before", Map.of("status", before.status(), "groups", before.groups(), "roles", before.roles()));
+		List<String> changedFields = new ArrayList<>();
+		if (!Objects.equals(before.email(), after.email())) {
+			changedFields.add("email");
+		}
+		if (!Objects.equals(before.name(), after.name())) {
+			changedFields.add("name");
+		}
+		details.put("fields", changedFields);
+		details.put("groupsAdded", added(before.groups(), after.groups()));
+		details.put("groupsRemoved", added(after.groups(), before.groups()));
+		details.put("rolesAdded", added(before.roles(), after.roles()));
+		details.put("rolesRemoved", added(after.roles(), before.roles()));
+		record("update_user", "USER", after, reason, null, details);
 		afterCommit(() -> {
 			LoggingEventBuilder event = event("update_user", "user", "change", before.username());
 			if (reason != null) {
 				event.addKeyValue("event.reason", reason);
 			}
 			target(event, before);
-			if (before.enabled() != after.enabled()) {
-				event.addKeyValue("user.changes.enabled", after.enabled());
+			if (!before.status().equals(after.status())) {
+				event.addKeyValue("user.changes.status", after.status());
 			}
 			if (!before.groups().equals(after.groups())) {
 				event.addKeyValue("user.changes.group.name", List.copyOf(after.groups()));
@@ -155,13 +205,48 @@ public class AdministrationAuditLogger {
 		});
 	}
 
-	public void userDeleted(UserState user) {
+	/**
+	 * Records an account being removed, with the reason it was removed.
+	 * @param user the account's state before the removal
+	 * @param reason the reason code
+	 * @param note the optional note, or null
+	 */
+	public void userDeleted(UserState user, ReasonCode reason, String note) {
+		record("delete_user", "USER", user, reason.value(), note,
+				details("status", user.status(), "groups", user.groups(), "roles", user.roles()));
 		afterCommit(() -> {
 			LoggingEventBuilder event = event("delete_user", "user", "deletion", user.username());
+			event.addKeyValue("event.reason", reason.value());
 			target(event, user);
 			event.addKeyValue("groups.removed", List.copyOf(user.groups()))
 				.addKeyValue("roles.removed", List.copyOf(user.roles()))
 				.log("User deleted");
+		});
+	}
+
+	/**
+	 * Records an account being suspended.
+	 * @param before the account's state before the change
+	 * @param after the account's state after the change
+	 * @param reason the reason code
+	 * @param note the optional note, or null
+	 */
+	public void userSuspended(UserState before, UserState after, ReasonCode reason, String note) {
+		record("suspend_user", "USER", after, reason.value(), note, details("before", before.status()));
+		afterCommit(() -> {
+			LoggingEventBuilder event = event("suspend_user", "user", "change", before.username());
+			event.addKeyValue("event.reason", reason.value());
+			target(event, before);
+			event.addKeyValue("user.changes.status", after.status()).log("User suspended");
+		});
+	}
+
+	public void userUnsuspended(UserState before, UserState after) {
+		record("unsuspend_user", "USER", after, null, null, details("before", before.status()));
+		afterCommit(() -> {
+			LoggingEventBuilder event = event("unsuspend_user", "user", "change", before.username());
+			target(event, before);
+			event.addKeyValue("user.changes.status", after.status()).log("User unsuspended");
 		});
 	}
 
@@ -198,12 +283,17 @@ public class AdministrationAuditLogger {
 	}
 
 	public void groupCreated(GroupState group) {
+		record("create_group", "GROUP", group.id(), group.name(), null, null, null,
+				details("rolesAdded", group.roles()));
 		afterCommit(() -> group(event("create_group", "group", "creation", null), group)
 			.addKeyValue("roles.added", List.copyOf(group.roles()))
 			.log("Group created"));
 	}
 
 	public void groupUpdated(GroupState before, GroupState after, long affectedUserCount) {
+		record("update_group", "GROUP", after.id(), after.name(), null, null, null,
+				details("beforeName", before.name(), "rolesAdded", added(before.roles(), after.roles()), "rolesRemoved",
+						added(after.roles(), before.roles()), "affectedUserCount", affectedUserCount));
 		afterCommit(() -> {
 			LoggingEventBuilder event = group(event("update_group", "group", "change", null), before);
 			if (!before.name().equals(after.name())) {
@@ -220,6 +310,8 @@ public class AdministrationAuditLogger {
 	}
 
 	public void groupDeleted(GroupState group) {
+		record("delete_group", "GROUP", group.id(), group.name(), null, null, null,
+				details("rolesRemoved", group.roles()));
 		afterCommit(() -> group(event("delete_group", "group", "deletion", null), group)
 			.addKeyValue("roles.removed", List.copyOf(group.roles()))
 			.log("Group deleted"));
@@ -243,10 +335,12 @@ public class AdministrationAuditLogger {
 	}
 
 	public void roleCreated(RoleState role) {
+		record("create_role", "ROLE", role.id(), role.name(), null, null, null, details());
 		afterCommit(() -> role(event("create_role", "admin", "creation", null), role).log("Role created"));
 	}
 
 	public void roleDeleted(RoleState role) {
+		record("delete_role", "ROLE", role.id(), role.name(), null, null, null, details());
 		afterCommit(() -> role(event("delete_role", "admin", "deletion", null), role).log("Role deleted"));
 	}
 
@@ -257,6 +351,47 @@ public class AdministrationAuditLogger {
 
 	public void roleDeletionRejected(RoleState role, String reason) {
 		role(rejected("delete_role", "admin", "deletion", null, reason), role).log("Role deletion rejected");
+	}
+
+	/**
+	 * Appends an audit event for a change to the settings or a review, which the other
+	 * methods do not cover.
+	 * @param action the action, such as {@code update_setting}
+	 * @param targetType the target type, {@code SETTING} or {@code REVIEW}
+	 * @param targetId the target ID
+	 * @param targetName the target name
+	 * @param reasonCode the reason code, or null
+	 * @param reasonNote the note, or null
+	 * @param details the changed values
+	 */
+	public void record(String action, String targetType, String targetId, String targetName, String reasonCode,
+			String reasonNote, Map<String, Object> details) {
+		record(action, targetType, targetId, targetName, null, reasonCode, reasonNote, details);
+	}
+
+	private void record(String action, String targetType, UserState user, String reasonCode, String reasonNote,
+			Map<String, Object> details) {
+		record(action, targetType, user.id(), user.username(), user.name(), reasonCode, reasonNote, details);
+	}
+
+	private void record(String action, String targetType, String targetId, String targetName, String targetDisplayName,
+			String reasonCode, String reasonNote, Map<String, Object> details) {
+		if (this.events == null) {
+			return;
+		}
+		this.events.save(new AccountAuditEvent(this.clock.instant(), Auditor.current(), action, targetType, targetId,
+				targetName, targetDisplayName, reasonCode, reasonNote, JSON.writeValueAsString(details)));
+	}
+
+	/**
+	 * Builds an ordered details object from alternating keys and values.
+	 */
+	private static Map<String, Object> details(Object... keysAndValues) {
+		Map<String, Object> details = new LinkedHashMap<>();
+		for (int i = 0; i < keysAndValues.length; i += 2) {
+			details.put((String) keysAndValues[i], keysAndValues[i + 1]);
+		}
+		return details;
 	}
 
 	private static LoggingEventBuilder event(String action, String object, String type, String targetUsername) {
@@ -297,7 +432,7 @@ public class AdministrationAuditLogger {
 	private static void target(LoggingEventBuilder event, UserState user) {
 		event.addKeyValue("user.target.id", user.id())
 			.addKeyValue("user.target.name", user.username())
-			.addKeyValue("user.target.enabled", user.enabled())
+			.addKeyValue("user.target.status", user.status())
 			.addKeyValue("user.target.group.name", List.copyOf(user.groups()))
 			.addKeyValue("user.target.roles", List.copyOf(user.roles()));
 	}

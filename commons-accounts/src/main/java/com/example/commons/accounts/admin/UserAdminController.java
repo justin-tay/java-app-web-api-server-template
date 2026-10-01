@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.commons.accounts.validation.ResourceId;
 import com.example.commons.accounts.domain.AppUser;
+import com.example.commons.accounts.domain.ReasonCode;
 import com.example.commons.accounts.domain.UserStatus;
 
 @RestController
@@ -40,8 +41,11 @@ public class UserAdminController {
 
 	private final AdministrationService service;
 
-	public UserAdminController(AdministrationService service) {
+	private final AccountLifecycleService lifecycle;
+
+	public UserAdminController(AdministrationService service, AccountLifecycleService lifecycle) {
 		this.service = service;
+		this.lifecycle = lifecycle;
 	}
 
 	@PostMapping
@@ -55,15 +59,14 @@ public class UserAdminController {
 			@RequestParam(required = false) @Size(max = 100) String username,
 			@RequestParam(required = false) @Size(max = 100) String name,
 			@RequestParam(required = false) @Size(max = 100) String email,
-			@RequestParam(required = false) Boolean enabled,
-			@RequestParam(required = false) @Pattern(regexp = "active|disabled|pending") String status,
+			@RequestParam(required = false) @Pattern(regexp = "active|suspended|pending") String status,
 			@RequestParam(required = false) @ResourceId String groupId,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdFrom,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdTo,
 			@RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size, HttpServletRequest request) {
 		Page<AppUser> result = this.service.users(
-				new AdministrationService.UserQuery(search, username, name, email, enabled,
+				new AdministrationService.UserQuery(search, username, name, email,
 						status == null ? null : UserStatus.fromValue(status), groupId, createdFrom, createdTo),
 				AdminPageable.create(page, size, request.getParameterValues("sort"),
 						Set.of("username", "name", "lastLoginAt", "createdAt", "updatedAt"), "username"));
@@ -81,9 +84,35 @@ public class UserAdminController {
 		return response(this.service.updateUser(id, request));
 	}
 
-	@DeleteMapping("/{id}")
-	public ResponseEntity<Void> delete(@PathVariable @ResourceId String id) {
-		this.service.deleteUser(id);
+	/**
+	 * Suspends an account, which can then no longer sign in.
+	 * @param id the user ID
+	 * @param request the reason
+	 * @return no content
+	 */
+	@PostMapping("/{id}/suspend")
+	public ResponseEntity<Void> suspend(@PathVariable @ResourceId String id,
+			@Valid @RequestBody AccountActionRequest request) {
+		this.lifecycle.suspend(id, ReasonCode.fromValue(request.reasonCode()), request.note());
+		return ResponseEntity.noContent().build();
+	}
+
+	@PostMapping("/{id}/unsuspend")
+	public ResponseEntity<Void> unsuspend(@PathVariable @ResourceId String id) {
+		this.lifecycle.unsuspend(id);
+		return ResponseEntity.noContent().build();
+	}
+
+	/**
+	 * Permanently removes an account.
+	 * @param id the user ID
+	 * @param request the reason
+	 * @return no content
+	 */
+	@PostMapping("/{id}/remove")
+	public ResponseEntity<Void> remove(@PathVariable @ResourceId String id,
+			@Valid @RequestBody AccountActionRequest request) {
+		this.lifecycle.remove(id, ReasonCode.fromValue(request.reasonCode()), request.note());
 		return ResponseEntity.noContent().build();
 	}
 
@@ -109,8 +138,9 @@ public class UserAdminController {
 	}
 
 	private UserResponse response(AppUser user) {
-		return new UserResponse(user.getId(), user.getUsername(), user.getName(), user.getEmail(), user.isEnabled(),
-				user.getLastLoginAt(), UserStatus.of(user).value(),
+		return new UserResponse(user.getId(), user.getUsername(), user.getName(), user.getEmail(),
+				user.getLastLoginAt(), UserStatus.of(user).value(), user.getSuspendedAt(),
+				user.getSuspensionReasonCode(), user.getSuspensionNote(),
 				user.getGroups().stream().map(group -> new Summary(group.getId(), group.getName())).toList());
 	}
 

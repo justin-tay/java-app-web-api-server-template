@@ -2,6 +2,8 @@ package com.example.commons.accounts;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Instant;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
@@ -11,6 +13,7 @@ import com.example.commons.accounts.domain.AppGroup;
 import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
+import com.example.commons.accounts.domain.ReasonCode;
 
 @AccountsJpaTest
 class AppUserLocalAuthorityLookupTest {
@@ -30,7 +33,7 @@ class AppUserLocalAuthorityLookupTest {
 		AppGroup administrators = new AppGroup("administrators");
 		administrators.getRoles().add(userManage);
 		administrators.getRoles().add(roleManage);
-		AppUser alice = new AppUser("alice", "Alice", "alice@example.com", true);
+		AppUser alice = new AppUser("alice", "Alice", "alice@example.com");
 		alice.getGroups().add(this.entityManager.persist(managers));
 		alice.getGroups().add(this.entityManager.persist(administrators));
 		this.entityManager.persist(alice);
@@ -43,8 +46,9 @@ class AppUserLocalAuthorityLookupTest {
 	}
 
 	@Test
-	void findsNothingForADisabledUser() {
-		AppUser mallory = new AppUser("mallory", "Mallory", null, false);
+	void findsNothingForASuspendedUser() {
+		AppUser mallory = new AppUser("mallory", "Mallory", null);
+		mallory.suspend(Instant.now(), ReasonCode.OTHER, null);
 		mallory.getGroups().add(this.entityManager.persist(new AppGroup("users")));
 		this.entityManager.persist(mallory);
 

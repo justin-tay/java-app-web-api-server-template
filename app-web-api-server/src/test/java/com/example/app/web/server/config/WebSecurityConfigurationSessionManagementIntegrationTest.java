@@ -125,7 +125,7 @@ class WebSecurityConfigurationSessionManagementIntegrationTest extends RestTestC
 		return client.send(HttpRequest.newBuilder(uri("/test/session-security/login"))
 			.header(HttpHeaders.COOKIE, sessionCookie)
 			.header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED_VALUE)
-			.POST(HttpRequest.BodyPublishers.ofString("username=test-user&password=not-used"))
+			.POST(HttpRequest.BodyPublishers.ofString("username=user&password=not-used"))
 			.build(), HttpResponse.BodyHandlers.discarding());
 	}
 

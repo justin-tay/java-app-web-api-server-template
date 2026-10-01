@@ -14,9 +14,10 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.commons.accounts.admin.AdministrationAuditLogger.GroupState;
-import com.example.commons.accounts.admin.AdministrationAuditLogger.RoleState;
-import com.example.commons.accounts.admin.AdministrationAuditLogger.UserState;
+import com.example.commons.accounts.admin.AccountAuditLogger.GroupState;
+import com.example.commons.accounts.admin.AccountAuditLogger.RoleState;
+import com.example.commons.accounts.admin.AccountAuditLogger.UserState;
+import com.example.commons.accounts.domain.AccountStatus;
 import com.example.commons.accounts.domain.AppGroup;
 import com.example.commons.accounts.domain.AppGroupRepository;
 import com.example.commons.accounts.domain.AppRole;
@@ -24,23 +25,23 @@ import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.UserStatus;
 import com.example.commons.accounts.domain.AppUserRepository;
-import com.example.commons.security.authentication.passkey.PasskeyManager;
 import com.example.commons.security.session.SessionRevocationService;
 import com.example.commons.web.problem.ConflictException;
 import com.example.commons.web.problem.ResourceNotFoundException;
 
 /**
  * Changes the local user, group, and role model, logging every change and rejection
- * through {@link AdministrationAuditLogger}.
+ * through {@link AccountAuditLogger}.
  *
  * <p>
  * Each management role is kept from granting more than its holder has (see
  * docs/adr/0022): an administrator cannot grant a role they do not hold, whether by
- * giving a user a group or by giving a group a role; cannot change their own groups or
- * enabled status, or delete themselves; and cannot delete a {@link #RESERVED_ROLES
- * reserved role}. Role names cannot be changed at all, because a role's name is the
- * authority the application checks. These checks apply to an authenticated administrator;
- * a change the application makes itself, with no authenticated user, is trusted.
+ * giving a user a group or by giving a group a role; cannot change their own groups, or
+ * suspend, unsuspend, or remove themselves (see {@link AccountLifecycleService}); and
+ * cannot delete a {@link #RESERVED_ROLES reserved role}. Role names cannot be changed at
+ * all, because a role's name is the authority the application checks. These checks apply
+ * to an authenticated administrator; a change the application makes itself, with no
+ * authenticated user, is trusted.
  */
 @Transactional
 public class AdministrationService {
@@ -59,29 +60,15 @@ public class AdministrationService {
 
 	private final SessionRevocationService sessionRevocationService;
 
-	private final AdministrationAuditLogger auditLogger;
-
-	private final PasskeyManager passkeyManager;
+	private final AccountAuditLogger auditLogger;
 
 	public AdministrationService(AppUserRepository users, AppGroupRepository groups, AppRoleRepository roles,
-			SessionRevocationService sessionRevocationService, AdministrationAuditLogger auditLogger) {
-		this(users, groups, roles, sessionRevocationService, auditLogger, null);
-	}
-
-	/**
-	 * Creates the service.
-	 * @param passkeyManager the passkey manager, or null when passkeys are not enabled,
-	 * used to delete a deleted user's passkeys
-	 */
-	public AdministrationService(AppUserRepository users, AppGroupRepository groups, AppRoleRepository roles,
-			SessionRevocationService sessionRevocationService, AdministrationAuditLogger auditLogger,
-			PasskeyManager passkeyManager) {
+			SessionRevocationService sessionRevocationService, AccountAuditLogger auditLogger) {
 		this.users = users;
 		this.groups = groups;
 		this.roles = roles;
 		this.sessionRevocationService = sessionRevocationService;
 		this.auditLogger = auditLogger;
-		this.passkeyManager = passkeyManager;
 	}
 
 	public AppUser createUser(AdminDtos.UserCreateRequest request) {
@@ -94,7 +81,7 @@ public class AdministrationService {
 			this.auditLogger.userCreationRejected(request.username(), "exceeds_actor_privileges");
 			throw new AccessDeniedException("Cannot grant a role the administrator does not hold.");
 		}
-		AppUser user = new AppUser(request.username(), request.name(), request.email(), request.enabled());
+		AppUser user = new AppUser(request.username(), request.name(), request.email());
 		user.getGroups().addAll(requestedGroups);
 		AppUser saved = this.users.save(user);
 		this.auditLogger.userCreated(UserState.of(saved));
@@ -106,7 +93,7 @@ public class AdministrationService {
 		UserState before = UserState.of(user);
 		Set<String> previousGroupIds = user.getGroups().stream().map(AppGroup::getId).collect(Collectors.toSet());
 		Set<AppGroup> requestedGroups = groups(request.groupIds());
-		boolean accessChanged = before.enabled() != request.enabled() || !previousGroupIds.equals(request.groupIds());
+		boolean accessChanged = !previousGroupIds.equals(request.groupIds());
 		if (accessChanged && isActor(user)) {
 			this.auditLogger.userUpdateRejected(before, "self_modification");
 			throw new AccessDeniedException("Administrators cannot change their own access.");
@@ -117,29 +104,14 @@ public class AdministrationService {
 			this.auditLogger.userUpdateRejected(before, "exceeds_actor_privileges");
 			throw new AccessDeniedException("Cannot grant a role the administrator does not hold.");
 		}
-		user.update(request.name(), request.email(), request.enabled());
+		user.update(request.name(), request.email());
 		user.getGroups().clear();
 		user.getGroups().addAll(requestedGroups);
-		if ((before.enabled() && !user.isEnabled()) || !previousGroupIds.equals(request.groupIds())) {
+		if (!previousGroupIds.equals(request.groupIds())) {
 			this.sessionRevocationService.revoke(user.getUsername(), "privilege_change");
 		}
 		this.auditLogger.userUpdated(before, UserState.of(user));
 		return user;
-	}
-
-	public void deleteUser(String id) {
-		AppUser user = user(id);
-		UserState before = UserState.of(user);
-		if (isActor(user)) {
-			this.auditLogger.userDeletionRejected(before, "self_modification");
-			throw new AccessDeniedException("Administrators cannot delete themselves.");
-		}
-		this.sessionRevocationService.revoke(user.getUsername(), "account_deleted");
-		if (this.passkeyManager != null) {
-			this.passkeyManager.removeAll(user.getId());
-		}
-		this.users.delete(user);
-		this.auditLogger.userDeleted(before);
 	}
 
 	/**
@@ -176,8 +148,8 @@ public class AdministrationService {
 	 * Criteria for listing users. Every non-null value narrows the result, and
 	 * {@code search} matches a username, name, or email containing it, or an exact ID.
 	 */
-	public record UserQuery(String search, String username, String name, String email, Boolean enabled,
-			UserStatus status, String groupId, LocalDate createdFrom, LocalDate createdTo) {
+	public record UserQuery(String search, String username, String name, String email, UserStatus status,
+			String groupId, LocalDate createdFrom, LocalDate createdTo) {
 	}
 
 	public Page<AppUser> users(UserQuery query, Pageable pageable) {
@@ -188,8 +160,9 @@ public class AdministrationService {
 		Specification<AppUser> specification = Specification.allOf(Stream
 			.of(search, this.<AppUser>contains("username", query.username()),
 					this.<AppUser>contains("name", query.name()), this.<AppUser>contains("email", query.email()),
-					this.<AppUser>equals("enabled", query.enabled()), status(query.status()),
-					query.groupId() == null ? null
+					status(query.status()),
+					query.groupId() == null
+							? null
 							: (Specification<AppUser>) (root, criteria, builder) -> builder
 								.equal(root.join("groups").get("id"), query.groupId()),
 					query.createdFrom() == null ? null
@@ -356,11 +329,12 @@ public class AdministrationService {
 			return null;
 		}
 		return switch (status) {
-			case DISABLED -> equals("enabled", false);
-			case ACTIVE -> (root, query, builder) -> builder.and(builder.isTrue(root.get("enabled")),
-					builder.isNotNull(root.get("lastLoginAt")));
-			case PENDING -> (root, query, builder) -> builder.and(builder.isTrue(root.get("enabled")),
-					builder.isNull(root.get("lastLoginAt")));
+			case SUSPENDED -> equals("status", AccountStatus.SUSPENDED);
+			case ACTIVE ->
+				(root, query, builder) -> builder.and(builder.equal(root.get("status"), AccountStatus.ACTIVE),
+						builder.isNotNull(root.get("lastLoginAt")));
+			case PENDING -> (root, query, builder) -> builder
+				.and(builder.equal(root.get("status"), AccountStatus.ACTIVE), builder.isNull(root.get("lastLoginAt")));
 		};
 	}
 

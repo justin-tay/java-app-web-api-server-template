@@ -102,8 +102,8 @@ class AdminApiIntegrationTest {
 			.perform(post("/admin/users").with(as("GROUP_MANAGE"))
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"username\":\"new-user\",\"name\":\"New User\",\"enabled\":true,\"groupIds\":[\""
-						+ ADMINISTRATORS_GROUP_ID + "\"]}"))
+				.content("{\"username\":\"new-user\",\"name\":\"New User\",\"groupIds\":[\"" + ADMINISTRATORS_GROUP_ID
+						+ "\"]}"))
 			.andExpect(status().isForbidden());
 		this.mockMvc
 			.perform(post("/admin/roles").with(as("GROUP_MANAGE"))
@@ -186,14 +186,108 @@ class AdminApiIntegrationTest {
 						+ APPLICATION_USER_ROLE_ID + "\"]}"))
 			.andExpect(status().isForbidden());
 		this.mockMvc
-			.perform(put("/admin/users/" + ADMIN_USER_ID).with(recentAdmin())
+			.perform(post("/admin/users/" + ADMIN_USER_ID + "/suspend").with(recentAdmin())
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"name\":\"Administrator\",\"enabled\":false,\"groupIds\":[\"" + ADMINISTRATORS_GROUP_ID
-						+ "\"]}"))
+				.content("{\"reasonCode\":\"other\"}"))
 			.andExpect(status().isForbidden());
 		this.mockMvc.perform(delete("/admin/roles/" + USER_MANAGE_ROLE_ID).with(recentAdmin()).with(csrf()))
 			.andExpect(status().isForbidden());
+	}
+
+	@Test
+	@Transactional
+	void suspendsAndUnsuspendsAUserRecordingTheReason() throws Exception {
+		this.mockMvc
+			.perform(post("/admin/users/" + TEST_USER_ID + "/suspend").with(recentAdmin())
+				.with(csrf())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"reasonCode\":\"policy_violation\",\"note\":\"see ticket 42\"}"))
+			.andExpect(status().isNoContent());
+		this.mockMvc.perform(get("/admin/users/" + TEST_USER_ID).with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.status").value("suspended"))
+			.andExpect(jsonPath("$.suspensionReasonCode").value("policy_violation"))
+			.andExpect(jsonPath("$.suspensionNote").value("see ticket 42"))
+			.andExpect(jsonPath("$.suspendedAt").exists());
+		this.mockMvc.perform(get("/admin/users").param("status", "suspended").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("user")));
+
+		this.mockMvc.perform(post("/admin/users/" + TEST_USER_ID + "/unsuspend").with(recentAdmin()).with(csrf()))
+			.andExpect(status().isNoContent());
+		this.mockMvc.perform(get("/admin/users/" + TEST_USER_ID).with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.status").value("pending"))
+			.andExpect(jsonPath("$.suspendedAt").doesNotExist());
+	}
+
+	@Test
+	@Transactional
+	void aSuspensionOrRemovalNeedsAnAllowedReasonCode() throws Exception {
+		for (String body : new String[] { "{}", "{\"reasonCode\":\"inactive_account\"}", "{\"reasonCode\":\"bogus\"}",
+				"{\"reasonCode\":\"other\",\"note\":\"" + "x".repeat(201) + "\"}" }) {
+			this.mockMvc
+				.perform(post("/admin/users/" + TEST_USER_ID + "/suspend").with(recentAdmin())
+					.with(csrf())
+					.contentType(MediaType.APPLICATION_JSON)
+					.content(body))
+				.andExpect(status().isBadRequest());
+			this.mockMvc
+				.perform(post("/admin/users/" + TEST_USER_ID + "/remove").with(recentAdmin())
+					.with(csrf())
+					.contentType(MediaType.APPLICATION_JSON)
+					.content(body))
+				.andExpect(status().isBadRequest());
+		}
+	}
+
+	@Test
+	@Transactional
+	void removingAUserDeletesThemAndRecordsItInTheAuditTrailTable() throws Exception {
+		this.mockMvc
+			.perform(post("/admin/users/" + TEST_USER_ID + "/remove").with(recentAdmin())
+				.with(csrf())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"reasonCode\":\"left_organisation\"}"))
+			.andExpect(status().isNoContent());
+
+		this.mockMvc.perform(get("/admin/users/" + TEST_USER_ID).with(as("USER_MANAGE")))
+			.andExpect(status().isNotFound());
+	}
+
+	@Test
+	@Transactional
+	void settingsNeedSettingsManageAndAreValidated() throws Exception {
+		this.mockMvc.perform(get("/admin/settings").with(as("USER_MANAGE"))).andExpect(status().isForbidden());
+		this.mockMvc.perform(get("/admin/settings").with(as("SETTINGS_MANAGE")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.inactivity.suspendAfterDays").value(90))
+			.andExpect(jsonPath("$.inactivity.removeAfterDays").value(180))
+			.andExpect(jsonPath("$.review.intervalMonths").value(3));
+
+		this.mockMvc
+			.perform(put("/admin/settings").with(recentAdmin())
+				.with(csrf())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"inactivity\":{\"enabled\":true,\"suspendAfterDays\":90,\"removeAfterDays\":90},"
+						+ "\"review\":{\"enabled\":true,\"intervalMonths\":3}}"))
+			.andExpect(status().isBadRequest());
+		this.mockMvc
+			.perform(put("/admin/settings").with(recentAdmin())
+				.with(csrf())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"inactivity\":{\"enabled\":true,\"suspendAfterDays\":60,\"removeAfterDays\":120},"
+						+ "\"review\":{\"enabled\":true,\"intervalMonths\":13}}"))
+			.andExpect(status().isBadRequest());
+		this.mockMvc
+			.perform(put("/admin/settings").with(recentAdmin())
+				.with(csrf())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"inactivity\":{\"enabled\":true,\"suspendAfterDays\":60,\"removeAfterDays\":120},"
+						+ "\"review\":{\"enabled\":true,\"intervalMonths\":1}}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.inactivity.suspendAfterDays").value(60));
+		this.mockMvc.perform(get("/admin/settings").with(as("SETTINGS_MANAGE")))
+			.andExpect(jsonPath("$.inactivity.suspendAfterDays").value(60))
+			.andExpect(jsonPath("$.review.intervalMonths").value(1));
 	}
 
 	@Test
@@ -240,7 +334,7 @@ class AdminApiIntegrationTest {
 		this.mockMvc.perform(get("/admin/roles").param("name", "manage").with(as("ROLE_MANAGE")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.items[*].name")
-				.value(containsInAnyOrder("USER_MANAGE", "GROUP_MANAGE", "ROLE_MANAGE")));
+				.value(containsInAnyOrder("USER_MANAGE", "GROUP_MANAGE", "ROLE_MANAGE", "SETTINGS_MANAGE")));
 	}
 
 	@Test
@@ -248,10 +342,10 @@ class AdminApiIntegrationTest {
 		this.mockMvc.perform(get("/admin/users").param("search", "GROUP").with(as("USER_MANAGE")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("multi-group-user")));
-		this.mockMvc.perform(get("/admin/users").param("search", "Test User").with(as("USER_MANAGE")))
-			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("test-user")));
+		this.mockMvc.perform(get("/admin/users").param("search", "Mary").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("user")));
 		this.mockMvc.perform(get("/admin/users").param("search", TEST_USER_ID).with(as("USER_MANAGE")))
-			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("test-user")));
+			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("user")));
 		this.mockMvc.perform(get("/admin/users").param("search", "%").with(as("USER_MANAGE")))
 			.andExpect(jsonPath("$.totalItems").value(0));
 		this.mockMvc.perform(get("/admin/groups").param("search", "admin").with(as("GROUP_MANAGE")))
@@ -266,7 +360,7 @@ class AdminApiIntegrationTest {
 			.perform(get("/admin/users").param("createdFrom", "2025-12-31")
 				.param("createdTo", "2026-01-01")
 				.with(as("USER_MANAGE")))
-			.andExpect(jsonPath("$.totalItems").value(3));
+			.andExpect(jsonPath("$.totalItems").value(5));
 		this.mockMvc.perform(get("/admin/users").param("createdFrom", "2026-01-02").with(as("USER_MANAGE")))
 			.andExpect(jsonPath("$.totalItems").value(0));
 		this.mockMvc.perform(get("/admin/users").param("createdTo", "2025-12-30").with(as("USER_MANAGE")))
@@ -279,21 +373,21 @@ class AdminApiIntegrationTest {
 	@Transactional
 	void statusIsPendingUntilTheFirstSignInThenActive() throws Exception {
 		this.mockMvc.perform(get("/admin/users").param("status", "pending").with(as("USER_MANAGE")))
-			.andExpect(jsonPath("$.totalItems").value(3))
+			.andExpect(jsonPath("$.totalItems").value(5))
 			.andExpect(jsonPath("$.items[0].status").value("pending"))
 			.andExpect(jsonPath("$.items[0].lastLoginAt").doesNotExist());
 		this.mockMvc.perform(get("/admin/users").param("status", "active").with(as("USER_MANAGE")))
 			.andExpect(jsonPath("$.totalItems").value(0));
 
-		this.eventPublisher.publishEvent(new InteractiveAuthenticationSuccessEvent(
-				new TestingAuthenticationToken("test-user", "n/a"), getClass()));
+		this.eventPublisher.publishEvent(
+				new InteractiveAuthenticationSuccessEvent(new TestingAuthenticationToken("user", "n/a"), getClass()));
 
 		this.mockMvc.perform(get("/admin/users").param("status", "active").with(as("USER_MANAGE")))
-			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("test-user")))
+			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("user")))
 			.andExpect(jsonPath("$.items[0].lastLoginAt").exists());
 		this.mockMvc.perform(get("/admin/users").param("status", "pending").with(as("USER_MANAGE")))
-			.andExpect(jsonPath("$.totalItems").value(2));
-		this.mockMvc.perform(get("/admin/users").param("status", "disabled").with(as("USER_MANAGE")))
+			.andExpect(jsonPath("$.totalItems").value(4));
+		this.mockMvc.perform(get("/admin/users").param("status", "suspended").with(as("USER_MANAGE")))
 			.andExpect(jsonPath("$.totalItems").value(0));
 		this.mockMvc.perform(get("/admin/users").param("status", "unknown").with(as("USER_MANAGE")))
 			.andExpect(status().isBadRequest());
@@ -306,7 +400,7 @@ class AdminApiIntegrationTest {
 		this.mockMvc
 			.perform(get("/admin/users").param("sort", "createdAt,asc", "username,desc").with(as("USER_MANAGE")))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.items[0].username").value("test-user"));
+			.andExpect(jsonPath("$.items[0].username").value("user"));
 		this.mockMvc.perform(get("/admin/users").param("sort", "username", "username,desc").with(as("USER_MANAGE")))
 			.andExpect(status().isBadRequest());
 		this.mockMvc

@@ -40,7 +40,7 @@ class AdminControllerTest {
 		this.mockMvc
 			.perform(get("/admin/users").param("sort", "username,desc").with(user("admin").roles("USER_MANAGE")))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.items[0].username").value("test-user"));
+			.andExpect(jsonPath("$.items[0].username").value("user"));
 		this.mockMvc.perform(get("/admin/users").param("sort", "password,asc").with(user("admin").roles("USER_MANAGE")))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].source.pointer").doesNotExist());

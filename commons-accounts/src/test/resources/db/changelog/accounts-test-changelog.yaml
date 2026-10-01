@@ -5,3 +5,9 @@ databaseChangeLog:
       file: db/changelog/007-user-name.sql
   - include:
       file: db/changelog/008-user-last-login.sql
+  - include:
+      file: db/changelog/009-account-lifecycle.sql
+  - include:
+      file: db/changelog/010-account-audit-and-settings.sql
+  - include:
+      file: db/changelog/011-tasks-and-account-review.sql

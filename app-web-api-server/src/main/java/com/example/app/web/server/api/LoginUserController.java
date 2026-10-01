@@ -8,6 +8,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.commons.accounts.domain.AccountStatus;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
 
@@ -45,7 +46,7 @@ public class LoginUserController {
 	public LoginUserResponse loginUser(Authentication authentication) {
 		// LocalAuthorityRefreshFilter deauthenticates a disabled or deleted user on every
 		// request, so the local user for an authenticated caller always exists here.
-		AppUser user = this.users.findByUsernameAndEnabledTrue(authentication.getName()).orElseThrow();
+		AppUser user = this.users.findByUsernameAndStatus(authentication.getName(), AccountStatus.ACTIVE).orElseThrow();
 		List<String> roles = authentication.getAuthorities()
 			.stream()
 			.map(GrantedAuthority::getAuthority)

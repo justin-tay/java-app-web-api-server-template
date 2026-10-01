@@ -3,6 +3,9 @@ package com.example.commons.accounts.admin;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
+import java.time.Clock;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.function.Supplier;
@@ -15,6 +18,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -26,12 +31,15 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.example.commons.accounts.AccountsJpaTest;
 import com.example.commons.accounts.admin.AdministrationServiceTest.InMemorySessionRepository;
+import com.example.commons.accounts.domain.AccountAuditEvent;
+import com.example.commons.accounts.domain.AccountAuditEventRepository;
 import com.example.commons.accounts.domain.AppGroup;
 import com.example.commons.accounts.domain.AppGroupRepository;
 import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
+import com.example.commons.accounts.domain.ReasonCode;
 import com.example.commons.security.session.SessionLifecycleAuditLogger;
 import com.example.commons.security.session.SessionRevocationService;
 import com.example.commons.web.problem.ConflictException;
@@ -44,7 +52,7 @@ import com.example.commons.web.problem.ConflictException;
  */
 @AccountsJpaTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-class AdministrationAuditLoggingTest {
+class AccountAuditLoggingTest {
 
 	@Autowired
 	private AppUserRepository users;
@@ -56,15 +64,23 @@ class AdministrationAuditLoggingTest {
 	private AppRoleRepository roles;
 
 	@Autowired
+	private AccountAuditEventRepository auditEvents;
+
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
+
+	@Autowired
 	private PlatformTransactionManager transactionManager;
 
-	private final Logger logger = (Logger) LoggerFactory.getLogger(AdministrationAuditLogger.class);
+	private final Logger logger = (Logger) LoggerFactory.getLogger(AccountAuditLogger.class);
 
 	private final ListAppender<ILoggingEvent> logEvents = new ListAppender<>();
 
 	private TransactionTemplate transaction;
 
 	private AdministrationService service;
+
+	private AccountLifecycleService lifecycle;
 
 	private AppRole userManage;
 
@@ -79,10 +95,11 @@ class AdministrationAuditLoggingTest {
 	@BeforeEach
 	void setUp() {
 		this.transaction = new TransactionTemplate(this.transactionManager);
-		this.service = new AdministrationService(
-				this.users, this.groups, this.roles, new SessionRevocationService(new SessionRegistryImpl(),
-						new InMemorySessionRepository(), new SessionLifecycleAuditLogger()),
-				new AdministrationAuditLogger());
+		SessionRevocationService revocation = new SessionRevocationService(new SessionRegistryImpl(),
+				new InMemorySessionRepository(), new SessionLifecycleAuditLogger());
+		AccountAuditLogger auditLogger = new AccountAuditLogger(this.auditEvents, Clock.systemUTC());
+		this.service = new AdministrationService(this.users, this.groups, this.roles, revocation, auditLogger);
+		this.lifecycle = new AccountLifecycleService(this.users, revocation, auditLogger, null, Clock.systemUTC());
 		inTransaction(() -> {
 			this.userManage = this.roles.save(new AppRole("USER_MANAGE"));
 			this.groupManage = this.roles.save(new AppRole("GROUP_MANAGE"));
@@ -92,7 +109,7 @@ class AdministrationAuditLoggingTest {
 			AppGroup administrators = new AppGroup("Administrators");
 			administrators.getRoles().add(this.groupManage);
 			this.administrators = this.groups.save(administrators);
-			AppUser testUser = new AppUser("test-user", "Test User", "test@example.test", true);
+			AppUser testUser = new AppUser("test-user", "Test User", "test@example.test");
 			testUser.getGroups().add(this.managers);
 			this.testUser = this.users.save(testUser);
 			return null;
@@ -109,6 +126,7 @@ class AdministrationAuditLoggingTest {
 		this.logEvents.stop();
 		SecurityContextHolder.clearContext();
 		inTransaction(() -> {
+			this.jdbcTemplate.update("DELETE FROM account_audit_event");
 			this.users.deleteAll();
 			this.groups.deleteAll();
 			this.roles.deleteAll();
@@ -125,7 +143,7 @@ class AdministrationAuditLoggingTest {
 	@Test
 	void logsACreatedUserWithTheAccessItIsGrantedAndRecordsTheActor() {
 		AppUser user = inTransaction(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user",
-				"New User", "new@example.test", true, Set.of(this.managers.getId()))));
+				"New User", "new@example.test", Set.of(this.managers.getId()))));
 
 		assertThat(user.getCreatedBy()).isEqualTo("admin");
 		assertThat(user.getUpdatedBy()).isEqualTo("admin");
@@ -136,7 +154,7 @@ class AdministrationAuditLoggingTest {
 			.contains("user.name=\"admin\"")
 			.contains("user.target.id=\"" + user.getId() + "\"")
 			.contains("user.target.name=\"new-user\"")
-			.contains("user.target.enabled=\"true\"")
+			.contains("user.target.status=\"active\"")
 			.contains("user.target.group.name=\"[Managers]\"")
 			.contains("user.target.roles=\"[USER_MANAGE]\"")
 			.contains("groups.added=\"[Managers]\"")
@@ -150,7 +168,7 @@ class AdministrationAuditLoggingTest {
 	void doesNotLogAChangeThatIsRolledBack() {
 		this.transaction.executeWithoutResult(status -> {
 			this.service.createUser(
-					new AdminDtos.UserCreateRequest("new-user", "New User", null, true, Set.of(this.managers.getId())));
+					new AdminDtos.UserCreateRequest("new-user", "New User", null, Set.of(this.managers.getId())));
 			status.setRollbackOnly();
 		});
 
@@ -162,16 +180,15 @@ class AdministrationAuditLoggingTest {
 	void logsAnUpdatedUserWithItsPriorStateOnlyTheChangesAndNoPersonalDataValues() {
 		AppUser user = inTransaction(
 				() -> this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User",
-						"changed@example.test", false, Set.of(this.administrators.getId()))));
+						"changed@example.test", Set.of(this.administrators.getId()))));
 
 		assertThat(user.getUpdatedBy()).isEqualTo("admin");
 		assertThat(user.getCreatedBy()).isEqualTo("system");
 		assertThat(logged()).containsOnlyOnce("event.action=\"update_user\"")
 			.contains("event.type=\"[user, change]\"")
-			.contains("user.target.enabled=\"true\"")
+			.contains("user.target.status=\"active\"")
 			.contains("user.target.group.name=\"[Managers]\"")
 			.contains("user.target.roles=\"[USER_MANAGE]\"")
-			.contains("user.changes.enabled=\"false\"")
 			.contains("user.changes.group.name=\"[Administrators]\"")
 			.contains("user.changes.roles=\"[GROUP_MANAGE]\"")
 			.contains("user.changes.fields=\"[email]\"")
@@ -186,32 +203,82 @@ class AdministrationAuditLoggingTest {
 
 	@Test
 	void omitsTheChangesOfValuesThatDidNotChange() {
-		inTransaction(
-				() -> this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Renamed User",
-						"test@example.test", true, Set.of(this.managers.getId()))));
+		inTransaction(() -> this.service.updateUser(this.testUser.getId(),
+				new AdminDtos.UserUpdateRequest("Renamed User", "test@example.test", Set.of(this.managers.getId()))));
 
 		assertThat(logged()).containsOnlyOnce("event.action=\"update_user\"")
 			.contains("user.changes.fields=\"[full_name]\"")
 			.contains("roles.added=\"[]\"")
 			.contains("roles.removed=\"[]\"")
-			.doesNotContain("user.changes.enabled")
+			.doesNotContain("user.changes.status")
 			.doesNotContain("user.changes.group.name")
 			.doesNotContain("user.changes.roles")
 			.doesNotContain("Renamed User");
 	}
 
 	@Test
-	void logsADeletedUserWithTheAccessItLoses() {
+	void logsARemovedUserWithTheReasonAndTheAccessItLoses() {
 		inTransaction(() -> {
-			this.service.deleteUser(this.testUser.getId());
+			this.lifecycle.remove(this.testUser.getId(), ReasonCode.LEFT_ORGANISATION, "moved teams");
 			return null;
 		});
 
 		assertThat(logged()).containsOnlyOnce("event.action=\"delete_user\"")
 			.contains("event.type=\"[user, deletion]\"")
+			.contains("event.reason=\"left_organisation\"")
+			.doesNotContain("moved teams")
 			.contains("user.target.name=\"test-user\"")
 			.contains("groups.removed=\"[Managers]\"")
 			.contains("roles.removed=\"[USER_MANAGE]\"");
+	}
+
+	@Test
+	void logsASuspensionAndAnUnsuspension() {
+		inTransaction(() -> this.lifecycle.suspend(this.testUser.getId(), ReasonCode.POLICY_VIOLATION, null));
+		inTransaction(() -> this.lifecycle.unsuspend(this.testUser.getId()));
+
+		assertThat(logged()).contains("event.action=\"suspend_user\"")
+			.contains("event.reason=\"policy_violation\"")
+			.contains("user.changes.status=\"suspended\"")
+			.contains("event.action=\"unsuspend_user\"")
+			.contains("user.changes.status=\"active\"");
+	}
+
+	@Test
+	void appendsEachSuccessfulChangeToTheAuditTrailWithoutAnEmailAddress() {
+		inTransaction(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User",
+				"new@example.test", Set.of(this.managers.getId()))));
+		inTransaction(() -> this.lifecycle.suspend(this.testUser.getId(), ReasonCode.POLICY_VIOLATION, "see ticket"));
+		inTransaction(() -> {
+			this.lifecycle.remove(this.testUser.getId(), ReasonCode.LEFT_ORGANISATION, null);
+			return null;
+		});
+
+		List<AccountAuditEvent> events = this.auditEvents.findAll(Specification.unrestricted())
+			.stream()
+			.sorted(Comparator.comparing(AccountAuditEvent::getOccurredAt))
+			.toList();
+		assertThat(events).extracting(AccountAuditEvent::getAction)
+			.containsExactly("create_user", "suspend_user", "delete_user");
+		assertThat(events).extracting(AccountAuditEvent::getActor).containsOnly("admin");
+		assertThat(events).extracting(AccountAuditEvent::getTargetType).containsOnly("USER");
+		AccountAuditEvent removal = events.get(2);
+		assertThat(removal.getTargetName()).isEqualTo("test-user");
+		assertThat(removal.getTargetDisplayName()).isEqualTo("Test User");
+		assertThat(removal.getReasonCode()).isEqualTo("left_organisation");
+		assertThat(events.get(1).getReasonNote()).isEqualTo("see ticket");
+		assertThat(events).extracting(AccountAuditEvent::getDetails).noneMatch(details -> details.contains("@"));
+	}
+
+	@Test
+	void doesNotAppendAChangeThatIsRolledBackToTheAuditTrail() {
+		this.transaction.executeWithoutResult(status -> {
+			this.service.createUser(
+					new AdminDtos.UserCreateRequest("new-user", "New User", null, Set.of(this.managers.getId())));
+			status.setRollbackOnly();
+		});
+
+		assertThat(this.auditEvents.findAll(Specification.unrestricted())).isEmpty();
 	}
 
 	@Test
@@ -236,7 +303,7 @@ class AdministrationAuditLoggingTest {
 	@Test
 	void logsARejectedChangeImmediatelyWithItsReason() {
 		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> inTransaction(() -> this.service.createUser(
-				new AdminDtos.UserCreateRequest("test-user", "Test User", null, true, Set.of(this.managers.getId())))));
+				new AdminDtos.UserCreateRequest("test-user", "Test User", null, Set.of(this.managers.getId())))));
 		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> inTransaction(() -> this.service
 			.updateGroup(this.managers.getId(), new AdminDtos.GroupRequest("Administrators", null))));
 		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> inTransaction(() -> {

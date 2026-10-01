@@ -3,6 +3,8 @@ package com.example.commons.accounts.admin;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,6 +36,7 @@ import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
+import com.example.commons.accounts.domain.ReasonCode;
 import com.example.commons.security.session.SessionLifecycleAuditLogger;
 import com.example.commons.security.session.SessionRevocationService;
 import com.example.commons.web.problem.ConflictException;
@@ -70,6 +73,8 @@ class AdministrationServiceTest {
 
 	private AdministrationService service;
 
+	private AccountLifecycleService lifecycle;
+
 	private AppRole userManage;
 
 	private AppGroup managers;
@@ -80,15 +85,16 @@ class AdministrationServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		this.service = new AdministrationService(this.users, this.groups, this.roles,
-				new SessionRevocationService(this.sessionRegistry, this.sessionRepository,
-						this.sessionLifecycleAuditLogger),
-				new AdministrationAuditLogger());
+		SessionRevocationService revocation = new SessionRevocationService(this.sessionRegistry, this.sessionRepository,
+				this.sessionLifecycleAuditLogger);
+		AccountAuditLogger auditLogger = new AccountAuditLogger();
+		this.service = new AdministrationService(this.users, this.groups, this.roles, revocation, auditLogger);
+		this.lifecycle = new AccountLifecycleService(this.users, revocation, auditLogger, null, Clock.systemUTC());
 		this.userManage = this.entityManager.persist(new AppRole("USER_MANAGE"));
 		this.managers = this.entityManager.persist(new AppGroup("Managers"));
 		this.managers.getRoles().add(this.userManage);
 		this.administrators = this.entityManager.persist(new AppGroup("Administrators"));
-		this.testUser = new AppUser("test-user", "Test User", "test@example.test", true);
+		this.testUser = new AppUser("test-user", "Test User", "test@example.test");
 		this.testUser.getGroups().add(this.managers);
 		this.entityManager.persist(this.testUser);
 		this.entityManager.flush();
@@ -96,35 +102,67 @@ class AdministrationServiceTest {
 	}
 
 	@Test
-	void revokesSessionsWhenAUserIsDisabled(CapturedOutput output) {
-		this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User", "test@example.test",
-				false, Set.of(this.managers.getId())));
+	void revokesSessionsAndRecordsWhyWhenAUserIsSuspended(CapturedOutput output) {
+		this.lifecycle.suspend(this.testUser.getId(), ReasonCode.LEFT_ORGANISATION, "moved teams");
 
+		AppUser suspended = reload(this.testUser);
+		assertThat(suspended.isSuspended()).isTrue();
+		assertThat(suspended.getSuspendedAt()).isNotNull();
+		assertThat(suspended.getSuspensionReasonCode()).isEqualTo("left_organisation");
+		assertThat(suspended.getSuspensionNote()).isEqualTo("moved teams");
 		assertThat(sessionOf("test-user").isExpired()).isTrue();
-		assertThat(output).contains("destroy_session").contains("\"privilege_change\"");
+		assertThat(output).contains("destroy_session").contains("\"account_suspended\"");
+	}
+
+	@Test
+	void unsuspendingRestartsTheInactivityClockWithoutTouchingTheLastLogin() {
+		this.users.recordLogin("test-user", Instant.parse("2026-01-01T00:00:00Z"));
+		this.entityManager.clear();
+		this.lifecycle.suspend(this.testUser.getId(), ReasonCode.OTHER, null);
+
+		this.lifecycle.unsuspend(this.testUser.getId());
+
+		AppUser reactivated = reload(this.testUser);
+		assertThat(reactivated.isSuspended()).isFalse();
+		assertThat(reactivated.getSuspendedAt()).isNull();
+		assertThat(reactivated.getSuspensionReasonCode()).isNull();
+		assertThat(reactivated.getLastLoginAt()).isEqualTo(Instant.parse("2026-01-01T00:00:00Z"));
+		assertThat(reactivated.getInactivityClockStartedAt()).isAfter(Instant.parse("2026-01-01T00:00:00Z"));
+	}
+
+	@Test
+	void rejectsSuspendingASuspendedUserAndUnsuspendingAnActiveOne() {
+		assertThatExceptionOfType(ConflictException.class)
+			.isThrownBy(() -> this.lifecycle.unsuspend(this.testUser.getId()))
+			.withMessage("Account is not suspended.");
+		this.lifecycle.suspend(this.testUser.getId(), ReasonCode.OTHER, null);
+
+		assertThatExceptionOfType(ConflictException.class)
+			.isThrownBy(() -> this.lifecycle.suspend(this.testUser.getId(), ReasonCode.OTHER, null))
+			.withMessage("Account is already suspended.");
 	}
 
 	@Test
 	void revokesSessionsWhenGroupMembershipChanges() {
-		this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User", "test@example.test",
-				true, Set.of(this.administrators.getId())));
+		this.service.updateUser(this.testUser.getId(),
+				new AdminDtos.UserUpdateRequest("Test User", "test@example.test", Set.of(this.administrators.getId())));
 
 		assertThat(sessionOf("test-user").isExpired()).isTrue();
 		assertThat(reload(this.testUser).getGroups()).extracting(AppGroup::getName).containsExactly("Administrators");
 	}
 
 	@Test
-	void doesNotRevokeSessionsWhenNeitherEnabledStatusNorGroupsChange() {
+	void doesNotRevokeSessionsWhenGroupsDoNotChange() {
 		this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("New Display Name",
-				"test@example.test", true, Set.of(this.managers.getId())));
+				"test@example.test", Set.of(this.managers.getId())));
 
 		assertThat(sessionOf("test-user").isExpired()).isFalse();
 		assertThat(reload(this.testUser).getName()).isEqualTo("New Display Name");
 	}
 
 	@Test
-	void revokesSessionsWhenAUserIsDeleted(CapturedOutput output) {
-		this.service.deleteUser(this.testUser.getId());
+	void revokesSessionsWhenAUserIsRemoved(CapturedOutput output) {
+		this.lifecycle.remove(this.testUser.getId(), ReasonCode.LEFT_ORGANISATION, null);
 		this.entityManager.flush();
 
 		assertThat(sessionOf("test-user").isExpired()).isTrue();
@@ -135,8 +173,8 @@ class AdministrationServiceTest {
 	@Test
 	void rejectsADuplicateUsername() {
 		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.createUser(new AdminDtos.UserCreateRequest("test-user", "Test User", null,
-					true, Set.of(this.managers.getId()))))
+			.isThrownBy(() -> this.service.createUser(
+					new AdminDtos.UserCreateRequest("test-user", "Test User", null, Set.of(this.managers.getId()))))
 			.withMessage("Username already exists.");
 		assertThat(this.users.count()).isEqualTo(1);
 	}
@@ -145,7 +183,7 @@ class AdministrationServiceTest {
 	void rejectsAUserInAGroupThatDoesNotExist() {
 		assertThatExceptionOfType(ResourceNotFoundException.class)
 			.isThrownBy(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null,
-					true, Set.of(this.managers.getId(), "missing"))))
+					Set.of(this.managers.getId(), "missing"))))
 			.withMessage("Group was not found.");
 		assertThat(this.users.existsByUsername("new-user")).isFalse();
 	}
@@ -161,8 +199,9 @@ class AdministrationServiceTest {
 	}
 
 	@Test
-	void doesNotRevokeSessionsOrDeleteAnUnknownUser() {
-		assertThatExceptionOfType(ResourceNotFoundException.class).isThrownBy(() -> this.service.deleteUser("missing"));
+	void doesNotRevokeSessionsOrRemoveAnUnknownUser() {
+		assertThatExceptionOfType(ResourceNotFoundException.class)
+			.isThrownBy(() -> this.lifecycle.remove("missing", ReasonCode.OTHER, null));
 
 		assertThat(sessionOf("test-user").isExpired()).isFalse();
 		assertThat(this.users.count()).isEqualTo(1);
@@ -170,19 +209,19 @@ class AdministrationServiceTest {
 
 	@Test
 	void findsTheUsersOfAGroupOnceEach() {
-		AppUser other = new AppUser("other-user", "Other User", null, true);
+		AppUser other = new AppUser("other-user", "Other User", null);
 		other.getGroups().add(this.administrators);
 		this.entityManager.persist(other);
 		this.testUser.getGroups().add(this.administrators);
 		this.entityManager.flush();
 
 		assertThat(this.service
-			.users(new AdministrationService.UserQuery(null, null, null, null, null, null, this.administrators.getId(),
-					null, null), Pageable.unpaged())
+			.users(new AdministrationService.UserQuery(null, null, null, null, null, this.administrators.getId(), null,
+					null), Pageable.unpaged())
 			.getContent()).extracting(AppUser::getUsername).containsExactlyInAnyOrder("test-user", "other-user");
 		assertThat(this.service
-			.users(new AdministrationService.UserQuery(null, null, null, null, null, null, this.managers.getId(), null,
-					null), Pageable.unpaged())
+			.users(new AdministrationService.UserQuery(null, null, null, null, null, this.managers.getId(), null, null),
+					Pageable.unpaged())
 			.getContent()).extracting(AppUser::getUsername).containsExactly("test-user");
 	}
 
@@ -259,12 +298,11 @@ class AdministrationServiceTest {
 		this.administrators.getRoles().add(groupManage);
 		authenticate("admin", "USER_MANAGE");
 
-		assertThatExceptionOfType(AccessDeniedException.class)
-			.isThrownBy(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null,
-					true, Set.of(this.administrators.getId()))));
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(() -> this.service.createUser(
+				new AdminDtos.UserCreateRequest("new-user", "New User", null, Set.of(this.administrators.getId()))));
 		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
 				() -> this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User",
-						"test@example.test", true, Set.of(this.managers.getId(), this.administrators.getId()))));
+						"test@example.test", Set.of(this.managers.getId(), this.administrators.getId()))));
 
 		assertThat(output).contains("\"exceeds_actor_privileges\"");
 		assertThat(this.users.existsByUsername("new-user")).isFalse();
@@ -275,24 +313,23 @@ class AdministrationServiceTest {
 	void anAdministratorCanGiveAGroupGrantingOnlyRolesTheyHold() {
 		authenticate("admin", "USER_MANAGE");
 
-		AppUser user = this.service.createUser(
-				new AdminDtos.UserCreateRequest("new-user", "New User", null, true, Set.of(this.managers.getId())));
+		AppUser user = this.service
+			.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null, Set.of(this.managers.getId())));
 
 		assertThat(user.getGroups()).extracting(AppGroup::getName).containsExactly("Managers");
 	}
 
 	@Test
-	void anAdministratorCannotChangeTheirOwnAccessOrDeleteThemselves(CapturedOutput output) {
+	void anAdministratorCannotChangeTheirOwnAccessOrSuspendOrRemoveThemselves(CapturedOutput output) {
 		authenticate("test-user", "USER_MANAGE");
 
-		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
-				() -> this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User",
-						"test@example.test", false, Set.of(this.managers.getId()))));
-		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
-				() -> this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User",
-						"test@example.test", true, Set.of(this.administrators.getId()))));
 		assertThatExceptionOfType(AccessDeniedException.class)
-			.isThrownBy(() -> this.service.deleteUser(this.testUser.getId()));
+			.isThrownBy(() -> this.lifecycle.suspend(this.testUser.getId(), ReasonCode.OTHER, null));
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
+				() -> this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User",
+						"test@example.test", Set.of(this.administrators.getId()))));
+		assertThatExceptionOfType(AccessDeniedException.class)
+			.isThrownBy(() -> this.lifecycle.remove(this.testUser.getId(), ReasonCode.OTHER, null));
 
 		assertThat(output).contains("\"self_modification\"");
 		assertThat(sessionOf("test-user").isExpired()).isFalse();
@@ -302,8 +339,8 @@ class AdministrationServiceTest {
 	void anAdministratorCanChangeTheirOwnNameAndEmail() {
 		authenticate("test-user", "USER_MANAGE");
 
-		this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Renamed User",
-				"renamed@example.test", true, Set.of(this.managers.getId())));
+		this.service.updateUser(this.testUser.getId(),
+				new AdminDtos.UserUpdateRequest("Renamed User", "renamed@example.test", Set.of(this.managers.getId())));
 
 		assertThat(reload(this.testUser).getName()).isEqualTo("Renamed User");
 	}
@@ -351,13 +388,13 @@ class AdministrationServiceTest {
 		this.service.revokeSessions(this.testUser.getId());
 
 		assertThat(sessionOf("test-user").isExpired()).isTrue();
-		assertThat(reload(this.testUser).isEnabled()).isTrue();
+		assertThat(reload(this.testUser).isSuspended()).isFalse();
 		assertThat(output).contains("\"administrative_revocation\"").contains("revoke_sessions");
 	}
 
 	@Test
 	void revokesEveryUsersSessionsExceptTheCallers() {
-		AppUser admin = new AppUser("admin", "Administrator", null, true);
+		AppUser admin = new AppUser("admin", "Administrator", null);
 		admin.getGroups().add(this.managers);
 		this.entityManager.persist(admin);
 		signIn("session-2", "admin");

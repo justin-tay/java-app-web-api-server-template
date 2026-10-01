@@ -86,11 +86,11 @@ class PasskeyIntegrationTest {
 
 	@Test
 	void registrationOptionsUseTheLocalUsersUuidAsTheUserHandleAndRequireUserVerification() throws Exception {
-		this.mockMvc.perform(post("/webauthn/register/options").with(loginAt("test-user", Instant.now())).with(csrf()))
+		this.mockMvc.perform(post("/webauthn/register/options").with(loginAt("user", Instant.now())).with(csrf()))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.rp.id").value("localhost"))
 			.andExpect(jsonPath("$.rp.name").value("Test Application"))
-			.andExpect(jsonPath("$.user.name").value("test-user"))
+			.andExpect(jsonPath("$.user.name").value("user"))
 			.andExpect(jsonPath("$.user.id").value(handleOf(TEST_USER_ID)))
 			.andExpect(jsonPath("$.authenticatorSelection.userVerification").value("required"))
 			.andExpect(jsonPath("$.authenticatorSelection.residentKey").value("required"))
@@ -101,7 +101,7 @@ class PasskeyIntegrationTest {
 	void registrationAfterAStaleLoginNeedsReauthentication() throws Exception {
 		this.mockMvc
 			.perform(post("/webauthn/register/options")
-				.with(loginAt("test-user", Instant.now().minus(Duration.ofMinutes(16))))
+				.with(loginAt("user", Instant.now().minus(Duration.ofMinutes(16))))
 				.with(csrf()))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.type").value("urn:problem:reauthentication-required"))
@@ -110,15 +110,15 @@ class PasskeyIntegrationTest {
 
 	@Test
 	void aUserListsRenamesAndRemovesTheirOwnPasskeys() throws Exception {
-		saveCredential("test-user", "first", "laptop");
-		saveCredential("test-user", "second", "phone");
+		saveCredential("user", "first", "laptop");
+		saveCredential("user", "second", "phone");
 
-		this.mockMvc.perform(get("/account/passkeys").with(loginAt("test-user", Instant.now())))
+		this.mockMvc.perform(get("/account/passkeys").with(loginAt("user", Instant.now())))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$", hasSize(2)));
 
 		this.mockMvc
-			.perform(patch("/account/passkeys/" + credentialId("first")).with(loginAt("test-user", Instant.now()))
+			.perform(patch("/account/passkeys/" + credentialId("first")).with(loginAt("user", Instant.now()))
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{\"label\":\"work laptop\"}"))
@@ -127,7 +127,7 @@ class PasskeyIntegrationTest {
 			.isEqualTo("work laptop");
 
 		this.mockMvc
-			.perform(delete("/webauthn/register/" + credentialId("first")).with(loginAt("test-user", Instant.now()))
+			.perform(delete("/webauthn/register/" + credentialId("first")).with(loginAt("user", Instant.now()))
 				.with(csrf()))
 			.andExpect(status().isNoContent());
 		assertThat(this.userCredentials.findByCredentialId(new Bytes("first".getBytes()))).isNull();
@@ -138,13 +138,13 @@ class PasskeyIntegrationTest {
 		saveCredential("multi-group-user", "theirs", "laptop");
 
 		this.mockMvc
-			.perform(patch("/account/passkeys/" + credentialId("theirs")).with(loginAt("test-user", Instant.now()))
+			.perform(patch("/account/passkeys/" + credentialId("theirs")).with(loginAt("user", Instant.now()))
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{\"label\":\"mine now\"}"))
 			.andExpect(status().isNotFound());
 		this.mockMvc
-			.perform(delete("/webauthn/register/" + credentialId("theirs")).with(loginAt("test-user", Instant.now()))
+			.perform(delete("/webauthn/register/" + credentialId("theirs")).with(loginAt("user", Instant.now()))
 				.with(csrf()))
 			.andExpect(status().isForbidden());
 
@@ -153,7 +153,7 @@ class PasskeyIntegrationTest {
 
 	@Test
 	void anAdministratorListsAndRevokesAUsersPasskeys() throws Exception {
-		saveCredential("test-user", "lost", "lost phone");
+		saveCredential("user", "lost", "lost phone");
 
 		this.mockMvc.perform(get("/admin/users/" + TEST_USER_ID + "/passkeys").with(loginAt("admin", Instant.now())))
 			.andExpect(status().isOk())
@@ -177,7 +177,7 @@ class PasskeyIntegrationTest {
 
 	@Test
 	void anAdministratorRevokingAPasskeyNeedsARecentLogin() throws Exception {
-		saveCredential("test-user", "kept", "phone");
+		saveCredential("user", "kept", "phone");
 
 		this.mockMvc
 			.perform(delete("/admin/users/" + TEST_USER_ID + "/passkeys/" + credentialId("kept"))
@@ -190,11 +190,14 @@ class PasskeyIntegrationTest {
 	}
 
 	@Test
-	void deletingAUserDeletesTheirPasskeys() throws Exception {
+	void removingAUserDeletesTheirPasskeys() throws Exception {
 		PublicKeyCredentialUserEntity entity = saveCredential("multi-group-user", "gone", "laptop");
 
 		this.mockMvc
-			.perform(delete("/admin/users/" + MULTI_GROUP_USER_ID).with(loginAt("admin", Instant.now())).with(csrf()))
+			.perform(post("/admin/users/" + MULTI_GROUP_USER_ID + "/remove").with(loginAt("admin", Instant.now()))
+				.with(csrf())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"reasonCode\":\"left_organisation\"}"))
 			.andExpect(status().isNoContent());
 
 		assertThat(this.userCredentials.findByCredentialId(new Bytes("gone".getBytes()))).isNull();

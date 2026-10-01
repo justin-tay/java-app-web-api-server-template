@@ -12,13 +12,18 @@ import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.example.commons.accounts.admin.AccountLifecycleService;
 import com.example.commons.accounts.admin.AdministrationService;
 import com.example.commons.accounts.admin.GroupAdminController;
 import com.example.commons.accounts.admin.RoleAdminController;
 import com.example.commons.accounts.admin.UserAdminController;
+import com.example.commons.accounts.domain.AccountAuditEventRepository;
 import com.example.commons.accounts.domain.AppGroupRepository;
 import com.example.commons.accounts.domain.AppRoleRepository;
+import com.example.commons.accounts.domain.AppSettingRepository;
 import com.example.commons.accounts.domain.AppUserRepository;
+import com.example.commons.accounts.settings.SettingsController;
+import com.example.commons.accounts.settings.SettingsService;
 import com.example.commons.security.authorization.LocalAuthorityLookup;
 import com.example.commons.security.session.SessionRevocationService;
 
@@ -52,10 +57,11 @@ class AccountsAutoConfigurationTest {
 	}
 
 	@Test
-	void disablesDormantUsersOnlyWhenAThresholdIsSet() {
-		this.contextRunner.run(context -> assertThat(context).doesNotHaveBean(DormantUserDisabler.class));
-		this.contextRunner.withPropertyValues("commons.accounts.dormancy.threshold=90d")
-			.run(context -> assertThat(context).hasSingleBean(DormantUserDisabler.class));
+	void suspendsInactiveUsersByDefault() {
+		this.contextRunner.run(context -> assertThat(context).hasSingleBean(InactiveUserSuspender.class)
+			.hasSingleBean(AccountLifecycleService.class)
+			.hasSingleBean(SettingsService.class)
+			.hasSingleBean(SettingsController.class));
 	}
 
 	@Test
@@ -92,6 +98,16 @@ class AccountsAutoConfigurationTest {
 		@Bean
 		AppRoleRepository appRoleRepository() {
 			return mock(AppRoleRepository.class);
+		}
+
+		@Bean
+		AccountAuditEventRepository accountAuditEventRepository() {
+			return mock(AccountAuditEventRepository.class);
+		}
+
+		@Bean
+		AppSettingRepository appSettingRepository() {
+			return mock(AppSettingRepository.class);
 		}
 
 		@Bean

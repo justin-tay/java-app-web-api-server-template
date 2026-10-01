@@ -67,7 +67,7 @@ The script is idempotent and enables user registration for the realm. It require
 Node.js version that provides the global `fetch` API.
 
 Provision the matching development users after the application database has been
-started at least once. This creates `admin`, `test-user`, and `multi-group-user` in
+started at least once. This creates `admin`, `user`, `multi-group-user`, `account-reviewer-1`, and `account-reviewer-2` in
 Keycloak, each with the development-only password `password`. It intentionally does
 not assign Keycloak roles: application access and roles are managed by the local
 database migrations. The matching local users are development fixtures that

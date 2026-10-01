@@ -9,9 +9,7 @@ import org.springframework.boot.autoconfigure.AutoConfigurationPackage;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
-import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration;
 import org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -22,15 +20,20 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import com.example.commons.accounts.admin.AdminReauthenticationInterceptor;
-import com.example.commons.accounts.admin.AdministrationAuditLogger;
+import com.example.commons.accounts.admin.AccountAuditLogger;
+import com.example.commons.accounts.admin.AccountLifecycleService;
 import com.example.commons.accounts.admin.AdministrationService;
 import com.example.commons.accounts.admin.GroupAdminController;
 import com.example.commons.accounts.admin.RoleAdminController;
 import com.example.commons.accounts.admin.UserAdminController;
 import com.example.commons.accounts.admin.UserPasskeyAdminController;
+import com.example.commons.accounts.domain.AccountAuditEventRepository;
 import com.example.commons.accounts.domain.AppGroupRepository;
 import com.example.commons.accounts.domain.AppRoleRepository;
+import com.example.commons.accounts.domain.AppSettingRepository;
 import com.example.commons.accounts.domain.AppUserRepository;
+import com.example.commons.accounts.settings.SettingsController;
+import com.example.commons.accounts.settings.SettingsService;
 import com.example.commons.security.WebSecurityAutoConfiguration;
 import com.example.commons.security.authentication.passkey.PasskeyManager;
 import com.example.commons.security.authentication.passkey.PasskeyUserDirectory;
@@ -40,8 +43,8 @@ import com.example.commons.security.session.SessionRevocationService;
 /**
  * Configures local account management: the user, group, and role model the application's
  * authorities come from (see docs/adr/0005), a {@link LocalAuthorityLookup} backed by it,
- * and the administration API under {@code /admin/users}, {@code /admin/groups}, and
- * {@code /admin/roles}.
+ * and the administration API under {@code /admin/users}, {@code /admin/groups},
+ * {@code /admin/roles}, and {@code /admin/settings}.
  *
  * <p>
  * The entities and repositories in {@code com.example.commons.accounts.domain} are
@@ -82,13 +85,45 @@ public class AccountsAutoConfiguration {
 	}
 
 	/**
-	 * Audit logging of changes to the local user, group, and role model.
+	 * Audit logging of changes to accounts, groups, roles, settings, and reviews, as log
+	 * events and as rows of the business audit trail (see docs/adr/0030).
+	 * @param events the audit event repository
 	 * @return the audit logger
 	 */
 	@Bean
 	@ConditionalOnMissingBean
-	AdministrationAuditLogger administrationAuditLogger() {
-		return new AdministrationAuditLogger();
+	AccountAuditLogger accountAuditLogger(AccountAuditEventRepository events) {
+		return new AccountAuditLogger(events, Clock.systemUTC());
+	}
+
+	/**
+	 * Suspends, unsuspends, and removes accounts, for the administration API, the account
+	 * review, and the inactivity job (see docs/adr/0031).
+	 * @param users the user repository
+	 * @param sessionRevocationService the session revocation service
+	 * @param auditLogger the audit logger
+	 * @param passkeyManager the passkey manager, when passkeys are enabled
+	 * @return the service
+	 */
+	@Bean
+	@ConditionalOnMissingBean
+	AccountLifecycleService accountLifecycleService(AppUserRepository users,
+			SessionRevocationService sessionRevocationService, AccountAuditLogger auditLogger,
+			ObjectProvider<PasskeyManager> passkeyManager) {
+		return new AccountLifecycleService(users, sessionRevocationService, auditLogger,
+				passkeyManager.getIfAvailable(), Clock.systemUTC());
+	}
+
+	/**
+	 * The application settings (see docs/adr/0031).
+	 * @param settings the setting repository
+	 * @param auditLogger the audit logger
+	 * @return the service
+	 */
+	@Bean
+	@ConditionalOnMissingBean
+	SettingsService settingsService(AppSettingRepository settings, AccountAuditLogger auditLogger) {
+		return new SettingsService(settings, auditLogger);
 	}
 
 	/**
@@ -115,24 +150,19 @@ public class AccountsAutoConfiguration {
 	}
 
 	/**
-	 * Disables users who have not signed in for longer than
-	 * {@code commons.accounts.dormancy.threshold} (for example {@code 90d}), checking
-	 * every {@code commons.accounts.dormancy.check-interval} (one hour by default). Off
-	 * unless a threshold is set, since how long is too long is a policy for the adopter
-	 * to choose (see docs/adr/0028).
+	 * Suspends and removes inactive accounts according to the {@code inactivity.*}
+	 * settings, checking every {@code commons.accounts.inactivity.check-interval} (one
+	 * hour by default; see docs/adr/0031).
 	 */
 	@Configuration(proxyBeanMethods = false)
-	@ConditionalOnProperty(name = "commons.accounts.dormancy.threshold")
 	@EnableScheduling
-	static class DormancyConfiguration {
+	static class InactivityConfiguration {
 
 		@Bean
-		DormantUserDisabler dormantUserDisabler(AppUserRepository users,
-				SessionRevocationService sessionRevocationService, AdministrationAuditLogger auditLogger,
-				Environment environment) {
-			return new DormantUserDisabler(users, sessionRevocationService, auditLogger,
-					Binder.get(environment).bind("commons.accounts.dormancy.threshold", Duration.class).get(),
-					Clock.systemUTC());
+		@ConditionalOnMissingBean
+		InactiveUserSuspender inactiveUserSuspender(AppUserRepository users, AccountLifecycleService lifecycle,
+				SettingsService settings) {
+			return new InactiveUserSuspender(users, lifecycle, settings, Clock.systemUTC());
 		}
 
 	}
@@ -147,9 +177,13 @@ public class AccountsAutoConfiguration {
 		@Bean
 		AdministrationService administrationService(AppUserRepository users, AppGroupRepository groups,
 				AppRoleRepository roles, SessionRevocationService sessionRevocationService,
-				AdministrationAuditLogger administrationAuditLogger, ObjectProvider<PasskeyManager> passkeyManager) {
-			return new AdministrationService(users, groups, roles, sessionRevocationService, administrationAuditLogger,
-					passkeyManager.getIfAvailable());
+				AccountAuditLogger accountAuditLogger) {
+			return new AdministrationService(users, groups, roles, sessionRevocationService, accountAuditLogger);
+		}
+
+		@Bean
+		SettingsController settingsController(SettingsService settingsService) {
+			return new SettingsController(settingsService);
 		}
 
 		/**
@@ -183,7 +217,7 @@ public class AccountsAutoConfiguration {
 				@Override
 				public void addInterceptors(InterceptorRegistry registry) {
 					registry.addInterceptor(interceptor)
-						.addPathPatterns("/admin/users/**", "/admin/groups/**", "/admin/roles/**")
+						.addPathPatterns("/admin/users/**", "/admin/groups/**", "/admin/roles/**", "/admin/settings/**")
 						.excludePathPatterns("/admin/users/sessions", "/admin/users/*/sessions");
 				}
 
@@ -191,8 +225,9 @@ public class AccountsAutoConfiguration {
 		}
 
 		@Bean
-		UserAdminController userAdminController(AdministrationService administrationService) {
-			return new UserAdminController(administrationService);
+		UserAdminController userAdminController(AdministrationService administrationService,
+				AccountLifecycleService accountLifecycleService) {
+			return new UserAdminController(administrationService, accountLifecycleService);
 		}
 
 		@Bean

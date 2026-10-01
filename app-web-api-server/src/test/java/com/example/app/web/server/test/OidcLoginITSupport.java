@@ -66,7 +66,7 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
  * the life of the test JVM, and the {@code keycloak} client registration points at it, so
  * the application performs the whole login, including session-fixation ID rotation,
  * through its own security filter chain. The stub signs ID tokens for the seeded local
- * user {@code test-user}, and, like Keycloak's client configured by
+ * user {@code user}, and, like Keycloak's client configured by
  * {@code bin/configure-keycloak.js}, requires PKCE with {@code S256}: its token endpoint
  * rejects a {@code code_verifier} that does not match the authorization request's
  * {@code code_challenge}.
@@ -256,7 +256,7 @@ public abstract class OidcLoginITSupport extends RestTestClientITSupport {
 					.expirationTime(Date.from(now.plusSeconds(300)))
 					.claim("nonce", NONCE.get())
 					.claim("sid", PROVIDER_SESSION_ID)
-					.claim("preferred_username", "test-user")
+					.claim("preferred_username", "user")
 					.build());
 	}
 

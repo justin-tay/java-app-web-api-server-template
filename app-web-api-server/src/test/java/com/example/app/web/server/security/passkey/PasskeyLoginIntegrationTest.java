@@ -59,7 +59,7 @@ class PasskeyLoginIntegrationTest {
 	@Test
 	void aPasskeyLoginAuthenticatesAsTheLocalUserWithTheirLocalRolesAndNoOthers() throws Exception {
 		Cookie administrator = logIn("admin");
-		Cookie testUser = logIn("test-user");
+		Cookie testUser = logIn("user");
 
 		// The administrator's local role opens the administration API, and the test
 		// user, whose passkey carries no roles of its own, is refused it.
