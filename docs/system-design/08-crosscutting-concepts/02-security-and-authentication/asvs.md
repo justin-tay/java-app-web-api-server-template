@@ -12,7 +12,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ## Status meanings
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | Status | Meaning |
 | --- | --- |
 | Implemented | The template's own code or configuration fulfils the requirement. |
@@ -29,7 +29,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V1.1: Encoding and Sanitization Architecture
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V1.1.1 | 2 | Verify that input is decoded or unescaped into a canonical form only once, it is only decoded when encoded data in that form is expected, and that this is done before processing the input further, for example it is not performed after input validation or sanitization. | Inherited from framework | Query-string and path decoding is performed once by the servlet container and Spring MVC; the template performs no custom or repeated decoding of its own. Spring Security's firewall rejects a doubly encoded path outright rather than letting it be decoded twice, and `TomcatHardeningAutoConfiguration` rejects encoded slash and backslash path delimiters.<br><br>**Framework default:** Spring Security `StrictHttpFirewall`; **Application code:** `TomcatHardeningAutoConfiguration.tomcatSecurityHardening()`; **Test code:** `WebSecurityConfigurationTest.rejectsDoublyEncodedPathInsteadOfDecodingTwice()`, `TomcatHardeningIntegrationTest.rejectsAdditionalPathDelimiters()`. |
@@ -38,7 +38,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V1.2: Injection Prevention
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V1.2.1 | 1 | Verify that output encoding for an HTTP response, HTML document, or XML document is relevant for the context required, such as encoding the relevant characters for HTML elements, HTML attributes, HTML comments, CSS, or HTTP header fields, to avoid changing the message or document structure. | Inherited from framework | The template renders no HTML or XML document of its own. Its only HTML surfaces, Spring Security's generated login and logout pages, are produced and escaped by the framework and take no user input into their output (see V1.3.7).<br><br>**Framework default:** Spring Security `DefaultLoginPageGeneratingFilter`, `DefaultLogoutPageGeneratingFilter`. |
@@ -55,7 +55,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V1.3: Sanitization
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V1.3.1 | 1 | Verify that all untrusted HTML input from WYSIWYG editors or similar is sanitized using a well-known and secure HTML sanitization library or framework feature. | Not applicable | The template has no WYSIWYG editor or HTML-accepting input field; every administration field is plain text constrained by Bean Validation. |
@@ -74,7 +74,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V1.4: Memory, String, and Unmanaged Code
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V1.4.1 | 2 | Verify that the application uses memory-safe string, safer memory copy and pointer arithmetic to detect or prevent stack, buffer, or heap overflows. | Inherited from framework | Java is memory-safe: it has no pointer arithmetic, and the JVM bounds-checks every array access. The template uses no native code or unsafe memory API.<br><br>**Framework default:** Java language and JVM. |
@@ -84,7 +84,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V1.5: Safe Deserialization
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V1.5.1 | 1 | Verify that the application configures XML parsers to use a restrictive configuration and that unsafe features such as resolving external entities are disabled to prevent XML eXternal Entity (XXE) attacks. | Not applicable | The template parses no XML and has no XML message converter on its classpath. |
@@ -96,17 +96,17 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V2.1: Validation and Business Logic Documentation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
-| V2.1.1 | 1 | Verify that the application's documentation defines input validation rules for how to check the validity of data items against an expected structure. This could be common data formats such as credit card numbers, email addresses, telephone numbers, or it could be an internal data format. | Partial | **Rules in code:** the administration API's validation rules are defined once, as composed Bean Validation constraints (`@Username`, `@DisplayName`, `@ResourceName`: not blank, at most 100 characters) and `@Email` with `@Size(max = 254)`, applied to the request records and the JPA entities.<br><br>**Documentation:** not implemented. No document outside the code states these rules; the annotations and `ValidationMessages.properties` are the only record.<br><br>**Application code:** `Username`, `DisplayName`, `ResourceName`, `AdminDtos`. |
+| V2.1.1 | 1 | Verify that the application's documentation defines input validation rules for how to check the validity of data items against an expected structure. This could be common data formats such as credit card numbers, email addresses, telephone numbers, or it could be an internal data format. | Partial | **Rules in code:** the administration API's validation rules are defined once, as composed Bean Validation constraints (`@Username`, `@ResourceName`: not blank, at most 100 characters) and `@Email` with `@Size(max = 254)`, applied to the request records and the JPA entities.<br><br>**Documentation:** not implemented. No document outside the code states these rules; the annotations and `ValidationMessages.properties` are the only record.<br><br>**Application code:** `Username`, `ResourceName`, `AdminDtos`. |
 | V2.1.2 | 2 | Verify that the application's documentation defines how to validate the logical and contextual consistency of combined data items, such as checking that suburb and ZIP code match. | Not applicable | The administration API's fields (username, display name, email, group and role membership) have no cross-field consistency rule. Reassess when a domain model with related fields is added. |
 | V2.1.3 | 2 | Verify that expectations for business logic limits and validations are documented, including both per-user and globally across the application. | Not implemented | No per-user or global business logic limits are documented. The template has no business logic beyond administration CRUD; defining limits for the adopter's domain is a pending adopter decision. |
 <!-- /ocsv:generated -->
 
 ### V2.2: Input Validation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V2.2.1 | 1 | Verify that input is validated to enforce business or functional expectations for that input. This should either use positive validation against an allow list of values, patterns, and ranges, or be based on comparing the input to an expected structure and logical limits according to predefined rules. For L1, this can focus on input which is used to make specific business or security decisions. For L2 and up, this should apply to all input. | Implemented | Every administration request body is validated with Bean Validation; every `{id}` path variable, the `groupId` and `roleId` filters, and the IDs inside request bodies must be a resource ID (`@ResourceId`, the lower-case UUID form the application generates); the `username`, `displayName`, and `name` filters are at most 100 characters; `page` and `size` are range-checked; and `AdminPageable` checks `sort` against an allowlist of sortable properties.<br><br>**Application code:** `AdminDtos`, `ResourceId`, `AdminPageable`, `UserAdminController`, `GroupAdminController`, `RoleAdminController`; **Test code:** `AdminControllerTest.invalidUserRequestReturnsPointerError()`, `AdminControllerTest.userListHonoursSupportedSortAndRejectsUnsupportedSort()`, `AdminApiIntegrationTest.malformedIdsAreRejectedBeforeAnyLookup()`. |
@@ -116,7 +116,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V2.3: Business Logic Security
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V2.3.1 | 1 | Verify that the application will only process business logic flows for the same user in the expected sequential step order and without skipping steps. | Not applicable | Every administration operation (create, update, delete) is a single request; there is no multi-step flow whose steps could be skipped or reordered. |
@@ -128,7 +128,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V2.4: Anti-automation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V2.4.1 | 2 | Verify that anti-automation controls are in place to protect against excessive calls to application functions that could lead to data exfiltration, garbage-data creation, quota exhaustion, rate-limit breaches, denial-of-service, or overuse of costly resources. | Deployment responsibility | Rate limiting and other anti-automation belong at the edge in front of the application (API gateway, web application firewall, or load balancer), where they bound every instance together; per-instance counters in the application would not. The limits, for the login paths (`/oauth2/authorization/**`, `/login/oauth2/code/**`), the administration API, and everything else, are the adopter's decision. |
@@ -139,7 +139,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V3.1: Web Frontend Security Documentation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V3.1.1 | 3 | Verify that application documentation states the expected security features that browsers using the application must support (such as HTTPS, HTTP Strict Transport Security (HSTS), Content Security Policy (CSP), and other relevant HTTP security mechanisms). It must also define how the application must behave when some of these features are not available (such as warning the user or blocking access). | Not implemented | [HTTP security headers](headers.md) records which security headers the template sends, but no document states which browser features a client must support or how the application behaves without them. As a JSON API, the template has no rendered page to warn on; the expected features and fallback behaviour are a pending decision for an adopter that adds a browser UI. |
@@ -147,7 +147,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V3.2: Unintended Content Interpretation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V3.2.1 | 1 | Verify that security controls are in place to prevent browsers from rendering content or functionality in HTTP responses in an incorrect context (e.g., when an API, a user-uploaded file or other resource is requested directly). Possible controls could include: not serving the content unless HTTP request header fields (such as Sec-Fetch-\*) indicate it is the correct context, using the sandbox directive of the Content-Security-Policy header field or using the attachment disposition type in the Content-Disposition header field. | Implemented | Every API response is `application/json` or `application/problem+json`, served with `X-Content-Type-Options: nosniff` and a `default-src 'none'` Content Security Policy, so a browser that requests it directly neither sniffs it as another type nor loads anything from it. The template serves no user-uploaded file.<br><br>**Application code:** `WebSecurityAutoConfiguration.securityFilterChainCustomizer()`; **Test code:** `WebSecurityConfigurationTest.responseHasContentSecurityPolicy()`, `WebSecurityConfigurationTest.responseHasSpringSecurityDefaultHeaders()`. |
@@ -157,19 +157,19 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V3.3: Cookie Setup
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
-| V3.3.1 | 1 | Verify that cookies have the 'Secure' attribute set, and if the '\__Host-' prefix is not used for the cookie name, the '__Secure-' prefix must be used for the cookie name. | Implemented | The session cookie, the only cookie the template sets, is named `__Host-id`, whose prefix makes the browser require `Secure`, `Path=/`, and no `Domain`; `Secure=true` is set to match. The `local` and `test` profiles serve plain HTTP, so they set `secure: false` and name the cookie `id`, since a `__Host-` cookie must be `Secure`.<br><br>**Application configuration:** `server.servlet.session.cookie` in `commons-defaults.yaml`, overridden in `application-local.yaml` and `application-test.yaml`. |
-| V3.3.2 | 2 | Verify that each cookie's 'SameSite' attribute value is set according to the purpose of the cookie, to limit exposure to user interface redress attacks and browser-based request forgery attacks, commonly known as cross-site request forgery (CSRF). | Implemented | `SameSite=Lax` is set explicitly on the session cookie, chosen over `Strict` so the OIDC redirect back from Keycloak still carries the pre-login session cookie (see [Sessions](sessions.md#cookies)).<br><br>**Application configuration:** `server.servlet.session.cookie.same-site` in `commons-defaults.yaml`; **Test code:** `WebSecurityConfigurationTest.idSessionCookieIsNonPersistentHttpOnlyAndSameSiteLax()`. |
-| V3.3.3 | 2 | Verify that cookies have the '__Host-' prefix for the cookie name unless they are explicitly designed to be shared with other hosts. | Implemented | The session cookie is named `__Host-id` outside the plain-HTTP `local` and `test` profiles (see V3.3.1). The prefix requires the application at the root context path, which is where it is served.<br><br>**Application configuration:** `server.servlet.session.cookie.name` in `commons-defaults.yaml`. |
-| V3.3.4 | 2 | Verify that if the value of a cookie is not meant to be accessible to client-side scripts (such as a session token), the cookie must have the 'HttpOnly' attribute set and the same value (e. g. session token) must only be transferred to the client via the 'Set-Cookie' header field. | Implemented | The session cookie has `HttpOnly=true`, and `tracking-modes: COOKIE` disables URL-based session propagation, so the session value reaches the client only through `Set-Cookie`, and a session ID presented anywhere other than the `id` cookie is ignored.<br><br>**Application configuration:** `server.servlet.session.cookie.http-only` and `server.servlet.session.tracking-modes` in `commons-defaults.yaml`; **Test code:** `WebSecurityConfigurationTest.idSessionCookieIsNonPersistentHttpOnlyAndSameSiteLax()`, `SessionIdExchangeIntegrationTest.onlyTheIdCookieResumesTheSession()`. |
-| V3.3.5 | 3 | Verify that when the application writes a cookie, the cookie name and value length combined are not over 4096 bytes. Overly large cookies will not be stored by the browser and therefore not sent with requests, preventing the user from using application functionality which relies on that cookie. | Implemented | The only cookie is `id`, carrying a Base64-encoded Spring Session UUID, so name and value together are well under 4096 bytes.<br><br>**Application configuration:** `server.servlet.session.cookie.name` in `commons-defaults.yaml`; **Framework default:** Spring Session `DefaultCookieSerializer`. |
+| V3.3.1 | 1 | Verify that cookies have the 'Secure' attribute set, and if the '\__Host-' prefix is not used for the cookie name, the '__Secure-' prefix must be used for the cookie name. | Implemented | The session cookie is named `__Host-id`, whose prefix makes the browser require `Secure`, `Path=/`, and no `Domain`; `Secure=true` is set to match. The CSRF token cookie takes the same prefix, `__Host-XSRF-TOKEN`, and is always `Secure` when the prefix applies. The `local` and `test` profiles serve plain HTTP, so they set `secure: false` and name the session cookie `id`, since a `__Host-` cookie must be `Secure`; the token cookie then drops the prefix as well, is named `XSRF-TOKEN`, and is `Secure` only when the request is HTTPS.<br><br>**Application code:** `WebSecurityAutoConfiguration.applyCookieCsrf()`; **Application configuration:** `server.servlet.session.cookie` in `commons-defaults.yaml`, overridden in `application-local.yaml` and `application-test.yaml`; **Test code:** `HostPrefixedCsrfCookieIntegrationTest.theTokenCookieHasTheHostPrefixAndIsSecureOverPlainHttp()`. |
+| V3.3.2 | 2 | Verify that each cookie's 'SameSite' attribute value is set according to the purpose of the cookie, to limit exposure to user interface redress attacks and browser-based request forgery attacks, commonly known as cross-site request forgery (CSRF). | Implemented | `SameSite=Lax` is set explicitly on the session cookie, chosen over `Strict` so the OIDC redirect back from Keycloak still carries the pre-login session cookie (see [Sessions](sessions.md#cookies)). The CSRF token cookie is also `SameSite=Lax`; it is not a credential, and the CSRF check rests on the request header matching the cookie rather than on `SameSite`.<br><br>**Application code:** `WebSecurityAutoConfiguration.applyCookieCsrf()`; **Application configuration:** `server.servlet.session.cookie.same-site` in `commons-defaults.yaml`; **Test code:** `WebSecurityConfigurationTest.idSessionCookieIsNonPersistentHttpOnlyAndSameSiteLax()`, `HostPrefixedCsrfCookieIntegrationTest.theTokenCookieHasTheHostPrefixAndIsSecureOverPlainHttp()`, `CookieCsrfIntegrationTest.anyResponseCarriesATokenCookieThatJavaScriptCanRead()`. |
+| V3.3.3 | 2 | Verify that cookies have the '__Host-' prefix for the cookie name unless they are explicitly designed to be shared with other hosts. | Implemented | The session cookie is named `__Host-id` and the CSRF token cookie `__Host-XSRF-TOKEN` outside the plain-HTTP `local` and `test` profiles (see V3.3.1). The prefix requires the application at the root context path, which is where it is served.<br><br>**Application code:** `WebSecurityAutoConfiguration.applyCookieCsrf()`; **Application configuration:** `server.servlet.session.cookie.name` in `commons-defaults.yaml`; **Test code:** `HostPrefixedCsrfCookieIntegrationTest.theTokenCookieHasTheHostPrefixAndIsSecureOverPlainHttp()`. |
+| V3.3.4 | 2 | Verify that if the value of a cookie is not meant to be accessible to client-side scripts (such as a session token), the cookie must have the 'HttpOnly' attribute set and the same value (e. g. session token) must only be transferred to the client via the 'Set-Cookie' header field. | Implemented | The session cookie has `HttpOnly=true`, and `tracking-modes: COOKIE` disables URL-based session propagation, so the session value reaches the client only through `Set-Cookie`, and a session ID presented anywhere other than the `id` cookie is ignored. The CSRF token cookie is deliberately not `HttpOnly`, because a frontend reads it to set the `X-XSRF-TOKEN` header; its value is a CSRF token, not a credential.<br><br>**Application code:** `WebSecurityAutoConfiguration.applyCookieCsrf()`; **Application configuration:** `server.servlet.session.cookie.http-only` and `server.servlet.session.tracking-modes` in `commons-defaults.yaml`; **Test code:** `WebSecurityConfigurationTest.idSessionCookieIsNonPersistentHttpOnlyAndSameSiteLax()`, `SessionIdExchangeIntegrationTest.onlyTheIdCookieResumesTheSession()`, `CookieCsrfIntegrationTest.anyResponseCarriesATokenCookieThatJavaScriptCanRead()`. |
+| V3.3.5 | 3 | Verify that when the application writes a cookie, the cookie name and value length combined are not over 4096 bytes. Overly large cookies will not be stored by the browser and therefore not sent with requests, preventing the user from using application functionality which relies on that cookie. | Implemented | The cookies are the session cookie, carrying a Base64-encoded Spring Session UUID, and the CSRF token cookie, carrying a random UUID, so name and value together are well under 4096 bytes for each.<br><br>**Application configuration:** `server.servlet.session.cookie.name` in `commons-defaults.yaml`; **Framework default:** Spring Session `DefaultCookieSerializer`, Spring Security `CookieCsrfTokenRepository`. |
 <!-- /ocsv:generated -->
 
 ### V3.4: Browser Security Mechanism Headers
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V3.4.1 | 1 | Verify that a Strict-Transport-Security header field is included on all responses to enforce an HTTP Strict Transport Security (HSTS) policy. A maximum age of at least 1 year must be defined, and for L2 and up, the policy must apply to all subdomains as well. | Inherited from framework | Spring Security's default HSTS header, `max-age=31536000 ; includeSubDomains`, meets both the one-year minimum and the L2 subdomain scope. It is emitted only on requests the application sees as secure; the application port serves TLS only, and the `local` and `test` profiles disable TLS, so no test asserts it (see [HTTP security headers](headers.md)).<br><br>**Framework default:** Spring Security `HstsHeaderWriter`; **Deployment:** where TLS terminates at a proxy, forward the scheme so the application sees the request as secure, or set HSTS at the edge. |
@@ -184,7 +184,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V3.5: Browser Origin Separation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V3.5.1 | 1 | Verify that, if the application does not rely on the CORS preflight mechanism to prevent disallowed cross-origin requests to use sensitive functionality, these requests are validated to ensure they originate from the application itself. This may be done by using and validating anti-forgery tokens or requiring extra HTTP header fields that are not CORS-safelisted request-header fields. This is to defend against browser-based request forgery attacks, commonly known as cross-site request forgery (CSRF). | Inherited from framework | Spring Security's default CSRF protection issues and validates an anti-forgery token on every state-changing request, independent of CORS; the template leaves it enabled and only customizes the rejection response.<br><br>**Framework default:** Spring Security `CsrfFilter`; **Application code:** `ProblemDetailAccessDeniedHandler`; **Test code:** `WebSecurityConfigurationTest.csrfFailureReturnsActionableProblemDetail()`. |
@@ -199,7 +199,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V3.6: External Resource Integrity
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V3.6.1 | 3 | Verify that client-side assets, such as JavaScript libraries, CSS, or web fonts, are only hosted externally (e.g., on a Content Delivery Network) if the resource is static and versioned and Subresource Integrity (SRI) is used to validate the integrity of the asset. If this is not possible, there should be a documented security decision to justify this for each resource. | Not applicable | The template loads no client-side assets; it has no bundled frontend. |
@@ -207,7 +207,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V3.7: Other Browser Security Considerations
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V3.7.1 | 2 | Verify that the application only uses client-side technologies which are still supported and considered secure. Examples of technologies which do not meet this requirement include NSAPI plugins, Flash, Shockwave, ActiveX, Silverlight, NACL, or client-side Java applets. | Not applicable | The template uses no client-side technology; it has no bundled frontend. |
@@ -221,7 +221,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V4.1: Generic Web Service Security
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V4.1.1 | 1 | Verify that every HTTP response with a message body contains a Content-Type header field that matches the actual content of the response, including the charset parameter to specify safe character encoding (e.g., UTF-8, ISO-8859-1) according to IANA Media Types, such as "text/", "/+xml" and "/xml". | Implemented | JSON bodies carry `application/json`, whose IANA registration defines no charset parameter because JSON is always UTF-8. The hand-written Problem Details responses set `application/problem+json` with UTF-8 encoding, and Spring Security's generated login and logout pages are `text/html;charset=UTF-8` (see [HTTP security headers](headers.md)).<br><br>**Application code:** `JwksController`, `LoginUserController`, `AccountController`, `ProblemDetailAuthenticationEntryPoint`, `ProblemDetailAccessDeniedHandler`, `ProblemDetailRequestRejectedHandler`, `ContentNegotiatingSessionExpiredStrategy`, `TomcatHardeningAutoConfiguration.TomcatProblemDetailErrorReportValve`; **Test code:** `WebSecurityConfigurationTest.unauthenticatedApiRequestReturnsProblemDetail()`. |
@@ -233,7 +233,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V4.2: HTTP Message Structure Validation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V4.2.1 | 2 | Verify that all application components (including load balancers, firewalls, and application servers) determine boundaries of incoming HTTP messages using the appropriate mechanism for the HTTP version to prevent HTTP request smuggling. In HTTP/1.x, if a Transfer-Encoding header field is present, the Content-Length header must be ignored per RFC 2616. When using HTTP/2 or HTTP/3, if a Content-Length header field is present, the receiver must ensure that it is consistent with the length of the DATA frames. | Inherited from framework | The embedded Tomcat server determines HTTP message boundaries and handles conflicting `Transfer-Encoding` and `Content-Length` headers; the template adds no framing logic of its own.<br><br>**Framework default:** embedded Apache Tomcat HTTP/1.1 connector; **Deployment:** load balancers and proxies in front of the application must apply the same framing rules. |
@@ -245,7 +245,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V4.3: GraphQL
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V4.3.1 | 2 | Verify that a query allowlist, depth limiting, amount limiting, or query cost analysis is used to prevent GraphQL or data layer expression Denial of Service (DoS) as a result of expensive, nested queries. | Not applicable | The template exposes a REST API, not GraphQL; `spring-boot-starter-graphql` is not a dependency. |
@@ -254,7 +254,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V4.4: WebSocket
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V4.4.1 | 1 | Verify that WebSocket over TLS (WSS) is used for all WebSocket connections. | Not applicable | The template has no WebSocket support; `spring-boot-starter-websocket` is not a dependency. |
@@ -267,7 +267,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V5.1: File Handling Documentation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V5.1.1 | 2 | Verify that the documentation defines the permitted file types, expected file extensions, and maximum size (including unpacked size) for each upload feature. Additionally, ensure that the documentation specifies how files are made safe for end-users to download and process, such as how the application behaves when a malicious file is detected. | Not applicable | The template has no file upload or download feature: no controller accepts `multipart/form-data` or returns a file body. Reassess before adding one. |
@@ -275,7 +275,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V5.2: File Upload and Content
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V5.2.1 | 1 | Verify that the application will only accept files of a size which it can process without causing a loss of performance or a denial of service attack. | Not applicable | The template has no file upload or download feature: no controller accepts `multipart/form-data` or returns a file body. Reassess before adding one. |
@@ -288,7 +288,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V5.3: File Storage
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V5.3.1 | 1 | Verify that files uploaded or generated by untrusted input and stored in a public folder, are not executed as server-side program code when accessed directly with an HTTP request. | Not applicable | The template has no file upload or download feature: no controller accepts `multipart/form-data` or returns a file body. Reassess before adding one. |
@@ -298,7 +298,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V5.4: File Download
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V5.4.1 | 2 | Verify that the application validates or ignores user-submitted filenames, including in a JSON, JSONP, or URL parameter and specifies a filename in the Content-Disposition header field in the response. | Not applicable | The template has no file upload or download feature: no controller accepts `multipart/form-data` or returns a file body. Reassess before adding one. |
@@ -310,17 +310,17 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V6.1: Authentication Documentation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V6.1.1 | 1 | Verify that application documentation defines how controls such as rate limiting, anti-automation, and adaptive response, are used to defend against attacks such as credential stuffing and password brute force. The documentation must make clear how these controls are configured and prevent malicious account lockout. | Delegated | Credentials are submitted to Keycloak, never to the application, so brute-force detection and lockout are Keycloak realm settings. The development realm that `bin/configure-keycloak.js` creates does not enable brute-force detection; choosing and documenting its thresholds is item 3 of the [Authentication production decisions](authentication.md#required-production-decisions).<br><br>**External configuration:** `bin/configure-keycloak.js`. |
 | V6.1.2 | 2 | Verify that a list of context-specific words is documented in order to prevent their use in passwords. The list could include permutations of organization names, product names, system identifiers, project codenames, department or role names, and similar. | Delegated | Password policy, including any list of forbidden context-specific words, is a Keycloak realm setting. The development realm sets no password policy.<br><br>**External configuration:** `bin/configure-keycloak.js`. |
-| V6.1.3 | 2 | Verify that, if the application includes multiple authentication pathways, these are all documented together with the security controls and authentication strength which must be consistently enforced across them. | Not applicable | The application has one authentication pathway, OIDC login through Keycloak ([Authentication](authentication.md#authentication-model)); there is no second pathway to document alongside it. |
+| V6.1.3 | 2 | Verify that, if the application includes multiple authentication pathways, these are all documented together with the security controls and authentication strength which must be consistently enforced across them. | Implemented | The application has one authentication pathway by default, OIDC login through Keycloak, and a second, passkey login, when `commons.security.passkeys.enabled` is set. [Authentication](authentication.md#authentication-pathways) documents them together: entry point, authentication strength, the local user and authorities both resolve to, session lifetime, and recentness. Both pathways end in the same local user and `ROLE_` authorities, the same concurrent-session limit, and the same recent-login check for administration changes. Authentication strength differs by design, Keycloak's realm policy against a user-verified passkey, and the application checks no `acr` or `amr` (see V6.8.4).<br><br>**Application code:** `PasskeySecurityAutoConfiguration`, `OidcLoginSecurityAutoConfiguration`; **Decision:** [ADR 0023](../../../adr/0023-recent-login-for-administration-changes.md), [ADR 0024](../../../adr/0024-passkey-login-bound-to-local-user.md). |
 <!-- /ocsv:generated -->
 
 ### V6.2: Password Security
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V6.2.1 | 1 | Verify that user set passwords are at least 8 characters in length although a minimum of 15 characters is strongly recommended. | Delegated | Password length rules are a Keycloak realm password policy. The development realm sets no password policy.<br><br>**External configuration:** `bin/configure-keycloak.js`. |
@@ -339,13 +339,13 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V6.3: General Authentication Security
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V6.3.1 | 1 | Verify that controls to prevent attacks such as credential stuffing and password brute force are implemented according to the application's security documentation. | Delegated | Brute-force detection is a Keycloak realm setting. The development realm does not enable it (see V6.1.1 and [Authentication](authentication.md#protect-against-automated-attacks)).<br><br>**External configuration:** `bin/configure-keycloak.js`. |
 | V6.3.2 | 1 | Verify that default user accounts (e.g., "root", "admin", or "sa") are not present in the application or are disabled. | Implemented | Liquibase creates the enabled local users `admin` (with every management role, through the `Administrators` group), `test-user`, and `multi-group-user` only in development and test. They are in `004-development-seed.sql`, whose required context `@dev` makes Liquibase skip it unless a run explicitly requests the `dev` context, which only the `local` and `test` profiles and `bin/start-api-server-tls.sh` do. A migration with no context, or with any other context, creates the roles and an empty `Administrators` group but no user; a deployment creates its first administrator with its own changeset (see [Bootstrapping the first administrator](authorization.md#bootstrapping-the-first-administrator)). Confirm the production migration job does not request the `dev` context. Default accounts in the Keycloak realm are Keycloak's.<br><br>**Application code:** `002-authorisation-seed.sql`, `004-development-seed.sql`; **Application configuration:** `db.changelog-master.yaml`, `spring.liquibase.contexts` in `application-local.yaml` and `application-test.yaml`; **Test code:** `DatabaseChangelogTest.migrationWithoutAContextCreatesReferenceDataButNoUsers()`, `DatabaseChangelogTest.migrationWithAnotherContextCreatesNoUsers()`, `DatabaseChangelogTest.migrationWithTheDevContextAlsoCreatesTheDevelopmentUsers()`; **Decision:** [ADR 0018](../../../adr/0018-development-fixtures-kept-out-of-production.md). |
 | V6.3.3 | 2 | Verify that either a multi-factor authentication mechanism or a combination of single-factor authentication mechanisms, must be used in order to access the application. For L3, one of the factors must be a hardware-based authentication mechanism which provides compromise and impersonation resistance against phishing attacks while verifying the intent to authenticate by requiring a user-initiated action (such as a button press on a FIDO hardware key or a mobile phone). Relaxing any of the considerations in this requirement requires a fully documented rationale and a comprehensive set of mitigating controls. | Delegated | Multi-factor authentication is a Keycloak realm or client authentication-flow setting. The development realm does not require MFA; whether to require it is item 2 of the [Authentication production decisions](authentication.md#required-production-decisions).<br><br>**External configuration:** `bin/configure-keycloak.js`. |
-| V6.3.4 | 2 | Verify that, if the application includes multiple authentication pathways, there are no undocumented pathways and that security controls and authentication strength are enforced consistently. | Not applicable | The application has one authentication pathway, OIDC login through Keycloak (see V6.1.3). Every route except `/oauth2/jwks`, `/app/health`, and the login, OAuth2 redirect, and back-channel logout endpoints requires it. |
+| V6.3.4 | 2 | Verify that, if the application includes multiple authentication pathways, there are no undocumented pathways and that security controls and authentication strength are enforced consistently. | Implemented | Every pathway is documented in [Authentication](authentication.md#authentication-pathways): OIDC login through Keycloak, and passkey login when enabled. Every route except `/oauth2/jwks`, `/app/health` and its groups, the login, OAuth2 redirect, and back-channel logout endpoints, and the two passkey login endpoints (`POST /webauthn/authenticate/options` and `POST /login/webauthn`, present only when passkeys are enabled) requires authentication. Both pathways resolve the same local user and roles, refuse a user who is not enabled locally, and are re-checked on every request against the local user.<br><br>**Application code:** `PasskeySecurityAutoConfiguration`, `LocalAuthorityRefreshFilter`, `PasskeyLocalAuthorityRefresher`; **Test code:** `PasskeyLoginIntegrationTest.aPasskeyLoginAuthenticatesAsTheLocalUserWithTheirLocalRolesAndNoOthers()`, `PasskeyLoginIntegrationTest.aUserWhoIsNotEnabledLocallyCannotLogInWithAPasskey()`, `PasskeyIntegrationTest.registrationRequiresAuthentication()`. |
 | V6.3.5 | 3 | Verify that users are notified of suspicious authentication attempts (successful or unsuccessful). This may include authentication attempts from an unusual location or client, partially successful authentication (only one of multiple factors), an authentication attempt after a long period of inactivity or a successful authentication after several unsuccessful attempts. | Delegated | Authentication attempts happen at Keycloak, which owns any user notification about them. The template configures no such notification. |
 | V6.3.6 | 3 | Verify that email is not used as either a single-factor or multi-factor authentication mechanism. | Delegated | Authentication factors are Keycloak's. The development realm configures no email-based factor.<br><br>**External configuration:** `bin/configure-keycloak.js`. |
 | V6.3.7 | 3 | Verify that users are notified after updates to authentication details, such as credential resets or modification of the username or email address. | Delegated | Credentials and the Keycloak username and email are managed in Keycloak, which owns any notification. The application's local `email` field is not an authentication detail, and local usernames cannot be changed. |
@@ -354,7 +354,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V6.4: Authentication Factor Lifecycle and Recovery
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V6.4.1 | 1 | Verify that system generated initial passwords or activation codes are securely randomly generated, follow the existing password policy, and expire after a short period of time or after they are initially used. These initial secrets must not be permitted to become the long term password. | Delegated | Initial passwords and activation codes are issued by Keycloak; the application issues none. |
@@ -367,7 +367,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V6.5: General Multi-factor authentication requirements
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V6.5.1 | 2 | Verify that lookup secrets, out-of-band authentication requests or codes, and time-based one-time passwords (TOTPs) are only successfully usable once. | Delegated | Every multi-factor mechanism is Keycloak's. The development realm enables none.<br><br>**External configuration:** `bin/configure-keycloak.js`. |
@@ -376,13 +376,13 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 | V6.5.4 | 2 | Verify that lookup secrets and out-of-band authentication codes have a minimum of 20 bits of entropy (typically 4 random alphanumeric characters or 6 random digits is sufficient). | Delegated | Lookup secrets and out-of-band codes, if used, are generated by Keycloak. |
 | V6.5.5 | 2 | Verify that out-of-band authentication requests, codes, or tokens, as well as time-based one-time passwords (TOTPs) have a defined lifetime. Out of band requests must have a maximum lifetime of 10 minutes and for TOTP a maximum lifetime of 30 seconds. | Delegated | Out-of-band and TOTP lifetimes are Keycloak OTP policy settings. The development realm enables no OTP.<br><br>**External configuration:** `bin/configure-keycloak.js`. |
 | V6.5.6 | 3 | Verify that any authentication factor (including physical devices) can be revoked in case of theft or other loss. | Delegated | Authentication factors and their revocation are managed in Keycloak. |
-| V6.5.7 | 3 | Verify that biometric authentication mechanisms are only used as secondary factors together with either something you have or something you know. | Delegated | Any biometric mechanism would be a Keycloak authenticator, such as WebAuthn; the development realm configures none.<br><br>**External configuration:** `bin/configure-keycloak.js`. |
+| V6.5.7 | 3 | Verify that biometric authentication mechanisms are only used as secondary factors together with either something you have or something you know. | Delegated | **Keycloak:** any biometric mechanism would be a Keycloak authenticator, such as WebAuthn; the development realm configures none.<br><br>**Passkeys:** when enabled, a biometric is never accepted on its own. A passkey login requires user verification on the authenticator, which unlocks the private key the authenticator holds, so the biometric or PIN is a secondary factor beside possession of the key; the application receives only the signed assertion.<br><br>**Application code:** `PasskeySecurityAutoConfiguration`; **Test code:** `PasskeyIntegrationTest.loginOptionsArePublicAndRequireUserVerification()`; **External configuration:** `bin/configure-keycloak.js`. |
 | V6.5.8 | 3 | Verify that time-based one-time passwords (TOTPs) are checked based on a time source from a trusted service and not from an untrusted or client provided time. | Delegated | TOTP verification, if enabled, happens in Keycloak against its server clock. |
 <!-- /ocsv:generated -->
 
 ### V6.6: Out-of-Band authentication mechanisms
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V6.6.1 | 2 | Verify that authentication mechanisms using the Public Switched Telephone Network (PSTN) to deliver One-time Passwords (OTPs) via phone or SMS are offered only when the phone number has previously been validated, alternate stronger methods (such as Time based One-time Passwords) are also offered, and the service provides information on their security risks to users. For L3 applications, phone and SMS must not be available as options. | Delegated | Any phone or SMS mechanism would be a Keycloak authenticator; the development realm configures none.<br><br>**External configuration:** `bin/configure-keycloak.js`. |
@@ -393,29 +393,29 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V6.7: Cryptographic authentication mechanism
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
-| V6.7.1 | 3 | Verify that the certificates used to verify cryptographic authentication assertions are stored in a way protects them from modification. | Delegated | Cryptographic user authenticators, such as WebAuthn, are verified by Keycloak. |
-| V6.7.2 | 3 | Verify that the challenge nonce is at least 64 bits in length, and statistically unique or unique over the lifetime of the cryptographic device. | Delegated | Cryptographic user authenticators, such as WebAuthn, and their challenges are handled by Keycloak. |
+| V6.7.1 | 3 | Verify that the certificates used to verify cryptographic authentication assertions are stored in a way protects them from modification. | Delegated | **Keycloak:** cryptographic user authenticators, such as WebAuthn, are verified by Keycloak.<br><br>**Passkeys:** when enabled, the credential public keys are stored in the `user_credentials` table. Attestation is `none`, so no certificate is stored or checked. Protecting the table from modification is the database's access control; the application's only writers are a user registering, renaming, or removing their own passkey and an administrator revoking one.<br><br>**Application code:** `JdbcPasskeyManager`, `AuditedUserCredentialRepository`; **Application configuration:** `006-passkey-schema.sql`; **Deployment:** restrict write access to the `user_credentials` table to the application's database account. |
+| V6.7.2 | 3 | Verify that the challenge nonce is at least 64 bits in length, and statistically unique or unique over the lifetime of the cryptographic device. | Delegated | **Keycloak:** cryptographic user authenticators, such as WebAuthn, and their challenges are handled by Keycloak.<br><br>**Passkeys:** when enabled, each registration and authentication challenge comes from Spring Security's WebAuthn support, which fills it with 32 bytes (256 bits) from a `SecureRandom`, above the 64 bits required and statistically unique. No test asserts the length.<br><br>**Framework default:** Spring Security WebAuthn `Bytes.random()`. |
 <!-- /ocsv:generated -->
 
 ### V6.8: Authentication with an Identity Provider
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V6.8.1 | 2 | Verify that, if the application supports multiple identity providers (IdPs), the user's identity cannot be spoofed via another supported identity provider (eg. by using the same user identifier). The standard mitigation would be for the application to register and identify the user using a combination of the IdP ID (serving as a namespace) and the user's ID in the IdP. | Not applicable | The application has a single client registration (`keycloak`) and trusts one identity provider (see V10.2.2). Reassess before registering a second one. |
 | V6.8.2 | 2 | Verify that the presence and integrity of digital signatures on authentication assertions (for example on JWTs or SAML assertions) are always validated, rejecting any assertions that are unsigned or have invalid signatures. | Implemented | The custom ID-token decoder accepts only RS256-signed tokens, verified against signature-use keys from the provider's JWKS, so an unsigned or wrongly signed ID token is rejected. An encrypted ID token is decrypted first and its nested signed token verified the same way. No test sends a tampered ID token.<br><br>**Application code:** `OidcLoginSecurityAutoConfiguration.idTokenDecoderFactory()`; **Test code:** `EncryptedIdTokenIntegrationTest.logsInWithAnEncryptedIdToken()`. |
 | V6.8.3 | 2 | Verify that SAML assertions are uniquely processed and used only once within the validity period to prevent replay attacks. | Not applicable | The application uses OIDC only and processes no SAML assertion. |
-| V6.8.4 | 2 | Verify that, if an application uses a separate Identity Provider (IdP) and expects specific authentication strength, methods, or recentness for specific functions, the application verifies this using the information returned by the IdP. For example, if OIDC is used, this might be achieved by validating ID Token claims such as 'acr', 'amr', and 'auth_time' (if present). If the IdP does not provide this information, the application must have a documented fallback approach that assumes that the minimum strength authentication mechanism was used (for example, single-factor authentication using username and password). | Implemented | **Recentness:** every change made through the administration API requires the `auth_time` of the session's ID token to be no older than 15 minutes; an older login, or one without `auth_time`, is answered with a `reauthentication-required` problem, and the client logs in again with `max_age=0` ([ADR 0023](../../../adr/0023-recent-login-for-administration-changes.md)).<br><br>**Fallback assumption:** every other function accepts any authentication the identity provider performed. The application checks no `acr` or `amr`; requiring a stronger factor depends on the adopter's MFA decision (see V7.5.3).<br><br>**Application code:** `AdminReauthenticationInterceptor`, `RecentAuthentication`, `MaxAgeAuthorizationRequestResolver`; **Test code:** `AdminApiIntegrationTest.aChangeNeedsARecentLoginButAReadDoesNot()`, `RecentAuthenticationTest`, `MaxAgeAuthorizationRequestResolverTest`. |
+| V6.8.4 | 2 | Verify that, if an application uses a separate Identity Provider (IdP) and expects specific authentication strength, methods, or recentness for specific functions, the application verifies this using the information returned by the IdP. For example, if OIDC is used, this might be achieved by validating ID Token claims such as 'acr', 'amr', and 'auth_time' (if present). If the IdP does not provide this information, the application must have a documented fallback approach that assumes that the minimum strength authentication mechanism was used (for example, single-factor authentication using username and password). | Implemented | **Recentness:** every change made through the administration API requires the login to be no older than 15 minutes: the `auth_time` of the session's ID token, or for a passkey login the time recorded when it happened. An older login, or one without a recorded time, is answered with a `reauthentication-required` problem, and the client logs in again with `max_age=0` ([ADR 0023](../../../adr/0023-recent-login-for-administration-changes.md)).<br><br>**Fallback assumption:** every other function accepts any authentication the identity provider performed. The application checks no `acr` or `amr`; requiring a stronger factor depends on the adopter's MFA decision (see V7.5.3).<br><br>**Application code:** `AdminReauthenticationInterceptor`, `RecentAuthentication`, `MaxAgeAuthorizationRequestResolver`, `PasskeySessionFilters`; **Test code:** `AdminApiIntegrationTest.aChangeNeedsARecentLoginButAReadDoesNot()`, `RecentAuthenticationTest`, `MaxAgeAuthorizationRequestResolverTest`, `PasskeyLoginIntegrationTest.aPasskeyLoginRecordsWhenItHappenedForTheRecentLoginChecks()`, `PasskeyIntegrationTest.anAdministratorRevokingAPasskeyNeedsARecentLogin()`. |
 <!-- /ocsv:generated -->
 
 ## V7: Session Management
 
 ### V7.1: Session Management Documentation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V7.1.1 | 2 | Verify that the user's session inactivity timeout and absolute maximum session lifetime are documented, are appropriate in combination with other controls, and that the documentation includes justification for any deviations from NIST SP 800-63B re-authentication requirements. | Partial | **Documented:** the 15-minute idle timeout and 12-hour absolute timeout are documented in [Sessions](sessions.md#current-configuration).<br><br>**Justification:** not implemented. No rationale for these values, or for any deviation from NIST SP 800-63B re-authentication requirements, is recorded; it is item 1 of the [Sessions production decisions](sessions.md#required-production-decisions).<br><br>**Application configuration:** `server.servlet.session.timeout` and `commons.security.session.absolute-timeout` in `commons-defaults.yaml`. |
@@ -425,7 +425,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V7.2: Fundamental Session Management Security
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V7.2.1 | 1 | Verify that the application performs all session token verification using a trusted, backend service. | Implemented | The session cookie is an opaque identifier verified server-side against the JDBC session store; no self-contained or client-verifiable token carries session state (see [Sessions](sessions.md#design-and-ownership)).<br><br>**Application configuration:** `spring-boot-starter-session-jdbc` in `commons/pom.xml`; **Decision:** [ADR 0006](../../../adr/0006-jdbc-backed-server-side-sessions.md). |
@@ -436,20 +436,20 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V7.3: Session Timeout
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V7.3.1 | 2 | Verify that there is an inactivity timeout such that re-authentication is enforced according to risk analysis and documented security decisions. | Partial | **Timeout:** the local session expires server-side after 15 minutes of inactivity.<br><br>**Re-authentication:** not implemented. The next request is sent to Keycloak, which signs the user straight back in without a credential prompt while its own SSO session is alive; the template sends no `prompt` or `max_age` parameter to force one. The risk analysis behind the value is also not recorded (see V7.1.1).<br><br>**Application configuration:** `server.servlet.session.timeout: 15m` in `commons-defaults.yaml`. |
-| V7.3.2 | 2 | Verify that there is an absolute maximum session lifetime such that re-authentication is enforced according to risk analysis and documented security decisions. | Partial | **Lifetime:** `AbsoluteSessionTimeoutFilter` invalidates a session 12 hours after creation, regardless of activity, before any authorization decision.<br><br>**Re-authentication:** not implemented, for the same reason as V7.3.1: an active Keycloak SSO session signs the user back in without a credential prompt, and the risk analysis behind the value is not recorded.<br><br>**Application code:** `AbsoluteSessionTimeoutFilter`; **Application configuration:** `commons.security.session.absolute-timeout: 12h` in `commons-defaults.yaml`; **Test code:** `AbsoluteSessionTimeoutFilterTest.invalidatesSessionAtAbsoluteTimeout()`, `AbsoluteSessionTimeoutIntegrationTest.expiredJdbcSessionIsRemovedBeforeProtectedRequestIsAuthorized()`. |
+| V7.3.2 | 2 | Verify that there is an absolute maximum session lifetime such that re-authentication is enforced according to risk analysis and documented security decisions. | Partial | **Lifetime:** `AbsoluteSessionTimeoutFilter` invalidates a session 12 hours after creation, regardless of activity, before any authorization decision. When passkeys are enabled, `PasskeySessionFilters` also ends a passkey session 8 hours after the passkey login (`commons.security.passkeys.session-absolute-timeout`), counted from the login rather than from the session's creation.<br><br>**Re-authentication:** not implemented, for the same reason as V7.3.1: an active Keycloak SSO session signs the user back in without a credential prompt, and the risk analysis behind the value is not recorded.<br><br>**Application code:** `AbsoluteSessionTimeoutFilter`, `PasskeySessionFilters`; **Application configuration:** `commons.security.session.absolute-timeout: 12h` in `commons-defaults.yaml`; **Test code:** `AbsoluteSessionTimeoutFilterTest.invalidatesSessionAtAbsoluteTimeout()`, `AbsoluteSessionTimeoutIntegrationTest.expiredJdbcSessionIsRemovedBeforeProtectedRequestIsAuthorized()`, `PasskeySessionFiltersTest.aPasskeySessionPastItsLifetimeIsEnded()`. |
 <!-- /ocsv:generated -->
 
 ### V7.4: Session Termination
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V7.4.1 | 1 | Verify that when session termination is triggered (such as logout or expiration), the application disallows any further use of the session. For reference tokens or stateful sessions, this means invalidating the session data at the application backend. Applications using self-contained tokens will need a solution such as maintaining a list of terminated tokens, disallowing tokens produced before a per-user date and time or rotating a per-user signing key. | Implemented | Every termination path invalidates the session server-side: logout through Spring Security's logout handlers, the absolute timeout in `AbsoluteSessionTimeoutFilter`, back-channel logout by deleting the JDBC session in `SessionRepositoryOidcBackChannelLogoutHandler`, and concurrent-session expiry and administrative revocation by marking the session expired so its next request invalidates it. Spring Session treats a session past its idle timeout as absent.<br><br>**Application code:** `AbsoluteSessionTimeoutFilter`, `SessionRepositoryOidcBackChannelLogoutHandler`, `SessionRevocationService`, `ContentNegotiatingSessionExpiredStrategy`; **Framework default:** Spring Security `SecurityContextLogoutHandler`; **Test code:** `AbsoluteSessionTimeoutIntegrationTest.expiredJdbcSessionIsRemovedBeforeProtectedRequestIsAuthorized()`, `OidcBackChannelLogoutIntegrationTest.backChannelLogoutDeletesTheSessionEstablishedByOidcLogin()`, `SessionRevocationServiceTest.expiresAndAuditsEverySessionForTheUsername()`. |
-| V7.4.2 | 1 | Verify that the application terminates all active sessions when a user account is disabled or deleted (such as an employee leaving the company). | Partial | **Local account:** disabling or deleting a user through the administration API revokes every session of that user through `SessionRevocationService`, and `LocalAuthorityRefreshFilter` invalidates the session of any request whose local user is no longer enabled.<br><br>**Keycloak account:** not implemented. Disabling or deleting the user in Keycloak ends the local session only if Keycloak then sends a back-channel logout that reaches the instance holding the session (see [Authentication](authentication.md#back-channel-logout)); otherwise the session lasts until its idle or absolute timeout.<br><br>**Application code:** `AdministrationService`, `SessionRevocationService`, `LocalAuthorityRefreshFilter`; **Test code:** `AdministrationServiceTest.revokesSessionsWhenAUserIsDisabled()`, `AdministrationServiceTest.revokesSessionsWhenAUserIsDeleted()`, `LocalAuthorityRefreshFilterTest.deauthenticatesAndInvalidatesTheSessionWhenTheUserIsDisabledOrDeleted()`. |
+| V7.4.2 | 1 | Verify that the application terminates all active sessions when a user account is disabled or deleted (such as an employee leaving the company). | Partial | **Local account:** disabling or deleting a user through the administration API revokes every session of that user through `SessionRevocationService`, and `LocalAuthorityRefreshFilter` invalidates the session of any request whose local user is no longer enabled. A passkey session is covered the same way, because the passkey login resolves the same local user on every request.<br><br>**Keycloak account:** not implemented. Disabling or deleting the user in Keycloak ends the local session only if Keycloak then sends a back-channel logout that reaches the instance holding the session (see [Authentication](authentication.md#back-channel-logout)); otherwise the session lasts until its idle or absolute timeout. A passkey session has no Keycloak session to end, so a Keycloak account disabled at the provider does not affect it.<br><br>**Application code:** `AdministrationService`, `SessionRevocationService`, `LocalAuthorityRefreshFilter`, `PasskeyLocalAuthorityRefresher`; **Test code:** `AdministrationServiceTest.revokesSessionsWhenAUserIsDisabled()`, `AdministrationServiceTest.revokesSessionsWhenAUserIsDeleted()`, `LocalAuthorityRefreshFilterTest.deauthenticatesAndInvalidatesTheSessionWhenTheUserIsDisabledOrDeleted()`, `PasskeyLocalAuthorityRefresherTest`. |
 | V7.4.3 | 2 | Verify that the application gives the option to terminate all other active sessions after a successful change or removal of any authentication factor (including password change via reset or recovery and, if present, an MFA settings update). | Delegated | Authentication factors are changed in Keycloak, which owns the option to sign out other sessions when they change. The client configuration the template supplies enables back-channel logout, so Keycloak ending those sessions also ends the local session, subject to the single-instance limitation in [Authentication](authentication.md#back-channel-logout). The application allows one session per account (see V7.1.2).<br><br>**External configuration:** `bin/configure-keycloak.js` (`backchannel.logout.url`). |
 | V7.4.4 | 2 | Verify that all pages that require authentication have easy and visible access to logout functionality. | Not applicable | The template renders no authenticated pages; its only HTML is Spring Security's generated login and logout pages. An adopter's browser UI must give every authenticated page access to `/logout`. |
 | V7.4.5 | 2 | Verify that application administrators are able to terminate active sessions for an individual user or for all users. | Implemented | `DELETE /admin/users/{id}/sessions` ends one user's sessions without changing their account, and `DELETE /admin/users/sessions` ends every user's sessions except the caller's, for incident response. Both require `USER_MANAGE`, do not need a recent login so an incident response is never delayed, and log each ended session as `destroy_session` with reason `administrative_revocation` and the action as `revoke_sessions`.<br><br>**Application code:** `UserAdminController`, `AdministrationService.revokeSessions()`, `AdministrationService.revokeAllSessions()`, `SessionRevocationService`; **Test code:** `AdministrationServiceTest.revokesOneUsersSessionsWithoutChangingTheirAccount()`, `AdministrationServiceTest.revokesEveryUsersSessionsExceptTheCallers()`, `AdminApiIntegrationTest.endingSessionsDoesNotNeedARecentLogin()`. |
@@ -457,7 +457,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V7.5: Defenses Against Session Abuse
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V7.5.1 | 2 | Verify that the application requires full re-authentication before allowing modifications to sensitive account attributes which may affect authentication such as email address, phone number, MFA configuration, or other information used in account recovery. | Delegated | Attributes that affect authentication or recovery (credentials, MFA, the Keycloak email address) are changed in Keycloak. The application's local `email` field is used for neither, and only an administrator changes it through the administration API (see [Authorization](authorization.md#management-authority-boundary)). |
@@ -467,7 +467,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V7.6: Federated Re-authentication
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V7.6.1 | 2 | Verify that session lifetime and termination between Relying Parties (RPs) and Identity Providers (IdPs) behave as documented, requiring re-authentication as necessary such as when the maximum time between IdP authentication events is reached. | Partial | **Termination:** Keycloak back-channel logout ends the local session when the Keycloak session ends, on any instance, through the JDBC OIDC session registry (see [Authentication](authentication.md#back-channel-logout)).<br><br>**Re-authentication:** not implemented. The application does not track the time since the last Keycloak authentication (for example through the ID token's `auth_time` claim) or request re-authentication when a maximum is reached; see item 3 of the [Sessions production decisions](sessions.md#required-production-decisions).<br><br>**Application code:** `OidcLoginSecurityAutoConfiguration.oidcLoginFilterChainCustomizer()` (`oidcLogout(...)`), `SessionRepositoryOidcBackChannelLogoutHandler`; **Test code:** `OidcBackChannelLogoutIntegrationTest.backChannelLogoutDeletesTheSessionEstablishedByOidcLogin()`. |
@@ -478,7 +478,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V8.1: Authorization Documentation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V8.1.1 | 1 | Verify that authorization documentation defines rules for restricting function-level and data-specific access based on consumer permissions and resource attributes. | Implemented | [Authorization](authorization.md#management-authority-boundary) defines the function-level rules: each administration path requires its own management authority, and every other route requires authentication. The administered users, groups, and roles are not owned by individual consumers, so no data-specific rule applies to them. An adopter that adds per-record or attribute-based access must document those rules too.<br><br>**Decision:** [ADR 0005](../../../adr/0005-keycloak-authentication-local-authorisation.md). |
@@ -489,7 +489,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V8.2: General Authorization Design
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V8.2.1 | 1 | Verify that the application ensures that function-level access is restricted to consumers with explicit permissions. | Implemented | `WebSecurityConfiguration` restricts `/admin/users/**`, `/admin/groups/**`, and `/admin/roles/**` to their management authorities, `@PreAuthorize` repeats each check on the controller, and every other route requires authentication. Spring Security denies a request that no rule matches, so a route missing from the rules fails closed. A denial at either layer is answered with 403: `ApiResponseEntityExceptionHandler` rethrows a method-security `AccessDeniedException` rather than treating it as an unexpected error. Each administration API is tested against every management role, including the `ROLE_MANAGE` special case. Within its API, a management role cannot grant a role its holder does not hold, change its holder's own access, or delete a reserved role, so no single role reaches the others ([ADR 0022](../../../adr/0022-administrators-cannot-grant-beyond-their-own-roles.md)).<br><br>**Application code:** `WebSecurityConfiguration.securityFilterChain()`, `AdministrationService`, `@PreAuthorize` on `UserAdminController`, `GroupAdminController`, `RoleAdminController`, `ApiResponseEntityExceptionHandler.rethrowAccessDenied()`; **Test code:** `AdminApiIntegrationTest.eachApiAdmitsOnlyItsOwnManagementRole()`, `AdminApiIntegrationTest.writesAreRestrictedToTheManagementRoleToo()`, `AdminApiIntegrationTest.anAdministratorCannotGrantMoreThanTheyHold()`, `AdminControllerTest.userListRequiresUserManagementRole()`, `MethodSecurityAccessDeniedIntegrationTest.methodSecurityDenialReturnsAccessDeniedProblemDetailAndIsAudited()`, `AnonymousAccessIntegrationTest.deniesAnUnmappedPathBeforeRouting()`, `AnonymousAccessIntegrationTest.everyControllerPathRejectsAnonymousRequestsUnlessAllowed()`. |
@@ -500,7 +500,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V8.3: Operation Level Authorization
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V8.3.1 | 1 | Verify that the application enforces authorization rules at a trusted service layer and doesn't rely on controls that an untrusted consumer could manipulate, such as client-side JavaScript. | Implemented | Every authorization decision is made server-side by the Spring Security filter chain and method security; the template has no client-side code.<br><br>**Application code:** `WebSecurityConfiguration.securityFilterChain()`, `@PreAuthorize` on `UserAdminController`, `GroupAdminController`, `RoleAdminController`. |
@@ -510,7 +510,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V8.4: Other Authorization Considerations
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V8.4.1 | 2 | Verify that multi-tenant applications use cross-tenant controls to ensure consumer operations will never affect tenants with which they do not have permissions to interact. | Not applicable | The template is single-tenant. Reassess before introducing tenants. |
@@ -521,7 +521,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V9.1: Token source and integrity
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V9.1.1 | 1 | Verify that self-contained tokens are validated using their digital signature or MAC to protect against tampering before accepting the token's contents. | Implemented | The ID-token decoder verifies the RS256 signature before any claim is used (see V6.8.2). Back-channel logout tokens are verified by Spring Security against the provider's JWKS before they are acted on.<br><br>**Application code:** `OidcLoginSecurityAutoConfiguration.idTokenDecoderFactory()`; **Framework default:** Spring Security `OidcBackChannelLogoutAuthenticationProvider`. |
@@ -531,7 +531,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V9.2: Token content
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V9.2.1 | 1 | Verify that, if a validity time span is present in the token data, the token and its content are accepted only if the verification time is within this validity time span. For example, for JWTs, the claims 'nbf' and 'exp' must be verified. | Inherited from framework | `OidcIdTokenValidator` rejects an expired ID token or one issued in the future, and the Nimbus `DefaultJWTProcessor` that the decoder is built on also checks `exp` and `nbf`, each with clock skew. No test sends an expired or not-yet-valid token.<br><br>**Framework default:** Spring Security `OidcIdTokenValidator`, Nimbus JOSE+JWT `DefaultJWTClaimsVerifier`; **Application code:** `OidcLoginSecurityAutoConfiguration.idTokenDecoderFactory()`. |
@@ -544,7 +544,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V10.1: Generic OAuth and OIDC Security
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V10.1.1 | 2 | Verify that tokens are only sent to components that strictly need them. For example, when using a backend-for-frontend pattern for browser-based JavaScript applications, access and refresh tokens shall only be accessible for the backend. | Implemented | Access and refresh tokens stay on the server: Spring Boot's default `InMemoryOAuth2AuthorizedClientService` holds them in the instance's memory, and the browser receives only the opaque session cookie (see [Sessions](sessions.md#design-and-ownership)). The access token is sent only to Keycloak's account endpoint.<br><br>**Framework default:** Spring Security `AuthenticatedPrincipalOAuth2AuthorizedClientRepository`, `InMemoryOAuth2AuthorizedClientService`; **Application code:** `AccountController.account()`. |
@@ -553,7 +553,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V10.2: OAuth Client
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V10.2.1 | 2 | Verify that, if the code flow is used, the OAuth client has protection against browser-based request forgery attacks, commonly known as cross-site request forgery (CSRF), which trigger token requests, either by using proof key for code exchange (PKCE) functionality or checking the 'state' parameter that was sent in the authorization request. | Inherited from framework | Spring Security checks the `state` returned by Keycloak against the stored authorization request before exchanging the code, so a forged callback cannot trigger a token request.<br><br>**Framework default:** Spring Security `OAuth2LoginAuthenticationFilter`. |
@@ -563,7 +563,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V10.3: OAuth Resource Server
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V10.3.1 | 2 | Verify that the resource server only accepts access tokens that are intended for use with that service (audience). The audience may be included in a structured access token (such as the 'aud' claim in JWT), or it can be checked using the token introspection endpoint. | Not applicable | The application is not an OAuth resource server: it is a session-based relying party with no bearer-token endpoint, and `spring-boot-starter-oauth2-resource-server` is not a dependency. Reassess before accepting access tokens from clients. |
@@ -575,7 +575,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V10.4: OAuth Authorization Server
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V10.4.1 | 1 | Verify that the authorization server validates redirect URIs based on a client-specific allowlist of pre-registered URIs using exact string comparison. | Delegated | Keycloak is the authorization server. The client configuration the template supplies enables exact matching: each client registers only its exact callback URI, `{appBaseUrl}/login/oauth2/code/keycloak` (Spring Security's default redirect URI for the `keycloak` registration), and its exact post-logout redirect URI, `{appBaseUrl}/login?logout`, with no wildcard. A test asserts that the application sends exactly that redirect URI. Confirm against a running Keycloak that an authorization request with any other redirect URI is rejected.<br><br>**External configuration:** `bin/configure-keycloak.js` (`redirectUris`, `post.logout.redirect.uris`); **Test code:** `WebSecurityConfigurationTest.authorizationRequestSendsS256PkceAndTheExactRegisteredRedirectUri()`. |
@@ -598,7 +598,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V10.5: OIDC Client
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V10.5.1 | 2 | Verify that the client (as the relying party) mitigates ID Token replay attacks. For example, by ensuring that the 'nonce' claim in the ID Token matches the 'nonce' value sent in the authentication request to the OpenID Provider (in OAuth2 refereed to as the authorization request sent to the authorization server). | Inherited from framework | Spring Security sends a random `nonce` in each authentication request and rejects an ID token whose `nonce` claim does not match the hash of the stored value. The template configures no nonce handling of its own, and no test drives a full authorization-code round trip with a replayed ID token.<br><br>**Framework default:** Spring Security `OidcAuthorizationCodeAuthenticationProvider`. |
@@ -610,7 +610,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V10.6: OpenID Provider
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V10.6.1 | 2 | Verify that the OpenID Provider only allows values 'code', 'ciba', 'id_token', or 'id_token code' for response mode. Note that 'code' is preferred over 'id_token code' (the OIDC Hybrid flow), and 'token' (any Implicit flow) must not be used. | Delegated | Keycloak is the OpenID Provider. The client configuration the template supplies enables only the standard (code) flow, not the implicit flow, and the application uses the `code` response type (see V10.4.4).<br><br>**External configuration:** `bin/configure-keycloak.js`. |
@@ -619,7 +619,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V10.7: Consent Management
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V10.7.1 | 2 | Verify that the authorization server ensures that the user consents to each authorization request. If the identity of the client cannot be assured, the authorization server must always explicitly prompt the user for consent. | Delegated | Keycloak is the authorization server and owns consent. The client configuration the template supplies does not require consent, leaving Keycloak's client default. |
@@ -631,7 +631,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V11.1: Cryptographic Inventory and Documentation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V11.1.1 | 2 | Verify that there is a documented policy for management of cryptographic keys and a cryptographic key lifecycle that follows a key management standard such as NIST SP 800-57. This should include ensuring that keys are not overshared (for example, with more than two entities for shared secrets and more than one entity for private keys). | Partial | **Documented handling:** for the JWKS signing and encryption keys, [ADR 0007](../../../adr/0007-tls-and-oauth-client-key-management.md), [ADR 0020](../../../adr/0020-jwks-rotation-from-aws-secrets-manager.md), and [Authentication](authentication.md#application-jwks-and-key-handling) require production keys to come from a protected resource, never source control or images, and document their lifecycle on AWS: `cdk-jwks-secret` generates each key inside Secrets Manager's rotation, publishes it for a whole rotation interval before it signs, strips a retired signing key of its private part, and deletes a key after its last use, while the application reads the rotated keys again on a schedule. Each private key is held only by the secret and the application.<br><br>**Policy:** not implemented. No key-management policy or lifecycle follows a standard such as NIST SP 800-57; the TLS private key's lifecycle is left to the deployment. |
@@ -642,7 +642,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V11.2: Secure Cryptography Implementation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V11.2.1 | 2 | Verify that industry-validated implementations (including libraries and hardware-accelerated implementations) are used for cryptographic operations. | Implemented | TLS uses the JDK's TLS stack, and JWKS handling, client-assertion signing, ID-token decryption, and token verification use Nimbus JOSE+JWT; the template implements no cryptographic primitive itself.<br><br>**Application code:** `RefreshingJwks`, `JwksDecryptionKeySelector`, `OidcLoginSecurityAutoConfiguration.idTokenDecoderFactory()`, `PrivateKeyJwtAutoConfiguration.accessTokenResponseClient()`; **Application configuration:** `server.ssl` in `commons-defaults.yaml` and `application.yaml`. |
@@ -654,7 +654,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V11.3: Encryption Algorithms
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V11.3.1 | 1 | Verify that insecure block modes (e.g., ECB) and weak padding schemes (e.g., PKCS#1 v1.5) are not used. | Implemented | Every configured TLS cipher suite is AES-GCM. The JWKS encryption key specifies `ECDH-ES+A128KW` key management rather than RSA PKCS#1 v1.5, and an ID token is decrypted only with an RFC 7518 content encryption method, each of which is AES-GCM or AES-CBC with an HMAC-SHA-2 tag.<br><br>**Application code:** `JwksDecryptionKeySelector.CONTENT_ENCRYPTION_METHODS`; **Application configuration:** `server.ssl.ciphers` in `commons-defaults.yaml`, `jwks.json`; **Test code:** `JwksDecryptionKeySelectorTest.rejectsAnotherKeyManagementAlgorithm()`. |
@@ -666,7 +666,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V11.4: Hashing and Hash-based Functions
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V11.4.1 | 1 | Verify that only approved hash functions are used for general cryptographic use cases, including digital signatures, HMAC, KDF, and random bit generation. Disallowed hash functions, such as MD5, must not be used for any cryptographic purpose. | Implemented | The signature algorithms in use, RS256 for ID tokens and ES512 for the client assertion, use SHA-256 and SHA-512; the TLS suites use SHA-256 or SHA-384. No MD5 or SHA-1 is used for a cryptographic purpose.<br><br>**Application code:** `OidcLoginSecurityAutoConfiguration.idTokenDecoderFactory()`; **Application configuration:** `server.ssl.ciphers` in `commons-defaults.yaml`, `jwks.json`. |
@@ -677,7 +677,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V11.5: Random Values
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V11.5.1 | 2 | Verify that all random numbers and strings which are intended to be non-guessable must be generated using a cryptographically secure pseudo-random number generator (CSPRNG) and have at least 128 bits of entropy. Note that UUIDs do not respect this condition. | Partial | **Met:** Spring Security generates the OAuth2 `state` and OIDC `nonce` from `SecureRandom` with more than 128 bits.<br><br>**Weaker than required:** the session ID, the template's most important non-guessable value, is a version 4 UUID with 122 random bits (see V7.2.3). Entity IDs, request IDs, and the audit `session.id` are also UUIDs, but they are labels, not secrets.<br><br>**Framework default:** Spring Session `UuidSessionIdGenerator`, Spring Security `DefaultOAuth2AuthorizationRequestResolver`. |
@@ -686,7 +686,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V11.6: Public Key Cryptography
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V11.6.1 | 2 | Verify that only approved cryptographic algorithms and modes of operation are used for key generation and seeding, and digital signature generation and verification. Key generation algorithms must not generate insecure keys vulnerable to known attacks, for example, RSA keys which are vulnerable to Fermat factorization. | Deployment responsibility | The JWKS keys and the TLS key are generated outside the application, by whatever process produces the deployment's JWKS and certificate (see [Authentication](authentication.md#application-jwks-and-key-handling)). The signature algorithms the application uses, RS256 and ES512, are approved. |
@@ -695,7 +695,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V11.7: In-Use Data Cryptography
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V11.7.1 | 3 | Verify that full memory encryption is in use that protects sensitive data while it is in use, preventing access by unauthorized users or processes. | Deployment responsibility | Full memory encryption is a hardware or hypervisor capability of the deployment platform. |
@@ -706,7 +706,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V12.1: General TLS Security Guidance
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V12.1.1 | 1 | Verify that only the latest recommended versions of the TLS protocol are enabled, such as TLS 1.2 and TLS 1.3. The latest version of the TLS protocol must be the preferred option. | Implemented | The application port enables TLS 1.2 and TLS 1.3 only, and the JDK negotiates TLS 1.3 whenever the client supports it. The `local` and `test` profiles disable TLS for development and must not be deployed.<br><br>**Application configuration:** `server.ssl.enabled-protocols` in `commons-defaults.yaml`, overridden in `application-local.yaml` and `application-test.yaml`. |
@@ -718,7 +718,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V12.2: HTTPS Communication with External Facing Services
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V12.2.1 | 1 | Verify that TLS is used for all connectivity between a client and external facing, HTTP-based services, and does not fall back to insecure or unencrypted communications. | Implemented | The application port serves TLS only, with no plain-HTTP listener to fall back to. The Actuator management port is plain HTTP but is not external-facing: it serves only the health check and must be network-restricted to the load balancer and internal operations network (see [Hardening](hardening.md#actuator-management-port)). The `local` and `test` profiles disable TLS for development only.<br><br>**Application configuration:** `server.ssl` and `management.server.port` in `commons-defaults.yaml`; **Decision:** [ADR 0014](../../../adr/0014-actuator-management-port.md). |
@@ -727,7 +727,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V12.3: General Service to Service Communication Security
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V12.3.1 | 2 | Verify that an encrypted protocol such as TLS is used for all inbound and outbound connections to and from the application, including monitoring systems, management tools, remote access and SSH, middleware, databases, mainframes, partner systems, or external APIs. The server must not fall back to insecure or unencrypted protocols. | Alternative | The application port is TLS-only, but the Actuator management port deliberately serves its health check over plain HTTP, relying on network restriction to the load balancer and internal operations network instead of TLS. Compared with the requirement, it gives up transport encryption and server authentication for health-check traffic, which carries only `{"status":"UP"}`; anyone on that network segment can read or spoof it (see [Hardening](hardening.md#actuator-management-port)).<br><br>**Application configuration:** `management.server.port` in `commons-defaults.yaml`; **Decision:** [ADR 0014](../../../adr/0014-actuator-management-port.md); **Deployment:** the database connection and the Keycloak issuer URI's scheme (the default `http://localhost:8080` is for local development only) are set by the deployment and must use TLS. |
@@ -741,7 +741,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V13.1: Configuration Documentation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V13.1.1 | 2 | Verify that all communication needs for the application are documented. This must include external services which the application relies upon and cases where an end user might be able to provide an external location to which the application will then connect. | Implemented | The application's external communication is documented: Keycloak for login, tokens, the account endpoint, and inbound back-channel logout and JWKS requests ([Authentication](authentication.md) and [ADR 0005](../../../adr/0005-keycloak-authentication-local-authorisation.md)); the session and authorization database ([Sessions](sessions.md#design-and-ownership)); and the health-check management port ([Hardening](hardening.md#actuator-management-port)). No feature lets a user supply a destination for the application to connect to. |
@@ -752,7 +752,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V13.2: Backend Communication Configuration
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V13.2.1 | 2 | Verify that communications between backend application components that don't support the application's standard user session mechanism, including APIs, middleware, and data layers, are authenticated. Authentication must use individual service accounts, short-term tokens, or certificate-based authentication and not unchanging credentials such as passwords, API keys, or shared accounts with privileged access. | Deployment responsibility | The template configures no datasource credential; how the application authenticates to its database, and whether that credential is short-lived or certificate-based, is set by the deployment. Its calls to Keycloak use `private_key_jwt` or the user's own token (see V12.3.5). |
@@ -765,7 +765,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V13.3: Secret Management
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V13.3.1 | 2 | Verify that a secrets management solution, such as a key vault, is used to securely create, store, control access to, and destroy backend secrets. These could include passwords, key material, integrations with databases and third-party systems, keys and seeds for time-based tokens, other internal secrets, and API keys. Secrets must not be included in application source code or included in build artifacts. For an L3 application, this must involve a hardware-backed solution such as an HSM. | Implemented | The template reads its secrets only from configuration the deployment supplies and ships none: the TLS certificate and private key come from `CERTIFICATE_PEM` and `PRIVATE_KEY_PEM`, and the private JWKS from the locations in `commons.security.oauth2.jwks`, which has no default, so the application fails to start until the deployment sets it. On AWS those locations are Secrets Manager secrets, read through `commons-aws` as `aws-secretsmanager:<secret name or ARN>`. The build packages no private key material: the development JWKS, a publicly known fixture that no deployment may use, is under the `src/test/resources` of `commons` and `app-web-api-server`, which is not packaged, and a test scans the non-class resources of the application module's compiled main output, and of the `commons`, `commons-accounts`, and `commons-aws` main outputs packaged into the same executable jar, for private keys. Whether a key vault creates, stores, controls access to, and destroys the deployment's secrets is the deployment's choice; [Authentication](authentication.md#application-jwks-and-key-handling) describes supplying the JWKS from `cdk-jwks-secret` secrets, which create the keys inside Secrets Manager's rotation.<br><br>**Application code:** `JwksProperties` (`@NotEmpty` on `jwks`), `PrivateKeyJwtAutoConfiguration.jwks()`, `SecretsManagerProtocolResolver`; **Application configuration:** `spring.ssl.bundle.pem.server` in `application.yaml`, `commons.security.oauth2.jwks` in `application-local.yaml` and `application-test.yaml`; **Test code:** `JwksPropertiesTest.startupFailsWithAClearMessageWhenTheJwksLocationIsNotSet()`, `NoPackagedPrivateKeyMaterialTest.productionClasspathContainsNoPrivateKeyMaterial()`, `SecretsManagerProtocolResolverTest`; **Decision:** [ADR 0018](../../../adr/0018-development-fixtures-kept-out-of-production.md), [ADR 0020](../../../adr/0020-jwks-rotation-from-aws-secrets-manager.md); **Deployment:** hold the TLS private key and the JWKS in a secrets manager and supply them through `PRIVATE_KEY_PEM` and `commons.security.oauth2.jwks`. |
@@ -776,7 +776,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V13.4: Unintended Information Leakage
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V13.4.1 | 1 | Verify that the application is deployed either without any source control metadata, including the .git or .svn folders, or in a way that these folders are inaccessible both externally and to the application itself. | Deployment responsibility | The Maven build packages only compiled classes and resources, and the application serves no files; what the deployed image contains is decided by the deployment's packaging. |
@@ -792,7 +792,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V14.1: Data Protection Documentation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V14.1.1 | 2 | Verify that all sensitive data created and processed by the application has been identified and classified into protection levels. This includes data that is only encoded and therefore easily decoded, such as Base64 strings or the plaintext payload inside a JWT. Protection levels need to take into account any data protection and privacy regulations and standards which the application is required to comply with. | Not implemented | No data classification exists. The data the template handles (usernames, display names, and email addresses in the local user directory; OIDC claims and tokens held server-side; `user.name` in logs) is not classified into protection levels. Classifying it, together with the adopter's own domain data, is a pending adopter decision. |
@@ -801,7 +801,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V14.2: General Data Protection
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V14.2.1 | 1 | Verify that sensitive data is only sent to the server in the HTTP message body or header fields, and that the URL and query string do not contain sensitive information, such as an API key or session token. | Partial | **Application endpoints:** the template's own endpoints take no sensitive data in the URL, and the session ID travels only in the `id` cookie.<br><br>**OIDC redirects:** not implemented. The protocol puts the authorization `code` and `state` in the callback query string, and RP-initiated logout sends the whole ID token as `id_token_hint` in the query string of the redirect to Keycloak's end-session endpoint, where browser history and intermediary logs can record it. The template's own request logs redact these parameters.<br><br>**Framework default:** Spring Security `OidcClientInitiatedLogoutSuccessHandler`; **Application code:** `LoggingAutoConfiguration` (`QUERY_PARAMETER_REDACT_LIST`); **Test code:** `RequestLoggingFilterTest.logsRequestLifecycleUsingSanitizedUrlAndAuthenticatedUser()`. |
@@ -816,7 +816,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V14.3: Client-side Data Protection
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V14.3.1 | 1 | Verify that authenticated data is cleared from client storage, such as the browser DOM, after the client or session is terminated. The 'Clear-Site-Data' HTTP response header field may be able to help with this but the client-side should also be able to clear up if the server connection is not available when the session is terminated. | Not applicable | The template has no bundled frontend and stores no authenticated data in client storage; the session cookie is expired when the session is invalidated (see [Sessions](sessions.md#session-expiration)). An adopter's browser UI must clear its own client-side data. |
@@ -828,7 +828,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V15.1: Secure Coding and Architecture Documentation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V15.1.1 | 1 | Verify that application documentation defines risk based remediation time frames for 3rd party component versions with vulnerabilities and for updating libraries in general, to minimize the risk from these components. | Not implemented | Remediation time frames for vulnerable or outdated dependencies are the adopter's decision and are not documented here. The `vulnerability-scan` profile (see V15.2.1) finds the vulnerabilities they apply to. |
@@ -840,7 +840,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V15.2: Security Architecture and Dependencies
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V15.2.1 | 1 | Verify that the application only contains components which have not breached the documented update and remediation time frames. | Partial | **Detection:** the `vulnerability-scan` Maven profile runs OWASP Dependency-Check over every module and fails the build on any finding scored 7.0 or above. It runs from any CI with `./mvnw -Pvulnerability-scan verify`, and this repository runs it daily; a finding that cannot be fixed yet is accepted only in `dependency-check-suppressions.xml`, with an expiry date.<br><br>**Time frames:** not documented (see V15.1.1).<br><br>**Application configuration:** `pom.xml` (`vulnerability-scan` profile), `dependency-check-suppressions.xml`. |
@@ -852,10 +852,10 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V15.3: Defensive Coding
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
-| V15.3.1 | 1 | Verify that the application only returns the required subset of fields from a data object. For example, it should not return an entire data object, as some individual fields should not be accessible to users. | Implemented | **Administration API:** entities are never returned directly; `UserResponse`, `GroupResponse`, and `RoleResponse` name only the fields meant to be exposed.<br><br>**Other endpoints:** `/login-user` returns only the local user's `id`, `username`, `displayName`, `email`, and `roles`, the same fields whether the caller signed in through Keycloak or a passkey (see [ADR 0024](../../../adr/0024-passkey-login-bound-to-local-user.md)), never raw ID token claims; `/account` returns only the account's `username`, `firstName`, `lastName`, `email`, and `emailVerified`; token metadata, attributes, and anything a provider adds later are dropped.<br><br>**Application code:** `AdminDtos`, `LoginUserController.loginUser()`, `AccountController.account()`. |
+| V15.3.1 | 1 | Verify that the application only returns the required subset of fields from a data object. For example, it should not return an entire data object, as some individual fields should not be accessible to users. | Implemented | **Administration API:** entities are never returned directly; `UserResponse`, `GroupResponse`, and `RoleResponse` name only the fields meant to be exposed.<br><br>**Other endpoints:** `/login-user` returns only the local user's `id`, `username`, `name`, `email`, and `roles`, the same fields whether the caller signed in through Keycloak or a passkey (see [ADR 0024](../../../adr/0024-passkey-login-bound-to-local-user.md)), never raw ID token claims; `/account` returns only the account's `username`, `firstName`, `lastName`, `email`, and `emailVerified`; token metadata, attributes, and anything a provider adds later are dropped.<br><br>**Application code:** `AdminDtos`, `LoginUserController.loginUser()`, `AccountController.account()`. |
 | V15.3.2 | 2 | Verify that where the application backend makes calls to external URLs, it is configured to not follow redirects unless it is intended functionality. | Implemented | The Keycloak account call does not follow redirects: `RestClientConfiguration` turns redirect-following off on its request factory, so the user's access token is only ever sent to the configured issuer.<br><br>**Application code:** `RestClientConfiguration`. |
 | V15.3.3 | 2 | Verify that the application has countermeasures to protect against mass assignment attacks by limiting allowed fields per controller and action, e.g., it is not possible to insert or update a field value when it was not intended to be part of that action. | Implemented | Request bodies bind only to explicit request records (`UserCreateRequest`, `UserUpdateRequest`, `GroupRequest`, `RoleRequest`), never to a JPA entity, and `UserUpdateRequest` omits `username`, so a request cannot set a field its operation does not declare.<br><br>**Application code:** `AdminDtos`, `AdministrationService`. |
 | V15.3.4 | 2 | Verify that all proxying and middleware components transfer the user's original IP address correctly using trusted data fields that cannot be manipulated by the end user, and the application and web server use this correct value for logging and security decisions such as rate limiting, taking into account that even the original IP address may not be reliable due to dynamic IPs, VPNs, or corporate firewalls. | Implemented | The default resolver trusts no forwarded-address header; a deployment chooses the resolver that matches the header its proxies set, and keeps the header trustworthy by letting requests reach the application only through the edge that sets it (see V4.1.3 and [Client IP behind proxies](../05-operational-concepts/README.md#client-ip-behind-proxies)). `RequestCorrelationContextFilter` logs the direct peer as `source.ip` and the resolved client as `client.ip`. The template makes no IP-based security decision.<br><br>**Application code:** `LoggingAutoConfiguration.clientIpResolver()`, `RequestCorrelationContextFilter`, `TrustedProxyMatcher`; **Test code:** `RequestCorrelationContextFilterTest.addsAValidatedTrustedClientIpToMdc()`, `RequestCorrelationContextFilterTest.ignoresTheClientIpHeaderFromAnUntrustedPeer()`; **Deployment:** wire the resolver that matches the actual proxy chain. |
@@ -866,7 +866,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V15.4: Safe Concurrency
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V15.4.1 | 3 | Verify that shared objects in multi-threaded code (such as caches, files, or in-memory objects accessed by multiple threads) are accessed safely by using thread-safe types and synchronization mechanisms like locks or semaphores to avoid race conditions and data corruption. | Implemented | The template's own shared mutable state, the `jwtDecoders` cache in `OidcLoginSecurityAutoConfiguration.idTokenDecoderFactory()`, is a `ConcurrentHashMap` populated with `computeIfAbsent`. The other shared registries are thread-safe framework types (`InMemoryOidcSessionRegistry`, `InMemoryOAuth2AuthorizedClientService`), and the controllers and services hold no mutable state.<br><br>**Application code:** `OidcLoginSecurityAutoConfiguration.idTokenDecoderFactory()`, `OidcLoginSecurityAutoConfiguration.oidcSessionRegistry()`. |
@@ -879,7 +879,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V16.1: Security Logging Documentation
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V16.1.1 | 2 | Verify that an inventory exists documenting the logging performed at each layer of the application's technology stack, what events are being logged, log formats, where that logging is stored, how it is used, how access to it is controlled, and for how long logs are kept. | Implemented | [Logging and Monitoring](../06-logging-and-monitoring/README.md), the [Logging schema](../06-logging-and-monitoring/schema.md), and the [Logging event reference](../06-logging-and-monitoring/event-reference.md) document every event, its format, and that it is written only to stdout; the [Logging Cheat Sheet mapping](../06-logging-and-monitoring/logging.md) records storage, access control, and retention as deployment decisions.<br><br>**Deployment:** record the actual collector, storage, access controls, and retention period. |
@@ -887,7 +887,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V16.2: General Logging
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V16.2.1 | 2 | Verify that each log entry includes necessary metadata (such as when, where, who, what) that would allow for a detailed investigation of the timeline when an event happens. | Implemented | Every event carries `@timestamp`, service and environment metadata, `event.category`, `event.type`, `event.action`, and `event.outcome`; events raised during a request add `http.request.id`, trace and span IDs, the request method and path, the source address, and the user where known (see [Logging schema](../06-logging-and-monitoring/schema.md)).<br><br>**Application code:** `RequestCorrelationContextFilter`, `AuthenticatedUserLoggingContextFilter`, `RequestLoggingFilter`, `TraceCorrelationJsonMembersCustomizer`; **Test code:** `RequestLoggingFilterTest.logsRequestLifecycleUsingSanitizedUrlAndAuthenticatedUser()`, `TraceCorrelationJsonMembersCustomizerIntegrationTest.requestLifecycleEventsCarryTraceAndSpanIds()`. |
@@ -899,18 +899,18 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V16.3: Security Events
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V16.3.1 | 2 | Verify that all authentication operations are logged, including successful and unsuccessful attempts. Additional metadata, such as the type of authentication or factors used, should also be collected. | Implemented | `SecurityAuditEventLogger` logs `login` success and failure (with the attempted user name and exception type, never credentials or tokens) and `logout`. Credential and factor checks happen in Keycloak, whose own event log records the factors used.<br><br>**Application code:** `SecurityAuditEventLogger`; **Test code:** `SecurityAuditEventLoggerTest.logsAuthenticationSuccess()`, `SecurityAuditEventLoggerTest.logsAuthenticationFailureWithoutTheExceptionMessage()`, `SecurityAuditEventLoggerTest.logsLogoutSuccess()`. |
 | V16.3.2 | 2 | Verify that failed authorization attempts are logged. For L3, this must include logging all authorization decisions, including logging when sensitive data is accessed (without logging the sensitive data itself). | Partial | **Failures (L2):** authorization denials, from the URL rules or from `@PreAuthorize`, are logged as `authorize_access` failures, and CSRF rejections as `validate_csrf_token` failures.<br><br>**All decisions (L3):** not implemented. Granted authorization decisions and access to sensitive data are not logged, beyond the generic request events.<br><br>**Application code:** `SecurityAuditEventLogger.onAuthorizationDenied()`, `ProblemDetailAccessDeniedHandler`; **Test code:** `SecurityAuditEventLoggerTest.logsAuthorizationDenialForAnAnonymousUser()`, `ProblemDetailAccessDeniedHandlerTest.logsCsrfDenialWithEcsCategoriesAndKnownResponseStatus()`, `MethodSecurityAccessDeniedIntegrationTest.methodSecurityDenialReturnsAccessDeniedProblemDetailAndIsAudited()`. |
-| V16.3.3 | 2 | Verify that the application logs the security events that are defined in the documentation and also logs attempts to bypass the security controls, such as input validation, business logic, and anti-automation. | Implemented | The security events the template defines are catalogued in the [Logging schema](../06-logging-and-monitoring/schema.md#event-index) event index, each with the class that emits it in the [Logging event reference](../06-logging-and-monitoring/event-reference.md). They include every change to the local user, group, and role model, logged by `AccountAuditLogger` (see [ADR 0021](../../../adr/0021-authorisation-change-audit-log-events.md)). Bypass attempts against the controls the template has are logged: `validate_input` for each rejected field or malformed body, `reject_request` for a request the HTTP firewall rejects, and `resume_session` for a request carrying an unknown session ID. The template has no business-logic or anti-automation control to bypass.<br><br>**Application code:** `AccountAuditLogger`, `ApiResponseEntityExceptionHandler`, `ProblemDetailRequestRejectedHandler`, `AuditingInvalidSessionStrategy`; **Test code:** `ApiResponseEntityExceptionHandlerTest.validationFailureLogsTheRuleAndFieldButNotTheRejectedValue()`, `ProblemDetailRequestRejectedHandlerTest.logsRejectionWithEcsCategoriesAndWritesProblemDetail()`, `InvalidSessionIntegrationTest.unknownSessionRequestedByAnApiIsLoggedAndReceivesUnauthorizedProblemDetail()`, `AdministrationAuditLoggingTest`; **Decision:** [ADR 0017](../../../adr/0017-invalid-session-and-privilege-change-logging.md), [ADR 0021](../../../adr/0021-authorisation-change-audit-log-events.md). |
+| V16.3.3 | 2 | Verify that the application logs the security events that are defined in the documentation and also logs attempts to bypass the security controls, such as input validation, business logic, and anti-automation. | Implemented | The security events the template defines are catalogued in the [Logging schema](../06-logging-and-monitoring/schema.md#event-index) event index, each with the class that emits it in the [Logging event reference](../06-logging-and-monitoring/event-reference.md). They include every change to the local user, group, and role model, logged by `AccountAuditLogger` (see [ADR 0021](../../../adr/0021-authorisation-change-audit-log-events.md)). Bypass attempts against the controls the template has are logged: `validate_input` for each rejected field or malformed body, `reject_request` for a request the HTTP firewall rejects, and `resume_session` for a request carrying an unknown session ID. The template has no business-logic or anti-automation control to bypass.<br><br>**Application code:** `AccountAuditLogger`, `ApiResponseEntityExceptionHandler`, `ProblemDetailRequestRejectedHandler`, `AuditingInvalidSessionStrategy`; **Test code:** `ApiResponseEntityExceptionHandlerTest.validationFailureLogsTheRuleAndFieldButNotTheRejectedValue()`, `ProblemDetailRequestRejectedHandlerTest.logsRejectionWithEcsCategoriesAndWritesProblemDetail()`, `InvalidSessionIntegrationTest.unknownSessionRequestedByAnApiIsLoggedAndReceivesUnauthorizedProblemDetail()`, `AccountAuditLoggingTest`; **Decision:** [ADR 0017](../../../adr/0017-invalid-session-and-privilege-change-logging.md), [ADR 0021](../../../adr/0021-authorisation-change-audit-log-events.md). |
 | V16.3.4 | 2 | Verify that the application logs unexpected errors and security control failures such as backend TLS failures. | Implemented | Every unexpected exception is logged at `ERROR` as `process_request`, including an I/O or TLS failure on the outbound Keycloak account call; a failure during the login token exchange is logged as a `login` failure. `ProblemDetailErrorController` logs a failure reached outside Spring MVC the same way. Inbound TLS handshake failures happen in the servlet container or at the edge, outside the application's log events.<br><br>**Application code:** `ApiResponseEntityExceptionHandler.handleUnexpectedException()`, `ProblemDetailErrorController`, `SecurityAuditEventLogger`; **Test code:** `ApiResponseEntityExceptionHandlerTest.unexpectedExceptionReturnsGenericProblemDetailAndLogsTheFailure()`, `ProblemDetailErrorControllerIntegrationTest.forwardedDispatchReceivesProblemDetailsAndLogsProcessRequest()`. |
 <!-- /ocsv:generated -->
 
 ### V16.4: Log Protection
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V16.4.1 | 2 | Verify that all logging components appropriately encode data to prevent log injection. | Implemented | Request-derived values are passed as structured key-value fields to the ECS JSON formatter, which encodes them as JSON strings, so they cannot alter the record's structure or forge another record (see [Logging Cheat Sheet mapping](../06-logging-and-monitoring/logging.md#event-collection)).<br><br>**Application configuration:** `logging.structured.format.console: ecs` in `commons-defaults.yaml`. |
@@ -920,7 +920,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V16.5: Error Handling
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V16.5.1 | 2 | Verify that a generic message is returned to the consumer when an unexpected or security-sensitive error occurs, ensuring no exposure of sensitive internal system data such as stack traces, queries, secret keys, and tokens. | Implemented | Every error path returns a generic RFC 9457 Problem Details response with no stack trace, query, or secret: Tomcat-level errors, HTTP firewall rejections, unauthenticated and expired-session requests, access denials, MVC errors, and any dispatch that bypasses those (see [Error responses](error-responses.md)).<br><br>**Application code:** `TomcatHardeningAutoConfiguration.TomcatProblemDetailErrorReportValve`, `ProblemDetailRequestRejectedHandler`, `ProblemDetailAuthenticationEntryPoint`, `ContentNegotiatingSessionExpiredStrategy`, `ProblemDetailAccessDeniedHandler`, `ApiResponseEntityExceptionHandler`, `ProblemDetailErrorController`; **Test code:** `ApiResponseEntityExceptionHandlerTest.unexpectedExceptionReturnsGenericProblemDetailAndLogsTheFailure()`, `TomcatHardeningIntegrationTest.oversizedRequestHeaderDoesNotRevealTomcatHtmlErrorPage()`, `WebSecurityConfigurationTest.unauthenticatedApiRequestReturnsProblemDetail()`; **Decision:** [ADR 0013](../../../adr/0013-rfc-9457-problem-details.md). |
@@ -933,7 +933,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V17.1: TURN Server
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V17.1.1 | 2 | Verify that the Traversal Using Relays around NAT (TURN) service only allows access to IP addresses that are not reserved for special purposes (e.g., internal networks, broadcast, loopback). Note that this applies to both IPv4 and IPv6 addresses. | Not applicable | The template does not implement WebRTC. Reassess this chapter before adding WebRTC capabilities. |
@@ -942,7 +942,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V17.2: Media
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V17.2.1 | 2 | Verify that the key for the Datagram Transport Layer Security (DTLS) certificate is managed and protected based on the documented policy for management of cryptographic keys. | Not applicable | The template does not implement WebRTC. Reassess this chapter before adding WebRTC capabilities. |
@@ -957,7 +957,7 @@ For the template's related evidence, see [Authentication](authentication.md), [A
 
 ### V17.3: Signaling
 
-<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="8a0088b" -->
+<!-- ocsv:generated source="asvs:5.0.0:flat.json" source-ref="5.0.0" code-ref="bdfdf5f" -->
 | ASVS ID | L | Requirement | Status | Implementation Statement |
 | --- | --- | --- | --- | --- |
 | V17.3.1 | 2 | Verify that the signaling server is able to continue processing legitimate incoming signaling messages during a flood attack. This should be achieved by implementing rate limiting at the signaling level. | Not applicable | The template does not implement WebRTC. Reassess this chapter before adding WebRTC capabilities. |

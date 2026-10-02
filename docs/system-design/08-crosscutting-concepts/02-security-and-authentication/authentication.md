@@ -96,6 +96,20 @@ Every state-changing request carries a CSRF token like any other.
   A deployment that needs the provider to stay authoritative should leave
   passkeys off.
 
+## Authentication pathways
+
+OIDC login through Keycloak is always available. Passkey login is a second pathway that exists only when passkeys are enabled. Both end in the same local user, and the same controls apply to both once a session exists.
+
+| | OIDC login through Keycloak | Passkey login (optional) |
+| --- | --- | --- |
+| Entry | Redirect to Keycloak, then the OAuth2 redirect endpoint | `POST /webauthn/authenticate/options`, then `POST /login/webauthn` |
+| Authentication strength | Set by the Keycloak realm (password, and any multi-factor authentication the realm requires); the application checks no `acr` or `amr` | Possession of a discoverable passkey and user verification on the authenticator; attestation is `none` |
+| Local user | Must exist and be enabled | Must exist and be enabled |
+| Authorities | Local `ROLE_` authorities from the user, group, and role model | The same |
+| Session | New session ID, concurrent-session limit, 15-minute idle timeout, 12-hour absolute timeout | New session ID, the same concurrent-session limit and idle timeout, absolute timeout 8 hours from the login |
+| Ended by | Logout, back-channel logout, the user being disabled or deleted locally | Logout, the user being disabled or deleted locally, its own absolute timeout |
+| Recentness for administration changes | `auth_time` no older than 15 minutes | Time of the passkey login no older than 15 minutes |
+
 ## Client authentication
 
 Keycloak uses the `private_key_jwt` client-authentication method. In the
