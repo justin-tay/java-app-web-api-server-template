@@ -60,19 +60,23 @@ OAuth2 state.
 | Client IP anomaly detection | `true` (`commons.security.session.anomaly-detection`) | Logs, but does not invalidate, a session whose bound client IP changes; inactive by default until a trusted `ClientIpResolver` is configured. See [ADR 0026](../../../adr/0026-session-bound-to-user-agent-and-client-ip.md). |
 
 A frontend that cannot render the CSRF token uses cookie-to-header CSRF (Spring
-Security's `csrf.spa()`): every response carries the token in an `XSRF-TOKEN`
-cookie that JavaScript may read (`SameSite=Lax`, `Secure` on HTTPS, path `/`),
-and a state-changing request echoes it in the `X-XSRF-TOKEN` header. The cookie
-is not a credential, and the session cookie stays `HttpOnly`. A form-rendered
-token is still accepted in its encoded form.
+Security's `csrf.spa()`): every response carries the token in a cookie that
+JavaScript may read, and a state-changing request echoes it in the
+`X-XSRF-TOKEN` header. The cookie takes the session cookie's prefix: where the
+session cookie is `__Host-id`, the token cookie is `__Host-XSRF-TOKEN`
+(`Secure`, `SameSite=Lax`, path `/`, no `Domain`); in the plain-HTTP `local` and
+`test` profiles, which drop the prefix from the session cookie, it is
+`XSRF-TOKEN`, `Secure` only on HTTPS. A frontend reads the cookie by the name
+its environment uses. The cookie is not a credential, and the session cookie
+stays `HttpOnly`. A form-rendered token is still accepted in its encoded form.
 
 This is a double-submit check: the server keeps no copy of the token to compare
 with, so a request passes when its cookie and header agree. An attacker who can
 set a cookie for the application's domain, for example from a sibling
-subdomain, can therefore supply both. The `__Host-` prefix stops that for the
-session cookie but cannot be used on `XSRF-TOKEN`, which JavaScript must read.
-Keep every subdomain of the application's domain under the same control, and do
-not serve untrusted content from one.
+subdomain, could therefore supply both. The `__Host-` prefix stops that: the
+browser refuses a prefixed cookie that is not set by this host over HTTPS with
+no `Domain`, while JavaScript on this host can still read it. In the plain-HTTP
+profiles the gap remains, so keep them to local development.
 
 Every value above is a commons default (`commons-defaults.yaml` and
 `WebSecurityAutoConfiguration`), so each `app-*` module inherits it; the

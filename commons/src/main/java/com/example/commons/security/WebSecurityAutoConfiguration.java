@@ -94,6 +94,8 @@ public class WebSecurityAutoConfiguration {
 
 	private static final String PERMISSIONS_POLICY = "camera=(), geolocation=(), microphone=(), payment=(), usb=()";
 
+	private static final String HOST_COOKIE_PREFIX = "__Host-";
+
 	/**
 	 * Provides the entry point for unauthenticated requests when no OIDC login is
 	 * configured: a browser is redirected to the login page, and a non-browser client
@@ -226,7 +228,7 @@ public class WebSecurityAutoConfiguration {
 			applySessionFilters(http, properties, clock, sessionLifecycleAuditLogger,
 					clientIpResolver.getIfAvailable(ClientIpResolver::none));
 			applyHeaders(http);
-			applyCookieCsrf(http);
+			applyCookieCsrf(http, environment);
 			applyExceptionHandling(http, authenticationEntryPoint, accessDeniedHandler);
 			applyHealthEndpointRules(http, healthPath);
 			applySessionManagement(http, sessionRegistry, sessionExpiredStrategy, sessionLifecycleAuditLogger,
@@ -265,12 +267,23 @@ public class WebSecurityAutoConfiguration {
 	 * in the {@code XSRF-TOKEN} cookie, which JavaScript may read (so it is not
 	 * {@code HttpOnly}), and a request presents it in the {@code X-XSRF-TOKEN} header.
 	 * The cookie is {@code SameSite=Lax}, and {@code Secure} whenever the request is
-	 * HTTPS. Spring Security's {@code spa()} support reads the header value as the plain
-	 * token.
+	 * HTTPS. When the session cookie carries the {@code __Host-} prefix, so does this
+	 * one, and it is always {@code Secure}, so no other host can set or shadow it. Spring
+	 * Security's {@code spa()} support reads the header value as the plain token.
 	 */
-	private static void applyCookieCsrf(HttpSecurity http) {
+	private static void applyCookieCsrf(HttpSecurity http, Environment environment) {
+		boolean hostPrefixed = environment.getProperty("server.servlet.session.cookie.name", "")
+			.startsWith(HOST_COOKIE_PREFIX);
 		CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
-		repository.setCookieCustomizer(cookie -> cookie.sameSite("Lax"));
+		if (hostPrefixed) {
+			repository.setCookieName(HOST_COOKIE_PREFIX + "XSRF-TOKEN");
+		}
+		repository.setCookieCustomizer(cookie -> {
+			cookie.sameSite("Lax");
+			if (hostPrefixed) {
+				cookie.secure(true);
+			}
+		});
 		http.csrf(csrf -> csrf.spa().csrfTokenRepository(repository));
 	}
 
