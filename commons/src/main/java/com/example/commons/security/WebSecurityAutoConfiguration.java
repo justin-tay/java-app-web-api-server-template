@@ -25,9 +25,12 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.web.authentication.logout.HeaderWriterLogoutHandler;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.header.HeaderWriterFilter;
+import org.springframework.security.web.header.writers.ClearSiteDataHeaderWriter;
+import org.springframework.security.web.header.writers.ClearSiteDataHeaderWriter.Directive;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -233,7 +236,7 @@ public class WebSecurityAutoConfiguration {
 			applyHealthEndpointRules(http, healthPath);
 			applySessionManagement(http, sessionRegistry, sessionExpiredStrategy, sessionLifecycleAuditLogger,
 					authenticationEntryPoint, accessDeniedHandler);
-			applyLogoutAudit(http, sessionLifecycleAuditLogger);
+			applyLogout(http, sessionLifecycleAuditLogger, properties.getLogout());
 		};
 	}
 
@@ -328,8 +331,20 @@ public class WebSecurityAutoConfiguration {
 			.expiredSessionStrategy(sessionExpiredStrategy));
 	}
 
-	private static void applyLogoutAudit(HttpSecurity http, SessionLifecycleAuditLogger sessionLifecycleAuditLogger) {
-		http.logout(logout -> logout.addLogoutHandler(new SessionLifecycleLogoutHandler(sessionLifecycleAuditLogger)));
+	/**
+	 * Audits logout and, when {@code commons.security.logout.clear-site-data} lists any
+	 * directives, tells the browser to clear that data. Only a logout the browser makes
+	 * can carry the header; back-channel logout and session expiry cannot.
+	 */
+	private static void applyLogout(HttpSecurity http, SessionLifecycleAuditLogger sessionLifecycleAuditLogger,
+			WebSecurityProperties.Logout properties) {
+		http.logout(logout -> {
+			logout.addLogoutHandler(new SessionLifecycleLogoutHandler(sessionLifecycleAuditLogger));
+			if (!properties.getClearSiteData().isEmpty()) {
+				logout.addLogoutHandler(new HeaderWriterLogoutHandler(
+						new ClearSiteDataHeaderWriter(properties.getClearSiteData().toArray(Directive[]::new))));
+			}
+		});
 	}
 
 }

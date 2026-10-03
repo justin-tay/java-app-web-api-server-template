@@ -37,6 +37,13 @@ class SpaLogoutIntegrationTest {
 	}
 
 	@Test
+	void logoutDoesNotClearSiteDataByDefault() throws Exception {
+		this.mockMvc.perform(
+				post("/logout").secure(true).with(oidcLoginAs("admin")).with(csrf()).accept(MediaType.APPLICATION_JSON))
+			.andExpect(header().doesNotExist("Clear-Site-Data"));
+	}
+
+	@Test
 	void aBrowserNavigationIsRedirected() throws Exception {
 		this.mockMvc.perform(post("/logout").with(oidcLoginAs("admin")).with(csrf()).accept(MediaType.TEXT_HTML))
 			.andExpect(status().is3xxRedirection());

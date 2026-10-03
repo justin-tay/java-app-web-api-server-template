@@ -58,6 +58,12 @@ commons:
       # the session. Silently inactive unless a trusted ClientIpResolver is
       # configured; see docs/adr/0026.
       anomaly-detection: true
+    logout:
+      # Directives for the Clear-Site-Data header sent on logout over HTTPS: cookies,
+      # cache, storage, execution-contexts. Empty because cookies also clears the
+      # cookies of sibling subdomains, cache costs performance and storage destroys
+      # data such as IndexedDB.
+      clear-site-data: []
 server:
   servlet:
     session:

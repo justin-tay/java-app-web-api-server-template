@@ -1,11 +1,14 @@
 package com.example.commons.security;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.security.web.header.writers.ClearSiteDataHeaderWriter;
 import org.springframework.validation.annotation.Validated;
 
 /**
@@ -19,8 +22,38 @@ public class WebSecurityProperties {
 	@Valid
 	private final Session session = new Session();
 
+	@Valid
+	private final Logout logout = new Logout();
+
 	public Session getSession() {
 		return this.session;
+	}
+
+	public Logout getLogout() {
+		return this.logout;
+	}
+
+	/**
+	 * Logout properties.
+	 */
+	public static class Logout {
+
+		/**
+		 * Data the browser is told to clear when the user logs out, sent in a
+		 * {@code Clear-Site-Data} header (HTTPS requests only). Empty by default, since
+		 * {@code cookies} also clears the cookies of sibling subdomains, {@code cache}
+		 * costs performance and {@code storage} destroys data such as IndexedDB.
+		 */
+		private List<ClearSiteDataHeaderWriter.Directive> clearSiteData = new ArrayList<>();
+
+		public List<ClearSiteDataHeaderWriter.Directive> getClearSiteData() {
+			return this.clearSiteData;
+		}
+
+		public void setClearSiteData(List<ClearSiteDataHeaderWriter.Directive> clearSiteData) {
+			this.clearSiteData = clearSiteData;
+		}
+
 	}
 
 	/**

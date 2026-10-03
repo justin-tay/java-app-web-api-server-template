@@ -61,6 +61,7 @@ OAuth2 state.
 | Session schema | Liquibase changesets `003-spring-session-schema.sql` and `005-oidc-session-registry.sql` | Prevents schema creation at application startup. |
 | User-Agent hijacking protection | `true` (`commons.security.session.hijacking-protection`) | Invalidates the session if its bound User-Agent changes; see [ADR 0026](../../../adr/0026-session-bound-to-user-agent-and-client-ip.md). |
 | Client IP anomaly detection | `true` (`commons.security.session.anomaly-detection`) | Logs, but does not invalidate, a session whose bound client IP changes; inactive by default until a trusted `ClientIpResolver` is configured. See [ADR 0026](../../../adr/0026-session-bound-to-user-agent-and-client-ip.md). |
+| `Clear-Site-Data` on logout | Empty list (`commons.security.logout.clear-site-data`) | Directives (`cookies`, `cache`, `storage`, `execution-contexts`) sent in `Clear-Site-Data` when a user logs out over HTTPS. Empty by default: `cookies` can also clear the cookies of sibling subdomains, which would end other applications' sessions on the same registrable domain, `cache` costs performance, and `storage` destroys client data such as IndexedDB. |
 
 A frontend that cannot render the CSRF token uses cookie-to-header CSRF (Spring
 Security's `csrf.spa()`): every response carries the token in a cookie that
@@ -205,7 +206,7 @@ Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_S
 <!-- ocsv:generated source="cheatsheets/Session_Management_Cheat_Sheet.md" source-ref="7deb20b" code-ref="dcf2e27" -->
 | Recommendation | Status | Implementation Statement |
 | --- | --- | --- |
-| **Web Content Caching and Clear-Site-Data**<br>Prevent sensitive responses from being cached and use Clear-Site-Data on logout to clear browser-held data. | Partial | **Caching:** Spring Security sends `Cache-Control: no-cache, no-store, max-age=0, must-revalidate`, `Pragma: no-cache`, and `Expires: 0` on responses, including those that set the session cookie (see [HTTP security headers](headers.md)).<br><br>**Clear-Site-Data:** not implemented. `Clear-Site-Data` is not sent on logout or session termination; assess it when the application serves sensitive browser content. Whether to adopt it is item 5 of [Required production decisions](#required-production-decisions).<br><br>**Framework default:** Spring Security `CacheControlHeadersWriter`; **Test code:** `WebSecurityConfigurationTest.responseHasSpringSecurityDefaultHeaders()`. |
+| **Web Content Caching and Clear-Site-Data**<br>Prevent sensitive responses from being cached and use Clear-Site-Data on logout to clear browser-held data. | Partial | **Caching:** Spring Security sends `Cache-Control: no-cache, no-store, max-age=0, must-revalidate`, `Pragma: no-cache`, and `Expires: 0` on responses, including those that set the session cookie (see [HTTP security headers](headers.md)).<br><br>**Clear-Site-Data:** available but off by default. `commons.security.logout.clear-site-data` lists the directives (`cookies`, `cache`, `storage`, `execution-contexts`) that a user-initiated logout over HTTPS sends in `Clear-Site-Data`. The default is empty because `cookies` can also clear the cookies of sibling subdomains, ending other applications' sessions on the same registrable domain, `cache` costs performance, and `storage` destroys client data such as IndexedDB. Back-channel logout, timeouts and administrative revocation end the session without a browser response, so they cannot carry the header. Independently of that setting, the logout response already expires the session and CSRF cookies, so a stale session ID is not sent with the next request. Which directives to enable is item 5 of [Required production decisions](#required-production-decisions).<br><br>**Application code:** `WebSecurityAutoConfiguration.applyLogout()` (`HeaderWriterLogoutHandler` with `ClearSiteDataHeaderWriter`); **Application configuration:** `commons.security.logout.clear-site-data` in `commons-defaults.yaml`; **Framework default:** Spring Security `CacheControlHeadersWriter`; **Test code:** `LogoutCookiesIntegrationTest.logoutExpiresTheSessionAndCsrfCookies()`, `ClearSiteDataLogoutIntegrationTest.logoutOverHttpsClearsTheConfiguredDirectives()`, `SpaLogoutIntegrationTest.logoutDoesNotClearSiteDataByDefault()`, `WebSecurityConfigurationTest.responseHasSpringSecurityDefaultHeaders()`. |
 <!-- /ocsv:generated -->
 
 ### Reauthentication After Risk Events
@@ -264,8 +265,9 @@ match what is decided:
    ([ADR 0023](../../../adr/0023-recent-login-for-administration-changes.md)).
 4. Database encryption, backups, retention, and access monitoring for session
    tables and their serialized attributes.
-5. Whether `Clear-Site-Data` is appropriate after testing the deployed HTTPS
-   and OIDC flows, and that the application is served at the root context path,
+5. Which `commons.security.logout.clear-site-data` directives, if any, to enable
+   after testing the deployed HTTPS and OIDC flows (`cookies` also affects
+   sibling subdomains), and that the application is served at the root context path,
    which the `__Host-id` cookie requires.
 6. Whether invalid-session attempts and session-ID guessing are monitored,
    including trusted data sources, thresholds, alert routing, and
