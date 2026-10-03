@@ -29,6 +29,7 @@ import org.springframework.security.web.webauthn.management.UserCredentialReposi
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.example.commons.logging.LoggedUrlPath;
+import com.example.commons.security.authentication.oidc.ReauthenticationChallenge;
 import com.example.commons.security.authentication.oidc.RecentAuthentication;
 import com.example.commons.web.problem.ProblemTypes;
 
@@ -93,9 +94,12 @@ class PasskeyRegistrationGuardFilter extends OncePerRequestFilter {
 			return;
 		}
 		if (!RecentAuthentication.isWithin(authentication, request, this.maxAge, this.clock)) {
+			StringBuilder members = new StringBuilder(",\"max_age\":" + this.maxAge.toSeconds());
+			ReauthenticationChallenge.members(authentication)
+				.forEach((name, value) -> members.append(",\"%s\":\"%s\"".formatted(name, value)));
 			reject(request, response, HttpStatus.UNAUTHORIZED, "reauthentication_required",
 					ProblemTypes.REAUTHENTICATION_REQUIRED.toString(), "Recent authentication is required.",
-					",\"max_age\":" + this.maxAge.toSeconds());
+					members.toString());
 			return;
 		}
 		if (holdsTheMostAllowed(authentication)) {

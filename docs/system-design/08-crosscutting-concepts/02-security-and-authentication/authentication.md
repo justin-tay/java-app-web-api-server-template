@@ -85,6 +85,18 @@ Every state-changing request carries a CSRF token like any other.
   ([ADR 0023](../../../adr/0023-recent-login-for-administration-changes.md)), so
   a taken-over session cannot enrol an attacker's passkey. The same recentness
   check now admits a fresh passkey login for administration changes.
+* **Reauthenticating.** The `reauthentication-required` problem carries
+  `max_age` (seconds), `method` (`oidc` or `passkey`, from the session's
+  principal), and for OpenID Connect a `reauthentication_uri`
+  (`/oauth2/authorization/{registrationId}?max_age=0`) naming the provider the
+  session logged in with, so it stays correct with several providers. A
+  passkey session gets no URI; the client runs the WebAuthn ceremony. The
+  method is a hint: the server accepts any login that is recent enough, as a
+  user could log out and sign in another way. This is a recency check, not a
+  step-up; requiring `acr` or `amr` is the adopter's decision. The window runs
+  from login, not from the last request. A client keeps the request it could
+  not make and, after reauthenticating, replays it only if `/login-user`
+  returns the same `id`.
 * **Cloned authenticators.** A login whose signature counter did not increase
   is refused and logged as `passkey_signature_counter_regression`. A counter
   that is zero both times is allowed, because synced passkeys report zero.

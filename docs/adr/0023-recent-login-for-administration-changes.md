@@ -37,6 +37,16 @@ as an `authorize_access` failure with `event.reason`
 passes `max_age=0` on to the provider, which must then authenticate the user
 again and return the new `auth_time`. Only the value `0` is passed on.
 
+The problem also names the method the session logged in with, as `method`
+(`oidc` or `passkey`), and for an OpenID Connect login a `reauthentication_uri`
+that already names the same client registration and carries `max_age=0`. A
+passkey login has no URI, because the client runs the WebAuthn ceremony itself.
+`ReauthenticationChallenge` builds both. They are a hint to the client, not a
+rule: the server accepts any login that is recent enough, since a user could
+log out and sign in by another method anyway. A client keeps the request it
+could not make, and after reauthenticating checks that `/login-user` returns the
+same `id` before replaying it.
+
 Ending sessions (`DELETE /admin/users/{id}/sessions` and
 `DELETE /admin/users/sessions`) is exempt, so an administrator responding to
 an incident is never delayed by a login.

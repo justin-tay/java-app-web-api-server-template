@@ -50,6 +50,7 @@ public class LoginUserController {
 		List<String> roles = authentication.getAuthorities()
 			.stream()
 			.map(GrantedAuthority::getAuthority)
+			.filter(authority -> authority.startsWith("ROLE_"))
 			.sorted()
 			.toList();
 		return new LoginUserResponse(user.getId(), user.getUsername(), user.getName(), user.getEmail(), roles);

@@ -301,13 +301,17 @@ class AdminApiIntegrationTest {
 				.content("{\"name\":\"REPORT_VIEW\"}"))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.type").value("urn:problem:reauthentication-required"))
-			.andExpect(jsonPath("$.max_age").value(900));
+			.andExpect(jsonPath("$.max_age").value(900))
+			.andExpect(jsonPath("$.method").value("oidc"))
+			.andExpect(jsonPath("$.reauthentication_uri").value("/oauth2/authorization/test?max_age=0"));
 		this.mockMvc
 			.perform(post("/admin/roles").with(as("ROLE_MANAGE"))
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{\"name\":\"REPORT_VIEW\"}"))
-			.andExpect(status().isUnauthorized());
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.method").doesNotExist())
+			.andExpect(jsonPath("$.reauthentication_uri").doesNotExist());
 		this.mockMvc.perform(get("/admin/roles").with(admin(longAgo))).andExpect(status().isOk());
 	}
 

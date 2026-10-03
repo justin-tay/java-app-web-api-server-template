@@ -105,7 +105,9 @@ class PasskeyIntegrationTest {
 				.with(csrf()))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.type").value("urn:problem:reauthentication-required"))
-			.andExpect(jsonPath("$.max_age").value(900));
+			.andExpect(jsonPath("$.max_age").value(900))
+			.andExpect(jsonPath("$.method").value("oidc"))
+			.andExpect(jsonPath("$.reauthentication_uri").value("/oauth2/authorization/test?max_age=0"));
 	}
 
 	@Test
