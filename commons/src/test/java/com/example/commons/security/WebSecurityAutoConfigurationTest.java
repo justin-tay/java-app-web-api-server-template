@@ -25,6 +25,8 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoderFactory;
@@ -64,6 +66,14 @@ class WebSecurityAutoConfigurationTest {
 				.doesNotHaveBean(JwksController.class)
 				.doesNotHaveBean(RefreshingJwks.class)
 				.doesNotHaveBean(IdTokenDecryption.class));
+	}
+
+	@Test
+	void keepsAuthorizedClientsInTheSessionAndNotInMemory() {
+		this.contextRunner.withUserConfiguration(LocalAuthorityLookupConfiguration.class)
+			.run(context -> assertThat(context).hasNotFailed()
+				.getBean(OAuth2AuthorizedClientRepository.class)
+				.isInstanceOf(HttpSessionOAuth2AuthorizedClientRepository.class));
 	}
 
 	@Test

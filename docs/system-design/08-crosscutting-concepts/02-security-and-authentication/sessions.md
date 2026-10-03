@@ -20,15 +20,18 @@ session with JDBC-backed storage:
   Boot's JDBC session-schema initializer is disabled. See
   [ADR 0004](../../../adr/0004-database-schema-management.md).
 
-One piece of login state is held in memory on the instance that handled the
-login, not in the session, so a restart discards it and other instances cannot
-see it:
+The rest of the login state lives in the session too, so no instance holds state
+another needs:
 
-* **OAuth2 authorized clients** (the Keycloak access token `/account` uses):
-  Spring Boot's default `InMemoryOAuth2AuthorizedClientService`, reached
-  through `AuthenticatedPrincipalOAuth2AuthorizedClientRepository`, stores
-  them per authenticated principal. A request for the access token on another
-  instance, or after a restart, finds none and must re-authorize.
+* **OAuth2 authorization request** (`state` and the ID token `nonce`, kept
+  between the redirect to Keycloak and the callback): Spring Security's default
+  `HttpSessionOAuth2AuthorizationRequestRepository`.
+* **OAuth2 authorized clients** (the Keycloak access and refresh tokens
+  `/account` uses): `HttpSessionOAuth2AuthorizedClientRepository`, instead of
+  Spring Boot's in-memory default, so they follow the session across instances
+  and end with it. An application that must use the tokens without a user
+  session opts for `JdbcOAuth2AuthorizedClientService` instead; see
+  [ADR 0034](../../../adr/0034-authorized-clients-in-the-session.md).
 
 The link that back-channel logout uses between a Keycloak session and the local
 session is in the database (`JdbcOidcSessionRegistry`), so it survives a restart

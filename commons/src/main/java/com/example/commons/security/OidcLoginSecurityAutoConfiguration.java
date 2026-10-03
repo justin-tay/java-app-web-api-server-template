@@ -24,7 +24,9 @@ import org.springframework.security.config.annotation.web.configurers.DefaultLog
 import org.springframework.security.oauth2.client.oidc.session.OidcSessionRegistry;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizedClientRepository;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtDecoderFactory;
 import org.springframework.security.core.session.SessionRegistry;
@@ -117,6 +119,20 @@ public class OidcLoginSecurityAutoConfiguration {
 			Environment environment) {
 		return new JdbcOidcSessionRegistry(jdbcClient, clock.getIfAvailable(Clock::systemUTC),
 				environment.getProperty("spring.session.jdbc.table-name", "SPRING_SESSION"));
+	}
+
+	/**
+	 * Keeps the OAuth2 authorized clients (the access and refresh tokens the OpenID
+	 * Provider issued) in the HTTP session, which Spring Session holds in the database,
+	 * instead of Spring Boot's default of an in-memory map on the instance that handled
+	 * the login. Any instance can then use them, a restart keeps them, and they end with
+	 * the session, however it ends (see docs/adr/0034).
+	 * @return the authorized client repository
+	 */
+	@Bean
+	@ConditionalOnMissingBean
+	OAuth2AuthorizedClientRepository oauth2AuthorizedClientRepository() {
+		return new HttpSessionOAuth2AuthorizedClientRepository();
 	}
 
 	/**
