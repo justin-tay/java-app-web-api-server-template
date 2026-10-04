@@ -76,9 +76,10 @@ the reviewer saw when they decide. See ADR 0032.
 
 ## Data model
 
-All SQL is Liquibase formatted SQL using the portable types of
-[ADR 0004](../../adr/0004-database-schema-management.md): `CHAR(36)` IDs, `VARCHAR`,
-`BOOLEAN`, `TIMESTAMP`, `DATE`, and `CLOB`-compatible `TEXT` for JSON.
+The schema is the accounts changelog, `com/example/commons/accounts/jdbc/schema.yaml`, written in
+Liquibase change types that each database receives as its own type (`UUID`, `VARCHAR`,
+`BOOLEAN`, `TIMESTAMP`, `DATE`, and a large-text type for JSON), with a generated SQL script per
+database beside it ([ADR 0035](../../adr/0035-module-schemas-as-changelog-and-sql.md)).
 
 `app_user` (changed)
 
@@ -95,13 +96,13 @@ or delete)
 
 | Column | Notes |
 |---|---|
-| `id` | `CHAR(36)` |
+| `id` | `UUID` |
 | `occurred_at` | `TIMESTAMP NOT NULL`, indexed |
 | `actor` | `VARCHAR(100) NOT NULL`, the username or `system` |
 | `action` | `VARCHAR(50) NOT NULL`, such as `suspend_user`, `delete_user`, `update_group`, `update_setting`, `verify_review_item` |
 | `target_type` | `VARCHAR(20) NOT NULL`: `USER`, `GROUP`, `ROLE`, `SETTING`, `REVIEW` |
 | `target_id`, `target_name` | the ID and the username, group, role, setting or task name |
-| `target_display_name` | `VARCHAR(100)`, filled for users so a removed account is recognisable |
+| `target_full_name` | `VARCHAR(100)`, filled for users so a removed account is recognisable |
 | `reason_code`, `reason_note` | as in R1 |
 | `details` | `TEXT`, JSON: `{"before": ..., "changes": ..., "rolesAdded": [], "rolesRemoved": [], "groupsAdded": [], "groupsRemoved": []}`; never an email address |
 
@@ -116,7 +117,7 @@ and a unique constraint on `(type, start_date)`. That constraint is the guard
 against two instances creating the same window's task; a portable "one open task"
 index is not available, so the service enforces that in code.
 
-`review_item`: `id`, `task_id` (foreign key to `task`), `user_id CHAR(36)` and
+`review_item`: `id`, `task_id` (foreign key to `task`), `user_id UUID` and
 `username VARCHAR(100)` (no foreign key to `app_user`), `name`, `review_status`
 (`PENDING_VERIFICATION`, `VERIFIED`, `REMOVED`), and the frozen decision columns
 `decided_at`, `decided_by`, `decided_account_status`, `decided_last_login_at`,
@@ -227,7 +228,7 @@ Reference data (all environments): the roles `ACCOUNT_REVIEWER` and
 `SETTINGS_MANAGE`; the `Account Reviewers` group with `ACCOUNT_REVIEWER`;
 `SETTINGS_MANAGE` added to `Administrators`; the five setting defaults.
 
-Development (`dev` context, `004-development-seed.sql`, edited in place, so existing
+Development (`dev` context, `development-seed.sql`, edited in place, so existing
 development databases must be recreated): the users in R10.3 with names and email
 addresses, the `Users` group replacing `Test Users`, and the two settings
 `inactivity.enabled` and `review.enabled` set to false. Where the schema migration

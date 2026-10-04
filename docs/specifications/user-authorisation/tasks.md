@@ -20,12 +20,12 @@ independently testable and is ordered by its implementation dependencies.
   - _Requirements: R6_
 
 - [ ] 1.2 Create portable Liquibase formatted-SQL changesets
-  - Add a master changelog and ordered formatted-SQL schema/seed changesets under
+  - Add a master changelog and schema changelogs in the modules and seed changesets under
     `src/main/resources/db/changelog/`.
   - Create `app_user`, `app_group`, `app_role`, `app_user_group`, and
     `app_group_role`, including portable constraints and lookup indexes.
-  - Use fixed UUID-string literals for all fixture IDs and application-compatible
-    `CHAR(36)`, `VARCHAR`, `BOOLEAN`, and `TIMESTAMP` column definitions.
+  - Use fixed UUID-string literals for all fixture IDs and Liquibase
+    `uuid`, `varchar`, `boolean`, and `timestamp` column types.
   - Completion: applying changesets twice is idempotent and no vendor-specific
     generated-ID, UUID, JSON, or upsert SQL is present.
   - _Requirements: R6_
@@ -38,9 +38,9 @@ independently testable and is ordered by its implementation dependencies.
     only source of application authorisation.
   - Seed `USER_MANAGE`, `GROUP_MANAGE`, `ROLE_MANAGE`, and `APPLICATION_USER`
     and the member-less `Administrators` group in every environment
-    (`002-authorisation-seed.sql`).
+    (`reference-data.sql`).
   - Seed the `Test Users` group and matching enabled local users only with the
-    `dev` Liquibase context (`004-development-seed.sql`, ADR 0018); a production
+    `dev` Liquibase context (`development-seed.sql`, ADR 0018); a production
     database bootstraps its first administrator with its own changeset.
   - Associate the fixtures exactly as designed, including multi-group membership.
   - Completion: a local test setup has matching Keycloak and Liquibase identities.

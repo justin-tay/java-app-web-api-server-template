@@ -119,9 +119,9 @@ or lengthens the threshold in the settings.
 
 Liquibase applies the four roles above and the `Administrators` group, which
 holds the three management roles, in every environment
-(`002-authorisation-seed.sql`). The local users `admin`, `user`, `multi-group-user`, `account-reviewer-1`, and
+(`reference-data.sql`). The local users `admin`, `user`, `multi-group-user`, `account-reviewer-1`, and
 `account-reviewer-2`, and the `Users` group, are development and test
-fixtures (`004-development-seed.sql`): Liquibase applies them only when the
+fixtures (`development-seed.sql`): Liquibase applies them only when the
 `dev` context is explicitly requested, which the `local` and `test` profiles
 and `bin/start-api-server-tls.sh` do. A production migration must not request
 the `dev` context, so it creates no local user

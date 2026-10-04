@@ -35,10 +35,10 @@ default.
 
 - The roles and the `Administrators` group with its three management roles
   are reference data the authorization rules and the design depend on; they
-  stay in `002-authorisation-seed.sql` and apply in every environment. The
+  stay in `reference-data.sql` and apply in every environment. The
   `Administrators` group has no members there.
 - The development users, their memberships, and the `Test Users` group move
-  to `004-development-seed.sql`, a changeset with the required context
+  to `development-seed.sql`, a changeset with the required context
   `@dev`. Liquibase applies it only when a run explicitly requests the `dev`
   context and skips it when no context is requested. The `local` and `test`
   profiles set `spring.liquibase.contexts: dev`, and
@@ -62,14 +62,14 @@ migration that requests no context creates no enabled local user. A new
 production database starts with no user able to call the administration API
 until the bootstrap changeset runs.
 
-`002-authorisation-seed.sql` changed after it may have run, contrary to ADR
+`reference-data.sql` changed after it may have run, contrary to ADR
 0004's append-only rule; this is acceptable only because the template has no
 deployed database. An adopter whose database already applied the original
 changeset must instead add a new changeset that deletes or disables the
 development users, and mark the edited `002` as valid for their database (for
 example with `validCheckSum`).
 
-`004-development-seed.sql` is still packaged with the changelog, as inert data
+`development-seed.sql` is still packaged with the changelog, as inert data
 that runs only on request. Developers running the application in a way that
 neither activates the `local` profile nor uses `bin/start-api-server-tls.sh`
 must set `app.jwks` and `spring.liquibase.contexts` themselves.

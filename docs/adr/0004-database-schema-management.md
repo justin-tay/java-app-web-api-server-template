@@ -18,9 +18,9 @@ failure boundary: a migration must succeed before an application version that
 depends on it can run.
 
 This rule includes Spring Session. The `SPRING_SESSION` and
-`SPRING_SESSION_ATTRIBUTES` tables are defined in
-`003-spring-session-schema.sql`, and the `OIDC_SESSION` table of the OIDC
-session registry in `005-oidc-session-registry.sql`; Spring Boot's JDBC-session schema initializer
+`SPRING_SESSION_ATTRIBUTES` tables and the `OIDC_SESSION` table of the OIDC
+session registry are defined in the session schema that `commons` ships (see
+[ADR 0035](0035-module-schemas-as-changelog-and-sql.md)); Spring Boot's JDBC-session schema initializer
 is disabled. Hibernate DDL generation is also disabled.
 
 Liquibase's own `DATABASECHANGELOG` and `DATABASECHANGELOGLOCK` tables are the
@@ -30,7 +30,8 @@ only framework-managed metadata tables.
 
 Liquibase is the sole owner of application and Spring Session schema and reference
 data. Every schema or data change is an ordered, version-controlled Liquibase
-changeset in `src/main/resources/db/changelog`.
+changeset, in the module's schema changelog for a module's tables and in the application's
+`src/main/resources/db/changelog` for its own data.
 
 A dedicated CI migration job, using the same revision that will be deployed,
 executes the changelog against the target database before the application is

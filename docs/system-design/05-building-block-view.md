@@ -194,26 +194,21 @@ administration audit log, not these columns. The Keycloak
 `preferred_username` claim, which the provider registration's
 `user-name-attribute` names, is matched against `app_user.username`, which
 is why usernames are treated as immutable once a user is provisioned (see
-`README.md`). The schema is in
-`commons-accounts/src/main/resources/db/changelog/001-authorisation-schema.sql`,
-Spring Session's own tables are in commons' `003-spring-session-schema.sql`, the OIDC session registry's table is in commons' `005-oidc-session-registry.sql`, and the
-passkey tables Spring Security's WebAuthn support expects (`user_entities` and
-`user_credentials`, used only when passkeys are enabled) are in
-`commons-accounts`' `006-passkey-schema.sql`, with no foreign key from
-`user_entities` to `app_user` because the user handle is the UUID's bytes, so
-deleting a user deletes their passkeys in code: modules ship schema, applications ship data. The application seeds the roles
-and the `Administrators` group in its own `002-authorisation-seed.sql`, including
-the `USER_MANAGE`, `GROUP_MANAGE`, and `ROLE_MANAGE` roles the administration
-API requires by name. Each changelog keeps its original `db/changelog/`
-classpath path, and the application's master changelog includes them in order.
-Account status and the inactivity clock, the audit table and the settings, and the
-task and review tables are in commons-accounts' `009-account-lifecycle.sql`,
-`010-account-audit-and-settings.sql`, and `011-tasks-and-account-review.sql`.
-`review_item` and `account_audit_event` hold the user's ID and username with no
-foreign key to `app_user`, so they outlive a removed account. The application
-seeds the `ACCOUNT_REVIEWER` and `SETTINGS_MANAGE` roles and the `Account Reviewers`
-group in `012-account-review-seed.sql`. The development and test users are in the
-application's `004-development-seed.sql` and `013-development-account-review-seed.sql`,
+`README.md`). Each module ships its tables as a Liquibase changelog and as plain SQL
+for H2, PostgreSQL and SQL Server ([ADR 0035](../adr/0035-module-schemas-as-changelog-and-sql.md)):
+`commons-accounts` in `com/example/commons/accounts/jdbc` (users, groups and roles, the
+passkey tables Spring Security's WebAuthn support expects, the account status and
+inactivity clock, the audit table and the settings, and the task and review tables) and
+`commons` in `com/example/commons/session/jdbc` (Spring Session's tables) and `com/example/commons/session/oidc/jdbc` (the OIDC
+session registry's table). Modules ship schema, applications ship data. There is no
+foreign key from `user_entities` to `app_user` because the passkey user handle is the
+UUID's bytes, so deleting a user deletes their passkeys in code. `review_item` and
+`account_audit_event` hold the user's ID and username with no foreign key to `app_user`,
+so they outlive a removed account. The application's own changelog, `db/changelog` in
+`app-web-api-server`, includes the two schemas and then seeds the roles and groups the
+administration API requires by name (`USER_MANAGE`, `GROUP_MANAGE`, `ROLE_MANAGE`), the
+`ACCOUNT_REVIEWER` and `SETTINGS_MANAGE` roles and the `Account Reviewers` group in
+`reference-data.sql`. The development and test users are in `development-seed.sql`,
 applied only when the `dev` Liquibase context is requested
 ([ADR 0018](../adr/0018-development-fixtures-kept-out-of-production.md)).
 
