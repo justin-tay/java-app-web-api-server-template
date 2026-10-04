@@ -50,10 +50,11 @@ The binary column type is a per-database Liquibase property because the generic 
 wrong on PostgreSQL. Native-image hints register the module resources.
 
 Identifiers are UUIDs in the database's own UUID type and `java.util.UUID` in Java, and
-the application generates them as version 7 (time-ordered) values with Hibernate's
+the application generates them as random version 4 values with Hibernate's
 `@UuidGenerator`, so the same behaviour holds on every database and an identifier is known
-before the insert. The audit table's `target_id` stays text because its target is not
-always a user.
+before the insert. Identifiers are returned by the API, so a version 4 value is used
+because a version 7 value embeds its creation time. The audit table's `target_id` stays
+text because its target is not always a user.
 
 ## Consequences
 
@@ -70,8 +71,16 @@ identifiers and checksums changed; a database that applied the earlier numbered 
 cannot be upgraded by Liquibase and must be recreated.
 
 Known limits on SQL Server: columns are `varchar`, so text outside the database collation's
-code page is not preserved unless the database uses a UTF-8 collation; a `uniqueidentifier`
-sorts by its last bytes, so version 7 identifiers do not give the same insert locality as
-on PostgreSQL; and the passkey tables' 1000-character keys exceed SQL Server's 900-byte
-clustered key limit, which it accepts with a warning. A deployment that needs to keep
-text exact or rely on key locality should review those columns.
+code page is not preserved unless the database uses a UTF-8 collation; and the passkey
+tables' 1000-character keys exceed SQL Server's 900-byte clustered key limit, which it
+accepts with a warning. A deployment that needs to keep text exact should review those
+columns.
+
+Random identifiers insert at scattered positions in a primary key index. For the tables
+here that is negligible until a table, such as the audit table, grows far beyond memory.
+A deployment with that write volume can switch an entity to
+`@UuidGenerator(style = UuidGenerator.Style.VERSION_7)` and accept that the identifier
+then discloses its creation time. That helps on PostgreSQL only: a SQL Server
+`uniqueidentifier` compares its last bytes first, so version 7 values still insert at
+scattered positions there. On SQL Server the options are a clustered index on a time
+column with a nonclustered primary key, or identifiers generated in SQL Server's byte order.

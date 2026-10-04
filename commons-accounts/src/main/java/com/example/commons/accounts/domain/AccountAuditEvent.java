@@ -22,7 +22,7 @@ import org.hibernate.type.SqlTypes;
 public class AccountAuditEvent {
 
 	@Id
-	@UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+	@UuidGenerator(style = UuidGenerator.Style.RANDOM)
 	@JdbcTypeCode(SqlTypes.UUID)
 	private UUID id;
 

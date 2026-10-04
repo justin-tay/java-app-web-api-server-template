@@ -28,7 +28,7 @@ public class Task {
 	public static final String ACCOUNT_REVIEW = "account_review";
 
 	@Id
-	@UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+	@UuidGenerator(style = UuidGenerator.Style.RANDOM)
 	@JdbcTypeCode(SqlTypes.UUID)
 	private UUID id;
 

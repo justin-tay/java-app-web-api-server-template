@@ -25,10 +25,11 @@ public abstract class AbstractAuditableEntity {
 
 	/**
 	 * A UUID in its 36-character text form, held in the database's UUID type and
-	 * generated as a version 7 (time-ordered) value when the entity is persisted.
+	 * generated as a random version 4 value when the entity is persisted, so the
+	 * identifier does not disclose when the entity was created.
 	 */
 	@Id
-	@UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+	@UuidGenerator(style = UuidGenerator.Style.RANDOM)
 	@JdbcTypeCode(SqlTypes.UUID)
 	private UUID id;
 
