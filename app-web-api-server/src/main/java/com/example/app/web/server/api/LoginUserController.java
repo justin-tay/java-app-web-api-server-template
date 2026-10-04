@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.commons.accounts.domain.AccountStatus;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
+import com.example.commons.security.authorization.RolePrefix;
 
 /**
  * Login user endpoint: who is signed in and what they may do, read from the local user,
@@ -50,7 +51,7 @@ public class LoginUserController {
 		List<String> roles = authentication.getAuthorities()
 			.stream()
 			.map(GrantedAuthority::getAuthority)
-			.filter(authority -> authority.startsWith("ROLE_"))
+			.filter(authority -> authority.startsWith(RolePrefix.VALUE))
 			.sorted()
 			.toList();
 		return new LoginUserResponse(user.getId(), user.getUsername(), user.getName(), user.getEmail(), roles);

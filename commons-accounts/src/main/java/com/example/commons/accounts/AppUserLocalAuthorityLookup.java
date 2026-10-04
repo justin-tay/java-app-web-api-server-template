@@ -9,6 +9,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import com.example.commons.accounts.domain.AccountStatus;
 import com.example.commons.accounts.domain.AppUserRepository;
 import com.example.commons.security.authorization.LocalAuthorityLookup;
+import com.example.commons.security.authorization.RolePrefix;
 
 /**
  * Grants each active local user a {@code ROLE_} authority for every role of every group
@@ -28,7 +29,7 @@ public class AppUserLocalAuthorityLookup implements LocalAuthorityLookup {
 			.map(user -> user.getGroups()
 				.stream()
 				.flatMap(group -> group.getRoles().stream())
-				.<GrantedAuthority>map(role -> new SimpleGrantedAuthority("ROLE_" + role.getName()))
+				.<GrantedAuthority>map(role -> new SimpleGrantedAuthority(RolePrefix.VALUE + role.getName()))
 				.distinct()
 				.toList());
 	}

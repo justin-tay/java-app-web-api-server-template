@@ -9,6 +9,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.example.commons.accounts.domain.Auditor;
+import com.example.commons.security.authorization.RolePrefix;
 
 /**
  * The authenticated administrator making a change: their name, as the {@link Auditor}
@@ -21,8 +22,6 @@ import com.example.commons.accounts.domain.Auditor;
  * prefix
  */
 record Actor(String name, Set<String> roles) {
-
-	private static final String ROLE_PREFIX = "ROLE_";
 
 	/**
 	 * Returns the current administrator, or empty when no user is authenticated, such as
@@ -38,8 +37,8 @@ record Actor(String name, Set<String> roles) {
 		Set<String> roles = authentication.getAuthorities()
 			.stream()
 			.map(GrantedAuthority::getAuthority)
-			.filter(authority -> authority.startsWith(ROLE_PREFIX))
-			.map(authority -> authority.substring(ROLE_PREFIX.length()))
+			.filter(authority -> authority.startsWith(RolePrefix.VALUE))
+			.map(authority -> authority.substring(RolePrefix.VALUE.length()))
 			.collect(Collectors.toUnmodifiableSet());
 		return Optional.of(new Actor(name, roles));
 	}

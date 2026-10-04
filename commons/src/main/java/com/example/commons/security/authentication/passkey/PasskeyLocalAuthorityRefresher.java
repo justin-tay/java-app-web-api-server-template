@@ -10,6 +10,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.web.webauthn.authentication.WebAuthnAuthentication;
 
 import com.example.commons.security.authorization.LocalAuthorityRefresher;
+import com.example.commons.security.authorization.RolePrefix;
 
 /**
  * Refreshes the authorities of a passkey login, keyed by the username of its passkey user
@@ -33,7 +34,7 @@ class PasskeyLocalAuthorityRefresher implements LocalAuthorityRefresher {
 		WebAuthnAuthentication webAuthn = (WebAuthnAuthentication) authentication;
 		Set<GrantedAuthority> authorities = webAuthn.getAuthorities()
 			.stream()
-			.filter(authority -> !authority.getAuthority().startsWith("ROLE_"))
+			.filter(authority -> !authority.getAuthority().startsWith(RolePrefix.VALUE))
 			.collect(Collectors.toCollection(HashSet::new));
 		authorities.addAll(localAuthorities);
 		WebAuthnAuthentication refreshed = new WebAuthnAuthentication(webAuthn.getPrincipal(), authorities);

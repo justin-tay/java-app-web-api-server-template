@@ -49,7 +49,7 @@ class OidcLocalAuthorityRefresher implements LocalAuthorityRefresher {
 		OidcUser oidcUser = (OidcUser) oauthToken.getPrincipal();
 		Set<GrantedAuthority> authorities = oidcUser.getAuthorities()
 			.stream()
-			.filter(authority -> !authority.getAuthority().startsWith("ROLE_"))
+			.filter(authority -> !authority.getAuthority().startsWith(RolePrefix.VALUE))
 			.collect(Collectors.toCollection(HashSet::new));
 		authorities.addAll(localAuthorities);
 		OidcUser refreshedUser = new DefaultOidcUser(authorities, oidcUser.getIdToken(), oidcUser.getUserInfo(),

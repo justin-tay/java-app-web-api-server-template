@@ -2,6 +2,7 @@ package com.example.commons.security;
 
 import jakarta.servlet.http.HttpServletRequest;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 
 /**
@@ -21,7 +22,7 @@ public final class ContentNegotiation {
 	 * @return {@code true} if the request accepts {@code text/html}
 	 */
 	public static boolean acceptsHtml(HttpServletRequest request) {
-		String accept = request.getHeader("Accept");
+		String accept = request.getHeader(HttpHeaders.ACCEPT);
 		return accept != null && accept.contains(MediaType.TEXT_HTML_VALUE);
 	}
 
@@ -34,7 +35,7 @@ public final class ContentNegotiation {
 	 * {@code text/html}
 	 */
 	public static boolean prefersJson(HttpServletRequest request) {
-		String accept = request.getHeader("Accept");
+		String accept = request.getHeader(HttpHeaders.ACCEPT);
 		return accept != null && accept.contains(MediaType.APPLICATION_JSON_VALUE) && !acceptsHtml(request);
 	}
 

@@ -129,7 +129,7 @@ public class LocalAuthorityRefreshFilter extends OncePerRequestFilter {
 	private static Set<String> roleNames(Collection<? extends GrantedAuthority> authorities) {
 		return authorities.stream()
 			.map(GrantedAuthority::getAuthority)
-			.filter(authority -> authority.startsWith("ROLE_"))
+			.filter(authority -> authority.startsWith(RolePrefix.VALUE))
 			.collect(Collectors.toSet());
 	}
 
@@ -140,7 +140,7 @@ public class LocalAuthorityRefreshFilter extends OncePerRequestFilter {
 	private static Set<String> storedRoleNames(Set<String> authorities, Set<String> excluded) {
 		return authorities.stream()
 			.filter(authority -> !excluded.contains(authority))
-			.map(authority -> authority.substring("ROLE_".length()))
+			.map(authority -> authority.substring(RolePrefix.VALUE.length()))
 			.collect(Collectors.toSet());
 	}
 

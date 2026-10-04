@@ -7,6 +7,7 @@ import java.util.Set;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import org.springframework.http.HttpMethod;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -23,7 +24,8 @@ import com.example.commons.web.problem.ReauthenticationRequiredException;
  */
 public class AdminReauthenticationInterceptor implements HandlerInterceptor {
 
-	private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
+	private static final Set<HttpMethod> SAFE_METHODS = Set.of(HttpMethod.GET, HttpMethod.HEAD, HttpMethod.OPTIONS,
+			HttpMethod.TRACE);
 
 	private final Duration maxAge;
 
@@ -36,7 +38,7 @@ public class AdminReauthenticationInterceptor implements HandlerInterceptor {
 
 	@Override
 	public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-		if (!SAFE_METHODS.contains(request.getMethod()) && !RecentAuthentication
+		if (!SAFE_METHODS.contains(HttpMethod.valueOf(request.getMethod())) && !RecentAuthentication
 			.isWithin(SecurityContextHolder.getContext().getAuthentication(), request, this.maxAge, this.clock)) {
 			throw new ReauthenticationRequiredException(this.maxAge);
 		}
