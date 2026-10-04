@@ -26,7 +26,6 @@
 		<spring-javaformat-maven-plugin.version>0.0.48</spring-javaformat-maven-plugin.version>
 		<jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
 		<dependency-check-maven.version>13.0.0</dependency-check-maven.version>
-		<spring-cloud-aws.version>4.1.1</spring-cloud-aws.version>
 		<!-- Only app-* modules have a main class; each one sets this back to false so
 			spring-boot:run can be invoked from the root with -pl and -am. -->
 		<spring-boot.run.skip>true</spring-boot.run.skip>
@@ -47,13 +46,6 @@
 				<groupId>com.example</groupId>
 				<artifactId>commons-aws</artifactId>
 				<version>${project.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>io.awspring.cloud</groupId>
-				<artifactId>spring-cloud-aws-dependencies</artifactId>
-				<version>${spring-cloud-aws.version}</version>
-				<type>pom</type>
-				<scope>import</scope>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>

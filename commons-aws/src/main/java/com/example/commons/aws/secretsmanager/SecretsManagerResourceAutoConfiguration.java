@@ -2,7 +2,9 @@ package com.example.commons.aws.secretsmanager;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Lazy;
 
 import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
 
@@ -12,10 +14,10 @@ import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
  * {@link SecretsManagerProtocolResolver}.
  *
  * <p>
- * The {@link SecretsManagerClient} itself, with its region and credentials, comes from
- * Spring Cloud AWS's own auto-configuration and {@code spring.cloud.aws.*} properties.
- * Leave the credentials to the AWS SDK default chain (an ECS task role, EKS Pod Identity,
- * and so on); see docs/adr/0020.
+ * Unless the application defines its own {@link SecretsManagerClient}, one is created
+ * with the AWS SDK default region and credentials chain (an ECS task role, EKS Pod
+ * Identity, and so on); see docs/adr/0020. It is lazy, so an application that only uses
+ * {@code file:} or {@code classpath:} locations never builds it.
  */
 @AutoConfiguration
 @ConditionalOnClass(SecretsManagerClient.class)
@@ -29,6 +31,17 @@ public class SecretsManagerResourceAutoConfiguration {
 	@Bean
 	static SecretsManagerProtocolResolver secretsManagerProtocolResolver() {
 		return new SecretsManagerProtocolResolver();
+	}
+
+	/**
+	 * The default client, created when the first secret is read.
+	 * @return the client
+	 */
+	@Bean
+	@Lazy
+	@ConditionalOnMissingBean
+	SecretsManagerClient secretsManagerClient() {
+		return SecretsManagerClient.create();
 	}
 
 }

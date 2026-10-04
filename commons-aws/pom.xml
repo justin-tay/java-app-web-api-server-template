@@ -12,12 +12,28 @@
 	<name>commons-aws</name>
 	<description>Optional AWS integration for commons, such as reading resources from AWS Secrets Manager</description>
 	<properties>
+		<aws-sdk.version>2.54.3</aws-sdk.version>
 		<testcontainers-floci.version>2.16.1</testcontainers-floci.version>
 	</properties>
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>software.amazon.awssdk</groupId>
+				<artifactId>bom</artifactId>
+				<version>${aws-sdk.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 	<dependencies>
 		<dependency>
-			<groupId>io.awspring.cloud</groupId>
-			<artifactId>spring-cloud-aws-starter-secrets-manager</artifactId>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-autoconfigure</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>secretsmanager</artifactId>
 			<exclusions>
 				<!-- apache5-client would put Apache HttpClient 5 on the classpath, which
 					Spring's RestClient then picks over the JDK client for every HTTP call the
@@ -44,16 +60,11 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<!-- Floci, an MIT-licensed AWS emulator, with @ServiceConnection support for
-				Spring Cloud AWS. LocalStack's current image needs an account auth token. -->
+			<!-- Floci, an MIT-licensed AWS emulator. LocalStack's current image needs an
+				account auth token. -->
 			<groupId>io.floci</groupId>
-			<artifactId>spring-boot-testcontainers-floci</artifactId>
+			<artifactId>testcontainers-floci</artifactId>
 			<version>${testcontainers-floci.version}</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-testcontainers</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>

@@ -27,10 +27,8 @@ import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
  * Registers itself with the application context's {@link ResourceLoader}, as a
  * {@link BeanFactoryPostProcessor} so that it is in place before any other bean resolves
  * a resource. The {@link SecretsManagerClient} is looked up only when a secret is read,
- * so the client auto-configuration may be turned off with
- * {@code spring.cloud.aws.secretsmanager.enabled=false} by an application that only uses
- * {@code file:} or {@code classpath:} locations; reading a {@value #PROTOCOL} location
- * then fails with a message saying so.
+ * so an application that only uses {@code file:} or {@code classpath:} locations never
+ * builds one.
  */
 public class SecretsManagerProtocolResolver implements ProtocolResolver, BeanFactoryPostProcessor, ResourceLoaderAware {
 
@@ -40,7 +38,7 @@ public class SecretsManagerProtocolResolver implements ProtocolResolver, BeanFac
 	public static final String PROTOCOL = "aws-secretsmanager:";
 
 	static final String CLIENT_UNAVAILABLE_MESSAGE = "No SecretsManagerClient is available to read a " + PROTOCOL
-			+ " location; check that spring.cloud.aws.secretsmanager.enabled is not false";
+			+ " location; check that the SecretsManagerResourceAutoConfiguration is not excluded";
 
 	private BeanFactory beanFactory;
 

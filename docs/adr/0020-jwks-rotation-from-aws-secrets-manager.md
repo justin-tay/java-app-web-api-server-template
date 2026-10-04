@@ -62,22 +62,22 @@ The private JWKS is refreshed at runtime rather than read once:
   the readiness group, so an instance takes no traffic before its secrets are
   initialised, without failing liveness.
 
-AWS support is a new optional module, `commons-aws`, with Spring Cloud AWS's
-Secrets Manager starter for the `SecretsManagerClient`, its region, and its
-credentials. It adds a protocol resolver so that a resource location
-`aws-secretsmanager:<secret name or ARN>` reads the raw `AWSCURRENT` value of
-the secret. The prefix is the same as Spring Cloud AWS's config data import,
-but it is unrelated: in a resource location it always means the secret's value,
-as is. The module uses the AWS SDK's `url-connection-client` and excludes
-`apache5-client` and `netty-nio-client`, because Apache HttpClient 5 on the
-classpath would become the client Spring's `RestClient` uses for every HTTP
-call the application makes. Credentials come from the AWS SDK default chain,
-such as an ECS task role or EKS Pod Identity, never from committed
-configuration.
+AWS support is a new optional module, `commons-aws`, which depends on the AWS
+SDK's Secrets Manager client directly. It adds a protocol resolver so that a
+resource location `aws-secretsmanager:<secret name or ARN>` reads the raw
+`AWSCURRENT` value of the secret. The prefix is the same as Spring Cloud AWS's
+config data import, but it is unrelated: in a resource location it always means
+the secret's value, as is. The module uses the AWS SDK's `url-connection-client`
+and excludes `apache5-client` and `netty-nio-client`, because Apache HttpClient 5
+on the classpath would become the client Spring's `RestClient` uses for every
+HTTP call the application makes. Unless the application defines its own
+`SecretsManagerClient`, a lazy default one is created with the AWS SDK default
+region and credentials chain, such as an ECS task role or EKS Pod Identity,
+never from committed configuration; an application that already uses Spring
+Cloud AWS keeps its own configured client.
 
 The reference application depends on `commons-aws`. Its `local` and `test`
-profiles keep the development JWKS file and set
-`spring.cloud.aws.secretsmanager.enabled=false`.
+profiles keep the development JWKS file, so the client is never created.
 
 ## Consequences
 

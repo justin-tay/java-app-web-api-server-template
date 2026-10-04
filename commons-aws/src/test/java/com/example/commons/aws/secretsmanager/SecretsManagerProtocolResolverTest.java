@@ -50,12 +50,25 @@ class SecretsManagerProtocolResolverTest {
 
 	@Test
 	void readingASecretWithoutAClientSaysSo() {
-		this.contextRunner.run(context -> {
-			Resource resource = context.getResource("aws-secretsmanager:jwks");
+		SecretsManagerProtocolResolver resolver = new SecretsManagerProtocolResolver();
+		Resource resource = resolver.resolve("aws-secretsmanager:jwks", null);
 
-			assertThatIllegalStateException().isThrownBy(resource::getInputStream)
-				.withMessage(SecretsManagerProtocolResolver.CLIENT_UNAVAILABLE_MESSAGE);
+		assertThatIllegalStateException().isThrownBy(resource::getInputStream)
+			.withMessage(SecretsManagerProtocolResolver.CLIENT_UNAVAILABLE_MESSAGE);
+	}
+
+	@Test
+	void theDefaultClientIsOnlyBuiltWhenASecretIsRead() {
+		this.contextRunner.run(context -> {
+			assertThat(context.getBeanFactory().containsBeanDefinition("secretsManagerClient")).isTrue();
+			assertThat(context.getBeanFactory().getSingletonNames()).doesNotContain("secretsManagerClient");
 		});
+	}
+
+	@Test
+	void theDefaultClientBacksOffForAnApplicationClient() {
+		this.contextRunner.withUserConfiguration(ClientConfiguration.class)
+			.run(context -> assertThat(context).getBeans(SecretsManagerClient.class).hasSize(1));
 	}
 
 	@Configuration(proxyBeanMethods = false)
