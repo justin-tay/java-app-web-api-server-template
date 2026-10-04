@@ -6,6 +6,7 @@ import java.net.URI;
 
 import jakarta.validation.ConstraintViolationException;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.TypeMismatchException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.spi.LoggingEventBuilder;
@@ -72,6 +73,24 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 		problemDetail.setTitle("Validation failed");
 		problemDetail.setProperty("errors",
 				List.of(Map.of("code", "MalformedRequest", "message", "Request content is invalid.")));
+		return ResponseEntity.badRequest().body(problemDetail);
+	}
+
+	/**
+	 * Answers a path variable, request parameter or similar that cannot be converted to
+	 * its type, such as a malformed UUID, like any other invalid input. The rejected
+	 * value is never echoed.
+	 */
+	@Override
+	protected ResponseEntity<Object> handleTypeMismatch(TypeMismatchException ex, HttpHeaders headers,
+			HttpStatusCode status, WebRequest request) {
+		logInputValidationFailure(((NativeWebRequest) request).getNativeRequest(HttpServletRequest.class), ex,
+				"TypeMismatch", ex.getPropertyName());
+		ProblemDetail problemDetail = problemDetail(HttpStatus.BAD_REQUEST, "One or more fields are invalid.",
+				ProblemTypes.VALIDATION_FAILED);
+		problemDetail.setTitle("Validation failed");
+		problemDetail.setProperty("errors",
+				List.of(Map.of("code", "TypeMismatch", "message", "The value is not valid for its type.")));
 		return ResponseEntity.badRequest().body(problemDetail);
 	}
 

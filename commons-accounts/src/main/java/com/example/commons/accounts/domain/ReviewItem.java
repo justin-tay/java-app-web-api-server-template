@@ -13,6 +13,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Id;
 
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.annotations.NotFound;
 import org.hibernate.annotations.NotFoundAction;
 import org.hibernate.type.SqlTypes;
@@ -32,17 +33,16 @@ import org.hibernate.type.SqlTypes;
 public class ReviewItem {
 
 	@Id
-	@Column(length = 36)
-	@JdbcTypeCode(SqlTypes.CHAR)
-	private String id;
+	@UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+	@JdbcTypeCode(SqlTypes.UUID)
+	private UUID id;
 
-	@Column(length = 36)
-	@JdbcTypeCode(SqlTypes.CHAR)
-	private String taskId;
+	@JdbcTypeCode(SqlTypes.UUID)
+	private UUID taskId;
 
-	@Column(name = "user_id", length = 36)
-	@JdbcTypeCode(SqlTypes.CHAR)
-	private String userId;
+	@Column(name = "user_id")
+	@JdbcTypeCode(SqlTypes.UUID)
+	private UUID userId;
 
 	private String username;
 
@@ -74,8 +74,7 @@ public class ReviewItem {
 	protected ReviewItem() {
 	}
 
-	public ReviewItem(String taskId, AppUser user) {
-		this.id = UUID.randomUUID().toString();
+	public ReviewItem(UUID taskId, AppUser user) {
 		this.taskId = taskId;
 		this.userId = user.getId();
 		this.user = user;
@@ -84,15 +83,15 @@ public class ReviewItem {
 		this.reviewStatus = ReviewStatus.PENDING_VERIFICATION;
 	}
 
-	public String getId() {
+	public UUID getId() {
 		return this.id;
 	}
 
-	public String getTaskId() {
+	public UUID getTaskId() {
 		return this.taskId;
 	}
 
-	public String getUserId() {
+	public UUID getUserId() {
 		return this.userId;
 	}
 

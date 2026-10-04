@@ -19,11 +19,11 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 
 /**
  * An {@link OidcSessionRegistry} kept in the {@code OIDC_SESSION} table (see
- * {@code db/changelog/005-oidc-session-registry.sql}), so a back-channel logout token
- * that reaches any instance resolves the local sessions that logged in through any other.
- * It matches the way {@code InMemoryOidcSessionRegistry} does: by issuer and provider
- * session ID when the logout token has one, otherwise by issuer and subject, and in both
- * cases only when the audiences overlap.
+ * {@code com/example/commons/session/oidc/jdbc/schema.yaml}), so a back-channel logout
+ * token that reaches any instance resolves the local sessions that logged in through any
+ * other. It matches the way {@code InMemoryOidcSessionRegistry} does: by issuer and
+ * provider session ID when the logout token has one, otherwise by issuer and subject, and
+ * in both cases only when the audiences overlap.
  *
  * <p>
  * The link is written when the session logs in, before Spring Session has saved the

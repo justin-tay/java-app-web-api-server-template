@@ -11,6 +11,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,8 +90,8 @@ public class AccountAuditLogger {
 	 * @param email the email address, compared but never logged
 	 * @param name the name, compared but never logged
 	 */
-	public record UserState(String id, String username, String status, SortedSet<String> groups,
-			SortedSet<String> roles, String email, String name) {
+	public record UserState(UUID id, String username, String status, SortedSet<String> groups, SortedSet<String> roles,
+			String email, String name) {
 
 		public static UserState of(AppUser user) {
 			return new UserState(user.getId(), user.getUsername(), user.getStatus().name().toLowerCase(Locale.ROOT),
@@ -112,7 +113,7 @@ public class AccountAuditLogger {
 	 * @param name the group name
 	 * @param roles the names of the roles the group grants
 	 */
-	public record GroupState(String id, String name, SortedSet<String> roles) {
+	public record GroupState(UUID id, String name, SortedSet<String> roles) {
 
 		static GroupState of(AppGroup group) {
 			return new GroupState(group.getId(), group.getName(),
@@ -127,7 +128,7 @@ public class AccountAuditLogger {
 	 * @param id the role ID
 	 * @param name the role name
 	 */
-	public record RoleState(String id, String name) {
+	public record RoleState(UUID id, String name) {
 
 		static RoleState of(AppRole role) {
 			return new RoleState(role.getId(), role.getName());
@@ -283,7 +284,7 @@ public class AccountAuditLogger {
 	}
 
 	public void groupCreated(GroupState group) {
-		record("create_group", "GROUP", group.id(), group.name(), null, null, null,
+		record("create_group", "GROUP", group.id().toString(), group.name(), null, null, null,
 				details("rolesAdded", group.roles()));
 		afterCommit(() -> group(event("create_group", "group", "creation", null), group)
 			.addKeyValue("roles.added", List.copyOf(group.roles()))
@@ -291,7 +292,7 @@ public class AccountAuditLogger {
 	}
 
 	public void groupUpdated(GroupState before, GroupState after, long affectedUserCount) {
-		record("update_group", "GROUP", after.id(), after.name(), null, null, null,
+		record("update_group", "GROUP", after.id().toString(), after.name(), null, null, null,
 				details("beforeName", before.name(), "rolesAdded", added(before.roles(), after.roles()), "rolesRemoved",
 						added(after.roles(), before.roles()), "affectedUserCount", affectedUserCount));
 		afterCommit(() -> {
@@ -310,7 +311,7 @@ public class AccountAuditLogger {
 	}
 
 	public void groupDeleted(GroupState group) {
-		record("delete_group", "GROUP", group.id(), group.name(), null, null, null,
+		record("delete_group", "GROUP", group.id().toString(), group.name(), null, null, null,
 				details("rolesRemoved", group.roles()));
 		afterCommit(() -> group(event("delete_group", "group", "deletion", null), group)
 			.addKeyValue("roles.removed", List.copyOf(group.roles()))
@@ -335,12 +336,12 @@ public class AccountAuditLogger {
 	}
 
 	public void roleCreated(RoleState role) {
-		record("create_role", "ROLE", role.id(), role.name(), null, null, null, details());
+		record("create_role", "ROLE", role.id().toString(), role.name(), null, null, null, details());
 		afterCommit(() -> role(event("create_role", "admin", "creation", null), role).log("Role created"));
 	}
 
 	public void roleDeleted(RoleState role) {
-		record("delete_role", "ROLE", role.id(), role.name(), null, null, null, details());
+		record("delete_role", "ROLE", role.id().toString(), role.name(), null, null, null, details());
 		afterCommit(() -> role(event("delete_role", "admin", "deletion", null), role).log("Role deleted"));
 	}
 
@@ -371,16 +372,16 @@ public class AccountAuditLogger {
 
 	private void record(String action, String targetType, UserState user, String reasonCode, String reasonNote,
 			Map<String, Object> details) {
-		record(action, targetType, user.id(), user.username(), user.name(), reasonCode, reasonNote, details);
+		record(action, targetType, user.id().toString(), user.username(), user.name(), reasonCode, reasonNote, details);
 	}
 
-	private void record(String action, String targetType, String targetId, String targetName, String targetDisplayName,
+	private void record(String action, String targetType, String targetId, String targetName, String targetFullName,
 			String reasonCode, String reasonNote, Map<String, Object> details) {
 		if (this.events == null) {
 			return;
 		}
 		this.events.save(new AccountAuditEvent(this.clock.instant(), Auditor.current(), action, targetType, targetId,
-				targetName, targetDisplayName, reasonCode, reasonNote, JSON.writeValueAsString(details)));
+				targetName, targetFullName, reasonCode, reasonNote, JSON.writeValueAsString(details)));
 	}
 
 	/**

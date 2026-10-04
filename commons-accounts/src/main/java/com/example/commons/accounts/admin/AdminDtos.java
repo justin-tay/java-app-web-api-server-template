@@ -3,6 +3,7 @@ package com.example.commons.accounts.admin;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotEmpty;
@@ -10,7 +11,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-import com.example.commons.accounts.validation.ResourceId;
 import com.example.commons.accounts.validation.ResourceName;
 import com.example.commons.accounts.validation.Username;
 
@@ -20,11 +20,11 @@ public final class AdminDtos {
 	}
 
 	public record UserCreateRequest(@Username String username, @ResourceName String name,
-			@Email @Size(max = 254) String email, @NotEmpty Set<@ResourceId String> groupIds) {
+			@Email @Size(max = 254) String email, @NotEmpty Set<UUID> groupIds) {
 	}
 
 	public record UserUpdateRequest(@ResourceName String name, @Email @Size(max = 254) String email,
-			@NotEmpty Set<@ResourceId String> groupIds) {
+			@NotEmpty Set<UUID> groupIds) {
 	}
 
 	/**
@@ -36,7 +36,7 @@ public final class AdminDtos {
 			@Size(max = 200) String note) {
 	}
 
-	public record GroupRequest(@ResourceName String name, Set<@ResourceId String> roleIds) {
+	public record GroupRequest(@ResourceName String name, Set<UUID> roleIds) {
 		public GroupRequest {
 			roleIds = roleIds == null ? Set.of() : roleIds;
 		}
@@ -48,21 +48,20 @@ public final class AdminDtos {
 		}
 	}
 
-	public record Summary(String id, String name) {
+	public record Summary(UUID id, String name) {
 	}
 
-	public record RoleSummary(String id, String name, String displayName) {
+	public record RoleSummary(UUID id, String name, String displayName) {
 	}
 
-	public record UserResponse(String id, String username, String name, String email, Instant lastLoginAt,
-			String status, Instant suspendedAt, String suspensionReasonCode, String suspensionNote,
-			List<Summary> groups) {
+	public record UserResponse(UUID id, String username, String name, String email, Instant lastLoginAt, String status,
+			Instant suspendedAt, String suspensionReasonCode, String suspensionNote, List<Summary> groups) {
 	}
 
-	public record GroupResponse(String id, String name, List<RoleSummary> roles) {
+	public record GroupResponse(UUID id, String name, List<RoleSummary> roles) {
 	}
 
-	public record RoleResponse(String id, String name, String displayName) {
+	public record RoleResponse(UUID id, String name, String displayName) {
 	}
 
 	public record PageResponse<T>(List<T> items, int page, int size, long totalItems, int totalPages) {

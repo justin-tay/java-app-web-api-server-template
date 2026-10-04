@@ -50,8 +50,8 @@ import com.example.commons.security.session.SessionLifecycleAuditLogger;
  * application must define a {@link PasskeyUserDirectory} and a
  * {@link LocalAuthorityLookup}. A passkey is another way to log in as the same local
  * user, so the session carries the user's local roles, refreshed on every request like an
- * OpenID Connect session, and the passkey tables come from the accounts changelog,
- * {@code 006-passkey-schema.sql}.
+ * OpenID Connect session, and the passkey tables come from the accounts schema,
+ * {@code com/example/commons/accounts/jdbc/schema.yaml}.
  *
  * <p>
  * Spring Security supplies the endpoints: {@code POST /webauthn/authenticate/options} and

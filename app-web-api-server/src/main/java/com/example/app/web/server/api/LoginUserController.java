@@ -1,6 +1,7 @@
 package com.example.app.web.server.api;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
@@ -40,7 +41,7 @@ public class LoginUserController {
 	 * @param roles the caller's {@code ROLE_} authorities, exactly as
 	 * {@code hasAuthority()} checks them, for the frontend to decide which routes to show
 	 */
-	public record LoginUserResponse(String id, String username, String name, String email, List<String> roles) {
+	public record LoginUserResponse(UUID id, String username, String name, String email, List<String> roles) {
 	}
 
 	@GetMapping(path = "/login-user", produces = MediaType.APPLICATION_JSON_VALUE)

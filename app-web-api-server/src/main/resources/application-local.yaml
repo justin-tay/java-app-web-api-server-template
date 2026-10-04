@@ -2,7 +2,7 @@ commons:
   accounts:
     review:
       # Local-only: creates the account review shortly after startup, not an hour later, so the
-      # sample accounts in 014-development-review-sample-data.sql can be reviewed at once.
+      # sample accounts in development-seed.sql can be reviewed at once.
       check-interval: PT30S
   security:
     oauth2:
@@ -35,6 +35,6 @@ logging:
         environment: local
 spring:
   liquibase:
-    # Applies the development seed users in 004-development-seed.sql (see docs/adr/0018), and
-    # the sample accounts to review in 014-development-review-sample-data.sql.
+    # Applies the development seed users in development-seed.sql (see docs/adr/0018), and
+    # the sample accounts to review in the same file.
     contexts: dev,demo

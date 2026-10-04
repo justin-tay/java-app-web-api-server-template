@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,6 +53,8 @@ import com.example.commons.web.problem.ResourceNotFoundException;
 @AccountsJpaTest
 @ExtendWith(OutputCaptureExtension.class)
 class AdministrationServiceTest {
+
+	private static final UUID MISSING = UUID.fromString("00000000-0000-0000-0000-00000000dead");
 
 	@Autowired
 	private TestEntityManager entityManager;
@@ -182,27 +185,26 @@ class AdministrationServiceTest {
 
 	@Test
 	void rejectsAUserInAGroupThatDoesNotExist() {
-		assertThatExceptionOfType(ResourceNotFoundException.class)
-			.isThrownBy(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null,
-					Set.of(this.managers.getId(), "missing"))))
+		assertThatExceptionOfType(ResourceNotFoundException.class).isThrownBy(() -> this.service.createUser(
+				new AdminDtos.UserCreateRequest("new-user", "New User", null, Set.of(this.managers.getId(), MISSING))))
 			.withMessage("Group was not found.");
 		assertThat(this.users.existsByUsername("new-user")).isFalse();
 	}
 
 	@Test
 	void reportsAnUnknownUserGroupOrRole() {
-		assertThatExceptionOfType(ResourceNotFoundException.class).isThrownBy(() -> this.service.user("missing"))
+		assertThatExceptionOfType(ResourceNotFoundException.class).isThrownBy(() -> this.service.user(MISSING))
 			.withMessage("User was not found.");
-		assertThatExceptionOfType(ResourceNotFoundException.class).isThrownBy(() -> this.service.group("missing"))
+		assertThatExceptionOfType(ResourceNotFoundException.class).isThrownBy(() -> this.service.group(MISSING))
 			.withMessage("Group was not found.");
-		assertThatExceptionOfType(ResourceNotFoundException.class).isThrownBy(() -> this.service.role("missing"))
+		assertThatExceptionOfType(ResourceNotFoundException.class).isThrownBy(() -> this.service.role(MISSING))
 			.withMessage("Role was not found.");
 	}
 
 	@Test
 	void doesNotRevokeSessionsOrRemoveAnUnknownUser() {
 		assertThatExceptionOfType(ResourceNotFoundException.class)
-			.isThrownBy(() -> this.lifecycle.remove("missing", ReasonCode.OTHER, null));
+			.isThrownBy(() -> this.lifecycle.remove(MISSING, ReasonCode.OTHER, null));
 
 		assertThat(sessionOf("test-user").isExpired()).isFalse();
 		assertThat(this.users.count()).isEqualTo(1);
@@ -237,7 +239,7 @@ class AdministrationServiceTest {
 	@Test
 	void rejectsAGroupWithARoleThatDoesNotExist() {
 		assertThatExceptionOfType(ResourceNotFoundException.class)
-			.isThrownBy(() -> this.service.createGroup(new AdminDtos.GroupRequest("New Group", Set.of("missing"))))
+			.isThrownBy(() -> this.service.createGroup(new AdminDtos.GroupRequest("New Group", Set.of(MISSING))))
 			.withMessage("Role was not found.");
 		assertThat(this.groups.existsByName("New Group")).isFalse();
 	}

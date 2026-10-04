@@ -4,9 +4,11 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -95,10 +97,10 @@ public class AdministrationService {
 		return saved;
 	}
 
-	public AppUser updateUser(String id, AdminDtos.UserUpdateRequest request) {
+	public AppUser updateUser(UUID id, AdminDtos.UserUpdateRequest request) {
 		AppUser user = user(id);
 		UserState before = UserState.of(user);
-		Set<String> previousGroupIds = user.getGroups().stream().map(AppGroup::getId).collect(Collectors.toSet());
+		Set<UUID> previousGroupIds = user.getGroups().stream().map(AppGroup::getId).collect(Collectors.toSet());
 		Set<AppGroup> requestedGroups = groups(request.groupIds());
 		boolean accessChanged = !previousGroupIds.equals(request.groupIds());
 		if (accessChanged && isActor(user)) {
@@ -126,7 +128,7 @@ public class AdministrationService {
 	 * session may have been taken over.
 	 * @param id the user ID
 	 */
-	public void revokeSessions(String id) {
+	public void revokeSessions(UUID id) {
 		AppUser user = user(id);
 		int revoked = this.sessionRevocationService.revoke(user.getUsername(), "administrative_revocation");
 		this.auditLogger.sessionsRevoked(user.getUsername(), revoked);
@@ -147,7 +149,7 @@ public class AdministrationService {
 		this.auditLogger.sessionsRevoked(null, revoked);
 	}
 
-	public AppUser user(String id) {
+	public AppUser user(UUID id) {
 		return this.users.findById(id).orElseThrow(() -> new ResourceNotFoundException("User"));
 	}
 
@@ -156,14 +158,15 @@ public class AdministrationService {
 	 * {@code search} matches a username, name, or email containing it, or an exact ID.
 	 */
 	public record UserQuery(String search, String username, String name, String email, AccountStatus status,
-			Boolean neverSignedIn, String groupId, LocalDate createdFrom, LocalDate createdTo) {
+			Boolean neverSignedIn, UUID groupId, LocalDate createdFrom, LocalDate createdTo) {
 	}
 
 	public Page<AppUser> users(UserQuery query, Pageable pageable) {
-		Specification<AppUser> search = isBlank(query.search()) ? null
-				: Specification.anyOf(this.<AppUser>contains("username", query.search()),
-						this.<AppUser>contains("name", query.search()), this.<AppUser>contains("email", query.search()),
-						this.<AppUser>equals("id", query.search()));
+		Specification<AppUser> search = isBlank(query.search()) ? null : Specification.anyOf(Stream
+			.of(this.<AppUser>contains("username", query.search()), this.<AppUser>contains("name", query.search()),
+					this.<AppUser>contains("email", query.search()), this.<AppUser>equals("id", asUuid(query.search())))
+			.filter(Objects::nonNull)
+			.toList());
 		Specification<AppUser> specification = Specification.allOf(Stream
 			.of(search, this.<AppUser>contains("username", query.username()),
 					this.<AppUser>contains("name", query.name()), this.<AppUser>contains("email", query.email()),
@@ -203,7 +206,7 @@ public class AdministrationService {
 		return saved;
 	}
 
-	public AppGroup updateGroup(String id, AdminDtos.GroupRequest request) {
+	public AppGroup updateGroup(UUID id, AdminDtos.GroupRequest request) {
 		AppGroup group = group(id);
 		GroupState before = GroupState.of(group);
 		if (!group.getName().equals(request.name()) && this.groups.existsByName(request.name())) {
@@ -225,7 +228,7 @@ public class AdministrationService {
 		return group;
 	}
 
-	public void deleteGroup(String id) {
+	public void deleteGroup(UUID id) {
 		AppGroup group = group(id);
 		GroupState before = GroupState.of(group);
 		if (this.users.existsByGroups_Id(id)) {
@@ -236,11 +239,11 @@ public class AdministrationService {
 		this.auditLogger.groupDeleted(before);
 	}
 
-	public AppGroup group(String id) {
+	public AppGroup group(UUID id) {
 		return this.groups.findById(id).orElseThrow(() -> new ResourceNotFoundException("Group"));
 	}
 
-	public Page<AppGroup> groups(String search, String name, String roleId, Pageable pageable) {
+	public Page<AppGroup> groups(String search, String name, UUID roleId, Pageable pageable) {
 		Specification<AppGroup> specification = Specification
 			.allOf(Stream
 				.of(this.<AppGroup>contains("name", search), this.<AppGroup>contains("name", name),
@@ -262,7 +265,7 @@ public class AdministrationService {
 		return saved;
 	}
 
-	public void deleteRole(String id) {
+	public void deleteRole(UUID id) {
 		AppRole role = role(id);
 		RoleState before = RoleState.of(role);
 		if (RESERVED_ROLES.contains(role.getName())) {
@@ -277,7 +280,7 @@ public class AdministrationService {
 		this.auditLogger.roleDeleted(before);
 	}
 
-	public AppRole role(String id) {
+	public AppRole role(UUID id) {
 		return this.roles.findById(id).orElseThrow(() -> new ResourceNotFoundException("Role"));
 	}
 
@@ -315,14 +318,14 @@ public class AdministrationService {
 			.orElse(true);
 	}
 
-	private Set<AppGroup> groups(Set<String> ids) {
+	private Set<AppGroup> groups(Set<UUID> ids) {
 		Set<AppGroup> values = Set.copyOf(this.groups.findAllById(ids));
 		if (values.size() != ids.size())
 			throw new ResourceNotFoundException("Group");
 		return values;
 	}
 
-	private Set<AppRole> roles(Set<String> ids) {
+	private Set<AppRole> roles(Set<UUID> ids) {
 		Set<AppRole> values = Set.copyOf(this.roles.findAllById(ids));
 		if (values.size() != ids.size())
 			throw new ResourceNotFoundException("Role");
@@ -351,6 +354,19 @@ public class AdministrationService {
 	 */
 	private static String escapeLike(String value) {
 		return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+	}
+
+	/**
+	 * Returns the UUID the text spells, or null if it is not one, so a search term that
+	 * is not an ID matches no ID.
+	 */
+	private static UUID asUuid(String text) {
+		try {
+			return text.length() == 36 ? UUID.fromString(text) : null;
+		}
+		catch (IllegalArgumentException ex) {
+			return null;
+		}
 	}
 
 	private <T> Specification<T> equals(String field, Object value) {

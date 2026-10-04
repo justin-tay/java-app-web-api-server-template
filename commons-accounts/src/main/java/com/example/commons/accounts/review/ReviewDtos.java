@@ -4,13 +4,12 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-
-import com.example.commons.accounts.validation.ResourceId;
 
 public final class ReviewDtos {
 
@@ -23,7 +22,7 @@ public final class ReviewDtos {
 	 * @param overdue whether the task is open and past its due date
 	 * @param counts the number of items in each review status, keyed by the status value
 	 */
-	public record TaskResponse(String id, String type, String status, LocalDate startDate, LocalDate dueDate,
+	public record TaskResponse(UUID id, String type, String status, LocalDate startDate, LocalDate dueDate,
 			Instant completedAt, String completedBy, boolean overdue, Map<String, Long> counts) {
 	}
 
@@ -44,12 +43,12 @@ public final class ReviewDtos {
 	 * @param ownAccount whether the row is the caller's own account, which they cannot
 	 * act on
 	 */
-	public record ReviewItemResponse(String id, String userId, String username, String name, String category,
+	public record ReviewItemResponse(UUID id, UUID userId, String username, String name, String category,
 			String reviewStatus, boolean ownAccount, Instant lastLoginAt, Instant suspendedAt, Instant removedAt,
 			String removedBy, String reasonCode, String reasonNote, String decidedBy, Instant decidedAt) {
 	}
 
-	public record DecisionRequest(@NotEmpty @Size(max = 100) List<@ResourceId String> itemIds,
+	public record DecisionRequest(@NotEmpty @Size(max = 100) List<UUID> itemIds,
 			@NotNull @Pattern(regexp = "verify|remove") String decision,
 			@Pattern(regexp = "left_organisation|no_longer_required|policy_violation|other") String reasonCode,
 			@Size(max = 200) String note) {

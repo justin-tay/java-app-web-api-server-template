@@ -23,5 +23,5 @@ logging:
         environment: test
 spring:
   liquibase:
-    # Applies the development seed users in 004-development-seed.sql (see docs/adr/0018).
+    # Applies the development seed users in development-seed.sql (see docs/adr/0018).
     contexts: dev

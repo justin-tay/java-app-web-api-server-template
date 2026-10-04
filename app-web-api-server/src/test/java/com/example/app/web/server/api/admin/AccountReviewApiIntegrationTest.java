@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -68,7 +69,7 @@ class AccountReviewApiIntegrationTest {
 		this.mockMvc.perform(get("/tasks").param("status", "open").with(loginAs("account-reviewer-1")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.totalItems").value(1))
-			.andExpect(jsonPath("$.items[0].id").value(task.getId()))
+			.andExpect(jsonPath("$.items[0].id").value(task.getId().toString()))
 			.andExpect(jsonPath("$.items[0].type").value("account_review"))
 			.andExpect(jsonPath("$.items[0].status").value("open"))
 			.andExpect(jsonPath("$.items[0].overdue").value(false))
@@ -106,8 +107,8 @@ class AccountReviewApiIntegrationTest {
 	@Test
 	void aReviewerVerifiesAnotherReviewersAccountButNotTheirOwn() throws Exception {
 		Task task = createTask();
-		String own = itemId(task, "account-reviewer-1");
-		String other = itemId(task, "account-reviewer-2");
+		UUID own = itemId(task, "account-reviewer-1");
+		UUID other = itemId(task, "account-reviewer-2");
 
 		this.mockMvc
 			.perform(decisions(task, "{\"itemIds\":[\"" + own + "\",\"" + other + "\"],\"decision\":\"verify\"}",
@@ -133,7 +134,7 @@ class AccountReviewApiIntegrationTest {
 	@Test
 	void aRemovalNeedsAReasonAndDeletesTheAccountButTheRemovedCategoryStillShowsIt() throws Exception {
 		Task task = createTask();
-		String user = itemId(task, "user");
+		UUID user = itemId(task, "user");
 
 		this.mockMvc
 			.perform(decisions(task, "{\"itemIds\":[\"" + user + "\"],\"decision\":\"remove\"}", "account-reviewer-1"))
@@ -163,7 +164,7 @@ class AccountReviewApiIntegrationTest {
 	@Test
 	void suspendingFromAnItemRecordsTheReasonAndLeavesTheItemPending() throws Exception {
 		Task task = createTask();
-		String user = itemId(task, "user");
+		UUID user = itemId(task, "user");
 
 		this.mockMvc
 			.perform(post("/account-reviews/tasks/" + task.getId() + "/items/" + user + "/suspend")
@@ -185,7 +186,7 @@ class AccountReviewApiIntegrationTest {
 	@Test
 	void aChangeNeedsARecentLogin() throws Exception {
 		Task task = createTask();
-		String user = itemId(task, "user");
+		UUID user = itemId(task, "user");
 
 		this.mockMvc
 			.perform(post("/account-reviews/tasks/" + task.getId() + "/decisions")
@@ -215,7 +216,7 @@ class AccountReviewApiIntegrationTest {
 		return this.service.createTask(ReviewWindow.containing(LocalDate.now(), 3));
 	}
 
-	private String itemId(Task task, String username) {
+	private UUID itemId(Task task, String username) {
 		return this.items.findAll()
 			.stream()
 			.filter(item -> item.getTaskId().equals(task.getId()) && item.getUsername().equals(username))

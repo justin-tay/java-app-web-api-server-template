@@ -21,7 +21,7 @@ public class AppUserPasskeyUserDirectory implements PasskeyUserDirectory {
 	@Override
 	public Optional<PasskeyUser> findByUsername(String username) {
 		return this.users.findByUsernameAndStatus(username, AccountStatus.ACTIVE)
-			.map(user -> new PasskeyUser(user.getId(), user.getUsername(), user.getName()));
+			.map(user -> new PasskeyUser(user.getId().toString(), user.getUsername(), user.getName()));
 	}
 
 }

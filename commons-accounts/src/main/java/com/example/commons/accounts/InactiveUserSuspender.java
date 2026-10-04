@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,8 +67,8 @@ public class InactiveUserSuspender {
 
 	private int removeInactive(Instant cutoff) {
 		int count = 0;
-		List<String> ids = this.users.findIdsInactiveSince(cutoff);
-		for (String id : ids) {
+		List<UUID> ids = this.users.findIdsInactiveSince(cutoff);
+		for (UUID id : ids) {
 			try {
 				this.lifecycle.remove(id, ReasonCode.INACTIVE_ACCOUNT, null);
 				count++;
@@ -81,8 +82,8 @@ public class InactiveUserSuspender {
 
 	private int suspendInactive(Instant cutoff) {
 		int count = 0;
-		List<String> ids = this.users.findActiveIdsInactiveSince(cutoff);
-		for (String id : ids) {
+		List<UUID> ids = this.users.findActiveIdsInactiveSince(cutoff);
+		for (UUID id : ids) {
 			try {
 				this.lifecycle.suspend(id, ReasonCode.INACTIVE_ACCOUNT, null);
 				count++;

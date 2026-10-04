@@ -8,6 +8,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -30,7 +31,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.commons.accounts.validation.ResourceId;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.ReasonCode;
 import com.example.commons.accounts.domain.AccountStatus;
@@ -62,8 +62,7 @@ public class UserAdminController {
 			@RequestParam(required = false) @Size(max = 100) String name,
 			@RequestParam(required = false) @Size(max = 100) String email,
 			@RequestParam(required = false) @Pattern(regexp = "active|suspended") String status,
-			@RequestParam(required = false) Boolean neverSignedIn,
-			@RequestParam(required = false) @ResourceId String groupId,
+			@RequestParam(required = false) Boolean neverSignedIn, @RequestParam(required = false) UUID groupId,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdFrom,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdTo,
 			@RequestParam(defaultValue = "0") @Min(0) int page,
@@ -79,12 +78,12 @@ public class UserAdminController {
 	}
 
 	@GetMapping("/{id}")
-	public UserResponse get(@PathVariable @ResourceId String id) {
+	public UserResponse get(@PathVariable UUID id) {
 		return response(this.service.user(id));
 	}
 
 	@PutMapping("/{id}")
-	public UserResponse update(@PathVariable @ResourceId String id, @Valid @RequestBody UserUpdateRequest request) {
+	public UserResponse update(@PathVariable UUID id, @Valid @RequestBody UserUpdateRequest request) {
 		return response(this.service.updateUser(id, request));
 	}
 
@@ -95,14 +94,13 @@ public class UserAdminController {
 	 * @return no content
 	 */
 	@PostMapping("/{id}/suspend")
-	public ResponseEntity<Void> suspend(@PathVariable @ResourceId String id,
-			@Valid @RequestBody AccountActionRequest request) {
+	public ResponseEntity<Void> suspend(@PathVariable UUID id, @Valid @RequestBody AccountActionRequest request) {
 		this.lifecycle.suspend(id, ReasonCode.fromValue(request.reasonCode()), request.note());
 		return ResponseEntity.noContent().build();
 	}
 
 	@PostMapping("/{id}/unsuspend")
-	public ResponseEntity<Void> unsuspend(@PathVariable @ResourceId String id) {
+	public ResponseEntity<Void> unsuspend(@PathVariable UUID id) {
 		this.lifecycle.unsuspend(id);
 		return ResponseEntity.noContent().build();
 	}
@@ -114,8 +112,7 @@ public class UserAdminController {
 	 * @return no content
 	 */
 	@PostMapping("/{id}/remove")
-	public ResponseEntity<Void> remove(@PathVariable @ResourceId String id,
-			@Valid @RequestBody AccountActionRequest request) {
+	public ResponseEntity<Void> remove(@PathVariable UUID id, @Valid @RequestBody AccountActionRequest request) {
 		this.lifecycle.remove(id, ReasonCode.fromValue(request.reasonCode()), request.note());
 		return ResponseEntity.noContent().build();
 	}
@@ -126,7 +123,7 @@ public class UserAdminController {
 	 * @return no content
 	 */
 	@DeleteMapping("/{id}/sessions")
-	public ResponseEntity<Void> revokeSessions(@PathVariable @ResourceId String id) {
+	public ResponseEntity<Void> revokeSessions(@PathVariable UUID id) {
 		this.service.revokeSessions(id);
 		return ResponseEntity.noContent().build();
 	}

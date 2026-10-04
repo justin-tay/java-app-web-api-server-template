@@ -10,9 +10,10 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 
 /**
  * A {@link DataJpaTest} of the accounts model against an in-memory H2 database whose
- * schema is this module's Liquibase changelog, {@code 001-authorisation-schema.sql}.
- * Hibernate validates the entity mappings against that schema rather than generating its
- * own, so a mapping that drifts from the changelog fails the test. The configuration is
+ * schema is this module's Liquibase changelog,
+ * {@code com/example/commons/accounts/jdbc/schema.yaml}. Hibernate validates the entity
+ * mappings against that schema rather than generating its own, so a mapping that drifts
+ * from the changelog fails the test. The configuration is
  * {@link AccountsTestConfiguration}.
  */
 @Target(ElementType.TYPE)

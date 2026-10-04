@@ -22,6 +22,15 @@ class CommonsRuntimeHintsTest {
 	}
 
 	@Test
+	void includesTheSessionSchemaScriptsInANativeImage() {
+		for (String script : new String[] { "schema.yaml", "schema-h2.sql", "schema-postgresql.sql",
+				"schema-sqlserver.sql" }) {
+			assertThat(RuntimeHintsPredicates.resource().forResource("com/example/commons/session/jdbc/" + script))
+				.accepts(this.hints);
+		}
+	}
+
+	@Test
 	void letsSpringSecurityFindTheDefaultAuthenticationFailureEventConstructor() throws NoSuchMethodException {
 		assertThat(RuntimeHintsPredicates.reflection()
 			.onConstructorInvocation(AbstractAuthenticationFailureEvent.class.getConstructor(Authentication.class,

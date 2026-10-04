@@ -1,6 +1,7 @@
 package com.example.commons.accounts.admin;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -11,7 +12,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.commons.accounts.validation.ResourceId;
 import com.example.commons.security.authentication.passkey.PasskeyManager;
 import com.example.commons.security.authentication.passkey.PasskeyManager.Passkey;
 import com.example.commons.web.problem.ResourceNotFoundException;
@@ -39,13 +39,13 @@ public class UserPasskeyAdminController {
 	}
 
 	@GetMapping
-	public List<Passkey> list(@PathVariable @ResourceId String id) {
-		return this.passkeyManager.list(this.service.user(id).getId());
+	public List<Passkey> list(@PathVariable UUID id) {
+		return this.passkeyManager.list(this.service.user(id).getId().toString());
 	}
 
 	@DeleteMapping("/{credentialId}")
-	public ResponseEntity<Void> remove(@PathVariable @ResourceId String id, @PathVariable String credentialId) {
-		if (!this.passkeyManager.remove(this.service.user(id).getId(), credentialId)) {
+	public ResponseEntity<Void> remove(@PathVariable UUID id, @PathVariable String credentialId) {
+		if (!this.passkeyManager.remove(this.service.user(id).getId().toString(), credentialId)) {
 			throw new ResourceNotFoundException("Passkey");
 		}
 		return ResponseEntity.noContent().build();

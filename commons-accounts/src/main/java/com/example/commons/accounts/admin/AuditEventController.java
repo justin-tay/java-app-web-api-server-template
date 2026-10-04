@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Set;
+import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Max;
@@ -47,8 +48,8 @@ public class AuditEventController {
 	/**
 	 * One audit event, with its details as an object.
 	 */
-	public record AuditEventResponse(String id, Instant occurredAt, String actor, String action, String targetType,
-			String targetId, String targetName, String targetDisplayName, String reasonCode, String reasonNote,
+	public record AuditEventResponse(UUID id, Instant occurredAt, String actor, String action, String targetType,
+			String targetId, String targetName, String targetFullName, String reasonCode, String reasonNote,
 			Object details) {
 	}
 
@@ -93,7 +94,7 @@ public class AuditEventController {
 	private static AuditEventResponse response(AccountAuditEvent event) {
 		Object details = event.getDetails() == null ? null : JSON.readValue(event.getDetails(), Object.class);
 		return new AuditEventResponse(event.getId(), event.getOccurredAt(), event.getActor(), event.getAction(),
-				event.getTargetType(), event.getTargetId(), event.getTargetName(), event.getTargetDisplayName(),
+				event.getTargetType(), event.getTargetId(), event.getTargetName(), event.getTargetFullName(),
 				event.getReasonCode(), event.getReasonNote(), details);
 	}
 

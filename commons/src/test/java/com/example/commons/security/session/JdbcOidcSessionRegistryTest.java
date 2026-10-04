@@ -25,8 +25,8 @@ import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 
 /**
- * Tests {@link JdbcOidcSessionRegistry} against the tables the Liquibase changelogs
- * create, run as plain SQL scripts on an in-memory H2 database.
+ * Tests {@link JdbcOidcSessionRegistry} against the H2 schema script the session module
+ * ships, run on an in-memory H2 database.
  */
 class JdbcOidcSessionRegistryTest {
 
@@ -44,8 +44,8 @@ class JdbcOidcSessionRegistryTest {
 	void createDatabase() {
 		this.database = new EmbeddedDatabaseBuilder().setType(EmbeddedDatabaseType.H2)
 			.setName(UUID.randomUUID().toString())
-			.addScript("classpath:db/changelog/003-spring-session-schema.sql")
-			.addScript("classpath:db/changelog/005-oidc-session-registry.sql")
+			.addScript("classpath:com/example/commons/session/jdbc/schema-h2.sql")
+			.addScript("classpath:com/example/commons/session/oidc/jdbc/schema-h2.sql")
 			.build();
 		this.jdbcClient = JdbcClient.create((DataSource) this.database);
 		this.registry = registry(NOW);

@@ -265,7 +265,7 @@ class AccountAuditLoggingTest {
 		assertThat(events).extracting(AccountAuditEvent::getTargetType).containsOnly("USER");
 		AccountAuditEvent removal = events.get(2);
 		assertThat(removal.getTargetName()).isEqualTo("test-user");
-		assertThat(removal.getTargetDisplayName()).isEqualTo("Test User");
+		assertThat(removal.getTargetFullName()).isEqualTo("Test User");
 		assertThat(removal.getReasonCode()).isEqualTo("left_organisation");
 		assertThat(events.get(1).getReasonNote()).isEqualTo("see ticket");
 		assertThat(events).extracting(AccountAuditEvent::getDetails).noneMatch(details -> details.contains("@"));

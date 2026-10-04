@@ -1,0 +1,32 @@
+# The table of the OpenID Connect session registry, with the names JdbcOidcSessionRegistry
+# expects. It is only needed by an application that uses back-channel logout. An
+# application's master changelog includes this file.
+#
+# It links an OpenID Provider session to the local session created at login, so a
+# back-channel logout token can be resolved to the local session it ends on any instance.
+# There is no foreign key to SPRING_SESSION: the link is written before Spring Session saves
+# the session row, and JdbcOidcSessionRegistry purges the links of expired sessions.
+databaseChangeLog:
+  # The binary type differs by database: Liquibase's generic blob type is a large object on
+  # PostgreSQL, where a byte array is expected.
+  - property: { name: binary.type, value: LONGVARBINARY, dbms: h2 }
+  - property: { name: binary.type, value: BYTEA, dbms: postgresql }
+  - property: { name: binary.type, value: "VARBINARY(MAX)", dbms: mssql }
+  - changeSet:
+      id: oidc-session-schema
+      author: commons
+      changes:
+        - createTable:
+            tableName: OIDC_SESSION
+            columns:
+              - column: { name: SESSION_ID, type: varchar(64), constraints: { nullable: false, primaryKey: true, primaryKeyName: OIDC_SESSION_PK } }
+              - column: { name: CREATION_TIME, type: bigint, constraints: { nullable: false } }
+              - column: { name: ISSUER, type: varchar(255), constraints: { nullable: false } }
+              - column: { name: SUBJECT, type: varchar(255) }
+              - column: { name: PROVIDER_SESSION_ID, type: varchar(255) }
+              - column: { name: SESSION_INFORMATION, type: "${binary.type}", constraints: { nullable: false } }
+        - createIndex: { tableName: OIDC_SESSION, indexName: OIDC_SESSION_IX1, columns: [ { column: { name: ISSUER } }, { column: { name: PROVIDER_SESSION_ID } } ] }
+        - createIndex: { tableName: OIDC_SESSION, indexName: OIDC_SESSION_IX2, columns: [ { column: { name: ISSUER } }, { column: { name: SUBJECT } } ] }
+        - createIndex: { tableName: OIDC_SESSION, indexName: OIDC_SESSION_IX3, columns: [ { column: { name: CREATION_TIME } } ] }
+      rollback:
+        - dropTable: { tableName: OIDC_SESSION }

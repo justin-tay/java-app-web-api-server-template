@@ -60,8 +60,9 @@ import com.example.commons.security.session.SessionRevocationService;
  * registered through {@link AutoConfigurationPackage}, which adds this package to the
  * application's own entity and repository scanning rather than replacing it, as
  * {@code @EntityScan} would. The schema is the Liquibase changelog
- * {@code db/changelog/001-authorisation-schema.sql} on this module's classpath, which the
- * application's master changelog includes; a backend that only reads a user store another
+ * {@code com/example/commons/accounts/jdbc/schema.yaml} on this module's classpath, with
+ * a SQL script per database beside it, which the application's master changelog includes
+ * or its own migration tool applies; a backend that only reads a user store another
  * backend owns leaves it out.
  *
  * <p>

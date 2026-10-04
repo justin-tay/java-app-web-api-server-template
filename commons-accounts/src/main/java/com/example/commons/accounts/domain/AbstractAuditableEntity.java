@@ -1,6 +1,7 @@
 package com.example.commons.accounts.domain;
 
 import java.time.Instant;
+
 import java.util.UUID;
 
 import jakarta.persistence.Column;
@@ -10,6 +11,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
 
 /**
@@ -22,13 +24,13 @@ import org.hibernate.type.SqlTypes;
 public abstract class AbstractAuditableEntity {
 
 	/**
-	 * A UUID in its 36-character text form, stored as {@code CHAR(36)} as
-	 * {@code 001-authorisation-schema.sql} defines it.
+	 * A UUID in its 36-character text form, held in the database's UUID type and
+	 * generated as a version 7 (time-ordered) value when the entity is persisted.
 	 */
 	@Id
-	@Column(length = 36)
-	@JdbcTypeCode(SqlTypes.CHAR)
-	private String id;
+	@UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+	@JdbcTypeCode(SqlTypes.UUID)
+	private UUID id;
 
 	private Instant createdAt;
 
@@ -40,7 +42,6 @@ public abstract class AbstractAuditableEntity {
 
 	@PrePersist
 	void onCreate() {
-		this.id = UUID.randomUUID().toString();
 		this.createdAt = Instant.now();
 		this.createdBy = Auditor.current();
 		this.updatedAt = this.createdAt;
@@ -52,7 +53,7 @@ public abstract class AbstractAuditableEntity {
 		touch();
 	}
 
-	public String getId() {
+	public UUID getId() {
 		return this.id;
 	}
 

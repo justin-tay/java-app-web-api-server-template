@@ -5,6 +5,7 @@ import static com.example.commons.accounts.admin.AdminDtos.*;
 import java.net.URI;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -16,7 +17,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import com.example.commons.accounts.validation.ResourceId;
 import com.example.commons.accounts.domain.AppRole;
 
 @RestController
@@ -54,7 +54,7 @@ public class RoleAdminController {
 	}
 
 	@GetMapping("/{id}")
-	public RoleResponse get(@PathVariable @ResourceId String id) {
+	public RoleResponse get(@PathVariable UUID id) {
 		AppRole role = this.service.role(id);
 		return response(role);
 	}
@@ -64,7 +64,7 @@ public class RoleAdminController {
 	}
 
 	@DeleteMapping("/{id}")
-	public ResponseEntity<Void> delete(@PathVariable @ResourceId String id) {
+	public ResponseEntity<Void> delete(@PathVariable UUID id) {
 		this.service.deleteRole(id);
 		return ResponseEntity.noContent().build();
 	}

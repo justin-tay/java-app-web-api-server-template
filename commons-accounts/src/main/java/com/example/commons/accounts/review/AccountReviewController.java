@@ -2,6 +2,7 @@ package com.example.commons.accounts.review;
 
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -32,7 +33,6 @@ import com.example.commons.accounts.review.AccountReviewService.Category;
 import com.example.commons.accounts.review.ReviewDtos.DecisionRequest;
 import com.example.commons.accounts.review.ReviewDtos.ReviewItemResponse;
 import com.example.commons.accounts.review.ReviewDtos.TaskResponse;
-import com.example.commons.accounts.validation.ResourceId;
 import com.example.commons.web.problem.BadRequestException;
 
 /**
@@ -51,12 +51,12 @@ public class AccountReviewController {
 	}
 
 	@GetMapping
-	public TaskResponse get(@PathVariable @ResourceId String taskId) {
+	public TaskResponse get(@PathVariable UUID taskId) {
 		return this.service.response(this.service.task(taskId));
 	}
 
 	@GetMapping("/items")
-	public PageResponse<ReviewItemResponse> items(@PathVariable @ResourceId String taskId,
+	public PageResponse<ReviewItemResponse> items(@PathVariable UUID taskId,
 			@RequestParam @NotNull @Pattern(regexp = "active|suspended|removed") String category,
 			@RequestParam(required = false) @Pattern(
 					regexp = "pending_verification|verified|removed") String reviewStatus,
@@ -79,8 +79,7 @@ public class AccountReviewController {
 	 * @return no content
 	 */
 	@PostMapping("/decisions")
-	public ResponseEntity<Void> decide(@PathVariable @ResourceId String taskId,
-			@Valid @RequestBody DecisionRequest request) {
+	public ResponseEntity<Void> decide(@PathVariable UUID taskId, @Valid @RequestBody DecisionRequest request) {
 		boolean verify = request.decision().equals("verify");
 		if (!verify && request.reasonCode() == null) {
 			throw new BadRequestException("A removal needs a reason code.");
@@ -91,15 +90,14 @@ public class AccountReviewController {
 	}
 
 	@PostMapping("/items/{itemId}/suspend")
-	public ResponseEntity<Void> suspend(@PathVariable @ResourceId String taskId,
-			@PathVariable @ResourceId String itemId, @Valid @RequestBody AccountActionRequest request) {
+	public ResponseEntity<Void> suspend(@PathVariable UUID taskId, @PathVariable UUID itemId,
+			@Valid @RequestBody AccountActionRequest request) {
 		this.service.suspend(taskId, itemId, ReasonCode.fromValue(request.reasonCode()), request.note());
 		return ResponseEntity.noContent().build();
 	}
 
 	@PostMapping("/items/{itemId}/unsuspend")
-	public ResponseEntity<Void> unsuspend(@PathVariable @ResourceId String taskId,
-			@PathVariable @ResourceId String itemId) {
+	public ResponseEntity<Void> unsuspend(@PathVariable UUID taskId, @PathVariable UUID itemId) {
 		this.service.unsuspend(taskId, itemId);
 		return ResponseEntity.noContent().build();
 	}

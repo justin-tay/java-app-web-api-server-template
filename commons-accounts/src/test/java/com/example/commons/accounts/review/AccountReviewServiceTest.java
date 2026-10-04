@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +49,8 @@ import com.example.commons.web.problem.ConflictException;
  */
 @AccountsJpaTest
 class AccountReviewServiceTest {
+
+	private static final UUID UNKNOWN = UUID.fromString("00000000-0000-0000-0000-00000000dead");
 
 	private static final Instant NOW = Instant.parse("2026-05-15T10:00:00Z");
 
@@ -197,7 +200,7 @@ class AccountReviewServiceTest {
 		Task task = this.service.createTask(WINDOW);
 		flushAndClear();
 		authenticateAs("rachel");
-		String itemId = itemOf(task, "rachel").getId();
+		UUID itemId = itemOf(task, "rachel").getId();
 
 		assertThatExceptionOfType(AccessDeniedException.class)
 			.isThrownBy(() -> this.service.suspend(task.getId(), itemId, ReasonCode.OTHER, null));
@@ -217,13 +220,13 @@ class AccountReviewServiceTest {
 		authenticateAs("rachel");
 		this.service.decide(task.getId(), List.of(itemOf(task, "alice").getId()), true, null, null);
 		flushAndClear();
-		String bob = itemOf(task, "bob").getId();
-		String alice = itemOf(task, "alice").getId();
+		UUID bob = itemOf(task, "bob").getId();
+		UUID alice = itemOf(task, "alice").getId();
 
 		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.decide(task.getId(), List.of(bob, alice, "unknown"), true, null, null))
-			.withMessageContaining(alice)
-			.withMessageContaining("unknown");
+			.isThrownBy(() -> this.service.decide(task.getId(), List.of(bob, alice, UNKNOWN), true, null, null))
+			.withMessageContaining(alice.toString())
+			.withMessageContaining(UNKNOWN.toString());
 		flushAndClear();
 
 		assertThat(itemOf(task, "bob").getReviewStatus()).isEqualTo(ReviewStatus.PENDING_VERIFICATION);
@@ -298,7 +301,7 @@ class AccountReviewServiceTest {
 		Task task = this.service.createTask(WINDOW);
 		flushAndClear();
 		authenticateAs("rachel");
-		String itemId = itemOf(task, "alice").getId();
+		UUID itemId = itemOf(task, "alice").getId();
 
 		this.service.suspend(task.getId(), itemId, ReasonCode.POLICY_VIOLATION, null);
 		flushAndClear();

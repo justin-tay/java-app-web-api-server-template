@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
 
 /**
@@ -21,9 +22,9 @@ import org.hibernate.type.SqlTypes;
 public class AccountAuditEvent {
 
 	@Id
-	@Column(length = 36)
-	@JdbcTypeCode(SqlTypes.CHAR)
-	private String id;
+	@UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+	@JdbcTypeCode(SqlTypes.UUID)
+	private UUID id;
 
 	private Instant occurredAt;
 
@@ -37,34 +38,33 @@ public class AccountAuditEvent {
 
 	private String targetName;
 
-	private String targetDisplayName;
+	private String targetFullName;
 
 	private String reasonCode;
 
 	private String reasonNote;
 
-	@Column(columnDefinition = "CLOB")
+	@JdbcTypeCode(SqlTypes.LONG32VARCHAR)
 	private String details;
 
 	protected AccountAuditEvent() {
 	}
 
 	public AccountAuditEvent(Instant occurredAt, String actor, String action, String targetType, String targetId,
-			String targetName, String targetDisplayName, String reasonCode, String reasonNote, String details) {
-		this.id = UUID.randomUUID().toString();
+			String targetName, String targetFullName, String reasonCode, String reasonNote, String details) {
 		this.occurredAt = occurredAt;
 		this.actor = actor;
 		this.action = action;
 		this.targetType = targetType;
 		this.targetId = targetId;
 		this.targetName = targetName;
-		this.targetDisplayName = targetDisplayName;
+		this.targetFullName = targetFullName;
 		this.reasonCode = reasonCode;
 		this.reasonNote = reasonNote;
 		this.details = details;
 	}
 
-	public String getId() {
+	public UUID getId() {
 		return this.id;
 	}
 
@@ -92,8 +92,8 @@ public class AccountAuditEvent {
 		return this.targetName;
 	}
 
-	public String getTargetDisplayName() {
-		return this.targetDisplayName;
+	public String getTargetFullName() {
+		return this.targetFullName;
 	}
 
 	public String getReasonCode() {

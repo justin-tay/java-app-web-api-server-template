@@ -3,7 +3,7 @@ const KEYCLOAK_ADMIN_PASSWORD = process.env.KEYCLOAK_ADMIN_PASSWORD ?? 'admin';
 const KEYCLOAK_SERVER = process.env.KEYCLOAK_SERVER ?? 'http://localhost:8080';
 const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM ?? 'test';
 // The usernames are the OIDC preferred_username and match the local users that
-// 004-development-seed.sql and 013-development-account-review-seed.sql create. First name,
+// development-seed.sql creates. First name,
 // last name and email are set so Keycloak does not ask the user to complete their profile.
 const TEST_USERS = [
   { username: 'admin', firstName: 'Alan', lastName: 'Tan' },

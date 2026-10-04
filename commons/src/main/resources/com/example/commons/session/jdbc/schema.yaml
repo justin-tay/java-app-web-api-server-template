@@ -1,0 +1,41 @@
+# The tables of Spring Session's JDBC session repository, with the table and column names it
+# expects. This is a copy of Spring Session's own schema, because Liquibase owns the schema
+# (docs/adr/0004) and Spring Boot's initializer is disabled, with one difference:
+# SESSION_ID is wide enough for the 43-character IDs of SecureRandomSessionIdGenerator.
+# An application's master changelog includes this file.
+databaseChangeLog:
+  # The binary type differs by database: Liquibase's generic blob type is a large object on
+  # PostgreSQL, where Spring expects bytea.
+  - property: { name: binary.type, value: LONGVARBINARY, dbms: h2 }
+  - property: { name: binary.type, value: BYTEA, dbms: postgresql }
+  - property: { name: binary.type, value: "VARBINARY(MAX)", dbms: mssql }
+  - changeSet:
+      id: spring-session-schema
+      author: commons
+      changes:
+        - createTable:
+            tableName: SPRING_SESSION
+            columns:
+              - column: { name: PRIMARY_ID, type: char(36), constraints: { nullable: false, primaryKey: true, primaryKeyName: SPRING_SESSION_PK } }
+              - column: { name: SESSION_ID, type: varchar(64), constraints: { nullable: false } }
+              - column: { name: CREATION_TIME, type: bigint, constraints: { nullable: false } }
+              - column: { name: LAST_ACCESS_TIME, type: bigint, constraints: { nullable: false } }
+              - column: { name: MAX_INACTIVE_INTERVAL, type: int, constraints: { nullable: false } }
+              - column: { name: EXPIRY_TIME, type: bigint, constraints: { nullable: false } }
+              - column: { name: PRINCIPAL_NAME, type: varchar(100) }
+        - createIndex: { tableName: SPRING_SESSION, indexName: SPRING_SESSION_IX1, unique: true, columns: [ { column: { name: SESSION_ID } } ] }
+        - createIndex: { tableName: SPRING_SESSION, indexName: SPRING_SESSION_IX2, columns: [ { column: { name: EXPIRY_TIME } } ] }
+        - createIndex: { tableName: SPRING_SESSION, indexName: SPRING_SESSION_IX3, columns: [ { column: { name: PRINCIPAL_NAME } } ] }
+        - createTable:
+            tableName: SPRING_SESSION_ATTRIBUTES
+            columns:
+              - column: { name: SESSION_PRIMARY_ID, type: char(36), constraints: { nullable: false } }
+              - column: { name: ATTRIBUTE_NAME, type: varchar(200), constraints: { nullable: false } }
+              - column: { name: ATTRIBUTE_BYTES, type: "${binary.type}", constraints: { nullable: false } }
+        - addPrimaryKey: { tableName: SPRING_SESSION_ATTRIBUTES, columnNames: "SESSION_PRIMARY_ID, ATTRIBUTE_NAME", constraintName: SPRING_SESSION_ATTRIBUTES_PK }
+        - addForeignKeyConstraint: { baseTableName: SPRING_SESSION_ATTRIBUTES, baseColumnNames: SESSION_PRIMARY_ID, constraintName: SPRING_SESSION_ATTRIBUTES_FK, referencedTableName: SPRING_SESSION, referencedColumnNames: PRIMARY_ID, onDelete: CASCADE }
+      # The tables in the reverse of their creation order. This is what
+      # schema-drop-<platform>.sql is generated from.
+      rollback:
+        - dropTable: { tableName: SPRING_SESSION_ATTRIBUTES }
+        - dropTable: { tableName: SPRING_SESSION }

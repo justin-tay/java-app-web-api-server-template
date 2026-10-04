@@ -1,5 +1,7 @@
 package com.example.commons.accounts.admin;
 
+import java.util.UUID;
+
 import java.time.Clock;
 
 import org.springframework.security.access.AccessDeniedException;
@@ -60,7 +62,7 @@ public class AccountLifecycleService {
 		this.clock = clock;
 	}
 
-	public AppUser suspend(String id, ReasonCode reason, String note) {
+	public AppUser suspend(UUID id, ReasonCode reason, String note) {
 		return suspend(user(id), reason, note);
 	}
 
@@ -77,7 +79,7 @@ public class AccountLifecycleService {
 		return user;
 	}
 
-	public AppUser unsuspend(String id) {
+	public AppUser unsuspend(UUID id) {
 		AppUser user = user(id);
 		UserState before = UserState.of(user);
 		rejectSelfModification(user, before, false);
@@ -90,7 +92,7 @@ public class AccountLifecycleService {
 		return user;
 	}
 
-	public void remove(String id, ReasonCode reason, String note) {
+	public void remove(UUID id, ReasonCode reason, String note) {
 		remove(user(id), reason, note);
 	}
 
@@ -99,7 +101,7 @@ public class AccountLifecycleService {
 		rejectSelfModification(user, before, true);
 		this.sessionRevocationService.revoke(user.getUsername(), "account_deleted");
 		if (this.passkeyManager != null) {
-			this.passkeyManager.removeAll(user.getId());
+			this.passkeyManager.removeAll(user.getId().toString());
 		}
 		if (this.reviewItems != null) {
 			this.reviewItems.accountRemoved(user, Auditor.current(), reason, note);
@@ -108,7 +110,7 @@ public class AccountLifecycleService {
 		this.auditLogger.userDeleted(before, reason, note);
 	}
 
-	public AppUser user(String id) {
+	public AppUser user(UUID id) {
 		return this.users.findById(id).orElseThrow(() -> new ResourceNotFoundException("User"));
 	}
 

@@ -1,5 +1,6 @@
 package com.example.commons.accounts.domain;
 
+import java.util.UUID;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -12,7 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
-public interface AppUserRepository extends JpaRepository<AppUser, String>, JpaSpecificationExecutor<AppUser> {
+public interface AppUserRepository extends JpaRepository<AppUser, UUID>, JpaSpecificationExecutor<AppUser> {
 
 	@EntityGraph(attributePaths = { "groups", "groups.roles" })
 	Optional<AppUser> findByUsernameAndStatus(String username, AccountStatus status);
@@ -21,9 +22,9 @@ public interface AppUserRepository extends JpaRepository<AppUser, String>, JpaSp
 
 	boolean existsByUsername(String username);
 
-	boolean existsByGroups_Id(String groupId);
+	boolean existsByGroups_Id(UUID groupId);
 
-	long countByGroups_Id(String groupId);
+	long countByGroups_Id(UUID groupId);
 
 	/**
 	 * Records a sign-in without touching the audit columns, which track administrative
@@ -39,14 +40,14 @@ public interface AppUserRepository extends JpaRepository<AppUser, String>, JpaSp
 	 * inactivity job suspends. See {@link AppUser#lastActivityAt()}.
 	 */
 	@Query("select u.id from AppUser u where u.status = com.example.commons.accounts.domain.AccountStatus.ACTIVE and u.inactivityClockStartedAt < :cutoff and (u.lastLoginAt is null or u.lastLoginAt < :cutoff)")
-	List<String> findActiveIdsInactiveSince(@Param("cutoff") Instant cutoff);
+	List<UUID> findActiveIdsInactiveSince(@Param("cutoff") Instant cutoff);
 
 	/**
 	 * Returns the IDs of the accounts, active or suspended, last in use before the
 	 * cutoff, which the inactivity job removes.
 	 */
 	@Query("select u.id from AppUser u where u.inactivityClockStartedAt < :cutoff and (u.lastLoginAt is null or u.lastLoginAt < :cutoff)")
-	List<String> findIdsInactiveSince(@Param("cutoff") Instant cutoff);
+	List<UUID> findIdsInactiveSince(@Param("cutoff") Instant cutoff);
 
 	@Query("select u.username from AppUser u")
 	List<String> findAllUsernames();

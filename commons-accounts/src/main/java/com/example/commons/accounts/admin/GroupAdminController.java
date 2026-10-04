@@ -6,6 +6,7 @@ import java.net.URI;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -17,7 +18,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import com.example.commons.accounts.validation.ResourceId;
 import com.example.commons.accounts.domain.AppGroup;
 
 @RestController
@@ -40,8 +40,7 @@ public class GroupAdminController {
 
 	@GetMapping
 	public PageResponse<GroupResponse> list(@RequestParam(required = false) @Size(max = 100) String search,
-			@RequestParam(required = false) @Size(max = 100) String name,
-			@RequestParam(required = false) @ResourceId String roleId,
+			@RequestParam(required = false) @Size(max = 100) String name, @RequestParam(required = false) UUID roleId,
 			@RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size, HttpServletRequest request) {
 		Page<AppGroup> result = this.service.groups(search, name, roleId, AdminPageable.create(page, size,
@@ -51,17 +50,17 @@ public class GroupAdminController {
 	}
 
 	@GetMapping("/{id}")
-	public GroupResponse get(@PathVariable @ResourceId String id) {
+	public GroupResponse get(@PathVariable UUID id) {
 		return response(this.service.group(id));
 	}
 
 	@PutMapping("/{id}")
-	public GroupResponse update(@PathVariable @ResourceId String id, @Valid @RequestBody GroupRequest request) {
+	public GroupResponse update(@PathVariable UUID id, @Valid @RequestBody GroupRequest request) {
 		return response(this.service.updateGroup(id, request));
 	}
 
 	@DeleteMapping("/{id}")
-	public ResponseEntity<Void> delete(@PathVariable @ResourceId String id) {
+	public ResponseEntity<Void> delete(@PathVariable UUID id) {
 		this.service.deleteGroup(id);
 		return ResponseEntity.noContent().build();
 	}

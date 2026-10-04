@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -104,9 +105,9 @@ public class AccountReviewService {
 			.map(user -> new ReviewItem(task.getId(), user))
 			.toList();
 		this.items.saveAll(created);
-		this.auditLogger.record("create_review_task", "REVIEW", task.getId(), "account_review " + window.start(), null,
-				null, Map.of("startDate", window.start().toString(), "dueDate", window.due().toString(), "itemCount",
-						created.size()));
+		this.auditLogger.record("create_review_task", "REVIEW", task.getId().toString(),
+				"account_review " + window.start(), null, null, Map.of("startDate", window.start().toString(),
+						"dueDate", window.due().toString(), "itemCount", created.size()));
 		this.reviewItems.completeIfFinished(task, Auditor.SYSTEM);
 		return task;
 	}
@@ -124,7 +125,7 @@ public class AccountReviewService {
 	}
 
 	@Transactional(readOnly = true)
-	public Task task(String id) {
+	public Task task(UUID id) {
 		return this.tasks.findById(id).orElseThrow(() -> new ResourceNotFoundException("Task"));
 	}
 
@@ -163,7 +164,7 @@ public class AccountReviewService {
 	 * @return the page of rows
 	 */
 	@Transactional(readOnly = true)
-	public Page<ReviewItemResponse> items(String taskId, Category category, ReviewStatus reviewStatus, String search,
+	public Page<ReviewItemResponse> items(UUID taskId, Category category, ReviewStatus reviewStatus, String search,
 			Pageable pageable) {
 		Task task = task(taskId);
 		if (category == Category.REMOVED) {
@@ -201,14 +202,14 @@ public class AccountReviewService {
 			String pattern = "%" + escapeLike(search.toLowerCase()) + "%";
 			specification = specification.and((root, query, builder) -> builder.or(
 					builder.like(builder.lower(root.get("targetName")), pattern, '\\'),
-					builder.like(builder.lower(root.get("targetDisplayName")), pattern, '\\')));
+					builder.like(builder.lower(root.get("targetFullName")), pattern, '\\')));
 		}
 		Pageable mapped = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), mapSort(pageable.getSort(),
-				Map.of("username", "targetName", "name", "targetDisplayName", "removedAt", "occurredAt")));
+				Map.of("username", "targetName", "name", "targetFullName", "removedAt", "occurredAt")));
 		return this.auditEvents.findAll(specification, mapped)
-			.map(event -> new ReviewItemResponse(event.getId(), event.getTargetId(), event.getTargetName(),
-					event.getTargetDisplayName(), "removed", null, false, null, null, event.getOccurredAt(),
-					event.getActor(), event.getReasonCode(), event.getReasonNote(), null, null));
+			.map(event -> new ReviewItemResponse(event.getId(), UUID.fromString(event.getTargetId()),
+					event.getTargetName(), event.getTargetFullName(), "removed", null, false, null, null,
+					event.getOccurredAt(), event.getActor(), event.getReasonCode(), event.getReasonNote(), null, null));
 	}
 
 	/**
@@ -219,26 +220,26 @@ public class AccountReviewService {
 	 * @param reason the reason for a removal
 	 * @param note the optional note for a removal
 	 */
-	public void decide(String taskId, List<String> itemIds, boolean verify, ReasonCode reason, String note) {
+	public void decide(UUID taskId, List<UUID> itemIds, boolean verify, ReasonCode reason, String note) {
 		Task task = task(taskId);
 		if (!task.isOpen()) {
 			throw new ConflictException("The review task is completed.");
 		}
-		Set<String> ids = new LinkedHashSet<>(itemIds);
-		Map<String, ReviewItem> found = this.items.findByTaskIdAndIdIn(taskId, ids)
+		Set<UUID> ids = new LinkedHashSet<>(itemIds);
+		Map<UUID, ReviewItem> found = this.items.findByTaskIdAndIdIn(taskId, ids)
 			.stream()
 			.collect(Collectors.toMap(ReviewItem::getId, item -> item));
 		String actor = Auditor.current();
 		for (ReviewItem item : found.values()) {
 			if (item.getUsername().equals(actor)) {
-				this.auditLogger.record("review_rejected", "REVIEW", item.getId(), item.getUsername(), "own_account",
-						null, Map.of("taskId", taskId));
+				this.auditLogger.record("review_rejected", "REVIEW", item.getId().toString(), item.getUsername(),
+						"own_account", null, Map.of("taskId", taskId));
 				throw new AccessDeniedException("Reviewers cannot review their own account.");
 			}
 		}
-		List<String> rejected = new ArrayList<>();
-		Map<String, AppUser> accounts = new java.util.HashMap<>();
-		for (String id : ids) {
+		List<UUID> rejected = new ArrayList<>();
+		Map<UUID, AppUser> accounts = new java.util.HashMap<>();
+		for (UUID id : ids) {
 			ReviewItem item = found.get(id);
 			AppUser account = item == null ? null : this.users.findById(item.getUserId()).orElse(null);
 			if (item == null || !item.isPending() || account == null) {
@@ -249,21 +250,21 @@ public class AccountReviewService {
 			}
 		}
 		if (!rejected.isEmpty()) {
-			throw new ConflictException(
-					"These items are not in this task or are already decided: " + String.join(", ", rejected));
+			throw new ConflictException("These items are not in this task or are already decided: "
+					+ rejected.stream().map(UUID::toString).collect(Collectors.joining(", ")));
 		}
-		for (String id : ids) {
+		for (UUID id : ids) {
 			ReviewItem item = found.get(id);
 			AppUser account = accounts.get(id);
 			if (verify) {
 				item.decide(ReviewStatus.VERIFIED, account, actor, this.clock.instant(), null, null);
 				this.items.save(item);
-				this.auditLogger.record("verify_review_item", "REVIEW", item.getId(), item.getUsername(), null, null,
-						Map.of("taskId", taskId));
+				this.auditLogger.record("verify_review_item", "REVIEW", item.getId().toString(), item.getUsername(),
+						null, null, Map.of("taskId", taskId));
 			}
 			else {
 				this.lifecycle.remove(account, reason, note);
-				this.auditLogger.record("remove_review_item", "REVIEW", item.getId(), item.getUsername(),
+				this.auditLogger.record("remove_review_item", "REVIEW", item.getId().toString(), item.getUsername(),
 						reason.value(), note, Map.of("taskId", taskId));
 			}
 		}
@@ -274,18 +275,18 @@ public class AccountReviewService {
 	/**
 	 * Suspends the account of an item. The item's review status does not change.
 	 */
-	public void suspend(String taskId, String itemId, ReasonCode reason, String note) {
+	public void suspend(UUID taskId, UUID itemId, ReasonCode reason, String note) {
 		this.lifecycle.suspend(item(taskId, itemId).getUserId(), reason, note);
 	}
 
 	/**
 	 * Unsuspends the account of an item. The item's review status does not change.
 	 */
-	public void unsuspend(String taskId, String itemId) {
+	public void unsuspend(UUID taskId, UUID itemId) {
 		this.lifecycle.unsuspend(item(taskId, itemId).getUserId());
 	}
 
-	private ReviewItem item(String taskId, String itemId) {
+	private ReviewItem item(UUID taskId, UUID itemId) {
 		return this.items.findById(itemId)
 			.filter(item -> item.getTaskId().equals(taskId))
 			.orElseThrow(() -> new ResourceNotFoundException("Review item"));

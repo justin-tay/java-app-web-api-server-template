@@ -1,8 +1,8 @@
 package com.example.commons.accounts.domain;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.UUID;
+import java.time.LocalDate;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
 
 /**
@@ -27,9 +28,9 @@ public class Task {
 	public static final String ACCOUNT_REVIEW = "account_review";
 
 	@Id
-	@Column(length = 36)
-	@JdbcTypeCode(SqlTypes.CHAR)
-	private String id;
+	@UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+	@JdbcTypeCode(SqlTypes.UUID)
+	private UUID id;
 
 	private String type;
 
@@ -50,7 +51,6 @@ public class Task {
 	}
 
 	public Task(String type, LocalDate startDate, LocalDate dueDate, Instant createdAt) {
-		this.id = UUID.randomUUID().toString();
 		this.type = type;
 		this.status = TaskStatus.OPEN;
 		this.startDate = startDate;
@@ -58,7 +58,7 @@ public class Task {
 		this.createdAt = createdAt;
 	}
 
-	public String getId() {
+	public UUID getId() {
 		return this.id;
 	}
 
