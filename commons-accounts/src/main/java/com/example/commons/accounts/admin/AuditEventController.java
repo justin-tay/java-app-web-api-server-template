@@ -93,7 +93,7 @@ public class AuditEventController {
 
 	private static AuditEventResponse response(AccountAuditEvent event) {
 		Object details = event.getDetails() == null ? null : JSON.readValue(event.getDetails(), Object.class);
-		return new AuditEventResponse(event.getId(), event.getOccurredAt(), event.getActor(), event.getAction(),
+		return new AuditEventResponse(event.getPublicId(), event.getOccurredAt(), event.getActor(), event.getAction(),
 				event.getTargetType(), event.getTargetId(), event.getTargetName(), event.getTargetFullName(),
 				event.getReasonCode(), event.getReasonNote(), details);
 	}

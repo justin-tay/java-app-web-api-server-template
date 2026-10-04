@@ -9,8 +9,8 @@ import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import com.example.commons.accounts.AccountsJpaTest;
 
 /**
- * Tests that persisting an entity gives it a random version 4 UUID, which carries no
- * creation time.
+ * Tests that an entity gets a sequence number as its primary key and, apart from it, a
+ * random version 4 UUID as its public identifier, which carries no creation time.
  */
 @AccountsJpaTest
 class IdentifierGenerationTest {
@@ -19,14 +19,23 @@ class IdentifierGenerationTest {
 	private TestEntityManager entityManager;
 
 	@Test
-	void persistingAnEntityAssignsAVersion4Uuid() {
+	void persistingAnEntityAssignsASequenceNumberAndAVersion4PublicId() {
 		AppGroup first = this.entityManager.persistAndFlush(new AppGroup("First"));
 		AppGroup second = this.entityManager.persistAndFlush(new AppGroup("Second"));
 
-		assertThat(first.getId().version()).isEqualTo(4);
-		assertThat(second.getId().version()).isEqualTo(4);
-		assertThat(first.getId()).isNotEqualTo(second.getId());
+		assertThat(first.getId()).isNotNull().isNotEqualTo(second.getId());
+		assertThat(first.getPublicId().version()).isEqualTo(4);
+		assertThat(second.getPublicId().version()).isEqualTo(4);
+		assertThat(first.getPublicId()).isNotEqualTo(second.getPublicId());
 		assertThat(this.entityManager.find(AppGroup.class, first.getId()).getName()).isEqualTo("First");
+	}
+
+	@Test
+	void thePublicIdIsKnownBeforeTheEntityIsPersisted() {
+		AppGroup group = new AppGroup("Unsaved");
+
+		assertThat(group.getPublicId()).isNotNull();
+		assertThat(group.getId()).isNull();
 	}
 
 }

@@ -53,7 +53,7 @@ public class UserAdminController {
 	@PostMapping
 	public ResponseEntity<UserResponse> create(@Valid @RequestBody UserCreateRequest request) {
 		AppUser user = this.service.createUser(request);
-		return ResponseEntity.created(URI.create("/admin/users/" + user.getId())).body(response(user));
+		return ResponseEntity.created(URI.create("/admin/users/" + user.getPublicId())).body(response(user));
 	}
 
 	@GetMapping
@@ -139,12 +139,12 @@ public class UserAdminController {
 	}
 
 	private UserResponse response(AppUser user) {
-		return new UserResponse(user.getId(), user.getUsername(), user.getName(), user.getEmail(),
+		return new UserResponse(user.getPublicId(), user.getUsername(), user.getName(), user.getEmail(),
 				user.getLastLoginAt(), user.getStatus().name().toLowerCase(Locale.ROOT), user.getSuspendedAt(),
 				user.getSuspensionReasonCode(), user.getSuspensionNote(),
 				user.getGroups()
 					.stream()
-					.map(group -> new Summary(group.getId(), group.getName()))
+					.map(group -> new Summary(group.getPublicId(), group.getName()))
 					.sorted(Comparator.comparing(Summary::name, String.CASE_INSENSITIVE_ORDER))
 					.toList());
 	}

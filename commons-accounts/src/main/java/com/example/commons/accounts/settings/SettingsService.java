@@ -54,7 +54,7 @@ public class SettingsService {
 		for (Map.Entry<String, String> entry : after.entrySet()) {
 			String previous = before.get(entry.getKey());
 			if (!entry.getValue().equals(previous)) {
-				AppSetting setting = this.settings.findById(entry.getKey())
+				AppSetting setting = this.settings.findByName(entry.getKey())
 					.orElseGet(() -> new AppSetting(entry.getKey(), entry.getValue()));
 				setting.change(entry.getValue());
 				this.settings.save(setting);

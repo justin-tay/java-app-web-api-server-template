@@ -101,7 +101,7 @@ public class AccountLifecycleService {
 		rejectSelfModification(user, before, true);
 		this.sessionRevocationService.revoke(user.getUsername(), "account_deleted");
 		if (this.passkeyManager != null) {
-			this.passkeyManager.removeAll(user.getId().toString());
+			this.passkeyManager.removeAll(user.getPublicId().toString());
 		}
 		if (this.reviewItems != null) {
 			this.reviewItems.accountRemoved(user, Auditor.current(), reason, note);
@@ -111,7 +111,7 @@ public class AccountLifecycleService {
 	}
 
 	public AppUser user(UUID id) {
-		return this.users.findById(id).orElseThrow(() -> new ResourceNotFoundException("User"));
+		return this.users.findByPublicId(id).orElseThrow(() -> new ResourceNotFoundException("User"));
 	}
 
 	private void rejectSelfModification(AppUser user, UserState state, boolean deletion) {

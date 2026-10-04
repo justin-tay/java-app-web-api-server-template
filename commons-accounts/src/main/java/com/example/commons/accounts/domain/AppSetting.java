@@ -4,18 +4,25 @@ import java.time.Instant;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * One application setting, keyed by name, such as {@code inactivity.suspendAfterDays}.
- * The settings and their allowed values are defined by {@code SettingsService}.
+ * One application setting, identified by its unique name, such as
+ * {@code inactivity.suspendAfterDays}. The settings and their allowed values are defined
+ * by {@code SettingsService}.
  */
 @Entity
 @Table(name = "app_setting")
 public class AppSetting {
 
 	@Id
+	@GeneratedValue(strategy = GenerationType.SEQUENCE)
+	private Long id;
+
+	@Column(unique = true)
 	private String name;
 
 	@Column(name = "setting_value")

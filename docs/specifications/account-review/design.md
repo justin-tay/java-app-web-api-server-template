@@ -96,7 +96,7 @@ or delete)
 
 | Column | Notes |
 |---|---|
-| `id` | `UUID` |
+| `id`, `public_id` | `BIGINT` from a sequence, and `UUID` (unique) |
 | `occurred_at` | `TIMESTAMP NOT NULL`, indexed |
 | `actor` | `VARCHAR(100) NOT NULL`, the username or `system` |
 | `action` | `VARCHAR(50) NOT NULL`, such as `suspend_user`, `delete_user`, `update_group`, `update_setting`, `verify_review_item` |
@@ -108,21 +108,21 @@ or delete)
 
 Indexes on `(target_type, target_name)`, `actor`, and `action`.
 
-`app_setting`: `name VARCHAR(100)` primary key, `value VARCHAR(100) NOT NULL`,
+`app_setting`: `id BIGINT` primary key, `name VARCHAR(100)` unique, `value VARCHAR(100) NOT NULL`,
 `updated_at`, `updated_by`. Names are the keys in R3.1; unknown names are rejected.
 
-`task`: `id`, `type VARCHAR(40)`, `status VARCHAR(20)` (`OPEN`, `COMPLETED`),
+`task`: `id`, `public_id`, `type VARCHAR(40)`, `status VARCHAR(20)` (`OPEN`, `COMPLETED`),
 `start_date DATE`, `due_date DATE`, `created_at`, `completed_at`, `completed_by`,
 and a unique constraint on `(type, start_date)`. That constraint is the guard
 against two instances creating the same window's task; a portable "one open task"
 index is not available, so the service enforces that in code.
 
-`review_item`: `id`, `task_id` (foreign key to `task`), `user_id UUID` and
+`review_item`: `id`, `public_id`, `task_id` (foreign key to `task`), `user_public_id UUID` and
 `username VARCHAR(100)` (no foreign key to `app_user`), `name`, `review_status`
 (`PENDING_VERIFICATION`, `VERIFIED`, `REMOVED`), and the frozen decision columns
 `decided_at`, `decided_by`, `decided_account_status`, `decided_last_login_at`,
 `decided_suspended_at`, `decided_reason_code`, `decided_reason_note`. Unique on
-`(task_id, user_id)`; indexes on `(task_id, review_status)`.
+`(task_id, user_public_id)`; indexes on `(task_id, review_status)`.
 
 Passkey credential rows reference the user, so removal deletes them first, in the
 same transaction.
@@ -193,7 +193,7 @@ All endpoints require authentication. State-changing calls need a recent login
 | `DecisionRequest` | `itemIds` (1 to 100), `decision` (`verify` or `remove`), `reasonCode` and `note` required for `remove` only |
 | `AuditEvent` | the columns above, with `details` as an object |
 
-Dates are ISO 8601. Times are UTC instants. IDs are UUID strings.
+Dates are ISO 8601. Times are UTC instants. IDs are UUID strings, the entities' `public_id`.
 
 ### List contract
 

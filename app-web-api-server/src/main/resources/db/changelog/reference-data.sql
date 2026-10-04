@@ -13,16 +13,16 @@
 -- maintains accounts is not the one who reviews them. See docs/specifications/account-review.
 
 --changeset app:reference-data
-INSERT INTO app_role (id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000001', 'USER_MANAGE', 'Manage users', '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
-INSERT INTO app_role (id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000002', 'GROUP_MANAGE', 'Manage groups', '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
-INSERT INTO app_role (id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000003', 'ROLE_MANAGE', 'Manage roles', '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
-INSERT INTO app_role (id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000004', 'APPLICATION_USER', 'Application user', '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
-INSERT INTO app_group (id, name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000011', 'Administrators', '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
-INSERT INTO app_role (id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000005', 'ACCOUNT_REVIEWER', 'Account reviewer', '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
-INSERT INTO app_role (id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000006', 'SETTINGS_MANAGE', 'Manage settings', '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
-INSERT INTO app_group (id, name, created_at, updated_at, created_by, updated_by) VALUES ('00000000-0000-0000-0000-000000000013', 'Account Reviewers', '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
-INSERT INTO app_group_role (group_id, role_id) VALUES ('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000001');
-INSERT INTO app_group_role (group_id, role_id) VALUES ('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000002');
-INSERT INTO app_group_role (group_id, role_id) VALUES ('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000003');
-INSERT INTO app_group_role (group_id, role_id) VALUES ('00000000-0000-0000-0000-000000000013', '00000000-0000-0000-0000-000000000005');
-INSERT INTO app_group_role (group_id, role_id) VALUES ('00000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000006');
+INSERT INTO app_role (id, public_id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES (1, '00000000-0000-0000-0000-000000000001', 'USER_MANAGE', 'Manage users', '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
+INSERT INTO app_role (id, public_id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES (2, '00000000-0000-0000-0000-000000000002', 'GROUP_MANAGE', 'Manage groups', '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
+INSERT INTO app_role (id, public_id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES (3, '00000000-0000-0000-0000-000000000003', 'ROLE_MANAGE', 'Manage roles', '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
+INSERT INTO app_role (id, public_id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES (4, '00000000-0000-0000-0000-000000000004', 'APPLICATION_USER', 'Application user', '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
+INSERT INTO app_group (id, public_id, name, created_at, updated_at, created_by, updated_by) VALUES (17, '00000000-0000-0000-0000-000000000011', 'Administrators', '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
+INSERT INTO app_role (id, public_id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES (5, '00000000-0000-0000-0000-000000000005', 'ACCOUNT_REVIEWER', 'Account reviewer', '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
+INSERT INTO app_role (id, public_id, name, display_name, created_at, updated_at, created_by, updated_by) VALUES (6, '00000000-0000-0000-0000-000000000006', 'SETTINGS_MANAGE', 'Manage settings', '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
+INSERT INTO app_group (id, public_id, name, created_at, updated_at, created_by, updated_by) VALUES (19, '00000000-0000-0000-0000-000000000013', 'Account Reviewers', '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
+INSERT INTO app_group_role (group_id, role_id) VALUES (17, 1);
+INSERT INTO app_group_role (group_id, role_id) VALUES (17, 2);
+INSERT INTO app_group_role (group_id, role_id) VALUES (17, 3);
+INSERT INTO app_group_role (group_id, role_id) VALUES (19, 5);
+INSERT INTO app_group_role (group_id, role_id) VALUES (17, 6);

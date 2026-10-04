@@ -1,15 +1,11 @@
 package com.example.commons.accounts.domain;
 
 import java.time.Instant;
-import java.util.UUID;
 
-import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
 
 /**
@@ -19,12 +15,7 @@ import org.hibernate.type.SqlTypes;
  */
 @Entity
 @Table(name = "account_audit_event")
-public class AccountAuditEvent {
-
-	@Id
-	@UuidGenerator(style = UuidGenerator.Style.RANDOM)
-	@JdbcTypeCode(SqlTypes.UUID)
-	private UUID id;
+public class AccountAuditEvent extends AbstractIdentifiedEntity {
 
 	private Instant occurredAt;
 
@@ -62,10 +53,6 @@ public class AccountAuditEvent {
 		this.reasonCode = reasonCode;
 		this.reasonNote = reasonNote;
 		this.details = details;
-	}
-
-	public UUID getId() {
-		return this.id;
 	}
 
 	public Instant getOccurredAt() {

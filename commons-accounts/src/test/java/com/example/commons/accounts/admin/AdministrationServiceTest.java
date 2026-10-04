@@ -107,7 +107,7 @@ class AdministrationServiceTest {
 
 	@Test
 	void revokesSessionsAndRecordsWhyWhenAUserIsSuspended(CapturedOutput output) {
-		this.lifecycle.suspend(this.testUser.getId(), ReasonCode.LEFT_ORGANISATION, "moved teams");
+		this.lifecycle.suspend(this.testUser.getPublicId(), ReasonCode.LEFT_ORGANISATION, "moved teams");
 
 		AppUser suspended = reload(this.testUser);
 		assertThat(suspended.isSuspended()).isTrue();
@@ -122,9 +122,9 @@ class AdministrationServiceTest {
 	void unsuspendingRestartsTheInactivityClockWithoutTouchingTheLastLogin() {
 		this.users.recordLogin("test-user", Instant.parse("2026-01-01T00:00:00Z"));
 		this.entityManager.clear();
-		this.lifecycle.suspend(this.testUser.getId(), ReasonCode.OTHER, null);
+		this.lifecycle.suspend(this.testUser.getPublicId(), ReasonCode.OTHER, null);
 
-		this.lifecycle.unsuspend(this.testUser.getId());
+		this.lifecycle.unsuspend(this.testUser.getPublicId());
 
 		AppUser reactivated = reload(this.testUser);
 		assertThat(reactivated.isSuspended()).isFalse();
@@ -137,19 +137,19 @@ class AdministrationServiceTest {
 	@Test
 	void rejectsSuspendingASuspendedUserAndUnsuspendingAnActiveOne() {
 		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.lifecycle.unsuspend(this.testUser.getId()))
+			.isThrownBy(() -> this.lifecycle.unsuspend(this.testUser.getPublicId()))
 			.withMessage("Account is not suspended.");
-		this.lifecycle.suspend(this.testUser.getId(), ReasonCode.OTHER, null);
+		this.lifecycle.suspend(this.testUser.getPublicId(), ReasonCode.OTHER, null);
 
 		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.lifecycle.suspend(this.testUser.getId(), ReasonCode.OTHER, null))
+			.isThrownBy(() -> this.lifecycle.suspend(this.testUser.getPublicId(), ReasonCode.OTHER, null))
 			.withMessage("Account is already suspended.");
 	}
 
 	@Test
 	void revokesSessionsWhenGroupMembershipChanges() {
-		this.service.updateUser(this.testUser.getId(),
-				new AdminDtos.UserUpdateRequest("Test User", "test@example.test", Set.of(this.administrators.getId())));
+		this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("Test User",
+				"test@example.test", Set.of(this.administrators.getPublicId())));
 
 		assertThat(sessionOf("test-user").isExpired()).isTrue();
 		assertThat(reload(this.testUser).getGroups()).extracting(AppGroup::getName).containsExactly("Administrators");
@@ -157,8 +157,8 @@ class AdministrationServiceTest {
 
 	@Test
 	void doesNotRevokeSessionsWhenGroupsDoNotChange() {
-		this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("New Display Name",
-				"test@example.test", Set.of(this.managers.getId())));
+		this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("New Display Name",
+				"test@example.test", Set.of(this.managers.getPublicId())));
 
 		assertThat(sessionOf("test-user").isExpired()).isFalse();
 		assertThat(reload(this.testUser).getName()).isEqualTo("New Display Name");
@@ -166,7 +166,7 @@ class AdministrationServiceTest {
 
 	@Test
 	void revokesSessionsWhenAUserIsRemoved(CapturedOutput output) {
-		this.lifecycle.remove(this.testUser.getId(), ReasonCode.LEFT_ORGANISATION, null);
+		this.lifecycle.remove(this.testUser.getPublicId(), ReasonCode.LEFT_ORGANISATION, null);
 		this.entityManager.flush();
 
 		assertThat(sessionOf("test-user").isExpired()).isTrue();
@@ -176,17 +176,17 @@ class AdministrationServiceTest {
 
 	@Test
 	void rejectsADuplicateUsername() {
-		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.createUser(
-					new AdminDtos.UserCreateRequest("test-user", "Test User", null, Set.of(this.managers.getId()))))
+		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> this.service.createUser(
+				new AdminDtos.UserCreateRequest("test-user", "Test User", null, Set.of(this.managers.getPublicId()))))
 			.withMessage("Username already exists.");
 		assertThat(this.users.count()).isEqualTo(1);
 	}
 
 	@Test
 	void rejectsAUserInAGroupThatDoesNotExist() {
-		assertThatExceptionOfType(ResourceNotFoundException.class).isThrownBy(() -> this.service.createUser(
-				new AdminDtos.UserCreateRequest("new-user", "New User", null, Set.of(this.managers.getId(), MISSING))))
+		assertThatExceptionOfType(ResourceNotFoundException.class)
+			.isThrownBy(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null,
+					Set.of(this.managers.getPublicId(), MISSING))))
 			.withMessage("Group was not found.");
 		assertThat(this.users.existsByUsername("new-user")).isFalse();
 	}
@@ -219,12 +219,12 @@ class AdministrationServiceTest {
 		this.entityManager.flush();
 
 		assertThat(this.service
-			.users(new AdministrationService.UserQuery(null, null, null, null, null, null, this.administrators.getId(),
-					null, null), Pageable.unpaged())
+			.users(new AdministrationService.UserQuery(null, null, null, null, null, null,
+					this.administrators.getPublicId(), null, null), Pageable.unpaged())
 			.getContent()).extracting(AppUser::getUsername).containsExactlyInAnyOrder("test-user", "other-user");
 		assertThat(this.service
-			.users(new AdministrationService.UserQuery(null, null, null, null, null, null, this.managers.getId(), null,
-					null), Pageable.unpaged())
+			.users(new AdministrationService.UserQuery(null, null, null, null, null, null, this.managers.getPublicId(),
+					null, null), Pageable.unpaged())
 			.getContent()).extracting(AppUser::getUsername).containsExactly("test-user");
 	}
 
@@ -247,7 +247,7 @@ class AdministrationServiceTest {
 	@Test
 	void rejectsRenamingAGroupToAnExistingName() {
 		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.updateGroup(this.managers.getId(),
+			.isThrownBy(() -> this.service.updateGroup(this.managers.getPublicId(),
 					new AdminDtos.GroupRequest("Administrators", null)))
 			.withMessage("Group name already exists.");
 		assertThat(reload(this.managers).getName()).isEqualTo("Managers");
@@ -255,8 +255,8 @@ class AdministrationServiceTest {
 
 	@Test
 	void keepingAGroupsOwnNameIsNotAConflict() {
-		AppGroup updated = this.service.updateGroup(this.managers.getId(),
-				new AdminDtos.GroupRequest("Managers", Set.of(this.userManage.getId())));
+		AppGroup updated = this.service.updateGroup(this.managers.getPublicId(),
+				new AdminDtos.GroupRequest("Managers", Set.of(this.userManage.getPublicId())));
 
 		assertThat(updated.getName()).isEqualTo("Managers");
 	}
@@ -264,14 +264,14 @@ class AdministrationServiceTest {
 	@Test
 	void rejectsDeletingAGroupThatContainsUsers() {
 		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.deleteGroup(this.managers.getId()))
+			.isThrownBy(() -> this.service.deleteGroup(this.managers.getPublicId()))
 			.withMessage("Group contains users.");
 		assertThat(this.groups.existsById(this.managers.getId())).isTrue();
 	}
 
 	@Test
 	void deletesAGroupWithoutUsers() {
-		this.service.deleteGroup(this.administrators.getId());
+		this.service.deleteGroup(this.administrators.getPublicId());
 		this.entityManager.flush();
 
 		assertThat(this.groups.existsById(this.administrators.getId())).isFalse();
@@ -299,7 +299,8 @@ class AdministrationServiceTest {
 		AppRole reportView = this.entityManager.persist(new AppRole("REPORT_VIEW"));
 		this.administrators.getRoles().add(reportView);
 
-		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> this.service.deleteRole(reportView.getId()))
+		assertThatExceptionOfType(ConflictException.class)
+			.isThrownBy(() -> this.service.deleteRole(reportView.getPublicId()))
 			.withMessage("Role is assigned to a group.");
 		assertThat(this.roles.existsById(reportView.getId())).isTrue();
 	}
@@ -310,11 +311,12 @@ class AdministrationServiceTest {
 		this.administrators.getRoles().add(groupManage);
 		authenticate("admin", "USER_MANAGE");
 
-		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(() -> this.service.createUser(
-				new AdminDtos.UserCreateRequest("new-user", "New User", null, Set.of(this.administrators.getId()))));
+		assertThatExceptionOfType(AccessDeniedException.class)
+			.isThrownBy(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null,
+					Set.of(this.administrators.getPublicId()))));
 		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
-				() -> this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User",
-						"test@example.test", Set.of(this.managers.getId(), this.administrators.getId()))));
+				() -> this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("Test User",
+						"test@example.test", Set.of(this.managers.getPublicId(), this.administrators.getPublicId()))));
 
 		assertThat(output).contains("\"exceeds_actor_privileges\"");
 		assertThat(this.users.existsByUsername("new-user")).isFalse();
@@ -329,8 +331,8 @@ class AdministrationServiceTest {
 		authenticate("admin", "USER_MANAGE", "GROUP_MANAGE");
 
 		AppUser user = this.service.createUser(
-				new AdminDtos.UserCreateRequest("new-reviewer", "New Reviewer", null, Set.of(reviewers.getId())));
-		this.service.createGroup(new AdminDtos.GroupRequest("More Reviewers", Set.of(reviewer.getId())));
+				new AdminDtos.UserCreateRequest("new-reviewer", "New Reviewer", null, Set.of(reviewers.getPublicId())));
+		this.service.createGroup(new AdminDtos.GroupRequest("More Reviewers", Set.of(reviewer.getPublicId())));
 
 		assertThat(user.getGroups()).extracting(AppGroup::getName).containsExactly("Account Reviewers");
 		assertThat(this.groups.existsByName("More Reviewers")).isTrue();
@@ -344,16 +346,16 @@ class AdministrationServiceTest {
 		authenticate("test-user", "USER_MANAGE");
 
 		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
-				() -> this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User",
-						"test@example.test", Set.of(this.managers.getId(), reviewers.getId()))));
+				() -> this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("Test User",
+						"test@example.test", Set.of(this.managers.getPublicId(), reviewers.getPublicId()))));
 	}
 
 	@Test
 	void anAdministratorCanGiveAGroupGrantingOnlyRolesTheyHold() {
 		authenticate("admin", "USER_MANAGE");
 
-		AppUser user = this.service
-			.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null, Set.of(this.managers.getId())));
+		AppUser user = this.service.createUser(
+				new AdminDtos.UserCreateRequest("new-user", "New User", null, Set.of(this.managers.getPublicId())));
 
 		assertThat(user.getGroups()).extracting(AppGroup::getName).containsExactly("Managers");
 	}
@@ -363,12 +365,12 @@ class AdministrationServiceTest {
 		authenticate("test-user", "USER_MANAGE");
 
 		assertThatExceptionOfType(AccessDeniedException.class)
-			.isThrownBy(() -> this.lifecycle.suspend(this.testUser.getId(), ReasonCode.OTHER, null));
+			.isThrownBy(() -> this.lifecycle.suspend(this.testUser.getPublicId(), ReasonCode.OTHER, null));
 		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
-				() -> this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User",
-						"test@example.test", Set.of(this.administrators.getId()))));
+				() -> this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("Test User",
+						"test@example.test", Set.of(this.administrators.getPublicId()))));
 		assertThatExceptionOfType(AccessDeniedException.class)
-			.isThrownBy(() -> this.lifecycle.remove(this.testUser.getId(), ReasonCode.OTHER, null));
+			.isThrownBy(() -> this.lifecycle.remove(this.testUser.getPublicId(), ReasonCode.OTHER, null));
 
 		assertThat(output).contains("\"self_modification\"");
 		assertThat(sessionOf("test-user").isExpired()).isFalse();
@@ -378,8 +380,8 @@ class AdministrationServiceTest {
 	void anAdministratorCanChangeTheirOwnNameAndEmail() {
 		authenticate("test-user", "USER_MANAGE");
 
-		this.service.updateUser(this.testUser.getId(),
-				new AdminDtos.UserUpdateRequest("Renamed User", "renamed@example.test", Set.of(this.managers.getId())));
+		this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("Renamed User",
+				"renamed@example.test", Set.of(this.managers.getPublicId())));
 
 		assertThat(reload(this.testUser).getName()).isEqualTo("Renamed User");
 	}
@@ -389,11 +391,11 @@ class AdministrationServiceTest {
 		AppRole reportView = this.entityManager.persist(new AppRole("REPORT_VIEW"));
 		authenticate("admin", "GROUP_MANAGE");
 
-		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
-				() -> this.service.createGroup(new AdminDtos.GroupRequest("Viewers", Set.of(reportView.getId()))));
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(() -> this.service
+			.createGroup(new AdminDtos.GroupRequest("Viewers", Set.of(reportView.getPublicId()))));
 		assertThatExceptionOfType(AccessDeniedException.class)
-			.isThrownBy(() -> this.service.updateGroup(this.administrators.getId(),
-					new AdminDtos.GroupRequest("Administrators", Set.of(reportView.getId()))));
+			.isThrownBy(() -> this.service.updateGroup(this.administrators.getPublicId(),
+					new AdminDtos.GroupRequest("Administrators", Set.of(reportView.getPublicId()))));
 
 		assertThat(output).contains("\"exceeds_actor_privileges\"");
 		assertThat(reload(this.administrators).getRoles()).isEmpty();
@@ -403,8 +405,8 @@ class AdministrationServiceTest {
 	void anAdministratorCanKeepARoleTheyDoNotHoldOnAGroupTheyChange() {
 		authenticate("admin", "GROUP_MANAGE");
 
-		AppGroup group = this.service.updateGroup(this.managers.getId(),
-				new AdminDtos.GroupRequest("Team Managers", Set.of(this.userManage.getId())));
+		AppGroup group = this.service.updateGroup(this.managers.getPublicId(),
+				new AdminDtos.GroupRequest("Team Managers", Set.of(this.userManage.getPublicId())));
 
 		assertThat(group.getName()).isEqualTo("Team Managers");
 		assertThat(group.getRoles()).containsExactly(this.userManage);
@@ -416,7 +418,7 @@ class AdministrationServiceTest {
 		authenticate("admin", "ROLE_MANAGE");
 
 		assertThatExceptionOfType(AccessDeniedException.class)
-			.isThrownBy(() -> this.service.deleteRole(roleManage.getId()));
+			.isThrownBy(() -> this.service.deleteRole(roleManage.getPublicId()));
 
 		assertThat(output).contains("\"reserved_role\"");
 		assertThat(this.roles.existsById(roleManage.getId())).isTrue();
@@ -424,7 +426,7 @@ class AdministrationServiceTest {
 
 	@Test
 	void revokesOneUsersSessionsWithoutChangingTheirAccount(CapturedOutput output) {
-		this.service.revokeSessions(this.testUser.getId());
+		this.service.revokeSessions(this.testUser.getPublicId());
 
 		assertThat(sessionOf("test-user").isExpired()).isTrue();
 		assertThat(reload(this.testUser).isSuspended()).isFalse();

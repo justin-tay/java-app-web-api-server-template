@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. The identifier paragraph, and the UUID keys it describes, are superseded by [ADR 0036](0036-dual-identifiers-sequence-key-and-public-uuid.md).
 
 Extends [ADR 0004](0004-database-schema-management.md), which makes Liquibase the sole owner of the schema.
 

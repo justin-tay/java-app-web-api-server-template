@@ -57,7 +57,7 @@ class AccountReviewApiIntegrationTest {
 
 		this.mockMvc.perform(get("/tasks").with(loginAs("admin"))).andExpect(status().isForbidden());
 		this.mockMvc.perform(get("/tasks/summary").with(loginAs("user"))).andExpect(status().isForbidden());
-		this.mockMvc.perform(get("/account-reviews/tasks/" + task.getId()).with(loginAs("admin")))
+		this.mockMvc.perform(get("/account-reviews/tasks/" + task.getPublicId()).with(loginAs("admin")))
 			.andExpect(status().isForbidden());
 		this.mockMvc.perform(get("/tasks")).andExpect(status().isUnauthorized());
 	}
@@ -69,7 +69,7 @@ class AccountReviewApiIntegrationTest {
 		this.mockMvc.perform(get("/tasks").param("status", "open").with(loginAs("account-reviewer-1")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.totalItems").value(1))
-			.andExpect(jsonPath("$.items[0].id").value(task.getId().toString()))
+			.andExpect(jsonPath("$.items[0].id").value(task.getPublicId().toString()))
 			.andExpect(jsonPath("$.items[0].type").value("account_review"))
 			.andExpect(jsonPath("$.items[0].status").value("open"))
 			.andExpect(jsonPath("$.items[0].overdue").value(false))
@@ -88,18 +88,18 @@ class AccountReviewApiIntegrationTest {
 		Task task = createTask();
 
 		this.mockMvc
-			.perform(get("/account-reviews/tasks/" + task.getId() + "/items").param("category", "active")
+			.perform(get("/account-reviews/tasks/" + task.getPublicId() + "/items").param("category", "active")
 				.with(loginAs("account-reviewer-1")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.totalItems").value(5))
 			.andExpect(jsonPath("$.items[?(@.ownAccount == true)].username").value(hasItem("account-reviewer-1")))
 			.andExpect(jsonPath("$.items[0].reviewStatus").value("pending_verification"));
 		this.mockMvc
-			.perform(get("/account-reviews/tasks/" + task.getId() + "/items").param("category", "suspended")
+			.perform(get("/account-reviews/tasks/" + task.getPublicId() + "/items").param("category", "suspended")
 				.with(loginAs("account-reviewer-1")))
 			.andExpect(jsonPath("$.totalItems").value(0));
 		this.mockMvc
-			.perform(get("/account-reviews/tasks/" + task.getId() + "/items").param("category", "bogus")
+			.perform(get("/account-reviews/tasks/" + task.getPublicId() + "/items").param("category", "bogus")
 				.with(loginAs("account-reviewer-1")))
 			.andExpect(status().isBadRequest());
 	}
@@ -120,11 +120,11 @@ class AccountReviewApiIntegrationTest {
 
 		this.mockMvc.perform(get("/tasks/" + "summary").with(loginAs("account-reviewer-1")))
 			.andExpect(jsonPath("$.openCount").value(1));
-		this.mockMvc.perform(get("/account-reviews/tasks/" + task.getId()).with(loginAs("account-reviewer-1")))
+		this.mockMvc.perform(get("/account-reviews/tasks/" + task.getPublicId()).with(loginAs("account-reviewer-1")))
 			.andExpect(jsonPath("$.counts.verified").value(1))
 			.andExpect(jsonPath("$.counts.pending_verification").value(4));
 		this.mockMvc
-			.perform(get("/account-reviews/tasks/" + task.getId() + "/items").param("category", "active")
+			.perform(get("/account-reviews/tasks/" + task.getPublicId() + "/items").param("category", "active")
 				.param("reviewStatus", "verified")
 				.with(loginAs("account-reviewer-1")))
 			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("account-reviewer-2")))
@@ -147,7 +147,7 @@ class AccountReviewApiIntegrationTest {
 			.andExpect(status().isNoContent());
 
 		this.mockMvc
-			.perform(get("/account-reviews/tasks/" + task.getId() + "/items").param("category", "removed")
+			.perform(get("/account-reviews/tasks/" + task.getPublicId() + "/items").param("category", "removed")
 				.with(loginAs("account-reviewer-1")))
 			.andExpect(jsonPath("$.totalItems").value(1))
 			.andExpect(jsonPath("$.items[0].username").value("user"))
@@ -167,7 +167,7 @@ class AccountReviewApiIntegrationTest {
 		UUID user = itemId(task, "user");
 
 		this.mockMvc
-			.perform(post("/account-reviews/tasks/" + task.getId() + "/items/" + user + "/suspend")
+			.perform(post("/account-reviews/tasks/" + task.getPublicId() + "/items/" + user + "/suspend")
 				.with(loginAs("account-reviewer-1"))
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
@@ -175,7 +175,7 @@ class AccountReviewApiIntegrationTest {
 			.andExpect(status().isNoContent());
 
 		this.mockMvc
-			.perform(get("/account-reviews/tasks/" + task.getId() + "/items").param("category", "suspended")
+			.perform(get("/account-reviews/tasks/" + task.getPublicId() + "/items").param("category", "suspended")
 				.with(loginAs("account-reviewer-1")))
 			.andExpect(jsonPath("$.items[0].username").value("user"))
 			.andExpect(jsonPath("$.items[0].reasonCode").value("policy_violation"))
@@ -189,7 +189,7 @@ class AccountReviewApiIntegrationTest {
 		UUID user = itemId(task, "user");
 
 		this.mockMvc
-			.perform(post("/account-reviews/tasks/" + task.getId() + "/decisions")
+			.perform(post("/account-reviews/tasks/" + task.getPublicId() + "/decisions")
 				.with(oidcLoginAs("account-reviewer-1", Instant.now().minus(Duration.ofHours(1))))
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
@@ -222,12 +222,12 @@ class AccountReviewApiIntegrationTest {
 			.filter(item -> item.getTaskId().equals(task.getId()) && item.getUsername().equals(username))
 			.findFirst()
 			.orElseThrow()
-			.getId();
+			.getPublicId();
 	}
 
 	private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder decisions(Task task, String body,
 			String reviewer) {
-		return post("/account-reviews/tasks/" + task.getId() + "/decisions").with(loginAs(reviewer))
+		return post("/account-reviews/tasks/" + task.getPublicId() + "/decisions").with(loginAs(reviewer))
 			.with(csrf())
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(body);

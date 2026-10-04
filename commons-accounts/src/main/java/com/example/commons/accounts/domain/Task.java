@@ -1,19 +1,12 @@
 package com.example.commons.accounts.domain;
 
 import java.time.Instant;
-import java.util.UUID;
 import java.time.LocalDate;
 
-import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.annotations.UuidGenerator;
-import org.hibernate.type.SqlTypes;
 
 /**
  * Something a person has to do by a date, such as the periodic account review (see
@@ -22,15 +15,10 @@ import org.hibernate.type.SqlTypes;
  */
 @Entity
 @Table(name = "task")
-public class Task {
+public class Task extends AbstractIdentifiedEntity {
 
 	/** The type of the periodic account review. */
 	public static final String ACCOUNT_REVIEW = "account_review";
-
-	@Id
-	@UuidGenerator(style = UuidGenerator.Style.RANDOM)
-	@JdbcTypeCode(SqlTypes.UUID)
-	private UUID id;
 
 	private String type;
 
@@ -56,10 +44,6 @@ public class Task {
 		this.startDate = startDate;
 		this.dueDate = dueDate;
 		this.createdAt = createdAt;
-	}
-
-	public UUID getId() {
-		return this.id;
 	}
 
 	public String getType() {

@@ -1,6 +1,5 @@
 package com.example.commons.accounts.domain;
 
-import java.util.UUID;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
@@ -9,7 +8,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
  * {@code JpaRepository} so that it exposes no update or delete.
  */
 public interface AccountAuditEventRepository
-		extends Repository<AccountAuditEvent, UUID>, JpaSpecificationExecutor<AccountAuditEvent> {
+		extends Repository<AccountAuditEvent, Long>, JpaSpecificationExecutor<AccountAuditEvent> {
 
 	AccountAuditEvent save(AccountAuditEvent event);
 

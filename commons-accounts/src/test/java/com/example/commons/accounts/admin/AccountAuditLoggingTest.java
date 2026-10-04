@@ -144,7 +144,7 @@ class AccountAuditLoggingTest {
 	@Test
 	void logsACreatedUserWithTheAccessItIsGrantedAndRecordsTheActor() {
 		AppUser user = inTransaction(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user",
-				"New User", "new@example.test", Set.of(this.managers.getId()))));
+				"New User", "new@example.test", Set.of(this.managers.getPublicId()))));
 
 		assertThat(user.getCreatedBy()).isEqualTo("admin");
 		assertThat(user.getUpdatedBy()).isEqualTo("admin");
@@ -153,7 +153,7 @@ class AccountAuditLoggingTest {
 			.contains("event.type=\"[user, creation]\"")
 			.contains("event.outcome=\"success\"")
 			.contains("user.name=\"admin\"")
-			.contains("user.target.id=\"" + user.getId() + "\"")
+			.contains("user.target.id=\"" + user.getPublicId() + "\"")
 			.contains("user.target.name=\"new-user\"")
 			.contains("user.target.status=\"active\"")
 			.contains("user.target.group.name=\"[Managers]\"")
@@ -169,7 +169,7 @@ class AccountAuditLoggingTest {
 	void doesNotLogAChangeThatIsRolledBack() {
 		this.transaction.executeWithoutResult(status -> {
 			this.service.createUser(
-					new AdminDtos.UserCreateRequest("new-user", "New User", null, Set.of(this.managers.getId())));
+					new AdminDtos.UserCreateRequest("new-user", "New User", null, Set.of(this.managers.getPublicId())));
 			status.setRollbackOnly();
 		});
 
@@ -180,8 +180,8 @@ class AccountAuditLoggingTest {
 	@Test
 	void logsAnUpdatedUserWithItsPriorStateOnlyTheChangesAndNoPersonalDataValues() {
 		AppUser user = inTransaction(
-				() -> this.service.updateUser(this.testUser.getId(), new AdminDtos.UserUpdateRequest("Test User",
-						"changed@example.test", Set.of(this.administrators.getId()))));
+				() -> this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("Test User",
+						"changed@example.test", Set.of(this.administrators.getPublicId()))));
 
 		assertThat(user.getUpdatedBy()).isEqualTo("admin");
 		assertThat(user.getCreatedBy()).isEqualTo("system");
@@ -204,8 +204,8 @@ class AccountAuditLoggingTest {
 
 	@Test
 	void omitsTheChangesOfValuesThatDidNotChange() {
-		inTransaction(() -> this.service.updateUser(this.testUser.getId(),
-				new AdminDtos.UserUpdateRequest("Renamed User", "test@example.test", Set.of(this.managers.getId()))));
+		inTransaction(() -> this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest(
+				"Renamed User", "test@example.test", Set.of(this.managers.getPublicId()))));
 
 		assertThat(logged()).containsOnlyOnce("event.action=\"update_user\"")
 			.contains("user.changes.fields=\"[full_name]\"")
@@ -220,7 +220,7 @@ class AccountAuditLoggingTest {
 	@Test
 	void logsARemovedUserWithTheReasonAndTheAccessItLoses() {
 		inTransaction(() -> {
-			this.lifecycle.remove(this.testUser.getId(), ReasonCode.LEFT_ORGANISATION, "moved teams");
+			this.lifecycle.remove(this.testUser.getPublicId(), ReasonCode.LEFT_ORGANISATION, "moved teams");
 			return null;
 		});
 
@@ -235,8 +235,8 @@ class AccountAuditLoggingTest {
 
 	@Test
 	void logsASuspensionAndAnUnsuspension() {
-		inTransaction(() -> this.lifecycle.suspend(this.testUser.getId(), ReasonCode.POLICY_VIOLATION, null));
-		inTransaction(() -> this.lifecycle.unsuspend(this.testUser.getId()));
+		inTransaction(() -> this.lifecycle.suspend(this.testUser.getPublicId(), ReasonCode.POLICY_VIOLATION, null));
+		inTransaction(() -> this.lifecycle.unsuspend(this.testUser.getPublicId()));
 
 		assertThat(logged()).contains("event.action=\"suspend_user\"")
 			.contains("event.reason=\"policy_violation\"")
@@ -248,10 +248,11 @@ class AccountAuditLoggingTest {
 	@Test
 	void appendsEachSuccessfulChangeToTheAuditTrailWithoutAnEmailAddress() {
 		inTransaction(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User",
-				"new@example.test", Set.of(this.managers.getId()))));
-		inTransaction(() -> this.lifecycle.suspend(this.testUser.getId(), ReasonCode.POLICY_VIOLATION, "see ticket"));
+				"new@example.test", Set.of(this.managers.getPublicId()))));
+		inTransaction(
+				() -> this.lifecycle.suspend(this.testUser.getPublicId(), ReasonCode.POLICY_VIOLATION, "see ticket"));
 		inTransaction(() -> {
-			this.lifecycle.remove(this.testUser.getId(), ReasonCode.LEFT_ORGANISATION, null);
+			this.lifecycle.remove(this.testUser.getPublicId(), ReasonCode.LEFT_ORGANISATION, null);
 			return null;
 		});
 
@@ -275,7 +276,7 @@ class AccountAuditLoggingTest {
 	void doesNotAppendAChangeThatIsRolledBackToTheAuditTrail() {
 		this.transaction.executeWithoutResult(status -> {
 			this.service.createUser(
-					new AdminDtos.UserCreateRequest("new-user", "New User", null, Set.of(this.managers.getId())));
+					new AdminDtos.UserCreateRequest("new-user", "New User", null, Set.of(this.managers.getPublicId())));
 			status.setRollbackOnly();
 		});
 
@@ -284,13 +285,13 @@ class AccountAuditLoggingTest {
 
 	@Test
 	void logsAGroupRoleChangeWithTheNumberOfUsersItAffects() {
-		AppGroup group = inTransaction(() -> this.service.updateGroup(this.managers.getId(),
-				new AdminDtos.GroupRequest("Managers", Set.of(this.groupManage.getId()))));
+		AppGroup group = inTransaction(() -> this.service.updateGroup(this.managers.getPublicId(),
+				new AdminDtos.GroupRequest("Managers", Set.of(this.groupManage.getPublicId()))));
 
 		assertThat(group.getUpdatedBy()).isEqualTo("admin");
 		assertThat(logged()).containsOnlyOnce("event.action=\"update_group\"")
 			.contains("event.type=\"[group, change]\"")
-			.contains("group.id=\"" + this.managers.getId() + "\"")
+			.contains("group.id=\"" + this.managers.getPublicId() + "\"")
 			.contains("group.name=\"Managers\"")
 			.contains("group.roles=\"[USER_MANAGE]\"")
 			.contains("group.changes.roles=\"[GROUP_MANAGE]\"")
@@ -304,15 +305,15 @@ class AccountAuditLoggingTest {
 	@Test
 	void logsARejectedChangeImmediatelyWithItsReason() {
 		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> inTransaction(() -> this.service.createUser(
-				new AdminDtos.UserCreateRequest("test-user", "Test User", null, Set.of(this.managers.getId())))));
+				new AdminDtos.UserCreateRequest("test-user", "Test User", null, Set.of(this.managers.getPublicId())))));
 		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> inTransaction(() -> this.service
-			.updateGroup(this.managers.getId(), new AdminDtos.GroupRequest("Administrators", null))));
+			.updateGroup(this.managers.getPublicId(), new AdminDtos.GroupRequest("Administrators", null))));
 		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> inTransaction(() -> {
-			this.service.deleteGroup(this.managers.getId());
+			this.service.deleteGroup(this.managers.getPublicId());
 			return null;
 		}));
 		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(() -> inTransaction(() -> {
-			this.service.deleteRole(this.userManage.getId());
+			this.service.deleteRole(this.userManage.getPublicId());
 			return null;
 		}));
 

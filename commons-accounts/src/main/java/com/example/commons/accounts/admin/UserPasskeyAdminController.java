@@ -40,12 +40,12 @@ public class UserPasskeyAdminController {
 
 	@GetMapping
 	public List<Passkey> list(@PathVariable UUID id) {
-		return this.passkeyManager.list(this.service.user(id).getId().toString());
+		return this.passkeyManager.list(this.service.user(id).getPublicId().toString());
 	}
 
 	@DeleteMapping("/{credentialId}")
 	public ResponseEntity<Void> remove(@PathVariable UUID id, @PathVariable String credentialId) {
-		if (!this.passkeyManager.remove(this.service.user(id).getId().toString(), credentialId)) {
+		if (!this.passkeyManager.remove(this.service.user(id).getPublicId().toString(), credentialId)) {
 			throw new ResourceNotFoundException("Passkey");
 		}
 		return ResponseEntity.noContent().build();

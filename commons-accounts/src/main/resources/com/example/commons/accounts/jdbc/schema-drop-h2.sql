@@ -19,3 +19,17 @@ DROP TABLE app_role;
 DROP TABLE app_group;
 
 DROP TABLE app_user;
+
+DROP SEQUENCE review_item_seq;
+
+DROP SEQUENCE app_setting_seq;
+
+DROP SEQUENCE task_seq;
+
+DROP SEQUENCE account_audit_event_seq;
+
+DROP SEQUENCE app_role_seq;
+
+DROP SEQUENCE app_group_seq;
+
+DROP SEQUENCE app_user_seq;

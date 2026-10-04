@@ -202,8 +202,8 @@ inactivity clock, the audit table and the settings, and the task and review tabl
 `commons` in `com/example/commons/session/jdbc` (Spring Session's tables) and `com/example/commons/session/oidc/jdbc` (the OIDC
 session registry's table). Modules ship schema, applications ship data. There is no
 foreign key from `user_entities` to `app_user` because the passkey user handle is the
-UUID's bytes, so deleting a user deletes their passkeys in code. `review_item` and
-`account_audit_event` hold the user's ID and username with no foreign key to `app_user`,
+public UUID's bytes, so deleting a user deletes their passkeys in code. `review_item` and
+`account_audit_event` hold the user's public ID and username with no foreign key to `app_user`,
 so they outlive a removed account. The application's own changelog, `db/changelog` in
 `app-web-api-server`, includes the two schemas and then seeds the roles and groups the
 administration API requires by name (`USER_MANAGE`, `GROUP_MANAGE`, `ROLE_MANAGE`), the

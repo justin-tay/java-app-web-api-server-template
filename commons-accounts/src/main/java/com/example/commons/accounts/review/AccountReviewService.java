@@ -105,7 +105,7 @@ public class AccountReviewService {
 			.map(user -> new ReviewItem(task.getId(), user))
 			.toList();
 		this.items.saveAll(created);
-		this.auditLogger.record("create_review_task", "REVIEW", task.getId().toString(),
+		this.auditLogger.record("create_review_task", "REVIEW", task.getPublicId().toString(),
 				"account_review " + window.start(), null, null, Map.of("startDate", window.start().toString(),
 						"dueDate", window.due().toString(), "itemCount", created.size()));
 		this.reviewItems.completeIfFinished(task, Auditor.SYSTEM);
@@ -126,7 +126,7 @@ public class AccountReviewService {
 
 	@Transactional(readOnly = true)
 	public Task task(UUID id) {
-		return this.tasks.findById(id).orElseThrow(() -> new ResourceNotFoundException("Task"));
+		return this.tasks.findByPublicId(id).orElseThrow(() -> new ResourceNotFoundException("Task"));
 	}
 
 	@Transactional(readOnly = true)
@@ -147,7 +147,7 @@ public class AccountReviewService {
 			counts.put(((ReviewStatus) row[0]).value(), (Long) row[1]);
 		}
 		boolean overdue = task.isOpen() && task.getDueDate().isBefore(today());
-		return new TaskResponse(task.getId(), task.getType(), task.getStatus().value(), task.getStartDate(),
+		return new TaskResponse(task.getPublicId(), task.getType(), task.getStatus().value(), task.getStartDate(),
 				task.getDueDate(), task.getCompletedAt(), task.getCompletedBy(), overdue, counts);
 	}
 
@@ -173,7 +173,8 @@ public class AccountReviewService {
 		AccountStatus status = category == Category.ACTIVE ? AccountStatus.ACTIVE : AccountStatus.SUSPENDED;
 		Specification<ReviewItem> specification = (root, query, builder) -> {
 			var user = root.join("user");
-			return builder.and(builder.equal(root.get("taskId"), taskId), builder.equal(user.get("status"), status));
+			return builder.and(builder.equal(root.get("taskId"), task.getId()),
+					builder.equal(user.get("status"), status));
 		};
 		if (reviewStatus != null) {
 			specification = specification
@@ -207,7 +208,7 @@ public class AccountReviewService {
 		Pageable mapped = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), mapSort(pageable.getSort(),
 				Map.of("username", "targetName", "name", "targetFullName", "removedAt", "occurredAt")));
 		return this.auditEvents.findAll(specification, mapped)
-			.map(event -> new ReviewItemResponse(event.getId(), UUID.fromString(event.getTargetId()),
+			.map(event -> new ReviewItemResponse(event.getPublicId(), UUID.fromString(event.getTargetId()),
 					event.getTargetName(), event.getTargetFullName(), "removed", null, false, null, null,
 					event.getOccurredAt(), event.getActor(), event.getReasonCode(), event.getReasonNote(), null, null));
 	}
@@ -226,13 +227,13 @@ public class AccountReviewService {
 			throw new ConflictException("The review task is completed.");
 		}
 		Set<UUID> ids = new LinkedHashSet<>(itemIds);
-		Map<UUID, ReviewItem> found = this.items.findByTaskIdAndIdIn(taskId, ids)
+		Map<UUID, ReviewItem> found = this.items.findByTaskIdAndPublicIdIn(task.getId(), ids)
 			.stream()
-			.collect(Collectors.toMap(ReviewItem::getId, item -> item));
+			.collect(Collectors.toMap(ReviewItem::getPublicId, item -> item));
 		String actor = Auditor.current();
 		for (ReviewItem item : found.values()) {
 			if (item.getUsername().equals(actor)) {
-				this.auditLogger.record("review_rejected", "REVIEW", item.getId().toString(), item.getUsername(),
+				this.auditLogger.record("review_rejected", "REVIEW", item.getPublicId().toString(), item.getUsername(),
 						"own_account", null, Map.of("taskId", taskId));
 				throw new AccessDeniedException("Reviewers cannot review their own account.");
 			}
@@ -241,7 +242,7 @@ public class AccountReviewService {
 		Map<UUID, AppUser> accounts = new java.util.HashMap<>();
 		for (UUID id : ids) {
 			ReviewItem item = found.get(id);
-			AppUser account = item == null ? null : this.users.findById(item.getUserId()).orElse(null);
+			AppUser account = item == null ? null : this.users.findByPublicId(item.getUserPublicId()).orElse(null);
 			if (item == null || !item.isPending() || account == null) {
 				rejected.add(id);
 			}
@@ -259,13 +260,13 @@ public class AccountReviewService {
 			if (verify) {
 				item.decide(ReviewStatus.VERIFIED, account, actor, this.clock.instant(), null, null);
 				this.items.save(item);
-				this.auditLogger.record("verify_review_item", "REVIEW", item.getId().toString(), item.getUsername(),
-						null, null, Map.of("taskId", taskId));
+				this.auditLogger.record("verify_review_item", "REVIEW", item.getPublicId().toString(),
+						item.getUsername(), null, null, Map.of("taskId", taskId));
 			}
 			else {
 				this.lifecycle.remove(account, reason, note);
-				this.auditLogger.record("remove_review_item", "REVIEW", item.getId().toString(), item.getUsername(),
-						reason.value(), note, Map.of("taskId", taskId));
+				this.auditLogger.record("remove_review_item", "REVIEW", item.getPublicId().toString(),
+						item.getUsername(), reason.value(), note, Map.of("taskId", taskId));
 			}
 		}
 		this.items.flush();
@@ -276,26 +277,27 @@ public class AccountReviewService {
 	 * Suspends the account of an item. The item's review status does not change.
 	 */
 	public void suspend(UUID taskId, UUID itemId, ReasonCode reason, String note) {
-		this.lifecycle.suspend(item(taskId, itemId).getUserId(), reason, note);
+		this.lifecycle.suspend(item(taskId, itemId).getUserPublicId(), reason, note);
 	}
 
 	/**
 	 * Unsuspends the account of an item. The item's review status does not change.
 	 */
 	public void unsuspend(UUID taskId, UUID itemId) {
-		this.lifecycle.unsuspend(item(taskId, itemId).getUserId());
+		this.lifecycle.unsuspend(item(taskId, itemId).getUserPublicId());
 	}
 
 	private ReviewItem item(UUID taskId, UUID itemId) {
-		return this.items.findById(itemId)
-			.filter(item -> item.getTaskId().equals(taskId))
+		Long id = task(taskId).getId();
+		return this.items.findByPublicId(itemId)
+			.filter(item -> item.getTaskId().equals(id))
 			.orElseThrow(() -> new ResourceNotFoundException("Review item"));
 	}
 
 	private ReviewItemResponse row(ReviewItem item, Category category) {
 		AppUser account = item.getUser();
 		boolean own = item.getUsername().equals(Auditor.current());
-		return new ReviewItemResponse(item.getId(), item.getUserId(), item.getUsername(),
+		return new ReviewItemResponse(item.getPublicId(), item.getUserPublicId(), item.getUsername(),
 				account != null ? account.getName() : item.getName(),
 				category.name().toLowerCase(java.util.Locale.ROOT), item.getReviewStatus().value(), own,
 				account != null ? account.getLastLoginAt() : null, account != null ? account.getSuspendedAt() : null,

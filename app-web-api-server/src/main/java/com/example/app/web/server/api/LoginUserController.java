@@ -55,7 +55,7 @@ public class LoginUserController {
 			.filter(authority -> authority.startsWith(RolePrefix.VALUE))
 			.sorted()
 			.toList();
-		return new LoginUserResponse(user.getId(), user.getUsername(), user.getName(), user.getEmail(), roles);
+		return new LoginUserResponse(user.getPublicId(), user.getUsername(), user.getName(), user.getEmail(), roles);
 	}
 
 }

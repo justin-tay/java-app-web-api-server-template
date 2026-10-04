@@ -10,10 +10,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.Id;
 
 import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.annotations.NotFound;
 import org.hibernate.annotations.NotFoundAction;
 import org.hibernate.type.SqlTypes;
@@ -24,25 +22,19 @@ import org.hibernate.type.SqlTypes;
  * saw is frozen on the item when they decide, so it survives the account being removed.
  *
  * <p>
- * The item holds {@code userId} and {@code username} as plain values with no foreign key
- * to the account, so it outlives it. {@link #getUser()} reads the live account and is
- * null once the account is gone.
+ * The item holds {@code userPublicId} and {@code username} as plain values with no
+ * foreign key to the account, so it outlives it. {@link #getUser()} reads the live
+ * account and is null once the account is gone.
  */
 @Entity
 @Table(name = "review_item")
-public class ReviewItem {
+public class ReviewItem extends AbstractIdentifiedEntity {
 
-	@Id
-	@UuidGenerator(style = UuidGenerator.Style.RANDOM)
-	@JdbcTypeCode(SqlTypes.UUID)
-	private UUID id;
+	private Long taskId;
 
+	@Column(name = "user_public_id")
 	@JdbcTypeCode(SqlTypes.UUID)
-	private UUID taskId;
-
-	@Column(name = "user_id")
-	@JdbcTypeCode(SqlTypes.UUID)
-	private UUID userId;
+	private UUID userPublicId;
 
 	private String username;
 
@@ -66,7 +58,7 @@ public class ReviewItem {
 	private String decidedReasonNote;
 
 	@ManyToOne
-	@JoinColumn(name = "user_id", insertable = false, updatable = false,
+	@JoinColumn(name = "user_public_id", referencedColumnName = "publicId", insertable = false, updatable = false,
 			foreignKey = @jakarta.persistence.ForeignKey(jakarta.persistence.ConstraintMode.NO_CONSTRAINT))
 	@NotFound(action = NotFoundAction.IGNORE)
 	private AppUser user;
@@ -74,25 +66,21 @@ public class ReviewItem {
 	protected ReviewItem() {
 	}
 
-	public ReviewItem(UUID taskId, AppUser user) {
+	public ReviewItem(Long taskId, AppUser user) {
 		this.taskId = taskId;
-		this.userId = user.getId();
+		this.userPublicId = user.getPublicId();
 		this.user = user;
 		this.username = user.getUsername();
 		this.name = user.getName();
 		this.reviewStatus = ReviewStatus.PENDING_VERIFICATION;
 	}
 
-	public UUID getId() {
-		return this.id;
-	}
-
-	public UUID getTaskId() {
+	public Long getTaskId() {
 		return this.taskId;
 	}
 
-	public UUID getUserId() {
-		return this.userId;
+	public UUID getUserPublicId() {
+		return this.userPublicId;
 	}
 
 	public String getUsername() {

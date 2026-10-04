@@ -127,7 +127,7 @@ class AccountReviewServiceTest {
 		Task task = this.service.createTask(WINDOW);
 		flushAndClear();
 
-		this.lifecycle.suspend(alice.getId(), ReasonCode.POLICY_VIOLATION, "see ticket");
+		this.lifecycle.suspend(alice.getPublicId(), ReasonCode.POLICY_VIOLATION, "see ticket");
 		flushAndClear();
 
 		assertThat(rows(task, Category.ACTIVE)).extracting(ReviewItemResponse::username).containsExactly("rachel");
@@ -150,8 +150,8 @@ class AccountReviewServiceTest {
 		flushAndClear();
 		authenticateAs("rachel");
 
-		this.service.decide(task.getId(), List.of(itemOf(task, "alice").getId(), itemOf(task, "ravi").getId()), true,
-				null, null);
+		this.service.decide(task.getPublicId(),
+				List.of(itemOf(task, "alice").getPublicId(), itemOf(task, "ravi").getPublicId()), true, null, null);
 		flushAndClear();
 
 		ReviewItem verified = itemOf(task, "alice");
@@ -163,7 +163,7 @@ class AccountReviewServiceTest {
 		assertThat(this.tasks.findById(task.getId()).orElseThrow().isOpen()).isTrue();
 
 		authenticateAs("ravi");
-		this.service.decide(task.getId(), List.of(itemOf(task, "rachel").getId()), true, null, null);
+		this.service.decide(task.getPublicId(), List.of(itemOf(task, "rachel").getPublicId()), true, null, null);
 		flushAndClear();
 
 		Task completed = this.tasks.findById(task.getId()).orElseThrow();
@@ -183,8 +183,8 @@ class AccountReviewServiceTest {
 		flushAndClear();
 		authenticateAs("rachel");
 
-		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(() -> this.service.decide(task.getId(),
-				List.of(itemOf(task, "alice").getId(), itemOf(task, "rachel").getId()), true, null, null));
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(() -> this.service.decide(task.getPublicId(),
+				List.of(itemOf(task, "alice").getPublicId(), itemOf(task, "rachel").getPublicId()), true, null, null));
 		flushAndClear();
 
 		assertThat(itemOf(task, "alice").getReviewStatus()).isEqualTo(ReviewStatus.PENDING_VERIFICATION);
@@ -200,12 +200,12 @@ class AccountReviewServiceTest {
 		Task task = this.service.createTask(WINDOW);
 		flushAndClear();
 		authenticateAs("rachel");
-		UUID itemId = itemOf(task, "rachel").getId();
+		UUID itemId = itemOf(task, "rachel").getPublicId();
 
 		assertThatExceptionOfType(AccessDeniedException.class)
-			.isThrownBy(() -> this.service.suspend(task.getId(), itemId, ReasonCode.OTHER, null));
+			.isThrownBy(() -> this.service.suspend(task.getPublicId(), itemId, ReasonCode.OTHER, null));
 		assertThatExceptionOfType(AccessDeniedException.class)
-			.isThrownBy(() -> this.service.decide(task.getId(), List.of(itemId), false, ReasonCode.OTHER, null));
+			.isThrownBy(() -> this.service.decide(task.getPublicId(), List.of(itemId), false, ReasonCode.OTHER, null));
 
 		assertThat(this.users.existsByUsername("rachel")).isTrue();
 	}
@@ -218,13 +218,13 @@ class AccountReviewServiceTest {
 		Task task = this.service.createTask(WINDOW);
 		flushAndClear();
 		authenticateAs("rachel");
-		this.service.decide(task.getId(), List.of(itemOf(task, "alice").getId()), true, null, null);
+		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), true, null, null);
 		flushAndClear();
-		UUID bob = itemOf(task, "bob").getId();
-		UUID alice = itemOf(task, "alice").getId();
+		UUID bob = itemOf(task, "bob").getPublicId();
+		UUID alice = itemOf(task, "alice").getPublicId();
 
 		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.decide(task.getId(), List.of(bob, alice, UNKNOWN), true, null, null))
+			.isThrownBy(() -> this.service.decide(task.getPublicId(), List.of(bob, alice, UNKNOWN), true, null, null))
 			.withMessageContaining(alice.toString())
 			.withMessageContaining(UNKNOWN.toString());
 		flushAndClear();
@@ -240,8 +240,8 @@ class AccountReviewServiceTest {
 		flushAndClear();
 		authenticateAs("rachel");
 
-		this.service.decide(task.getId(), List.of(itemOf(task, "alice").getId()), false, ReasonCode.LEFT_ORGANISATION,
-				"moved teams");
+		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), false,
+				ReasonCode.LEFT_ORGANISATION, "moved teams");
 		flushAndClear();
 
 		assertThat(this.users.existsByUsername("alice")).isFalse();
@@ -258,7 +258,7 @@ class AccountReviewServiceTest {
 		assertThat(removed.get(0).removedBy()).isEqualTo("rachel");
 		assertThat(removed.get(0).reasonCode()).isEqualTo("left_organisation");
 		assertThat(rows(task, Category.ACTIVE)).extracting(ReviewItemResponse::username).containsExactly("rachel");
-		assertThat(alice.getId()).isNotNull();
+		assertThat(alice.getPublicId()).isNotNull();
 	}
 
 	@Test
@@ -267,7 +267,7 @@ class AccountReviewServiceTest {
 		Task task = this.service.createTask(WINDOW);
 		flushAndClear();
 
-		this.lifecycle.remove(alice.getId(), ReasonCode.INACTIVE_ACCOUNT, null);
+		this.lifecycle.remove(alice.getPublicId(), ReasonCode.INACTIVE_ACCOUNT, null);
 		flushAndClear();
 
 		ReviewItem item = itemOf(task, "alice");
@@ -286,7 +286,7 @@ class AccountReviewServiceTest {
 		AppUser late = user("late-joiner");
 		flushAndClear();
 
-		this.lifecycle.remove(late.getId(), ReasonCode.NO_LONGER_REQUIRED, null);
+		this.lifecycle.remove(late.getPublicId(), ReasonCode.NO_LONGER_REQUIRED, null);
 		flushAndClear();
 
 		assertThat(rows(task, Category.REMOVED)).extracting(ReviewItemResponse::username)
@@ -301,14 +301,14 @@ class AccountReviewServiceTest {
 		Task task = this.service.createTask(WINDOW);
 		flushAndClear();
 		authenticateAs("rachel");
-		UUID itemId = itemOf(task, "alice").getId();
+		UUID itemId = itemOf(task, "alice").getPublicId();
 
-		this.service.suspend(task.getId(), itemId, ReasonCode.POLICY_VIOLATION, null);
+		this.service.suspend(task.getPublicId(), itemId, ReasonCode.POLICY_VIOLATION, null);
 		flushAndClear();
 		assertThat(rows(task, Category.SUSPENDED)).extracting(ReviewItemResponse::username).containsExactly("alice");
 		assertThat(itemOf(task, "alice").getReviewStatus()).isEqualTo(ReviewStatus.PENDING_VERIFICATION);
 
-		this.service.unsuspend(task.getId(), itemId);
+		this.service.unsuspend(task.getPublicId(), itemId);
 		flushAndClear();
 		assertThat(rows(task, Category.ACTIVE)).extracting(ReviewItemResponse::username)
 			.containsExactlyInAnyOrder("rachel", "alice");
@@ -323,7 +323,7 @@ class AccountReviewServiceTest {
 		this.entityManager.flush();
 		itemOf(task, "alice");
 
-		this.lifecycle.suspend(alice.getId(), ReasonCode.POLICY_VIOLATION, "see ticket");
+		this.lifecycle.suspend(alice.getPublicId(), ReasonCode.POLICY_VIOLATION, "see ticket");
 
 		List<ReviewItemResponse> suspended = rows(task, Category.SUSPENDED);
 		assertThat(suspended).hasSize(1);
@@ -337,11 +337,11 @@ class AccountReviewServiceTest {
 		Task task = this.service.createTask(WINDOW);
 		flushAndClear();
 		authenticateAs("rachel");
-		this.service.decide(task.getId(), List.of(itemOf(task, "alice").getId()), true, null, null);
+		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), true, null, null);
 		flushAndClear();
 
-		assertThatExceptionOfType(ConflictException.class).isThrownBy(
-				() -> this.service.decide(task.getId(), List.of(itemOf(task, "alice").getId()), true, null, null));
+		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> this.service.decide(task.getPublicId(),
+				List.of(itemOf(task, "alice").getPublicId()), true, null, null));
 		assertThat(rows(task, Category.ACTIVE)).extracting(ReviewItemResponse::username).containsExactly("alice");
 		assertThat(this.service.summary().openCount()).isZero();
 		assertThat(alice).isNotNull();
@@ -387,7 +387,7 @@ class AccountReviewServiceTest {
 	}
 
 	private List<ReviewItemResponse> rows(Task task, Category category) {
-		return this.service.items(task.getId(), category, null, null, PageRequest.of(0, 50, Sort.by("username")))
+		return this.service.items(task.getPublicId(), category, null, null, PageRequest.of(0, 50, Sort.by("username")))
 			.getContent();
 	}
 

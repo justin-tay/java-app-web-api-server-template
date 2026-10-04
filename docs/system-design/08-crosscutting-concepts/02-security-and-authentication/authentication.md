@@ -65,7 +65,7 @@ all of them; choose it once. The remaining properties have defaults:
 Every state-changing request carries a CSRF token like any other.
 
 * **One identity.** A passkey does not create a separate user. The user's
-  `app_user.id`, a random UUID that never changes, is the WebAuthn user handle,
+  `app_user.public_id`, a random UUID that never changes, is the WebAuthn user handle,
   as Keycloak uses the user's internal ID. Usernames cannot be renamed, so the
   username stored beside the handle never has to be synchronised. Deleting a
   user deletes their passkeys.
@@ -381,7 +381,7 @@ since they carry no separate testable claim.
 
 | Recommendation | Status | Implementation Statement |
 | --- | --- | --- |
-| **User IDs**<br>Generate user IDs randomly so they are neither predictable nor sequential. | Partial | The local `AppUser` record (the application's own authorization identity) has a randomly generated UUID primary key that never changes and is never reused, per `AbstractAuditableEntity`. The upstream Keycloak identity's own internal ID is entirely Keycloak's responsibility.<br><br>**Application code:** `AbstractAuditableEntity`, `AppUser`. |
+| **User IDs**<br>Generate user IDs randomly so they are neither predictable nor sequential. | Partial | The local `AppUser` record (the application's own authorization identity) has a randomly generated UUID public identifier that never changes and is never reused, per `AbstractIdentifiedEntity`; its primary key is a separate sequence number that is never exposed. The upstream Keycloak identity's own internal ID is entirely Keycloak's responsibility.<br><br>**Application code:** `AbstractIdentifiedEntity`, `AppUser`. |
 | **Usernames**<br>Let users log in with a verified email address or a username of their own choosing. | Delegated to identity provider | The application resolves the OIDC `preferred_username` claim to the immutable local `username` field (validated by the `@Username` constraint on `AppUser`/`UserCreateRequest`) as a lookup key; it does not accept, register, or validate a username as a login credential itself, so the cheat sheet's case-sensitivity/format guidance for a login form does not apply. See [Authorization](authorization.md). |
 | **Authentication Solution and Sensitive Accounts**<br>Keep sensitive internal accounts off front-end logins, and do not reuse the internal authentication solution for public access. | Deployment decision required | The application does not distinguish an internal/service-account population from browser users. Ensure the Keycloak realm and client used by end users are not also used to authenticate backend, database, or administrative accounts. |
 | **Implement Proper Password Strength Controls**<br>Enforce sensible minimum and maximum password lengths, allow all characters, and block known-breached passwords. | Delegated to identity provider | The application never receives, renders, or validates a password field; Keycloak's realm password policy owns strength rules. Neither `WebSecurityAutoConfiguration` nor `WebSecurityConfiguration` defines a credential input of its own. |

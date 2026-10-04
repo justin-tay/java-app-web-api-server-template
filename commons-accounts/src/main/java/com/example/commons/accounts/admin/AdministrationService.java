@@ -100,7 +100,7 @@ public class AdministrationService {
 	public AppUser updateUser(UUID id, AdminDtos.UserUpdateRequest request) {
 		AppUser user = user(id);
 		UserState before = UserState.of(user);
-		Set<UUID> previousGroupIds = user.getGroups().stream().map(AppGroup::getId).collect(Collectors.toSet());
+		Set<UUID> previousGroupIds = user.getGroups().stream().map(AppGroup::getPublicId).collect(Collectors.toSet());
 		Set<AppGroup> requestedGroups = groups(request.groupIds());
 		boolean accessChanged = !previousGroupIds.equals(request.groupIds());
 		if (accessChanged && isActor(user)) {
@@ -150,7 +150,7 @@ public class AdministrationService {
 	}
 
 	public AppUser user(UUID id) {
-		return this.users.findById(id).orElseThrow(() -> new ResourceNotFoundException("User"));
+		return this.users.findByPublicId(id).orElseThrow(() -> new ResourceNotFoundException("User"));
 	}
 
 	/**
@@ -162,20 +162,20 @@ public class AdministrationService {
 	}
 
 	public Page<AppUser> users(UserQuery query, Pageable pageable) {
-		Specification<AppUser> search = isBlank(query.search()) ? null : Specification.anyOf(Stream
-			.of(this.<AppUser>contains("username", query.search()), this.<AppUser>contains("name", query.search()),
-					this.<AppUser>contains("email", query.search()), this.<AppUser>equals("id", asUuid(query.search())))
-			.filter(Objects::nonNull)
-			.toList());
+		Specification<AppUser> search = isBlank(query.search()) ? null
+				: Specification.anyOf(Stream.of(this.<AppUser>contains("username", query.search()),
+						this.<AppUser>contains("name", query.search()), this.<AppUser>contains("email", query.search()),
+						this.<AppUser>equals("publicId", asUuid(query.search())))
+					.filter(Objects::nonNull)
+					.toList());
 		Specification<AppUser> specification = Specification.allOf(Stream
 			.of(search, this.<AppUser>contains("username", query.username()),
 					this.<AppUser>contains("name", query.name()), this.<AppUser>contains("email", query.email()),
 					query.status() == null ? null : this.<AppUser>equals("status", query.status()),
 					neverSignedIn(query.neverSignedIn()),
-					query.groupId() == null
-							? null
+					query.groupId() == null ? null
 							: (Specification<AppUser>) (root, criteria, builder) -> builder
-								.equal(root.join("groups").get("id"), query.groupId()),
+								.equal(root.join("groups").get("publicId"), query.groupId()),
 					query.createdFrom() == null ? null
 							: (Specification<AppUser>) (root, criteria, builder) -> builder.greaterThanOrEqualTo(
 									root.get("createdAt"),
@@ -224,14 +224,14 @@ public class AdministrationService {
 		group.getRoles().clear();
 		group.getRoles().addAll(requestedRoles);
 		group.touch();
-		this.auditLogger.groupUpdated(before, GroupState.of(group), this.users.countByGroups_Id(id));
+		this.auditLogger.groupUpdated(before, GroupState.of(group), this.users.countByGroups_PublicId(id));
 		return group;
 	}
 
 	public void deleteGroup(UUID id) {
 		AppGroup group = group(id);
 		GroupState before = GroupState.of(group);
-		if (this.users.existsByGroups_Id(id)) {
+		if (this.users.existsByGroups_PublicId(id)) {
 			this.auditLogger.groupDeletionRejected(before, "group_has_users");
 			throw new ConflictException("Group contains users.");
 		}
@@ -240,18 +240,17 @@ public class AdministrationService {
 	}
 
 	public AppGroup group(UUID id) {
-		return this.groups.findById(id).orElseThrow(() -> new ResourceNotFoundException("Group"));
+		return this.groups.findByPublicId(id).orElseThrow(() -> new ResourceNotFoundException("Group"));
 	}
 
 	public Page<AppGroup> groups(String search, String name, UUID roleId, Pageable pageable) {
-		Specification<AppGroup> specification = Specification
-			.allOf(Stream
-				.of(this.<AppGroup>contains("name", search), this.<AppGroup>contains("name", name),
-						roleId == null ? null
-								: (Specification<AppGroup>) (root, query, builder) -> builder
-									.equal(root.join("roles").get("id"), roleId))
-				.filter(value -> value != null)
-				.toList());
+		Specification<AppGroup> specification = Specification.allOf(Stream
+			.of(this.<AppGroup>contains("name", search), this.<AppGroup>contains("name", name),
+					roleId == null ? null
+							: (Specification<AppGroup>) (root, query, builder) -> builder
+								.equal(root.join("roles").get("publicId"), roleId))
+			.filter(value -> value != null)
+			.toList());
 		return this.groups.findAll(distinct(specification), pageable);
 	}
 
@@ -272,7 +271,7 @@ public class AdministrationService {
 			this.auditLogger.roleDeletionRejected(before, "reserved_role");
 			throw new AccessDeniedException("Reserved roles cannot be deleted.");
 		}
-		if (this.groups.existsByRoles_Id(id)) {
+		if (this.groups.existsByRoles_PublicId(id)) {
 			this.auditLogger.roleDeletionRejected(before, "role_in_use");
 			throw new ConflictException("Role is assigned to a group.");
 		}
@@ -281,7 +280,7 @@ public class AdministrationService {
 	}
 
 	public AppRole role(UUID id) {
-		return this.roles.findById(id).orElseThrow(() -> new ResourceNotFoundException("Role"));
+		return this.roles.findByPublicId(id).orElseThrow(() -> new ResourceNotFoundException("Role"));
 	}
 
 	public Page<AppRole> roles(String search, String name, Pageable pageable) {
@@ -319,14 +318,14 @@ public class AdministrationService {
 	}
 
 	private Set<AppGroup> groups(Set<UUID> ids) {
-		Set<AppGroup> values = Set.copyOf(this.groups.findAllById(ids));
+		Set<AppGroup> values = Set.copyOf(this.groups.findAllByPublicIdIn(ids));
 		if (values.size() != ids.size())
 			throw new ResourceNotFoundException("Group");
 		return values;
 	}
 
 	private Set<AppRole> roles(Set<UUID> ids) {
-		Set<AppRole> values = Set.copyOf(this.roles.findAllById(ids));
+		Set<AppRole> values = Set.copyOf(this.roles.findAllByPublicIdIn(ids));
 		if (values.size() != ids.size())
 			throw new ResourceNotFoundException("Role");
 		return values;

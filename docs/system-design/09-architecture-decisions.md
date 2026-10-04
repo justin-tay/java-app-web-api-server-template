@@ -39,6 +39,7 @@ whether a change warrants a new ADR.
 | [ADR 0025](../adr/0025-json-logout-url-for-single-page-applications.md) : JSON logout URL for single-page applications | A logout request that accepts JSON and not HTML is answered with the Keycloak `end_session_endpoint` URL to navigate to, instead of a redirect a `fetch` cannot follow, so Keycloak's session ends too. |
 | [ADR 0029](../adr/0029-lazy-oidc-discovery.md) : Lazy OIDC discovery | The Keycloak metadata is fetched on first use instead of at startup, so the application starts while Keycloak is down, answers login with 503 and `Retry-After`, and is not ready until Keycloak has been reached once. |
 | [ADR 0034](../adr/0034-authorized-clients-in-the-session.md) : Authorized clients in the session | The Keycloak access and refresh tokens are kept in the JDBC-backed session instead of an in-memory map, so any instance can use them and they end with the session; the JDBC authorized client service is the opt-in for use without a user session. |
+| [ADR 0036](../adr/0036-dual-identifiers-sequence-key-and-public-uuid.md) : Dual identifiers, a sequence key and a public UUID | Every entity has a `bigint` sequence primary key for joins and a random UUID `publicId` for the API, the audit trail and the logs, so the clustered key is narrow on SQL Server and no identifier discloses its creation time. |
 
 <!-- arc42-manual: Add a row here when a new ADR is accepted. Do not restate an ADR's Context/Decision/Consequences in this table; link to it instead. -->
 <!-- /arc42-manual -->

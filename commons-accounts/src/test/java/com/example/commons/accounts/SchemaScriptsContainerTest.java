@@ -126,19 +126,21 @@ class SchemaScriptsContainerTest {
 
 			UUID id = UUID.randomUUID();
 			Timestamp now = Timestamp.from(Instant.now());
-			try (PreparedStatement insert = connection.prepareStatement("INSERT INTO app_user (id, username, name, "
-					+ "created_at, updated_at, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
-				insert.setObject(1, id);
-				insert.setString(2, "alice");
-				insert.setString(3, "Alice Tan");
-				insert.setTimestamp(4, now);
+			try (PreparedStatement insert = connection.prepareStatement("INSERT INTO app_user (id, public_id, "
+					+ "username, name, created_at, updated_at, created_by, updated_by) "
+					+ "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
+				insert.setLong(1, 1L);
+				insert.setObject(2, id);
+				insert.setString(3, "alice");
+				insert.setString(4, "Alice Tan");
 				insert.setTimestamp(5, now);
-				insert.setString(6, "system");
+				insert.setTimestamp(6, now);
 				insert.setString(7, "system");
+				insert.setString(8, "system");
 				insert.executeUpdate();
 			}
 			try (PreparedStatement select = connection
-				.prepareStatement("SELECT status, inactivity_clock_started_at FROM app_user WHERE id = ?")) {
+				.prepareStatement("SELECT status, inactivity_clock_started_at FROM app_user WHERE public_id = ?")) {
 				select.setObject(1, id);
 				try (ResultSet rows = select.executeQuery()) {
 					assertThat(rows.next()).isTrue();

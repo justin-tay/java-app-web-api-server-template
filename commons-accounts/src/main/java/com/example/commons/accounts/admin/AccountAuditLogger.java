@@ -94,7 +94,8 @@ public class AccountAuditLogger {
 			String email, String name) {
 
 		public static UserState of(AppUser user) {
-			return new UserState(user.getId(), user.getUsername(), user.getStatus().name().toLowerCase(Locale.ROOT),
+			return new UserState(user.getPublicId(), user.getUsername(),
+					user.getStatus().name().toLowerCase(Locale.ROOT),
 					names(user.getGroups().stream().map(AppGroup::getName).toList()),
 					names(user.getGroups()
 						.stream()
@@ -116,7 +117,7 @@ public class AccountAuditLogger {
 	public record GroupState(UUID id, String name, SortedSet<String> roles) {
 
 		static GroupState of(AppGroup group) {
-			return new GroupState(group.getId(), group.getName(),
+			return new GroupState(group.getPublicId(), group.getName(),
 					names(group.getRoles().stream().map(AppRole::getName).toList()));
 		}
 
@@ -131,7 +132,7 @@ public class AccountAuditLogger {
 	public record RoleState(UUID id, String name) {
 
 		static RoleState of(AppRole role) {
-			return new RoleState(role.getId(), role.getName());
+			return new RoleState(role.getPublicId(), role.getName());
 		}
 
 	}

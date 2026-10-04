@@ -41,7 +41,7 @@ public class ReviewItems {
 	 */
 	public void accountRemoved(AppUser account, String actor, ReasonCode reason, String note) {
 		Instant now = this.clock.instant();
-		for (ReviewItem item : this.items.findPendingInOpenTasks(account.getId())) {
+		for (ReviewItem item : this.items.findPendingInOpenTasks(account.getPublicId())) {
 			item.decide(ReviewStatus.REMOVED, account, actor, now, reason.value(), note);
 			this.items.saveAndFlush(item);
 			this.tasks.findById(item.getTaskId()).ifPresent(task -> completeIfFinished(task, actor));

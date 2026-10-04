@@ -67,7 +67,7 @@ public class InactiveUserSuspender {
 
 	private int removeInactive(Instant cutoff) {
 		int count = 0;
-		List<UUID> ids = this.users.findIdsInactiveSince(cutoff);
+		List<UUID> ids = this.users.findPublicIdsInactiveSince(cutoff);
 		for (UUID id : ids) {
 			try {
 				this.lifecycle.remove(id, ReasonCode.INACTIVE_ACCOUNT, null);
@@ -82,7 +82,7 @@ public class InactiveUserSuspender {
 
 	private int suspendInactive(Instant cutoff) {
 		int count = 0;
-		List<UUID> ids = this.users.findActiveIdsInactiveSince(cutoff);
+		List<UUID> ids = this.users.findActivePublicIdsInactiveSince(cutoff);
 		for (UUID id : ids) {
 			try {
 				this.lifecycle.suspend(id, ReasonCode.INACTIVE_ACCOUNT, null);

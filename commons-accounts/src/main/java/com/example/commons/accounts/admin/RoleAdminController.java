@@ -39,7 +39,7 @@ public class RoleAdminController {
 	@PostMapping
 	public ResponseEntity<RoleResponse> create(@Valid @RequestBody RoleRequest request) {
 		AppRole role = this.service.createRole(request);
-		return ResponseEntity.created(URI.create("/admin/roles/" + role.getId())).body(response(role));
+		return ResponseEntity.created(URI.create("/admin/roles/" + role.getPublicId())).body(response(role));
 	}
 
 	@GetMapping
@@ -60,7 +60,7 @@ public class RoleAdminController {
 	}
 
 	private static RoleResponse response(AppRole role) {
-		return new RoleResponse(role.getId(), role.getName(), role.getDisplayName());
+		return new RoleResponse(role.getPublicId(), role.getName(), role.getDisplayName());
 	}
 
 	@DeleteMapping("/{id}")

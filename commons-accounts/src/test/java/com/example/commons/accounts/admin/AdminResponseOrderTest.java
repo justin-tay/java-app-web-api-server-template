@@ -75,7 +75,7 @@ class AdminResponseOrderTest {
 
 		List<String> expected = List.of("MIKE", "OMEGA", "ZETA", "ALPHA", "BETA");
 		for (int read = 0; read < 5; read++) {
-			assertThat(roleNames(this.groupController.get(reload(group).getId()))).isEqualTo(expected);
+			assertThat(roleNames(this.groupController.get(reload(group).getPublicId()))).isEqualTo(expected);
 		}
 		this.entityManager.clear();
 		assertThat(this.groupController.list(null, "Staff", null, 0, 20, new MockHttpServletRequest()).items())
@@ -95,7 +95,7 @@ class AdminResponseOrderTest {
 		List<String> expected = List.of("apples", "Bananas", "Mangoes", "zebras");
 		for (int read = 0; read < 5; read++) {
 			this.entityManager.clear();
-			assertThat(groupNames(this.userController.get(user.getId()))).isEqualTo(expected);
+			assertThat(groupNames(this.userController.get(user.getPublicId()))).isEqualTo(expected);
 		}
 		this.entityManager.clear();
 		assertThat(this.userController

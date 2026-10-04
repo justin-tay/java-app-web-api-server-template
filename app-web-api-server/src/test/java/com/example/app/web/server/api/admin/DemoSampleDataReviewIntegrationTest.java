@@ -69,7 +69,7 @@ class DemoSampleDataReviewIntegrationTest {
 	}
 
 	private java.util.List<ReviewItemResponse> rows(Task task, Category category) {
-		return this.service.items(task.getId(), category, null, null, PageRequest.of(0, 50, Sort.by("username")))
+		return this.service.items(task.getPublicId(), category, null, null, PageRequest.of(0, 50, Sort.by("username")))
 			.getContent();
 	}
 

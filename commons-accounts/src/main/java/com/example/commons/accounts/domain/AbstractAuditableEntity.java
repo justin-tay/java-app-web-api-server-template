@@ -2,36 +2,18 @@ package com.example.commons.accounts.domain;
 
 import java.time.Instant;
 
-import java.util.UUID;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.annotations.UuidGenerator;
-import org.hibernate.type.SqlTypes;
-
 /**
- * Base entity providing a random UUID identifier and creation/update audit timestamps and
- * actors, shared by every administration entity. The actor is the {@link Auditor}; these
- * columns record only the latest change, and the history of changes is the administration
- * audit log (see docs/adr/0021).
+ * Base entity providing the identifiers of {@link AbstractIdentifiedEntity} and
+ * creation/update audit timestamps and actors, shared by every administration entity. The
+ * actor is the {@link Auditor}; these columns record only the latest change, and the
+ * history of changes is the administration audit log (see docs/adr/0021).
  */
 @MappedSuperclass
-public abstract class AbstractAuditableEntity {
-
-	/**
-	 * A UUID in its 36-character text form, held in the database's UUID type and
-	 * generated as a random version 4 value when the entity is persisted, so the
-	 * identifier does not disclose when the entity was created.
-	 */
-	@Id
-	@UuidGenerator(style = UuidGenerator.Style.RANDOM)
-	@JdbcTypeCode(SqlTypes.UUID)
-	private UUID id;
+public abstract class AbstractAuditableEntity extends AbstractIdentifiedEntity {
 
 	private Instant createdAt;
 
@@ -52,10 +34,6 @@ public abstract class AbstractAuditableEntity {
 	@PreUpdate
 	void onUpdate() {
 		touch();
-	}
-
-	public UUID getId() {
-		return this.id;
 	}
 
 	public Instant getCreatedAt() {

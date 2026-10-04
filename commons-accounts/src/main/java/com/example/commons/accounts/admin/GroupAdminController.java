@@ -35,7 +35,7 @@ public class GroupAdminController {
 	@PostMapping
 	public ResponseEntity<GroupResponse> create(@Valid @RequestBody GroupRequest request) {
 		AppGroup group = this.service.createGroup(request);
-		return ResponseEntity.created(URI.create("/admin/groups/" + group.getId())).body(response(group));
+		return ResponseEntity.created(URI.create("/admin/groups/" + group.getPublicId())).body(response(group));
 	}
 
 	@GetMapping
@@ -66,10 +66,10 @@ public class GroupAdminController {
 	}
 
 	private GroupResponse response(AppGroup group) {
-		return new GroupResponse(group.getId(), group.getName(),
+		return new GroupResponse(group.getPublicId(), group.getName(),
 				group.getRoles()
 					.stream()
-					.map(role -> new RoleSummary(role.getId(), role.getName(), role.getDisplayName()))
+					.map(role -> new RoleSummary(role.getPublicId(), role.getName(), role.getDisplayName()))
 					.sorted(Comparator.comparing(RoleSummary::displayName, String.CASE_INSENSITIVE_ORDER)
 						.thenComparing(RoleSummary::name))
 					.toList());
