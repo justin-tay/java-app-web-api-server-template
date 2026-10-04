@@ -1,6 +1,7 @@
 package com.example.commons.security.authentication;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -44,7 +45,7 @@ public class ProblemDetailAuthenticationEntryPoint implements AuthenticationEntr
 		}
 		response.setStatus(HttpStatus.UNAUTHORIZED.value());
 		response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-		response.setCharacterEncoding("UTF-8");
+		response.setCharacterEncoding(StandardCharsets.UTF_8);
 		response.getWriter().write(UNAUTHENTICATED_PROBLEM_DETAIL);
 	}
 

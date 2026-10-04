@@ -2,6 +2,7 @@ package com.example.commons.web.tomcat;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 
 import org.apache.catalina.connector.Request;
 import org.apache.catalina.connector.Response;
@@ -133,7 +134,7 @@ public class TomcatHardeningAutoConfiguration {
 					+ "\",\"status\":" + statusCode + "}";
 
 			response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-			response.setCharacterEncoding("UTF-8");
+			response.setCharacterEncoding(StandardCharsets.UTF_8);
 			try {
 				PrintWriter writer = response.getReporter();
 				if (writer != null) {

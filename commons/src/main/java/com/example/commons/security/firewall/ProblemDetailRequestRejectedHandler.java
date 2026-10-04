@@ -1,6 +1,7 @@
 package com.example.commons.security.firewall;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import jakarta.servlet.ServletException;
@@ -66,7 +67,7 @@ public class ProblemDetailRequestRejectedHandler implements RequestRejectedHandl
 		}
 		response.setStatus(HttpStatus.BAD_REQUEST.value());
 		response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-		response.setCharacterEncoding("UTF-8");
+		response.setCharacterEncoding(StandardCharsets.UTF_8);
 		response.getWriter().write(REQUEST_REJECTED_PROBLEM_DETAIL);
 	}
 

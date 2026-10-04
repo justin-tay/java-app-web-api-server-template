@@ -1,6 +1,7 @@
 package com.example.commons.security.authentication.oidc;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,7 +40,7 @@ public class JsonAwareOidcLogoutSuccessHandler extends OidcClientInitiatedLogout
 		String logoutUrl = determineTargetUrl(request, response, authentication);
 		response.setStatus(HttpStatus.OK.value());
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-		response.setCharacterEncoding("UTF-8");
+		response.setCharacterEncoding(StandardCharsets.UTF_8);
 		response.getWriter().write("{\"logoutUrl\":\"" + escape(logoutUrl) + "\"}");
 	}
 

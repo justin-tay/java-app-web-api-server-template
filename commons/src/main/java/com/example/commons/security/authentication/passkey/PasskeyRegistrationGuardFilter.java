@@ -1,6 +1,7 @@
 package com.example.commons.security.authentication.passkey;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
@@ -128,7 +129,7 @@ class PasskeyRegistrationGuardFilter extends OncePerRequestFilter {
 			.log("Passkey registration refused");
 		response.setStatus(status.value());
 		response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-		response.setCharacterEncoding("UTF-8");
+		response.setCharacterEncoding(StandardCharsets.UTF_8);
 		response.getWriter()
 			.write("{\"type\":\"%s\",\"title\":\"%s\",\"status\":%d,\"detail\":\"%s\"%s}".formatted(type,
 					status.getReasonPhrase(), status.value(), detail, extraMembers));

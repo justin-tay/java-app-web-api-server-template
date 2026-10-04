@@ -1,6 +1,7 @@
 package com.example.commons.security.session;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -39,7 +40,7 @@ public class ContentNegotiatingSessionExpiredStrategy implements SessionInformat
 		}
 		response.setStatus(HttpStatus.UNAUTHORIZED.value());
 		response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-		response.setCharacterEncoding("UTF-8");
+		response.setCharacterEncoding(StandardCharsets.UTF_8);
 		response.getWriter().write(SESSION_EXPIRED_PROBLEM_DETAIL);
 	}
 

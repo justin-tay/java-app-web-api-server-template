@@ -1,6 +1,7 @@
 package com.example.commons.security.oauth2;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -75,7 +76,7 @@ public class IdentityProviderUnavailableFilter extends OncePerRequestFilter {
 			}
 			response.setStatus(HttpStatus.SERVICE_UNAVAILABLE.value());
 			response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-			response.setCharacterEncoding("UTF-8");
+			response.setCharacterEncoding(StandardCharsets.UTF_8);
 			response.getWriter().write(PROBLEM_DETAIL);
 		}
 	}

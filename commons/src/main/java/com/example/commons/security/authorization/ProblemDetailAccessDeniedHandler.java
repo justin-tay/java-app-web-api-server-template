@@ -1,6 +1,7 @@
 package com.example.commons.security.authorization;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import jakarta.servlet.ServletException;
@@ -54,7 +55,7 @@ public class ProblemDetailAccessDeniedHandler implements AccessDeniedHandler {
 		String responseBody = (exception instanceof CsrfException) ? CSRF_PROBLEM_DETAIL : ACCESS_DENIED_PROBLEM_DETAIL;
 		response.setStatus(HttpStatus.FORBIDDEN.value());
 		response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-		response.setCharacterEncoding("UTF-8");
+		response.setCharacterEncoding(StandardCharsets.UTF_8);
 		response.getWriter().write(responseBody);
 	}
 
