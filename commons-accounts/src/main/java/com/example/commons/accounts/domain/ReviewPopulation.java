@@ -3,12 +3,12 @@ package com.example.commons.accounts.domain;
 import java.util.Locale;
 
 /**
- * What a reviewer decided about an account in a review: still to be decided, verified as
- * still needed, or removed.
+ * A set of accounts that a reviewer confirms as a whole instead of one by one: the
+ * suspended accounts, or the accounts removed since the previous review.
  */
-public enum ReviewStatus {
+public enum ReviewPopulation {
 
-	PENDING_VERIFICATION, VERIFIED, REMOVED;
+	SUSPENDED, REMOVED;
 
 	/**
 	 * Returns the lower case value used in the API.
@@ -17,7 +17,7 @@ public enum ReviewStatus {
 		return name().toLowerCase(Locale.ROOT);
 	}
 
-	public static ReviewStatus fromValue(String value) {
+	public static ReviewPopulation fromValue(String value) {
 		return valueOf(value.toUpperCase(Locale.ROOT));
 	}
 

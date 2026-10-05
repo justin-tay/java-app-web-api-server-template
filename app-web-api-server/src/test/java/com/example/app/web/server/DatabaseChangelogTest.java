@@ -81,6 +81,11 @@ class DatabaseChangelogTest {
 		assertThat(this.jdbcTemplate.queryForList("SELECT username FROM app_user", String.class))
 			.containsExactlyInAnyOrder("admin", "user", "multi-group-user", "account-reviewer-1", "account-reviewer-2");
 		assertThat(names("app_group")).containsExactlyInAnyOrder("Administrators", "Users", "Account Reviewers");
+		assertThat(departments()).containsEntry("admin", "IT")
+			.containsEntry("user", "Finance")
+			.containsEntry("multi-group-user", "Operations")
+			.containsEntry("account-reviewer-1", "Compliance")
+			.containsEntry("account-reviewer-2", "Compliance");
 		assertThat(this.jdbcTemplate.queryForList("SELECT status FROM app_user", String.class)).containsOnly("ACTIVE");
 		assertThat(this.jdbcTemplate.queryForList("SELECT DISTINCT u.username FROM app_user u "
 				+ "JOIN app_user_group ug ON ug.user_id = u.id JOIN app_group_role gr ON gr.group_id = ug.group_id "
@@ -113,7 +118,12 @@ class DatabaseChangelogTest {
 		assertThat(this.jdbcTemplate
 			.queryForObject("SELECT COUNT(*) FROM account_audit_event WHERE action = 'delete_user'", Integer.class))
 			.isEqualTo(2);
-		assertThat(settings()).containsEntry("review.enabled", "true").containsEntry("inactivity.enabled", "false");
+		assertThat(settings()).containsEntry("review.enabled", "true")
+			.containsEntry("review.intervalMonths", "1")
+			.containsEntry("inactivity.enabled", "false");
+		assertThat(this.jdbcTemplate.queryForObject(
+				"SELECT COUNT(*) FROM app_user WHERE department IS NULL AND status = 'ACTIVE'", Integer.class))
+			.isZero();
 	}
 
 	@Test
@@ -122,6 +132,11 @@ class DatabaseChangelogTest {
 
 		assertThat(count("app_user")).isEqualTo(5);
 		assertThat(count("account_audit_event")).isZero();
+		assertThat(count("task")).isZero();
+		assertThat(count("account_review_item")).isZero();
+		assertThat(count("account_review_attestation")).isZero();
+		assertThat(count("account_review_population_entry")).isZero();
+		assertThat(count("account_review_report")).isZero();
 	}
 
 	@Test
@@ -162,6 +177,16 @@ class DatabaseChangelogTest {
 
 	private Map<String, String> settings() {
 		return this.jdbcTemplate.query("SELECT name, setting_value FROM app_setting", rs -> {
+			Map<String, String> values = new HashMap<>();
+			while (rs.next()) {
+				values.put(rs.getString(1), rs.getString(2));
+			}
+			return values;
+		});
+	}
+
+	private Map<String, String> departments() {
+		return this.jdbcTemplate.query("SELECT username, department FROM app_user", rs -> {
 			Map<String, String> values = new HashMap<>();
 			while (rs.next()) {
 				values.put(rs.getString(1), rs.getString(2));

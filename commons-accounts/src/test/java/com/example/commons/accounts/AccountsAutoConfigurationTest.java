@@ -18,11 +18,14 @@ import com.example.commons.accounts.admin.GroupAdminController;
 import com.example.commons.accounts.admin.RoleAdminController;
 import com.example.commons.accounts.admin.UserAdminController;
 import com.example.commons.accounts.domain.AccountAuditEventRepository;
+import com.example.commons.accounts.domain.AccountReviewAttestationRepository;
+import com.example.commons.accounts.domain.AccountReviewItemRepository;
+import com.example.commons.accounts.domain.AccountReviewPopulationEntryRepository;
+import com.example.commons.accounts.domain.AccountReviewReportRepository;
 import com.example.commons.accounts.domain.AppGroupRepository;
 import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppSettingRepository;
 import com.example.commons.accounts.domain.AppUserRepository;
-import com.example.commons.accounts.domain.ReviewItemRepository;
 import com.example.commons.accounts.domain.TaskRepository;
 import com.example.commons.accounts.review.AccountReviewController;
 import com.example.commons.accounts.review.AccountReviewScheduler;
@@ -119,8 +122,23 @@ class AccountsAutoConfigurationTest {
 		}
 
 		@Bean
-		ReviewItemRepository reviewItemRepository() {
-			return mock(ReviewItemRepository.class);
+		AccountReviewItemRepository accountReviewItemRepository() {
+			return mock(AccountReviewItemRepository.class);
+		}
+
+		@Bean
+		AccountReviewAttestationRepository accountReviewAttestationRepository() {
+			return mock(AccountReviewAttestationRepository.class);
+		}
+
+		@Bean
+		AccountReviewPopulationEntryRepository accountReviewPopulationEntryRepository() {
+			return mock(AccountReviewPopulationEntryRepository.class);
+		}
+
+		@Bean
+		AccountReviewReportRepository accountReviewReportRepository() {
+			return mock(AccountReviewReportRepository.class);
 		}
 
 		@Bean

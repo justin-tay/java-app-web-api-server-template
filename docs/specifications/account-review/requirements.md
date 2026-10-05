@@ -173,6 +173,7 @@ be questioned without access to the logs.
 6. WHEN a client attempts to change or delete an audit event, THEN the system SHALL
    offer no way to do so.
 7. WHEN the review actions are recorded, THEN their actions SHALL be
+   `create_review_task`, `review_rejected` for an attempt on the reviewer's own account,
    `confirm_review_item`, `edit_review_item_groups`, `remove_review_item`,
    `confirm_review_population`, `complete_review_task` and `export_review_report`,
    each with target type `review`.
@@ -228,9 +229,9 @@ are still correct.
    outcome, department, group and a text search over username and name, sorting
    by username, name, department, last login time and decision time, and
    pagination as in ADR 0027.
-4. WHEN the active category is shown, THEN it SHALL contain the items whose account
-   exists and is `active` and whose outcome is not `removed`. A removed item never
-   returns to it.
+4. WHEN the active category is shown, THEN it SHALL contain the decided items whose
+   outcome is not `removed`, whatever later happens to their account, and the `pending`
+   items whose account exists and is `active`. A removed item never returns to it.
 5. WHEN the task is open, THEN the system SHALL report progress as the number of
    items in the active category that are not `pending`, over the number of items in
    the category.
@@ -454,7 +455,8 @@ that I can review accounts in context.
 2. WHEN the administration user list is requested, THEN the system SHALL support a
    `department` filter and include the department in the search text.
 3. WHEN departments are listed for a filter control, THEN the system SHALL return the
-   distinct non-empty values in use.
+   distinct non-empty values in use: for administrators, those of the accounts, and for a
+   reviewer, those shown in the task.
 
 ## Screens
 
@@ -510,6 +512,9 @@ sends the user to sign in again and retries.
   be long. Audit retention bounds it.
 - Direct database access can bypass every rule here; the audit table is not
   tamper-proof against the application's own database account.
+- The default report renderer draws text with a built-in font, so characters outside
+  Western European scripts are not drawn in the PDF; they are intact in the xlsx and csv.
+  An application that needs them supplies its own renderer.
 - Out of scope: email or push notification, approval workflows, restoring a removed
   account, physical purging or retention of audit events, task types other than the
   account review, a force-complete of a task, and generated OpenAPI clients.

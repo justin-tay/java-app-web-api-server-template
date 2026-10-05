@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -90,7 +91,8 @@ public class AdministrationService {
 			this.auditLogger.userCreationRejected(request.username(), "exceeds_actor_privileges");
 			throw new AccessDeniedException("Cannot grant a role the administrator does not hold.");
 		}
-		AppUser user = new AppUser(request.username(), request.name(), request.email());
+		AppUser user = new AppUser(request.username(), request.name(), request.email(),
+				blankToNull(request.department()));
 		user.getGroups().addAll(requestedGroups);
 		AppUser saved = this.users.save(user);
 		this.auditLogger.userCreated(UserState.of(saved));
@@ -113,7 +115,7 @@ public class AdministrationService {
 			this.auditLogger.userUpdateRejected(before, "exceeds_actor_privileges");
 			throw new AccessDeniedException("Cannot grant a role the administrator does not hold.");
 		}
-		user.update(request.name(), request.email());
+		user.update(request.name(), request.email(), blankToNull(request.department()));
 		user.getGroups().clear();
 		user.getGroups().addAll(requestedGroups);
 		if (!previousGroupIds.equals(request.groupIds())) {
@@ -149,6 +151,14 @@ public class AdministrationService {
 		this.auditLogger.sessionsRevoked(null, revoked);
 	}
 
+	/**
+	 * Returns the distinct departments in use, for a filter control.
+	 */
+	@Transactional(readOnly = true)
+	public List<String> departments() {
+		return this.users.findDistinctDepartments();
+	}
+
 	public AppUser user(UUID id) {
 		return this.users.findByPublicId(id).orElseThrow(() -> new ResourceNotFoundException("User"));
 	}
@@ -157,20 +167,22 @@ public class AdministrationService {
 	 * Criteria for listing users. Every non-null value narrows the result, and
 	 * {@code search} matches a username, name, or email containing it, or an exact ID.
 	 */
-	public record UserQuery(String search, String username, String name, String email, AccountStatus status,
-			Boolean neverSignedIn, UUID groupId, LocalDate createdFrom, LocalDate createdTo) {
+	public record UserQuery(String search, String username, String name, String email, String department,
+			AccountStatus status, Boolean neverSignedIn, UUID groupId, LocalDate createdFrom, LocalDate createdTo) {
 	}
 
 	public Page<AppUser> users(UserQuery query, Pageable pageable) {
 		Specification<AppUser> search = isBlank(query.search()) ? null
 				: Specification.anyOf(Stream.of(this.<AppUser>contains("username", query.search()),
 						this.<AppUser>contains("name", query.search()), this.<AppUser>contains("email", query.search()),
+						this.<AppUser>contains("department", query.search()),
 						this.<AppUser>equals("publicId", asUuid(query.search())))
 					.filter(Objects::nonNull)
 					.toList());
 		Specification<AppUser> specification = Specification.allOf(Stream
 			.of(search, this.<AppUser>contains("username", query.username()),
 					this.<AppUser>contains("name", query.name()), this.<AppUser>contains("email", query.email()),
+					this.<AppUser>equals("department", blankToNull(query.department())),
 					query.status() == null ? null : this.<AppUser>equals("status", query.status()),
 					neverSignedIn(query.neverSignedIn()),
 					query.groupId() == null ? null
@@ -301,7 +313,7 @@ public class AdministrationService {
 	/**
 	 * Returns whether the administrator holds every role the given groups grant.
 	 */
-	private boolean holdsRolesOf(Collection<AppGroup> groups) {
+	public static boolean holdsRolesOf(Collection<AppGroup> groups) {
 		return holds(groups.stream().flatMap(group -> group.getRoles().stream()).toList());
 	}
 
@@ -309,7 +321,7 @@ public class AdministrationService {
 	 * Returns whether the administrator holds every given role. A change with no
 	 * authenticated administrator is made by the application itself and is trusted.
 	 */
-	private boolean holds(Collection<AppRole> roles) {
+	public static boolean holds(Collection<AppRole> roles) {
 		return Actor.current()
 			.map(actor -> roles.stream()
 				.map(AppRole::getName)
@@ -346,6 +358,10 @@ public class AdministrationService {
 
 	private static boolean isBlank(String value) {
 		return value == null || value.isBlank();
+	}
+
+	private static String blankToNull(String value) {
+		return isBlank(value) ? null : value.strip();
 	}
 
 	/**

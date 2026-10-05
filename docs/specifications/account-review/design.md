@@ -116,16 +116,16 @@ element.
 Rules that follow from the table:
 
 1. **Pending is live.** A pending item has no evidence columns. Its row is read from
-   the live account, so the reviewer decides on current data, and a pending item whose
-   account no longer exists is not shown in the active category.
+   the live account, so the reviewer decides on current data. A pending item whose account
+   is not active is not shown in the active category.
 2. **Deciding freezes.** Confirm, groups edit and removal each write the evidence
    columns in the same transaction as the change. For a removal the evidence is read
    before the account is deleted. For a group edit, `groups_before` is read before the
    change and `groups_after` after it.
 3. **A decided item never changes.** Later account changes, including removal, do not
-   alter it (R13.7). A confirmed account removed later appears in the next removed
-   population, and leaves the active category of this task because its live account
-   is gone.
+   alter it (R13.7). A confirmed account that is later suspended or removed stays in the
+   active category of this task with its decided outcome, and appears in the next
+   suspended or removed population.
 4. **Removal outside the review.** When an administrator or the system removes an
    account with a pending item, the item is set `removed` in the removal's transaction
    with the remover as decider, the evidence frozen, and `removal_audit_event_id` set.
@@ -233,7 +233,7 @@ Unique on `(task_id, population)`.
 | `id`, `public_id` | as above |
 | `attestation_id` | `BIGINT NOT NULL`, foreign key to `account_review_attestation` |
 | `user_public_id`, `username`, `full_name`, `department` | frozen copy, no foreign key to `app_user` |
-| `last_login_at` | `TIMESTAMP`, filled for the suspended population |
+| `last_login_at` | `TIMESTAMP`, filled when known: always for a suspended account, and for a removed one when its removal event recorded it |
 | `occurred_at` | the suspension time or the removal time |
 | `actor` | the suspending or removing actor, `system` or a username |
 | `reason_code`, `reason_note` | as in the suspension or the removal's audit event |
@@ -265,8 +265,8 @@ same transaction.
 | `AccountAuditLogger` | Appends the row and writes the ECS event |
 | `AccountReviewScheduler` | `@Scheduled` job; decides whether this is a review month; creates the task and items; completes tasks that satisfy R12.1 because of outside changes |
 | `AccountReviewService` | Lists tasks, items and populations, applies decisions and group edits, confirms populations, completes tasks |
-| `ReviewReportRenderer` | Interface: renders the report model to PDF, xlsx or csv. The default uses OpenPDF for PDF, Apache POI streaming workbooks for xlsx and plain writing for csv |
-| `ReportDocument` | Reusable PDF base on OpenPDF: page setup, fonts and colours, a title block with key-value metadata, a footer with page numbers and the draft marker, and helpers for summary tiles and tables. `AccountReviewReport` composes sections from it, and later reports can reuse it |
+| `ReviewReportRenderer` | Interface: renders the report model to PDF, xlsx or csv. The default, `DefaultReviewReportRenderer`, uses OpenPDF 2.0.x for PDF (the last line that runs on Java 17), Apache POI streaming workbooks for xlsx and plain writing for csv |
+| `ReportDocument` | In `com.example.commons.accounts.report`. Reusable PDF base on OpenPDF, using the built-in Helvetica font, so text outside Western European characters is not drawn and an application that needs it supplies its own renderer: page setup, fonts and colours, a title block with key-value metadata, a footer with page numbers and the draft marker, and helpers for summary tiles and tables. `AccountReviewReport` composes sections from it, and later reports can reuse it |
 | `TaskController`, `AccountReviewController`, `SettingsController`, `AuditEventController` | REST endpoints below |
 
 The inactivity properties become `commons.accounts.inactivity.check-interval`; the
@@ -286,15 +286,18 @@ never recomputed.
 
 ### Category query
 
-- **Active:** items whose account exists with status `ACTIVE` and whose outcome is
-  not `REMOVED`, live while pending and frozen once decided.
+- **Active:** the decided items that are not `REMOVED`, as frozen, and the pending items
+  whose account exists with status `ACTIVE`, as live.
 - **Suspended:** the live suspended accounts, or the frozen entries once confirmed.
   The actor comes from the latest `suspend_user` audit event of the account.
 - **Removed:** audit events with `action = delete_user` since the lower bound in
   Frozen data rule 6, or the frozen entries once confirmed.
 
 The item table is joined to `app_user` on `user_public_id` for the live view of a pending
-item. A pending item whose account is gone has already been set `removed` (R6.8).
+item. A pending item whose account is gone has already been set `removed` (R6.8). The
+items of a task are assembled into rows first and then filtered, sorted and paged in
+memory, because a row mixes live and frozen values; a task holds one row per account, so
+the list is bounded. The populations are listed the same way.
 
 ### Completion
 
@@ -316,11 +319,12 @@ and need none.
 |---|---|---|
 | `/admin/users/{id}/suspend`, `/unsuspend`, `/remove` | `USER_MANAGE` | `POST`. `suspend` and `remove` take `{reasonCode, note}`. `204`. Replaces `DELETE /admin/users/{id}` and the `enabled` field. |
 | `/admin/users` | `USER_MANAGE` | adds `department` on create and update, and the `department` filter |
-| `/admin/departments` | `USER_MANAGE` | `GET` the distinct departments in use |
+| `/admin/users/departments` | `USER_MANAGE` | `GET` the distinct departments in use |
 | `/admin/settings` | `SETTINGS_MANAGE` | `GET`, `PUT` (whole object) |
 | `/audit-events` | `ACCOUNT_REVIEWER` or `USER_MANAGE` | `GET` list |
 | `/tasks` | `ACCOUNT_REVIEWER` | `GET` list; `/tasks/summary` `GET` |
 | `/account-reviews/groups` | `ACCOUNT_REVIEWER` | `GET` the groups the caller may assign |
+| `/account-reviews/tasks/{taskId}/departments` | `ACCOUNT_REVIEWER` | `GET` the distinct departments shown in the task |
 | `/account-reviews/tasks/{taskId}` | `ACCOUNT_REVIEWER` | `GET` |
 | `/account-reviews/tasks/{taskId}/items` | `ACCOUNT_REVIEWER` | `GET` list |
 | `/account-reviews/tasks/{taskId}/decisions` | `ACCOUNT_REVIEWER` | `POST` confirm or remove, in a batch |
@@ -338,10 +342,10 @@ offered.
 |---|---|
 | `SuspendRequest`, `RemoveRequest` | `reasonCode` (enum), optional `note` (max 200) |
 | `Settings` | `inactivity.enabled`, `inactivity.suspendAfterDays`, `inactivity.removeAfterDays`, `review.enabled`, `review.intervalMonths` |
-| `TaskSummaryItem` | `id`, `type`, `status`, `startDate`, `dueDate`, `completedAt`, `completedBy`, `overdue`, `counts{pending, confirmed, confirmedGroupsEdited, removed}`, `populations{suspendedConfirmed, removedConfirmed}`, `reportAvailable` |
+| `TaskSummaryItem` | `id`, `type`, `status`, `startDate`, `dueDate`, `completedAt`, `completedBy`, `overdue`, `counts{pending, confirmed, confirmedGroupsEdited, removed}`, `progress{reviewed, total}`, `populations{suspended, removed}` each `{confirmed, confirmedBy, confirmedAt, note, count}`, `reportAvailable` |
 | `TaskSummary` | `openCount`, `earliestDueDate`, `overdueCount` |
-| `ReviewItem` | `id`, `userId`, `username`, `name`, `department`, `groups`, `lastLoginAt`, `outcome`, `remark`, `ownAccount`, `decidedBy`, `decidedAt`; live while `pending`, frozen once decided |
-| `PopulationEntry` | `username`, `name`, `department`, `lastLoginAt` (suspended), `occurredAt`, `actor`, `reasonCode`, `reasonNote` |
+| `ReviewItem` | `id`, `userId`, `username`, `name`, `department`, `groups`, `groupsBefore`, `lastLoginAt`, `outcome`, `remark`, `ownAccount`, `decidedBy`, `decidedAt`; live while `pending`, frozen once decided |
+| `PopulationEntry` | `userId`, `username`, `name`, `department`, `lastLoginAt`, `occurredAt`, `actor`, `reasonCode`, `reasonNote` |
 | `PopulationConfirmation` | `population`, `confirmedBy`, `confirmedAt`, `note`, `count` |
 | `DecisionRequest` | `itemIds` (1 to 100), `decision` (`confirm` or `remove`), `reasonCode` and `note` required for `remove` only |
 | `GroupsRequest` | `groupIds`, the full set the account should hold |
@@ -357,7 +361,7 @@ repeatable `sort`, `search`, and the response envelope.
 | Resource | Filters | Sort fields |
 |---|---|---|
 | `/tasks` | `type`, `status` | `startDate`, `dueDate`, `completedAt` |
-| Review items | `category` (`active`), `outcome`, `department`, `group` | `username`, `name`, `department`, `lastLoginAt`, `decidedAt` |
+| Review items | `outcome` (`pending`, `confirmed`, `confirmed_groups_edited`), `department`, `group` (a group name), `search` | `username`, `name`, `department`, `lastLoginAt`, `decidedAt` |
 | Populations | `department` | `username`, `name`, `occurredAt` |
 | `/audit-events` | `actor`, `targetType`, `targetName`, `action`, `occurredFrom`, `occurredTo` | `occurredAt` |
 
@@ -371,8 +375,8 @@ Problem Details as elsewhere. Reviewing one's own account is the ordinary access
   `/tasks/**` require `ROLE_ACCOUNT_REVIEWER`; `/audit-events` requires either
   `ROLE_ACCOUNT_REVIEWER` or `ROLE_USER_MANAGE`.
 - `AdminReauthenticationInterceptor` covers `/account-reviews/**` and `/admin/settings`.
-- The self-review rule compares the item's `user_public_id` with the authenticated user's
-  ID, never the username a client sends.
+- The self-review rule compares the item's username with the authenticated user's name
+  from the security context, never a value a client sends.
 - ADR 0022 applies to `SETTINGS_MANAGE` and to the groups a reviewer assigns.
   `ACCOUNT_REVIEWER` is exempt, so an administrator can maintain the `Account Reviewers`
   group without holding the role; see Decisions on reviewer delegation.
@@ -448,7 +452,7 @@ action that would have completed the task, and nothing changes.
 | R11 | Populations, `account_review_attestation`, `account_review_population_entry` |
 | R12 | Completion, `ReviewReportRenderer`, `account_review_report` |
 | R13 | Frozen data |
-| R14 | `app_user.department`, `/admin/departments` |
+| R14 | `app_user.department`, `/admin/users/departments` |
 
 ## Decisions on reviewer delegation
 

@@ -2,62 +2,52 @@ package com.example.commons.accounts.review;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
 
+import com.example.commons.accounts.domain.AccountAuditEvent;
+import com.example.commons.accounts.domain.AccountReviewItem;
+import com.example.commons.accounts.domain.AccountReviewItemRepository;
+import com.example.commons.accounts.domain.AppGroup;
 import com.example.commons.accounts.domain.AppUser;
-import com.example.commons.accounts.domain.ReasonCode;
-import com.example.commons.accounts.domain.ReviewItem;
-import com.example.commons.accounts.domain.ReviewItemRepository;
-import com.example.commons.accounts.domain.ReviewStatus;
-import com.example.commons.accounts.domain.Task;
-import com.example.commons.accounts.domain.TaskRepository;
 
 /**
- * Keeps review items and their tasks consistent when an account is removed, whoever
- * removes it, and completes a task when its last item has been decided (see
- * docs/adr/0032). It runs inside the caller's transaction.
+ * Keeps review items consistent when an account is removed, whoever removes it (see
+ * docs/adr/0037). It runs inside the caller's transaction.
  */
 public class ReviewItems {
 
-	private final ReviewItemRepository items;
-
-	private final TaskRepository tasks;
+	private final AccountReviewItemRepository items;
 
 	private final Clock clock;
 
-	public ReviewItems(ReviewItemRepository items, TaskRepository tasks, Clock clock) {
+	public ReviewItems(AccountReviewItemRepository items, Clock clock) {
 		this.items = items;
-		this.tasks = tasks;
 		this.clock = clock;
 	}
 
 	/**
 	 * Marks every undecided item of the account, in tasks still open, as removed,
-	 * freezing the account as it stood, so a task can never be left waiting for an
-	 * account that no longer exists. Call it before the account is deleted.
+	 * freezing the account as it stands and pointing at the removal's audit event. A
+	 * reviewer's own removal reaches the item here as well. Call it before the account is
+	 * deleted.
 	 * @param account the account about to be removed
 	 * @param actor who is removing it, or {@code system}
-	 * @param reason why it is removed
-	 * @param note the optional note
+	 * @param removalEvent the removal's audit event, or null when no audit trail is kept
 	 */
-	public void accountRemoved(AppUser account, String actor, ReasonCode reason, String note) {
+	public void accountRemoved(AppUser account, String actor, AccountAuditEvent removalEvent) {
 		Instant now = this.clock.instant();
-		for (ReviewItem item : this.items.findPendingInOpenTasks(account.getPublicId())) {
-			item.decide(ReviewStatus.REMOVED, account, actor, now, reason.value(), note);
+		for (AccountReviewItem item : this.items.findPendingInOpenTasks(account.getPublicId())) {
+			item.remove(account, groupNames(account), actor, now, removalEvent == null ? null : removalEvent.getId());
 			this.items.saveAndFlush(item);
-			this.tasks.findById(item.getTaskId()).ifPresent(task -> completeIfFinished(task, actor));
 		}
 	}
 
 	/**
-	 * Completes the task when no item is waiting for a decision, recording who made the
-	 * last one.
+	 * Returns the names of an account's groups, sorted.
 	 */
-	public void completeIfFinished(Task task, String by) {
-		if (task.isOpen()
-				&& this.items.countByTaskIdAndReviewStatus(task.getId(), ReviewStatus.PENDING_VERIFICATION) == 0) {
-			task.complete(this.clock.instant(), by);
-			this.tasks.save(task);
-		}
+	static List<String> groupNames(AppUser account) {
+		return account.getGroups().stream().map(AppGroup::getName).sorted(Comparator.naturalOrder()).toList();
 	}
 
 }

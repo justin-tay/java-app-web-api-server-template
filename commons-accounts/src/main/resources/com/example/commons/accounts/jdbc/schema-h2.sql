@@ -11,9 +11,17 @@ CREATE SEQUENCE app_setting_seq START WITH 1000 INCREMENT BY 50;
 
 CREATE SEQUENCE task_seq START WITH 1000 INCREMENT BY 50;
 
-CREATE SEQUENCE review_item_seq START WITH 1000 INCREMENT BY 50;
+CREATE SEQUENCE account_review_item_seq START WITH 1000 INCREMENT BY 50;
 
-CREATE TABLE app_user (id BIGINT NOT NULL, public_id UUID NOT NULL, username VARCHAR(100) NOT NULL, name VARCHAR(100) NOT NULL, email VARCHAR(254), status VARCHAR(20) DEFAULT 'ACTIVE' NOT NULL, suspended_at TIMESTAMP WITH TIME ZONE, suspension_reason_code VARCHAR(40), suspension_note VARCHAR(200), inactivity_clock_started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL, last_login_at TIMESTAMP WITH TIME ZONE, created_at TIMESTAMP WITH TIME ZONE NOT NULL, updated_at TIMESTAMP WITH TIME ZONE NOT NULL, created_by VARCHAR(100) NOT NULL, updated_by VARCHAR(100) NOT NULL, CONSTRAINT pk_app_user PRIMARY KEY (id), CONSTRAINT uk_app_user_public_id UNIQUE (public_id), CONSTRAINT uk_app_user_username UNIQUE (username));
+CREATE SEQUENCE account_review_attestation_seq START WITH 1000 INCREMENT BY 50;
+
+CREATE SEQUENCE account_review_population_entry_seq START WITH 1000 INCREMENT BY 50;
+
+CREATE SEQUENCE account_review_report_seq START WITH 1000 INCREMENT BY 50;
+
+CREATE TABLE app_user (id BIGINT NOT NULL, public_id UUID NOT NULL, username VARCHAR(100) NOT NULL, name VARCHAR(100) NOT NULL, email VARCHAR(254), department VARCHAR(100), status VARCHAR(20) DEFAULT 'ACTIVE' NOT NULL, suspended_at TIMESTAMP WITH TIME ZONE, suspension_reason_code VARCHAR(40), suspension_note VARCHAR(200), inactivity_clock_started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL, last_login_at TIMESTAMP WITH TIME ZONE, created_at TIMESTAMP WITH TIME ZONE NOT NULL, updated_at TIMESTAMP WITH TIME ZONE NOT NULL, created_by VARCHAR(100) NOT NULL, updated_by VARCHAR(100) NOT NULL, CONSTRAINT pk_app_user PRIMARY KEY (id), CONSTRAINT uk_app_user_public_id UNIQUE (public_id), CONSTRAINT uk_app_user_username UNIQUE (username));
+
+CREATE INDEX ix_app_user_department ON app_user(department);
 
 CREATE TABLE app_group (id BIGINT NOT NULL, public_id UUID NOT NULL, name VARCHAR(100) NOT NULL, created_at TIMESTAMP WITH TIME ZONE NOT NULL, updated_at TIMESTAMP WITH TIME ZONE NOT NULL, created_by VARCHAR(100) NOT NULL, updated_by VARCHAR(100) NOT NULL, CONSTRAINT pk_app_group PRIMARY KEY (id), CONSTRAINT uk_app_group_public_id UNIQUE (public_id), CONSTRAINT uk_app_group_name UNIQUE (name));
 
@@ -63,13 +71,29 @@ CREATE TABLE task (id BIGINT NOT NULL, public_id UUID NOT NULL, type VARCHAR(40)
 
 ALTER TABLE task ADD CONSTRAINT uk_task_type_start UNIQUE (type, start_date);
 
-CREATE TABLE review_item (id BIGINT NOT NULL, public_id UUID NOT NULL, task_id BIGINT NOT NULL, user_public_id UUID NOT NULL, username VARCHAR(100) NOT NULL, name VARCHAR(100) NOT NULL, review_status VARCHAR(30) NOT NULL, decided_at TIMESTAMP WITH TIME ZONE, decided_by VARCHAR(100), decided_account_status VARCHAR(20), decided_last_login_at TIMESTAMP WITH TIME ZONE, decided_suspended_at TIMESTAMP WITH TIME ZONE, decided_reason_code VARCHAR(40), decided_reason_note VARCHAR(200), CONSTRAINT pk_review_item PRIMARY KEY (id), CONSTRAINT uk_review_item_public_id UNIQUE (public_id));
+CREATE TABLE account_review_item (id BIGINT NOT NULL, public_id UUID NOT NULL, task_id BIGINT NOT NULL, user_public_id UUID NOT NULL, username VARCHAR(100) NOT NULL, full_name VARCHAR(100) NOT NULL, outcome VARCHAR(30) NOT NULL, decided_at TIMESTAMP WITH TIME ZONE, decided_by VARCHAR(100), removal_audit_event_id BIGINT, department VARCHAR(100), last_login_at TIMESTAMP WITH TIME ZONE, groups_before CLOB, groups_after CLOB, CONSTRAINT pk_account_review_item PRIMARY KEY (id), CONSTRAINT uk_account_review_item_public_id UNIQUE (public_id));
 
-ALTER TABLE review_item ADD CONSTRAINT fk_review_item_task FOREIGN KEY (task_id) REFERENCES task (id);
+ALTER TABLE account_review_item ADD CONSTRAINT fk_account_review_item_task FOREIGN KEY (task_id) REFERENCES task (id);
 
-ALTER TABLE review_item ADD CONSTRAINT uk_review_item_task_user UNIQUE (task_id, user_public_id);
+ALTER TABLE account_review_item ADD CONSTRAINT uk_account_review_item_task_user UNIQUE (task_id, user_public_id);
 
-CREATE INDEX ix_review_item_task_status ON review_item(task_id, review_status);
+CREATE INDEX ix_account_review_item_task_outcome ON account_review_item(task_id, outcome);
+
+CREATE TABLE account_review_attestation (id BIGINT NOT NULL, public_id UUID NOT NULL, task_id BIGINT NOT NULL, population VARCHAR(20) NOT NULL, confirmed_by VARCHAR(100) NOT NULL, confirmed_at TIMESTAMP WITH TIME ZONE NOT NULL, note VARCHAR(200), entry_count INT NOT NULL, CONSTRAINT pk_account_review_attestation PRIMARY KEY (id), CONSTRAINT uk_account_review_attestation_public_id UNIQUE (public_id));
+
+ALTER TABLE account_review_attestation ADD CONSTRAINT fk_account_review_attestation_task FOREIGN KEY (task_id) REFERENCES task (id);
+
+ALTER TABLE account_review_attestation ADD CONSTRAINT uk_account_review_attestation_task_population UNIQUE (task_id, population);
+
+CREATE TABLE account_review_population_entry (id BIGINT NOT NULL, public_id UUID NOT NULL, attestation_id BIGINT NOT NULL, user_public_id UUID NOT NULL, username VARCHAR(100) NOT NULL, full_name VARCHAR(100) NOT NULL, department VARCHAR(100), last_login_at TIMESTAMP WITH TIME ZONE, occurred_at TIMESTAMP WITH TIME ZONE NOT NULL, actor VARCHAR(100), reason_code VARCHAR(40), reason_note VARCHAR(200), CONSTRAINT pk_account_review_population_entry PRIMARY KEY (id), CONSTRAINT uk_account_review_population_entry_public_id UNIQUE (public_id));
+
+ALTER TABLE account_review_population_entry ADD CONSTRAINT fk_account_review_population_entry_attestation FOREIGN KEY (attestation_id) REFERENCES account_review_attestation (id);
+
+CREATE INDEX ix_account_review_population_entry_attestation ON account_review_population_entry(attestation_id);
+
+CREATE TABLE account_review_report (id BIGINT NOT NULL, public_id UUID NOT NULL, task_id BIGINT NOT NULL, content LONGVARBINARY NOT NULL, size_bytes BIGINT NOT NULL, sha256 VARCHAR(64) NOT NULL, generated_at TIMESTAMP WITH TIME ZONE NOT NULL, generated_by VARCHAR(100) NOT NULL, CONSTRAINT pk_account_review_report PRIMARY KEY (id), CONSTRAINT uk_account_review_report_public_id UNIQUE (public_id), CONSTRAINT uk_account_review_report_task UNIQUE (task_id));
+
+ALTER TABLE account_review_report ADD CONSTRAINT fk_account_review_report_task FOREIGN KEY (task_id) REFERENCES task (id);
 
 INSERT INTO app_setting (id, name, setting_value, updated_at, updated_by) VALUES (1, 'inactivity.enabled', 'true', NOW(), 'system');
 

@@ -32,6 +32,9 @@ public class AppUser extends AbstractAuditableEntity {
 	@Size(max = 254)
 	private String email;
 
+	@Size(max = 100)
+	private String department;
+
 	@Enumerated(EnumType.STRING)
 	private AccountStatus status = AccountStatus.ACTIVE;
 
@@ -58,9 +61,14 @@ public class AppUser extends AbstractAuditableEntity {
 	 * Creates an active account whose inactivity clock starts now.
 	 */
 	public AppUser(String username, String name, String email) {
+		this(username, name, email, null);
+	}
+
+	public AppUser(String username, String name, String email, String department) {
 		this.username = username;
 		this.name = name;
 		this.email = email;
+		this.department = department;
 		this.inactivityClockStartedAt = Instant.now();
 	}
 
@@ -74,6 +82,10 @@ public class AppUser extends AbstractAuditableEntity {
 
 	public String getEmail() {
 		return this.email;
+	}
+
+	public String getDepartment() {
+		return this.department;
 	}
 
 	public AccountStatus getStatus() {
@@ -120,9 +132,10 @@ public class AppUser extends AbstractAuditableEntity {
 		return this.groups;
 	}
 
-	public void update(String name, String email) {
+	public void update(String name, String email, String department) {
 		this.name = name;
 		this.email = email;
+		this.department = department;
 		touch();
 	}
 

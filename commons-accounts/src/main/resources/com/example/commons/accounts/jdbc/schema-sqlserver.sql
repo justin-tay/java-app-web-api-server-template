@@ -11,9 +11,17 @@ CREATE SEQUENCE app_setting_seq START WITH 1000 INCREMENT BY 50;
 
 CREATE SEQUENCE task_seq START WITH 1000 INCREMENT BY 50;
 
-CREATE SEQUENCE review_item_seq START WITH 1000 INCREMENT BY 50;
+CREATE SEQUENCE account_review_item_seq START WITH 1000 INCREMENT BY 50;
 
-CREATE TABLE app_user (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, username varchar(100) NOT NULL, name varchar(100) NOT NULL, email varchar(254), status varchar(20) CONSTRAINT DF_app_user_status DEFAULT 'ACTIVE' NOT NULL, suspended_at DATETIMEOFFSET, suspension_reason_code varchar(40), suspension_note varchar(200), inactivity_clock_started_at DATETIMEOFFSET CONSTRAINT DF_app_user_inactivity_clock_started_at DEFAULT SYSDATETIMEOFFSET() NOT NULL, last_login_at DATETIMEOFFSET, created_at DATETIMEOFFSET NOT NULL, updated_at DATETIMEOFFSET NOT NULL, created_by varchar(100) NOT NULL, updated_by varchar(100) NOT NULL, CONSTRAINT pk_app_user PRIMARY KEY (id), CONSTRAINT uk_app_user_public_id UNIQUE (public_id), CONSTRAINT uk_app_user_username UNIQUE (username));
+CREATE SEQUENCE account_review_attestation_seq START WITH 1000 INCREMENT BY 50;
+
+CREATE SEQUENCE account_review_population_entry_seq START WITH 1000 INCREMENT BY 50;
+
+CREATE SEQUENCE account_review_report_seq START WITH 1000 INCREMENT BY 50;
+
+CREATE TABLE app_user (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, username varchar(100) NOT NULL, name varchar(100) NOT NULL, email varchar(254), department varchar(100), status varchar(20) CONSTRAINT DF_app_user_status DEFAULT 'ACTIVE' NOT NULL, suspended_at DATETIMEOFFSET, suspension_reason_code varchar(40), suspension_note varchar(200), inactivity_clock_started_at DATETIMEOFFSET CONSTRAINT DF_app_user_inactivity_clock_started_at DEFAULT SYSDATETIMEOFFSET() NOT NULL, last_login_at DATETIMEOFFSET, created_at DATETIMEOFFSET NOT NULL, updated_at DATETIMEOFFSET NOT NULL, created_by varchar(100) NOT NULL, updated_by varchar(100) NOT NULL, CONSTRAINT pk_app_user PRIMARY KEY (id), CONSTRAINT uk_app_user_public_id UNIQUE (public_id), CONSTRAINT uk_app_user_username UNIQUE (username));
+
+CREATE NONCLUSTERED INDEX ix_app_user_department ON app_user(department);
 
 CREATE TABLE app_group (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, name varchar(100) NOT NULL, created_at DATETIMEOFFSET NOT NULL, updated_at DATETIMEOFFSET NOT NULL, created_by varchar(100) NOT NULL, updated_by varchar(100) NOT NULL, CONSTRAINT pk_app_group PRIMARY KEY (id), CONSTRAINT uk_app_group_public_id UNIQUE (public_id), CONSTRAINT uk_app_group_name UNIQUE (name));
 
@@ -63,13 +71,29 @@ CREATE TABLE task (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, type
 
 ALTER TABLE task ADD CONSTRAINT uk_task_type_start UNIQUE (type, start_date);
 
-CREATE TABLE review_item (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, task_id bigint NOT NULL, user_public_id uniqueidentifier NOT NULL, username varchar(100) NOT NULL, name varchar(100) NOT NULL, review_status varchar(30) NOT NULL, decided_at DATETIMEOFFSET, decided_by varchar(100), decided_account_status varchar(20), decided_last_login_at DATETIMEOFFSET, decided_suspended_at DATETIMEOFFSET, decided_reason_code varchar(40), decided_reason_note varchar(200), CONSTRAINT pk_review_item PRIMARY KEY (id), CONSTRAINT uk_review_item_public_id UNIQUE (public_id));
+CREATE TABLE account_review_item (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, task_id bigint NOT NULL, user_public_id uniqueidentifier NOT NULL, username varchar(100) NOT NULL, full_name varchar(100) NOT NULL, outcome varchar(30) NOT NULL, decided_at DATETIMEOFFSET, decided_by varchar(100), removal_audit_event_id bigint, department varchar(100), last_login_at DATETIMEOFFSET, groups_before varchar(MAX), groups_after varchar(MAX), CONSTRAINT pk_account_review_item PRIMARY KEY (id), CONSTRAINT uk_account_review_item_public_id UNIQUE (public_id));
 
-ALTER TABLE review_item ADD CONSTRAINT fk_review_item_task FOREIGN KEY (task_id) REFERENCES task (id);
+ALTER TABLE account_review_item ADD CONSTRAINT fk_account_review_item_task FOREIGN KEY (task_id) REFERENCES task (id);
 
-ALTER TABLE review_item ADD CONSTRAINT uk_review_item_task_user UNIQUE (task_id, user_public_id);
+ALTER TABLE account_review_item ADD CONSTRAINT uk_account_review_item_task_user UNIQUE (task_id, user_public_id);
 
-CREATE NONCLUSTERED INDEX ix_review_item_task_status ON review_item(task_id, review_status);
+CREATE NONCLUSTERED INDEX ix_account_review_item_task_outcome ON account_review_item(task_id, outcome);
+
+CREATE TABLE account_review_attestation (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, task_id bigint NOT NULL, population varchar(20) NOT NULL, confirmed_by varchar(100) NOT NULL, confirmed_at DATETIMEOFFSET NOT NULL, note varchar(200), entry_count int NOT NULL, CONSTRAINT pk_account_review_attestation PRIMARY KEY (id), CONSTRAINT uk_account_review_attestation_public_id UNIQUE (public_id));
+
+ALTER TABLE account_review_attestation ADD CONSTRAINT fk_account_review_attestation_task FOREIGN KEY (task_id) REFERENCES task (id);
+
+ALTER TABLE account_review_attestation ADD CONSTRAINT uk_account_review_attestation_task_population UNIQUE (task_id, population);
+
+CREATE TABLE account_review_population_entry (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, attestation_id bigint NOT NULL, user_public_id uniqueidentifier NOT NULL, username varchar(100) NOT NULL, full_name varchar(100) NOT NULL, department varchar(100), last_login_at DATETIMEOFFSET, occurred_at DATETIMEOFFSET NOT NULL, actor varchar(100), reason_code varchar(40), reason_note varchar(200), CONSTRAINT pk_account_review_population_entry PRIMARY KEY (id), CONSTRAINT uk_account_review_population_entry_public_id UNIQUE (public_id));
+
+ALTER TABLE account_review_population_entry ADD CONSTRAINT fk_account_review_population_entry_attestation FOREIGN KEY (attestation_id) REFERENCES account_review_attestation (id);
+
+CREATE NONCLUSTERED INDEX ix_account_review_population_entry_attestation ON account_review_population_entry(attestation_id);
+
+CREATE TABLE account_review_report (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, task_id bigint NOT NULL, content varbinary(MAX) NOT NULL, size_bytes bigint NOT NULL, sha256 varchar(64) NOT NULL, generated_at DATETIMEOFFSET NOT NULL, generated_by varchar(100) NOT NULL, CONSTRAINT pk_account_review_report PRIMARY KEY (id), CONSTRAINT uk_account_review_report_public_id UNIQUE (public_id), CONSTRAINT uk_account_review_report_task UNIQUE (task_id));
+
+ALTER TABLE account_review_report ADD CONSTRAINT fk_account_review_report_task FOREIGN KEY (task_id) REFERENCES task (id);
 
 INSERT INTO app_setting (id, name, setting_value, updated_at, updated_by) VALUES (1, 'inactivity.enabled', 'true', SYSDATETIMEOFFSET(), 'system');
 

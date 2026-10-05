@@ -20,11 +20,11 @@ public final class AdminDtos {
 	}
 
 	public record UserCreateRequest(@Username String username, @ResourceName String name,
-			@Email @Size(max = 254) String email, @NotEmpty Set<UUID> groupIds) {
+			@Email @Size(max = 254) String email, @Size(max = 100) String department, @NotEmpty Set<UUID> groupIds) {
 	}
 
 	public record UserUpdateRequest(@ResourceName String name, @Email @Size(max = 254) String email,
-			@NotEmpty Set<UUID> groupIds) {
+			@Size(max = 100) String department, @NotEmpty Set<UUID> groupIds) {
 	}
 
 	/**
@@ -54,8 +54,9 @@ public final class AdminDtos {
 	public record RoleSummary(UUID id, String name, String displayName) {
 	}
 
-	public record UserResponse(UUID id, String username, String name, String email, Instant lastLoginAt, String status,
-			Instant suspendedAt, String suspensionReasonCode, String suspensionNote, List<Summary> groups) {
+	public record UserResponse(UUID id, String username, String name, String email, String department,
+			Instant lastLoginAt, String status, Instant suspendedAt, String suspensionReasonCode, String suspensionNote,
+			List<Summary> groups) {
 	}
 
 	public record GroupResponse(UUID id, String name, List<RoleSummary> roles) {

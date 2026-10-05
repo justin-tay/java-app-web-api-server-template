@@ -144,7 +144,7 @@ class AccountAuditLoggingTest {
 	@Test
 	void logsACreatedUserWithTheAccessItIsGrantedAndRecordsTheActor() {
 		AppUser user = inTransaction(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user",
-				"New User", "new@example.test", Set.of(this.managers.getPublicId()))));
+				"New User", "new@example.test", null, Set.of(this.managers.getPublicId()))));
 
 		assertThat(user.getCreatedBy()).isEqualTo("admin");
 		assertThat(user.getUpdatedBy()).isEqualTo("admin");
@@ -168,8 +168,8 @@ class AccountAuditLoggingTest {
 	@Test
 	void doesNotLogAChangeThatIsRolledBack() {
 		this.transaction.executeWithoutResult(status -> {
-			this.service.createUser(
-					new AdminDtos.UserCreateRequest("new-user", "New User", null, Set.of(this.managers.getPublicId())));
+			this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null, null,
+					Set.of(this.managers.getPublicId())));
 			status.setRollbackOnly();
 		});
 
@@ -181,7 +181,7 @@ class AccountAuditLoggingTest {
 	void logsAnUpdatedUserWithItsPriorStateOnlyTheChangesAndNoPersonalDataValues() {
 		AppUser user = inTransaction(
 				() -> this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("Test User",
-						"changed@example.test", Set.of(this.administrators.getPublicId()))));
+						"changed@example.test", null, Set.of(this.administrators.getPublicId()))));
 
 		assertThat(user.getUpdatedBy()).isEqualTo("admin");
 		assertThat(user.getCreatedBy()).isEqualTo("system");
@@ -205,7 +205,7 @@ class AccountAuditLoggingTest {
 	@Test
 	void omitsTheChangesOfValuesThatDidNotChange() {
 		inTransaction(() -> this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest(
-				"Renamed User", "test@example.test", Set.of(this.managers.getPublicId()))));
+				"Renamed User", "test@example.test", null, Set.of(this.managers.getPublicId()))));
 
 		assertThat(logged()).containsOnlyOnce("event.action=\"update_user\"")
 			.contains("user.changes.fields=\"[full_name]\"")
@@ -248,7 +248,7 @@ class AccountAuditLoggingTest {
 	@Test
 	void appendsEachSuccessfulChangeToTheAuditTrailWithoutAnEmailAddress() {
 		inTransaction(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User",
-				"new@example.test", Set.of(this.managers.getPublicId()))));
+				"new@example.test", null, Set.of(this.managers.getPublicId()))));
 		inTransaction(
 				() -> this.lifecycle.suspend(this.testUser.getPublicId(), ReasonCode.POLICY_VIOLATION, "see ticket"));
 		inTransaction(() -> {
@@ -275,8 +275,8 @@ class AccountAuditLoggingTest {
 	@Test
 	void doesNotAppendAChangeThatIsRolledBackToTheAuditTrail() {
 		this.transaction.executeWithoutResult(status -> {
-			this.service.createUser(
-					new AdminDtos.UserCreateRequest("new-user", "New User", null, Set.of(this.managers.getPublicId())));
+			this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null, null,
+					Set.of(this.managers.getPublicId())));
 			status.setRollbackOnly();
 		});
 
@@ -304,8 +304,9 @@ class AccountAuditLoggingTest {
 
 	@Test
 	void logsARejectedChangeImmediatelyWithItsReason() {
-		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> inTransaction(() -> this.service.createUser(
-				new AdminDtos.UserCreateRequest("test-user", "Test User", null, Set.of(this.managers.getPublicId())))));
+		assertThatExceptionOfType(ConflictException.class)
+			.isThrownBy(() -> inTransaction(() -> this.service.createUser(new AdminDtos.UserCreateRequest("test-user",
+					"Test User", null, null, Set.of(this.managers.getPublicId())))));
 		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> inTransaction(() -> this.service
 			.updateGroup(this.managers.getPublicId(), new AdminDtos.GroupRequest("Administrators", null))));
 		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> inTransaction(() -> {

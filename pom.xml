@@ -25,6 +25,9 @@
 		<java.version>17</java.version>
 		<spring-javaformat-maven-plugin.version>0.0.48</spring-javaformat-maven-plugin.version>
 		<jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
+		<!-- OpenPDF 2.0.x is the last line built for Java 17; 2.1 and later need Java 21. -->
+		<openpdf.version>2.0.5</openpdf.version>
+		<poi.version>5.5.1</poi.version>
 		<dependency-check-maven.version>13.0.0</dependency-check-maven.version>
 		<!-- Only app-* modules have a main class; each one sets this back to false so
 			spring-boot:run can be invoked from the root with -pl and -am. -->

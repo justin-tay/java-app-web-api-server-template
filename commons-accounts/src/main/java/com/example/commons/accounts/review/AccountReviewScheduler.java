@@ -3,6 +3,7 @@ package com.example.commons.accounts.review;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,20 +12,20 @@ import org.springframework.scheduling.annotation.Scheduled;
 
 import com.example.commons.accounts.domain.Task;
 import com.example.commons.accounts.domain.TaskRepository;
-import com.example.commons.accounts.domain.TaskStatus;
 import com.example.commons.accounts.settings.Settings;
 import com.example.commons.accounts.settings.SettingsService;
 
 /**
- * Creates the account review task for the current review window on the first run in it
- * (see docs/adr/0032). It reads the {@code review.*} settings on every run and does
- * nothing when {@code review.enabled} is false.
+ * Creates the account review task on the first run in a review month, and completes tasks
+ * that a change outside the review has finished (see docs/adr/0037). It reads the
+ * {@code review.*} settings on every run. When {@code review.enabled} is false it creates
+ * nothing, but tasks that already exist are still completed when they are finished.
  *
  * <p>
- * An open task, which is by then overdue, suppresses the next one with a warning, so only
- * one account review is open at a time. It is safe to run on several instances at once:
- * the unique constraint on a task's type and start date lets exactly one create the
- * window's task.
+ * A task that is still open does not stop the next one from being created: the two review
+ * different data, and the unfinished one stays open and overdue. It is safe to run on
+ * several instances at once: the unique constraint on a task's type and start date lets
+ * exactly one create the month's task.
  */
 public class AccountReviewScheduler {
 
@@ -53,25 +54,34 @@ public class AccountReviewScheduler {
 			fixedDelayString = "${commons.accounts.review.check-interval:PT1H}")
 	public void run() {
 		Settings.Review review = this.settings.get().review();
-		if (!review.enabled()) {
-			return;
+		if (review.enabled()) {
+			createDueTask(review.intervalMonths());
 		}
-		ReviewWindow window = ReviewWindow.containing(LocalDate.ofInstant(this.clock.instant(), this.zone),
-				review.intervalMonths());
-		if (this.tasks.existsByTypeAndStartDate(Task.ACCOUNT_REVIEW, window.start())) {
-			return;
-		}
-		if (this.tasks.existsByTypeAndStatus(Task.ACCOUNT_REVIEW, TaskStatus.OPEN)) {
-			LOGGER.warn("The account review for the window starting {} was not created because an earlier one is "
-					+ "still open", window.start());
-			return;
-		}
-		try {
-			this.service.createTask(window);
-			LOGGER.info("Created the account review for the window {} to {}", window.start(), window.due());
-		}
-		catch (DataIntegrityViolationException ex) {
-			// Another instance created the window's task first.
+		completeFinishedTasks();
+	}
+
+	private void createDueTask(int intervalMonths) {
+		ReviewPeriod.containing(LocalDate.ofInstant(this.clock.instant(), this.zone), intervalMonths)
+			.filter(period -> !this.tasks.existsByTypeAndStartDate(Task.ACCOUNT_REVIEW, period.start()))
+			.ifPresent(period -> {
+				try {
+					this.service.createTask(period);
+					LOGGER.info("Created the account review for {} to {}", period.start(), period.due());
+				}
+				catch (DataIntegrityViolationException ex) {
+					// Another instance created the month's task first.
+				}
+			});
+	}
+
+	private void completeFinishedTasks() {
+		for (UUID taskId : this.service.openTaskIds()) {
+			try {
+				this.service.completeIfFinished(taskId);
+			}
+			catch (RuntimeException ex) {
+				LOGGER.warn("The account review {} could not be completed and will be retried", taskId, ex);
+			}
 		}
 	}
 

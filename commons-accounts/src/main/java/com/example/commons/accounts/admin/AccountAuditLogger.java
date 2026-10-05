@@ -1,6 +1,7 @@
 package com.example.commons.accounts.admin;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -89,9 +90,12 @@ public class AccountAuditLogger {
 	 * @param roles the names of the roles the user's groups grant
 	 * @param email the email address, compared but never logged
 	 * @param name the name, compared but never logged
+	 * @param department the department, kept in a removal's audit details but never
+	 * logged
+	 * @param lastLoginAt the last sign-in time, kept in a removal's audit details
 	 */
 	public record UserState(UUID id, String username, String status, SortedSet<String> groups, SortedSet<String> roles,
-			String email, String name) {
+			String email, String name, String department, Instant lastLoginAt) {
 
 		public static UserState of(AppUser user) {
 			return new UserState(user.getPublicId(), user.getUsername(),
@@ -102,7 +106,7 @@ public class AccountAuditLogger {
 						.flatMap(group -> group.getRoles().stream())
 						.map(AppRole::getName)
 						.toList()),
-					user.getEmail(), user.getName());
+					user.getEmail(), user.getName(), user.getDepartment(), user.getLastLoginAt());
 		}
 
 	}
@@ -212,10 +216,13 @@ public class AccountAuditLogger {
 	 * @param user the account's state before the removal
 	 * @param reason the reason code
 	 * @param note the optional note, or null
+	 * @return the audit event, or null when no audit trail is kept
 	 */
-	public void userDeleted(UserState user, ReasonCode reason, String note) {
-		record("delete_user", "USER", user, reason.value(), note,
-				details("status", user.status(), "groups", user.groups(), "roles", user.roles()));
+	public AccountAuditEvent userDeleted(UserState user, ReasonCode reason, String note) {
+		AccountAuditEvent saved = record("delete_user", "USER", user, reason.value(), note,
+				details("status", user.status(), "groups", user.groups(), "roles", user.roles(), "department",
+						user.department(), "lastLoginAt",
+						user.lastLoginAt() == null ? null : user.lastLoginAt().toString()));
 		afterCommit(() -> {
 			LoggingEventBuilder event = event("delete_user", "user", "deletion", user.username());
 			event.addKeyValue("event.reason", reason.value());
@@ -224,6 +231,7 @@ public class AccountAuditLogger {
 				.addKeyValue("roles.removed", List.copyOf(user.roles()))
 				.log("User deleted");
 		});
+		return saved;
 	}
 
 	/**
@@ -365,24 +373,26 @@ public class AccountAuditLogger {
 	 * @param reasonCode the reason code, or null
 	 * @param reasonNote the note, or null
 	 * @param details the changed values
+	 * @return the audit event, or null when no audit trail is kept
 	 */
-	public void record(String action, String targetType, String targetId, String targetName, String reasonCode,
-			String reasonNote, Map<String, Object> details) {
-		record(action, targetType, targetId, targetName, null, reasonCode, reasonNote, details);
-	}
-
-	private void record(String action, String targetType, UserState user, String reasonCode, String reasonNote,
-			Map<String, Object> details) {
-		record(action, targetType, user.id().toString(), user.username(), user.name(), reasonCode, reasonNote, details);
-	}
-
-	private void record(String action, String targetType, String targetId, String targetName, String targetFullName,
+	public AccountAuditEvent record(String action, String targetType, String targetId, String targetName,
 			String reasonCode, String reasonNote, Map<String, Object> details) {
+		return record(action, targetType, targetId, targetName, null, reasonCode, reasonNote, details);
+	}
+
+	private AccountAuditEvent record(String action, String targetType, UserState user, String reasonCode,
+			String reasonNote, Map<String, Object> details) {
+		return record(action, targetType, user.id().toString(), user.username(), user.name(), reasonCode, reasonNote,
+				details);
+	}
+
+	private AccountAuditEvent record(String action, String targetType, String targetId, String targetName,
+			String targetFullName, String reasonCode, String reasonNote, Map<String, Object> details) {
 		if (this.events == null) {
-			return;
+			return null;
 		}
-		this.events.save(new AccountAuditEvent(this.clock.instant(), Auditor.current(), action, targetType, targetId,
-				targetName, targetFullName, reasonCode, reasonNote, JSON.writeValueAsString(details)));
+		return this.events.save(new AccountAuditEvent(this.clock.instant(), Auditor.current(), action, targetType,
+				targetId, targetName, targetFullName, reasonCode, reasonNote, JSON.writeValueAsString(details)));
 	}
 
 	/**

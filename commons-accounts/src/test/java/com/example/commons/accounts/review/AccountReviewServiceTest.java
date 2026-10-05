@@ -2,398 +2,359 @@ package com.example.commons.accounts.review;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
-import static org.mockito.Mockito.mock;
 
-import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.authentication.TestingAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.example.commons.accounts.AccountsJpaTest;
-import com.example.commons.accounts.admin.AccountAuditLogger;
-import com.example.commons.accounts.admin.AccountLifecycleService;
 import com.example.commons.accounts.domain.AccountAuditEvent;
-import com.example.commons.accounts.domain.AccountAuditEventRepository;
+import com.example.commons.accounts.domain.AccountReviewItem;
+import com.example.commons.accounts.domain.AccountReviewOutcome;
 import com.example.commons.accounts.domain.AppGroup;
+import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppUser;
-import com.example.commons.accounts.domain.AppUserRepository;
 import com.example.commons.accounts.domain.ReasonCode;
-import com.example.commons.accounts.domain.ReviewItem;
-import com.example.commons.accounts.domain.ReviewItemRepository;
-import com.example.commons.accounts.domain.ReviewStatus;
 import com.example.commons.accounts.domain.Task;
-import com.example.commons.accounts.domain.TaskRepository;
 import com.example.commons.accounts.domain.TaskStatus;
-import com.example.commons.accounts.review.AccountReviewService.Category;
+import com.example.commons.accounts.review.AccountReviewService.Decision;
+import com.example.commons.accounts.review.AccountReviewService.ItemQuery;
 import com.example.commons.accounts.review.ReviewDtos.ReviewItemResponse;
-import com.example.commons.security.session.SessionRevocationService;
+import com.example.commons.web.problem.BadRequestException;
 import com.example.commons.web.problem.ConflictException;
 
 /**
- * Tests {@link AccountReviewService} and {@link ReviewItems} against the real schema: the
- * scope of a task, the live categories, decisions all or none, the rule that a reviewer
- * cannot review their own account, and a task completing when its last item is decided.
+ * Tests {@link AccountReviewService} against the real schema: the scope of a task, the
+ * active accounts, confirming, re-grouping and removing, a batch applying entirely or not
+ * at all, the rule that a reviewer cannot review their own account, and what happens to
+ * pending items when accounts change outside the review.
  */
 @AccountsJpaTest
-class AccountReviewServiceTest {
+class AccountReviewServiceTest extends AccountReviewTestSupport {
 
 	private static final UUID UNKNOWN = UUID.fromString("00000000-0000-0000-0000-00000000dead");
 
-	private static final Instant NOW = Instant.parse("2026-05-15T10:00:00Z");
-
-	private static final ReviewWindow WINDOW = new ReviewWindow(LocalDate.of(2026, 4, 1), LocalDate.of(2026, 6, 30));
-
-	@Autowired
-	private TestEntityManager entityManager;
-
-	@Autowired
-	private AppUserRepository users;
-
-	@Autowired
-	private TaskRepository tasks;
-
-	@Autowired
-	private ReviewItemRepository items;
-
-	@Autowired
-	private AccountAuditEventRepository auditEvents;
-
-	private final SessionRevocationService sessionRevocationService = mock(SessionRevocationService.class);
-
-	private AccountReviewService service;
-
-	private AccountLifecycleService lifecycle;
-
-	private AppGroup group;
-
-	@BeforeEach
-	void setUp() {
-		Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
-		AccountAuditLogger auditLogger = new AccountAuditLogger(this.auditEvents, clock);
-		ReviewItems reviewItems = new ReviewItems(this.items, this.tasks, clock);
-		this.lifecycle = new AccountLifecycleService(this.users, this.sessionRevocationService, auditLogger, null,
-				reviewItems, clock);
-		this.service = new AccountReviewService(this.tasks, this.items, this.users, this.auditEvents, this.lifecycle,
-				reviewItems, auditLogger, clock, ZoneOffset.UTC);
-		this.group = this.entityManager.persist(new AppGroup("users"));
-	}
-
-	@AfterEach
-	void clearAuthentication() {
-		SecurityContextHolder.clearContext();
-	}
+	private static final ItemQuery ALL = new ItemQuery(null, null, null, null);
 
 	@Test
-	void createsATaskForTheWindowWithAnItemForEveryAccount() {
+	void createsATaskWithAnItemForEveryActiveAccountOnly() {
 		user("rachel");
 		user("alice");
 		AppUser carol = user("carol");
 		carol.suspend(NOW, ReasonCode.OTHER, null);
 
-		Task task = this.service.createTask(WINDOW);
+		Task task = this.service.createTask(OCTOBER);
 
 		assertThat(task.getType()).isEqualTo("account_review");
 		assertThat(task.getStatus()).isEqualTo(TaskStatus.OPEN);
-		assertThat(task.getStartDate()).isEqualTo(LocalDate.of(2026, 4, 1));
-		assertThat(task.getDueDate()).isEqualTo(LocalDate.of(2026, 6, 30));
-		assertThat(this.items.findAll()).extracting(ReviewItem::getUsername)
-			.containsExactlyInAnyOrder("rachel", "alice", "carol");
-		assertThat(this.items.findAll()).extracting(ReviewItem::getReviewStatus)
-			.containsOnly(ReviewStatus.PENDING_VERIFICATION);
-		assertThat(this.service.response(task).counts()).containsEntry("pending_verification", 3L)
-			.containsEntry("verified", 0L);
-		assertThat(this.auditEvents.findAll(org.springframework.data.jpa.domain.Specification.unrestricted()))
-			.extracting(AccountAuditEvent::getAction)
+		assertThat(task.getStartDate()).isEqualTo(LocalDate.of(2026, 10, 1));
+		assertThat(task.getDueDate()).isEqualTo(LocalDate.of(2026, 10, 31));
+		assertThat(this.items.findAll()).extracting(AccountReviewItem::getUsername)
+			.containsExactlyInAnyOrder("rachel", "alice");
+		assertThat(this.items.findAll()).extracting(AccountReviewItem::getOutcome)
+			.containsOnly(AccountReviewOutcome.PENDING);
+		assertThat(this.service.response(task).counts().pending()).isEqualTo(2);
+		assertThat(this.auditEvents.findAll(Specification.unrestricted())).extracting(AccountAuditEvent::getAction)
 			.contains("create_review_task");
 	}
 
 	@Test
-	void showsLiveAccountDataInEachCategoryNotWhatWasTrueWhenTheTaskWasCreated() {
-		user("rachel");
-		AppUser alice = user("alice");
-		Task task = this.service.createTask(WINDOW);
-		flushAndClear();
+	void aTaskWithNoActiveAccountsStaysOpenUntilBothPopulationsAreConfirmed() {
+		Task task = this.service.createTask(OCTOBER);
 
-		this.lifecycle.suspend(alice.getPublicId(), ReasonCode.POLICY_VIOLATION, "see ticket");
-		flushAndClear();
-
-		assertThat(rows(task, Category.ACTIVE)).extracting(ReviewItemResponse::username).containsExactly("rachel");
-		List<ReviewItemResponse> suspended = rows(task, Category.SUSPENDED);
-		assertThat(suspended).hasSize(1);
-		assertThat(suspended.get(0).username()).isEqualTo("alice");
-		assertThat(suspended.get(0).suspendedAt()).isEqualTo(NOW);
-		assertThat(suspended.get(0).reasonCode()).isEqualTo("policy_violation");
-		assertThat(suspended.get(0).reasonNote()).isEqualTo("see ticket");
-		assertThat(suspended.get(0).reviewStatus()).isEqualTo("pending_verification");
+		assertThat(task.getStatus()).isEqualTo(TaskStatus.OPEN);
 	}
 
 	@Test
-	void verifiesItemsAndCompletesTheTaskWhenTheLastIsDecided() {
-		AppUser rachel = user("rachel");
-		AppUser ravi = user("ravi");
-		AppUser alice = user("alice");
-		this.users.recordLogin("alice", Instant.parse("2026-05-01T00:00:00Z"));
-		Task task = this.service.createTask(WINDOW);
-		flushAndClear();
-		authenticateAs("rachel");
-
-		this.service.decide(task.getPublicId(),
-				List.of(itemOf(task, "alice").getPublicId(), itemOf(task, "ravi").getPublicId()), true, null, null);
-		flushAndClear();
-
-		ReviewItem verified = itemOf(task, "alice");
-		assertThat(verified.getReviewStatus()).isEqualTo(ReviewStatus.VERIFIED);
-		assertThat(verified.getDecidedBy()).isEqualTo("rachel");
-		assertThat(verified.getDecidedAt()).isEqualTo(NOW);
-		assertThat(verified.getDecidedAccountStatus()).isEqualTo("active");
-		assertThat(verified.getDecidedLastLoginAt()).isEqualTo(Instant.parse("2026-05-01T00:00:00Z"));
-		assertThat(this.tasks.findById(task.getId()).orElseThrow().isOpen()).isTrue();
-
-		authenticateAs("ravi");
-		this.service.decide(task.getPublicId(), List.of(itemOf(task, "rachel").getPublicId()), true, null, null);
-		flushAndClear();
-
-		Task completed = this.tasks.findById(task.getId()).orElseThrow();
-		assertThat(completed.getStatus()).isEqualTo(TaskStatus.COMPLETED);
-		assertThat(completed.getCompletedBy()).isEqualTo("ravi");
-		assertThat(completed.getCompletedAt()).isEqualTo(NOW);
-		assertThat(rachel).isNotNull();
-		assertThat(ravi).isNotNull();
-		assertThat(alice).isNotNull();
-	}
-
-	@Test
-	void aReviewerCannotReviewTheirOwnAccountAndNothingInTheBatchChanges() {
+	void showsPendingRowsLiveNotWhatWasTrueWhenTheTaskWasCreated() {
 		user("rachel");
-		user("alice");
-		Task task = this.service.createTask(WINDOW);
-		flushAndClear();
-		authenticateAs("rachel");
-
-		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(() -> this.service.decide(task.getPublicId(),
-				List.of(itemOf(task, "alice").getPublicId(), itemOf(task, "rachel").getPublicId()), true, null, null));
+		AppUser alice = user("alice", "Finance");
+		authenticateAs("rachel", "ACCOUNT_REVIEWER");
+		Task task = this.service.createTask(OCTOBER);
 		flushAndClear();
 
-		assertThat(itemOf(task, "alice").getReviewStatus()).isEqualTo(ReviewStatus.PENDING_VERIFICATION);
-		assertThat(itemOf(task, "rachel").getReviewStatus()).isEqualTo(ReviewStatus.PENDING_VERIFICATION);
-		assertThat(rows(task, Category.ACTIVE)).filteredOn(ReviewItemResponse::ownAccount)
-			.extracting(ReviewItemResponse::username)
+		AppUser live = this.users.findByPublicId(alice.getPublicId()).orElseThrow();
+		live.update("Alice Tan", null, "Procurement");
+		flushAndClear();
+
+		ReviewItemResponse row = rows(task).stream()
+			.filter(candidate -> candidate.username().equals("alice"))
+			.findFirst()
+			.orElseThrow();
+		assertThat(row.name()).isEqualTo("Alice Tan");
+		assertThat(row.department()).isEqualTo("Procurement");
+		assertThat(row.groups()).containsExactly("users");
+		assertThat(row.outcome()).isEqualTo("pending");
+		assertThat(row.groupsBefore()).isNull();
+		assertThat(row.ownAccount()).isFalse();
+		assertThat(rows(task).stream().filter(ReviewItemResponse::ownAccount)).extracting(ReviewItemResponse::username)
 			.containsExactly("rachel");
 	}
 
 	@Test
-	void aReviewerCannotSuspendRemoveOrUnsuspendTheirOwnAccountFromTheirItem() {
+	void confirmingFreezesTheEvidenceAndIsAudited() {
 		user("rachel");
-		Task task = this.service.createTask(WINDOW);
+		AppUser alice = user("alice", "Finance");
+		alice.getGroups().add(this.entityManager.persist(new AppGroup("viewers")));
+		authenticateAs("rachel", "ACCOUNT_REVIEWER");
+		Task task = this.service.createTask(OCTOBER);
 		flushAndClear();
-		authenticateAs("rachel");
-		UUID itemId = itemOf(task, "rachel").getPublicId();
 
-		assertThatExceptionOfType(AccessDeniedException.class)
-			.isThrownBy(() -> this.service.suspend(task.getPublicId(), itemId, ReasonCode.OTHER, null));
-		assertThatExceptionOfType(AccessDeniedException.class)
-			.isThrownBy(() -> this.service.decide(task.getPublicId(), List.of(itemId), false, ReasonCode.OTHER, null));
+		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), Decision.CONFIRM, null,
+				null);
+		flushAndClear();
 
-		assertThat(this.users.existsByUsername("rachel")).isTrue();
+		AccountReviewItem item = itemOf(task, "alice");
+		assertThat(item.getOutcome()).isEqualTo(AccountReviewOutcome.CONFIRMED);
+		assertThat(item.getDecidedBy()).isEqualTo("rachel");
+		assertThat(item.getDecidedAt()).isEqualTo(NOW);
+		assertThat(item.getDepartment()).isEqualTo("Finance");
+		assertThat(item.getGroupsBefore()).containsExactly("users", "viewers");
+		assertThat(item.getGroupsAfter()).containsExactly("users", "viewers");
+		assertThat(this.auditEvents.findAll(Specification.unrestricted())).extracting(AccountAuditEvent::getAction)
+			.contains("confirm_review_item");
+		ReviewItemResponse row = rows(task).stream()
+			.filter(candidate -> candidate.username().equals("alice"))
+			.findFirst()
+			.orElseThrow();
+		assertThat(row.remark()).isEqualTo("No changes");
+		assertThat(this.service.response(task).progress().reviewed()).isEqualTo(1);
+		assertThat(this.service.response(task).counts().confirmed()).isEqualTo(1);
 	}
 
 	@Test
-	void rejectsABatchWithAnItemAlreadyDecidedOrFromAnotherTask() {
+	void removingThroughTheReviewMarksTheItemRemovedAndKeepsTheEvidence() {
+		user("rachel");
+		AppUser alice = user("alice", "HR");
+		authenticateAs("rachel", "ACCOUNT_REVIEWER");
+		Task task = this.service.createTask(OCTOBER);
+		flushAndClear();
+
+		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), Decision.REMOVE,
+				ReasonCode.LEFT_ORGANISATION, "resigned");
+		flushAndClear();
+
+		assertThat(this.users.findByPublicId(alice.getPublicId())).isEmpty();
+		AccountReviewItem item = itemOf(task, "alice");
+		assertThat(item.getOutcome()).isEqualTo(AccountReviewOutcome.REMOVED);
+		assertThat(item.getDecidedBy()).isEqualTo("rachel");
+		assertThat(item.getDepartment()).isEqualTo("HR");
+		assertThat(item.getGroupsBefore()).containsExactly("users");
+		assertThat(item.getGroupsAfter()).isNull();
+		AccountAuditEvent removal = this.auditEvents.findAllById(List.of(item.getRemovalAuditEventId())).get(0);
+		assertThat(removal.getAction()).isEqualTo("delete_user");
+		assertThat(removal.getReasonCode()).isEqualTo("left_organisation");
+		assertThat(removal.getReasonNote()).isEqualTo("resigned");
+		assertThat(removal.getDetails()).contains("\"department\":\"HR\"");
+		assertThat(rows(task)).extracting(ReviewItemResponse::username).containsExactly("rachel");
+		assertThat(this.service.response(task).counts().removed()).isEqualTo(1);
+	}
+
+	@Test
+	void editingGroupsConfirmsTheItemAndRecordsTheGroupsBeforeAndAfter() {
+		user("rachel");
+		AppUser alice = user("alice");
+		AppGroup viewers = this.entityManager.persist(new AppGroup("viewers"));
+		authenticateAs("rachel", "ACCOUNT_REVIEWER");
+		Task task = this.service.createTask(OCTOBER);
+		flushAndClear();
+
+		this.service.editGroups(task.getPublicId(), itemOf(task, "alice").getPublicId(), Set.of(viewers.getPublicId()));
+		flushAndClear();
+
+		AccountReviewItem item = itemOf(task, "alice");
+		assertThat(item.getOutcome()).isEqualTo(AccountReviewOutcome.CONFIRMED_GROUPS_EDITED);
+		assertThat(item.getGroupsBefore()).containsExactly("users");
+		assertThat(item.getGroupsAfter()).containsExactly("viewers");
+		AppUser reloaded = this.users.findByPublicId(alice.getPublicId()).orElseThrow();
+		assertThat(reloaded.getGroups()).extracting(AppGroup::getName).containsExactly("viewers");
+		assertThat(this.auditEvents.findAll(Specification.unrestricted())).extracting(AccountAuditEvent::getAction)
+			.contains("update_user", "edit_review_item_groups");
+		ReviewItemResponse row = rows(task).stream()
+			.filter(candidate -> candidate.username().equals("alice"))
+			.findFirst()
+			.orElseThrow();
+		assertThat(row.remark()).isEqualTo("Added viewers; Removed users");
+		assertThat(this.service.response(task).counts().confirmedGroupsEdited()).isEqualTo(1);
+	}
+
+	@Test
+	void editingGroupsRejectsAnUnchangedSetAndAGroupTheReviewerCannotGrant() {
+		user("rachel");
+		user("alice");
+		AppRole manage = this.entityManager.persist(new AppRole("USER_MANAGE"));
+		AppGroup admins = new AppGroup("admins");
+		admins.getRoles().add(manage);
+		this.entityManager.persist(admins);
+		authenticateAs("rachel", "ACCOUNT_REVIEWER");
+		Task task = this.service.createTask(OCTOBER);
+		flushAndClear();
+		UUID aliceItem = itemOf(task, "alice").getPublicId();
+
+		assertThatExceptionOfType(BadRequestException.class)
+			.isThrownBy(() -> this.service.editGroups(task.getPublicId(), aliceItem, Set.of(this.group.getPublicId())));
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(() -> this.service
+			.editGroups(task.getPublicId(), aliceItem, Set.of(this.group.getPublicId(), admins.getPublicId())));
+		assertThatExceptionOfType(com.example.commons.web.problem.ResourceNotFoundException.class)
+			.isThrownBy(() -> this.service.editGroups(task.getPublicId(), aliceItem, Set.of(UNKNOWN)));
+		assertThat(itemOf(task, "alice").isPending()).isTrue();
+		assertThat(this.service.assignableGroups()).extracting(summary -> summary.name()).containsExactly("users");
+	}
+
+	@Test
+	void aReviewerCannotActOnTheirOwnAccount() {
+		user("rachel");
+		user("alice");
+		authenticateAs("rachel", "ACCOUNT_REVIEWER");
+		Task task = this.service.createTask(OCTOBER);
+		flushAndClear();
+		UUID own = itemOf(task, "rachel").getPublicId();
+
+		assertThatExceptionOfType(AccessDeniedException.class)
+			.isThrownBy(() -> this.service.decide(task.getPublicId(), List.of(own), Decision.CONFIRM, null, null));
+		assertThatExceptionOfType(AccessDeniedException.class)
+			.isThrownBy(() -> this.service.editGroups(task.getPublicId(), own, Set.of(this.group.getPublicId())));
+		assertThat(itemOf(task, "rachel").isPending()).isTrue();
+		assertThat(this.auditEvents.findAll(Specification.unrestricted())).extracting(AccountAuditEvent::getAction)
+			.contains("review_rejected");
+	}
+
+	@Test
+	void aBatchIsAppliedEntirelyOrNotAtAll() {
 		user("rachel");
 		user("alice");
 		user("bob");
-		Task task = this.service.createTask(WINDOW);
+		authenticateAs("rachel", "ACCOUNT_REVIEWER");
+		Task task = this.service.createTask(OCTOBER);
 		flushAndClear();
-		authenticateAs("rachel");
-		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), true, null, null);
-		flushAndClear();
-		UUID bob = itemOf(task, "bob").getPublicId();
 		UUID alice = itemOf(task, "alice").getPublicId();
+		UUID bob = itemOf(task, "bob").getPublicId();
+		this.service.decide(task.getPublicId(), List.of(alice), Decision.CONFIRM, null, null);
+		flushAndClear();
 
 		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.decide(task.getPublicId(), List.of(bob, alice, UNKNOWN), true, null, null))
+			.isThrownBy(() -> this.service.decide(task.getPublicId(), List.of(bob, alice, UNKNOWN), Decision.CONFIRM,
+					null, null))
 			.withMessageContaining(alice.toString())
-			.withMessageContaining(UNKNOWN.toString());
+			.withMessageContaining(UNKNOWN.toString())
+			.satisfies(ex -> assertThat(ex.getMessage()).doesNotContain(bob.toString()));
 		flushAndClear();
 
-		assertThat(itemOf(task, "bob").getReviewStatus()).isEqualTo(ReviewStatus.PENDING_VERIFICATION);
+		assertThat(itemOf(task, "bob").isPending()).isTrue();
 	}
 
 	@Test
-	void removingAnItemDeletesTheAccountFreezesTheItemAndListsItAsRemoved() {
+	void aRemovalOutsideTheReviewMarksThePendingItemRemovedWithTheRemoverAsDecider() {
+		user("rachel");
+		AppUser alice = user("alice", "IT");
+		Task task = this.service.createTask(OCTOBER);
+		flushAndClear();
+
+		authenticateAs("admin", "USER_MANAGE");
+		this.lifecycle.remove(alice.getPublicId(), ReasonCode.NO_LONGER_REQUIRED, null);
+		flushAndClear();
+
+		AccountReviewItem item = itemOf(task, "alice");
+		assertThat(item.getOutcome()).isEqualTo(AccountReviewOutcome.REMOVED);
+		assertThat(item.getDecidedBy()).isEqualTo("admin");
+		assertThat(item.getDepartment()).isEqualTo("IT");
+		assertThat(item.getRemovalAuditEventId()).isNotNull();
+		assertThat(this.service.response(task).progress().total()).isEqualTo(1);
+	}
+
+	@Test
+	void aSuspendedPendingAccountLeavesTheActiveListAndReturnsWhenUnsuspended() {
 		user("rachel");
 		AppUser alice = user("alice");
-		Task task = this.service.createTask(WINDOW);
-		flushAndClear();
-		authenticateAs("rachel");
-
-		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), false,
-				ReasonCode.LEFT_ORGANISATION, "moved teams");
+		authenticateAs("rachel", "ACCOUNT_REVIEWER");
+		Task task = this.service.createTask(OCTOBER);
 		flushAndClear();
 
-		assertThat(this.users.existsByUsername("alice")).isFalse();
-		ReviewItem item = itemOf(task, "alice");
-		assertThat(item.getReviewStatus()).isEqualTo(ReviewStatus.REMOVED);
-		assertThat(item.getDecidedBy()).isEqualTo("rachel");
-		assertThat(item.getDecidedReasonCode()).isEqualTo("left_organisation");
-		assertThat(item.getUser()).isNull();
-		List<ReviewItemResponse> removed = rows(task, Category.REMOVED);
-		assertThat(removed).hasSize(1);
-		assertThat(removed.get(0).username()).isEqualTo("alice");
-		assertThat(removed.get(0).name()).isEqualTo("alice");
-		assertThat(removed.get(0).removedAt()).isEqualTo(NOW);
-		assertThat(removed.get(0).removedBy()).isEqualTo("rachel");
-		assertThat(removed.get(0).reasonCode()).isEqualTo("left_organisation");
-		assertThat(rows(task, Category.ACTIVE)).extracting(ReviewItemResponse::username).containsExactly("rachel");
-		assertThat(alice.getPublicId()).isNotNull();
+		authenticateAs("admin", "USER_MANAGE");
+		this.lifecycle.suspend(alice.getPublicId(), ReasonCode.POLICY_VIOLATION, null);
+		flushAndClear();
+
+		assertThat(rows(task)).extracting(ReviewItemResponse::username).containsExactly("rachel");
+		assertThat(this.service.response(task).progress().total()).isEqualTo(1);
+		assertThat(itemOf(task, "alice").isPending()).isTrue();
+
+		this.lifecycle.unsuspend(alice.getPublicId());
+		flushAndClear();
+
+		assertThat(rows(task)).extracting(ReviewItemResponse::username).containsExactly("alice", "rachel");
 	}
 
 	@Test
-	void aRemovalBySomeoneElseOrTheSystemMarksTheOpenItemRemovedAndCanCompleteTheTask() {
-		AppUser alice = user("alice");
-		Task task = this.service.createTask(WINDOW);
-		flushAndClear();
-
-		this.lifecycle.remove(alice.getPublicId(), ReasonCode.INACTIVE_ACCOUNT, null);
-		flushAndClear();
-
-		ReviewItem item = itemOf(task, "alice");
-		assertThat(item.getReviewStatus()).isEqualTo(ReviewStatus.REMOVED);
-		assertThat(item.getDecidedBy()).isEqualTo("system");
-		assertThat(item.getDecidedReasonCode()).isEqualTo("inactive_account");
-		Task completed = this.tasks.findById(task.getId()).orElseThrow();
-		assertThat(completed.getStatus()).isEqualTo(TaskStatus.COMPLETED);
-		assertThat(completed.getCompletedBy()).isEqualTo("system");
-	}
-
-	@Test
-	void theRemovedCategoryAlsoListsAnAccountCreatedAndRemovedDuringTheWindow() {
-		user("rachel");
-		Task task = this.service.createTask(WINDOW);
-		AppUser late = user("late-joiner");
-		flushAndClear();
-
-		this.lifecycle.remove(late.getPublicId(), ReasonCode.NO_LONGER_REQUIRED, null);
-		flushAndClear();
-
-		assertThat(rows(task, Category.REMOVED)).extracting(ReviewItemResponse::username)
-			.containsExactly("late-joiner");
-		assertThat(this.items.findAll()).extracting(ReviewItem::getUsername).containsExactly("rachel");
-	}
-
-	@Test
-	void suspendingAndUnsuspendingFromAnItemLeavesItsReviewStatusAlone() {
-		user("rachel");
-		user("alice");
-		Task task = this.service.createTask(WINDOW);
-		flushAndClear();
-		authenticateAs("rachel");
-		UUID itemId = itemOf(task, "alice").getPublicId();
-
-		this.service.suspend(task.getPublicId(), itemId, ReasonCode.POLICY_VIOLATION, null);
-		flushAndClear();
-		assertThat(rows(task, Category.SUSPENDED)).extracting(ReviewItemResponse::username).containsExactly("alice");
-		assertThat(itemOf(task, "alice").getReviewStatus()).isEqualTo(ReviewStatus.PENDING_VERIFICATION);
-
-		this.service.unsuspend(task.getPublicId(), itemId);
-		flushAndClear();
-		assertThat(rows(task, Category.ACTIVE)).extracting(ReviewItemResponse::username)
-			.containsExactlyInAnyOrder("rachel", "alice");
-		assertThat(itemOf(task, "alice").getReviewStatus()).isEqualTo(ReviewStatus.PENDING_VERIFICATION);
-	}
-
-	@Test
-	void showsTheLiveSuspensionEvenWhenTheItemWasLoadedBeforeIt() {
+	void aDecidedItemStaysInTheActiveListWhenItsAccountIsLaterSuspended() {
 		user("rachel");
 		AppUser alice = user("alice");
-		Task task = this.service.createTask(WINDOW);
-		this.entityManager.flush();
-		itemOf(task, "alice");
+		authenticateAs("rachel", "ACCOUNT_REVIEWER");
+		Task task = this.service.createTask(OCTOBER);
+		flushAndClear();
+		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), Decision.CONFIRM, null,
+				null);
+		flushAndClear();
 
-		this.lifecycle.suspend(alice.getPublicId(), ReasonCode.POLICY_VIOLATION, "see ticket");
+		authenticateAs("admin", "USER_MANAGE");
+		this.lifecycle.suspend(alice.getPublicId(), ReasonCode.OTHER, null);
+		flushAndClear();
 
-		List<ReviewItemResponse> suspended = rows(task, Category.SUSPENDED);
-		assertThat(suspended).hasSize(1);
-		assertThat(suspended.get(0).suspendedAt()).isEqualTo(NOW);
-		assertThat(suspended.get(0).reasonCode()).isEqualTo("policy_violation");
+		assertThat(rows(task)).extracting(ReviewItemResponse::username).containsExactly("alice", "rachel");
+		assertThat(itemOf(task, "alice").getOutcome()).isEqualTo(AccountReviewOutcome.CONFIRMED);
 	}
 
 	@Test
-	void aCompletedTaskRejectsFurtherDecisionsButStillShowsItsRows() {
-		AppUser alice = user("alice");
-		Task task = this.service.createTask(WINDOW);
+	void filtersAndSortsTheActiveAccounts() {
+		user("rachel", "Compliance");
+		user("alice", "Finance");
+		user("bob", "Finance");
+		user("carol", "HR");
+		authenticateAs("rachel", "ACCOUNT_REVIEWER");
+		Task task = this.service.createTask(OCTOBER);
 		flushAndClear();
-		authenticateAs("rachel");
-		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), true, null, null);
+		this.service.decide(task.getPublicId(), List.of(itemOf(task, "bob").getPublicId()), Decision.CONFIRM, null,
+				null);
 		flushAndClear();
 
-		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> this.service.decide(task.getPublicId(),
-				List.of(itemOf(task, "alice").getPublicId()), true, null, null));
-		assertThat(rows(task, Category.ACTIVE)).extracting(ReviewItemResponse::username).containsExactly("alice");
-		assertThat(this.service.summary().openCount()).isZero();
-		assertThat(alice).isNotNull();
+		assertThat(page(task, new ItemQuery(null, "finance", null, null), Sort.by("username").descending()))
+			.extracting(ReviewItemResponse::username)
+			.containsExactly("bob", "alice");
+		assertThat(page(task, new ItemQuery(AccountReviewOutcome.CONFIRMED, null, null, null), Sort.by("username")))
+			.extracting(ReviewItemResponse::username)
+			.containsExactly("bob");
+		assertThat(page(task, new ItemQuery(null, null, "USERS", "arol"), Sort.by("username")))
+			.extracting(ReviewItemResponse::username)
+			.containsExactly("carol");
+		assertThat(page(task, ALL, Sort.by("department", "username"))).extracting(ReviewItemResponse::username)
+			.containsExactly("rachel", "alice", "bob", "carol");
+		assertThat(this.service.departments(task.getPublicId())).containsExactly("Compliance", "Finance", "HR");
 	}
 
 	@Test
 	void summarisesOpenAndOverdueTasks() {
 		user("alice");
-		this.service.createTask(WINDOW);
-		this.service.createTask(new ReviewWindow(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 3, 31)));
+		this.service.createTask(OCTOBER);
+		this.service.createTask(new ReviewPeriod(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31)));
 		flushAndClear();
 
 		assertThat(this.service.summary().openCount()).isEqualTo(2);
-		assertThat(this.service.summary().earliestDueDate()).isEqualTo(LocalDate.of(2026, 3, 31));
+		assertThat(this.service.summary().earliestDueDate()).isEqualTo(LocalDate.of(2026, 7, 31));
 		assertThat(this.service.summary().overdueCount()).isEqualTo(1);
 	}
 
-	@Test
-	void aTaskForAnEmptyUserBaseIsCompleteAtOnce() {
-		Task task = this.service.createTask(WINDOW);
-
-		assertThat(task.getStatus()).isEqualTo(TaskStatus.COMPLETED);
-		assertThat(task.getCompletedBy()).isEqualTo("system");
+	private List<ReviewItemResponse> rows(Task task) {
+		return page(task, ALL, Sort.by("username"));
 	}
 
-	private AppUser user(String username) {
-		AppUser user = new AppUser(username, username, null);
-		user.getGroups().add(this.group);
-		return this.entityManager.persist(user);
-	}
-
-	private void flushAndClear() {
-		this.entityManager.flush();
-		this.entityManager.clear();
-	}
-
-	private ReviewItem itemOf(Task task, String username) {
-		return this.items.findAll()
-			.stream()
-			.filter(item -> item.getTaskId().equals(task.getId()) && item.getUsername().equals(username))
-			.findFirst()
-			.orElseThrow();
-	}
-
-	private List<ReviewItemResponse> rows(Task task, Category category) {
-		return this.service.items(task.getPublicId(), category, null, null, PageRequest.of(0, 50, Sort.by("username")))
-			.getContent();
-	}
-
-	private static void authenticateAs(String username) {
-		SecurityContextHolder.getContext()
-			.setAuthentication(new TestingAuthenticationToken(username, null, "ROLE_ACCOUNT_REVIEWER"));
+	private List<ReviewItemResponse> page(Task task, ItemQuery query, Sort sort) {
+		return this.service.items(task.getPublicId(), query, PageRequest.of(0, 50, sort)).getContent();
 	}
 
 }

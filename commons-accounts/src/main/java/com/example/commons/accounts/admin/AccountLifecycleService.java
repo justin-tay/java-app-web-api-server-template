@@ -12,6 +12,7 @@ import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
 import com.example.commons.accounts.domain.Auditor;
 import com.example.commons.accounts.domain.ReasonCode;
+import com.example.commons.accounts.domain.AccountAuditEvent;
 import com.example.commons.accounts.review.ReviewItems;
 import com.example.commons.security.authentication.passkey.PasskeyManager;
 import com.example.commons.security.session.SessionRevocationService;
@@ -103,11 +104,11 @@ public class AccountLifecycleService {
 		if (this.passkeyManager != null) {
 			this.passkeyManager.removeAll(user.getPublicId().toString());
 		}
+		AccountAuditEvent event = this.auditLogger.userDeleted(before, reason, note);
 		if (this.reviewItems != null) {
-			this.reviewItems.accountRemoved(user, Auditor.current(), reason, note);
+			this.reviewItems.accountRemoved(user, Auditor.current(), event);
 		}
 		this.users.delete(user);
-		this.auditLogger.userDeleted(before, reason, note);
 	}
 
 	public AppUser user(UUID id) {

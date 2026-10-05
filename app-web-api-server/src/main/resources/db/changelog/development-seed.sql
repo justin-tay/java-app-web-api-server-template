@@ -24,6 +24,10 @@ INSERT INTO app_user (id, public_id, username, name, email, status, inactivity_c
 INSERT INTO app_user (id, public_id, username, name, email, status, inactivity_clock_started_at, created_at, updated_at, created_by, updated_by) VALUES (37, '00000000-0000-0000-0000-000000000025', 'account-reviewer-2', 'Ravi Nair', 'account-reviewer-2@example.test', 'ACTIVE', ${instant.now}, '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
 INSERT INTO app_user_group (user_id, group_id) VALUES (36, 19);
 INSERT INTO app_user_group (user_id, group_id) VALUES (37, 19);
+UPDATE app_user SET department = 'IT' WHERE username = 'admin';
+UPDATE app_user SET department = 'Finance' WHERE username = 'user';
+UPDATE app_user SET department = 'Operations' WHERE username = 'multi-group-user';
+UPDATE app_user SET department = 'Compliance' WHERE username IN ('account-reviewer-1', 'account-reviewer-2');
 UPDATE app_setting SET setting_value = 'false' WHERE name IN ('inactivity.enabled', 'review.enabled');
 
 -- Sample accounts to practise the account review on, applied only when the demo context is
@@ -31,8 +35,9 @@ UPDATE app_setting SET setting_value = 'false' WHERE name IN ('inactivity.enable
 -- have no Keycloak account, so nobody can sign in as them; they are only there to be
 -- reviewed. They cover the states a reviewer sees: signed in recently and long ago, never
 -- signed in, long unused, suspended for different reasons, and accounts already removed.
--- The review is switched on so the scheduler creates a task covering every account soon
--- after the application starts. The date arithmetic is H2's, which the local profile uses.
+-- The review is switched on, with a review every month so that every month is a review
+-- month, so the scheduler creates a task covering every active account soon after the
+-- application starts. The date arithmetic is H2's, which the local profile uses.
 
 --changeset app:demo-sample-data context:@demo dbms:h2
 INSERT INTO app_user (id, public_id, username, name, email, status, last_login_at, inactivity_clock_started_at, created_at, updated_at, created_by, updated_by) VALUES (49, '00000000-0000-0000-0000-000000000031', 'olivia.chan', 'Olivia Chan', 'olivia.chan@example.test', 'ACTIVE', DATEADD('DAY', -3, CURRENT_TIMESTAMP), DATEADD('DAY', -203, CURRENT_TIMESTAMP), '2026-01-01 00:00:00+00:00', '2026-01-01 00:00:00+00:00', 'system', 'system');
@@ -59,6 +64,12 @@ INSERT INTO app_user_group (user_id, group_id) VALUES (57, 18);
 INSERT INTO app_user_group (user_id, group_id) VALUES (58, 18);
 INSERT INTO app_user_group (user_id, group_id) VALUES (59, 18);
 INSERT INTO app_user_group (user_id, group_id) VALUES (60, 18);
-INSERT INTO account_audit_event (id, public_id, occurred_at, actor, action, target_type, target_id, target_name, target_full_name, reason_code, reason_note, details) VALUES (161, '00000000-0000-0000-0000-0000000000a1', DATEADD('MINUTE', -30, CURRENT_TIMESTAMP), 'hr.system', 'delete_user', 'USER', '00000000-0000-0000-0000-0000000000a1', 'sarah.lim', 'Sarah Lim', 'left_organisation', 'Left the organisation', '{"status":"active","groups":["Users"],"roles":["APPLICATION_USER"]}');
-INSERT INTO account_audit_event (id, public_id, occurred_at, actor, action, target_type, target_id, target_name, target_full_name, reason_code, reason_note, details) VALUES (162, '00000000-0000-0000-0000-0000000000a2', DATEADD('MINUTE', -30, CURRENT_TIMESTAMP), 'system', 'delete_user', 'USER', '00000000-0000-0000-0000-0000000000a2', 'tom.yeo', 'Tom Yeo', 'inactive_account', NULL, '{"status":"active","groups":["Users"],"roles":["APPLICATION_USER"]}');
+UPDATE app_user SET department = 'Finance' WHERE username IN ('olivia.chan', 'nur.aisyah', 'alicia.wong');
+UPDATE app_user SET department = 'Procurement' WHERE username IN ('daniel.ong', 'jason.lee');
+UPDATE app_user SET department = 'Operations' WHERE username IN ('priya.menon', 'kumar.raj', 'benjamin.teo');
+UPDATE app_user SET department = 'HR' WHERE username IN ('wei.jie.koh', 'hui.min.ng');
+UPDATE app_user SET department = 'IT' WHERE username IN ('mei.ling.tan', 'farid.hassan');
+INSERT INTO account_audit_event (id, public_id, occurred_at, actor, action, target_type, target_id, target_name, target_full_name, reason_code, reason_note, details) VALUES (161, '00000000-0000-0000-0000-0000000000a1', DATEADD('MINUTE', -30, CURRENT_TIMESTAMP), 'hr.system', 'delete_user', 'USER', '00000000-0000-0000-0000-0000000000a1', 'sarah.lim', 'Sarah Lim', 'left_organisation', 'Left the organisation', '{"status":"active","groups":["Users"],"roles":["APPLICATION_USER"],"department":"HR","lastLoginAt":null}');
+INSERT INTO account_audit_event (id, public_id, occurred_at, actor, action, target_type, target_id, target_name, target_full_name, reason_code, reason_note, details) VALUES (162, '00000000-0000-0000-0000-0000000000a2', DATEADD('MINUTE', -30, CURRENT_TIMESTAMP), 'system', 'delete_user', 'USER', '00000000-0000-0000-0000-0000000000a2', 'tom.yeo', 'Tom Yeo', 'inactive_account', NULL, '{"status":"active","groups":["Users"],"roles":["APPLICATION_USER"],"department":"IT","lastLoginAt":null}');
 UPDATE app_setting SET setting_value = 'true' WHERE name = 'review.enabled';
+UPDATE app_setting SET setting_value = '1' WHERE name = 'review.intervalMonths';

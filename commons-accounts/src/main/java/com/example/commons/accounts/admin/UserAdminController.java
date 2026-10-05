@@ -61,6 +61,7 @@ public class UserAdminController {
 			@RequestParam(required = false) @Size(max = 100) String username,
 			@RequestParam(required = false) @Size(max = 100) String name,
 			@RequestParam(required = false) @Size(max = 100) String email,
+			@RequestParam(required = false) @Size(max = 100) String department,
 			@RequestParam(required = false) @Pattern(regexp = "active|suspended") String status,
 			@RequestParam(required = false) Boolean neverSignedIn, @RequestParam(required = false) UUID groupId,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdFrom,
@@ -68,13 +69,21 @@ public class UserAdminController {
 			@RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size, HttpServletRequest request) {
 		Page<AppUser> result = this.service.users(
-				new AdministrationService.UserQuery(search, username, name, email,
+				new AdministrationService.UserQuery(search, username, name, email, department,
 						status == null ? null : AccountStatus.valueOf(status.toUpperCase(Locale.ROOT)), neverSignedIn,
 						groupId, createdFrom, createdTo),
 				AdminPageable.create(page, size, request.getParameterValues("sort"),
-						Set.of("username", "name", "lastLoginAt", "createdAt", "updatedAt"), "username"));
+						Set.of("username", "name", "department", "lastLoginAt", "createdAt", "updatedAt"), "username"));
 		return new PageResponse<>(result.map(this::response).toList(), result.getNumber(), result.getSize(),
 				result.getTotalElements(), result.getTotalPages());
+	}
+
+	/**
+	 * Lists the distinct departments in use, for a filter control.
+	 */
+	@GetMapping("/departments")
+	public List<String> departments() {
+		return this.service.departments();
 	}
 
 	@GetMapping("/{id}")
@@ -140,8 +149,8 @@ public class UserAdminController {
 
 	private UserResponse response(AppUser user) {
 		return new UserResponse(user.getPublicId(), user.getUsername(), user.getName(), user.getEmail(),
-				user.getLastLoginAt(), user.getStatus().name().toLowerCase(Locale.ROOT), user.getSuspendedAt(),
-				user.getSuspensionReasonCode(), user.getSuspensionNote(),
+				user.getDepartment(), user.getLastLoginAt(), user.getStatus().name().toLowerCase(Locale.ROOT),
+				user.getSuspendedAt(), user.getSuspensionReasonCode(), user.getSuspensionNote(),
 				user.getGroups()
 					.stream()
 					.map(group -> new Summary(group.getPublicId(), group.getName()))

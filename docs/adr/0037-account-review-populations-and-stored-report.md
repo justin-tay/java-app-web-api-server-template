@@ -54,9 +54,11 @@ completion when the last item left `pending_verification`. Using it showed four 
 * **Department.** `app_user` gets an optional free-text `department`, filtered by the
   distinct values in use. A separate table was rejected until departments need
   attributes of their own.
-* **Libraries.** OpenPDF for PDF, with a small reusable `ReportDocument` base, and Apache
-  POI streaming workbooks for xlsx, behind a `ReviewReportRenderer` interface so adopters
-  can replace them.
+* **Libraries.** OpenPDF 2.0.x for PDF, with a small reusable `ReportDocument` base, and
+  Apache POI streaming workbooks for xlsx, behind a `ReviewReportRenderer` interface so
+  adopters can replace them. OpenPDF 2.0.x is the last line built for Java 17; 2.1 and
+  later need Java 21. The PDF uses the built-in Helvetica font, so characters outside
+  Western European scripts are not drawn in it.
 * **Schema.** Edited in place and development databases recreated, as the earlier schema
   changes were; no review data is migrated.
 

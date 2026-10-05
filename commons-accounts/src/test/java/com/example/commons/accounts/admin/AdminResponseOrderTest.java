@@ -99,7 +99,8 @@ class AdminResponseOrderTest {
 		}
 		this.entityManager.clear();
 		assertThat(this.userController
-			.list(null, "sorted-user", null, null, null, null, null, null, null, 0, 20, new MockHttpServletRequest())
+			.list(null, "sorted-user", null, null, null, null, null, null, null, null, 0, 20,
+					new MockHttpServletRequest())
 			.items()).singleElement().satisfies((response) -> assertThat(groupNames(response)).isEqualTo(expected));
 	}
 

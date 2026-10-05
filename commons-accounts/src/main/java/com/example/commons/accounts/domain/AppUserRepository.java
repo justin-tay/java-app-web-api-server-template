@@ -51,6 +51,14 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long>, JpaSpec
 	@Query("select u.publicId from AppUser u where u.inactivityClockStartedAt < :cutoff and (u.lastLoginAt is null or u.lastLoginAt < :cutoff)")
 	List<UUID> findPublicIdsInactiveSince(@Param("cutoff") Instant cutoff);
 
+	/**
+	 * Returns the distinct departments in use, for a filter control.
+	 */
+	@Query("select distinct u.department from AppUser u where u.department is not null order by u.department")
+	List<String> findDistinctDepartments();
+
+	List<AppUser> findByStatus(AccountStatus status);
+
 	@Query("select u.username from AppUser u")
 	List<String> findAllUsernames();
 

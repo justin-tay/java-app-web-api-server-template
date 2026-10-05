@@ -34,7 +34,10 @@ databaseChangeLog:
         - createSequence: { sequenceName: account_audit_event_seq, startValue: 1000, incrementBy: 50 }
         - createSequence: { sequenceName: app_setting_seq, startValue: 1000, incrementBy: 50 }
         - createSequence: { sequenceName: task_seq, startValue: 1000, incrementBy: 50 }
-        - createSequence: { sequenceName: review_item_seq, startValue: 1000, incrementBy: 50 }
+        - createSequence: { sequenceName: account_review_item_seq, startValue: 1000, incrementBy: 50 }
+        - createSequence: { sequenceName: account_review_attestation_seq, startValue: 1000, incrementBy: 50 }
+        - createSequence: { sequenceName: account_review_population_entry_seq, startValue: 1000, incrementBy: 50 }
+        - createSequence: { sequenceName: account_review_report_seq, startValue: 1000, incrementBy: 50 }
 
         # Users, groups and roles, and the join tables between them.
         - createTable:
@@ -45,6 +48,8 @@ databaseChangeLog:
               - column: { name: username, type: varchar(100), constraints: { nullable: false, unique: true, uniqueConstraintName: uk_app_user_username } }
               - column: { name: name, type: varchar(100), constraints: { nullable: false } }
               - column: { name: email, type: varchar(254) }
+              # An optional free-text label that the account review shows and filters by.
+              - column: { name: department, type: varchar(100) }
               # An account is active or suspended, and records when and why it was suspended.
               # The inactivity clock restarts when an account is created or unsuspended. See
               # docs/adr/0031.
@@ -59,6 +64,7 @@ databaseChangeLog:
               - column: { name: updated_at, type: "${instant.type}", constraints: { nullable: false } }
               - column: { name: created_by, type: varchar(100), constraints: { nullable: false } }
               - column: { name: updated_by, type: varchar(100), constraints: { nullable: false } }
+        - createIndex: { tableName: app_user, indexName: ix_app_user_department, columns: [ { column: { name: department } } ] }
         - createTable:
             tableName: app_group
             columns:
@@ -163,8 +169,10 @@ databaseChangeLog:
               - column: { name: updated_at, type: "${instant.type}", constraints: { nullable: false } }
               - column: { name: updated_by, type: varchar(100), constraints: { nullable: false } }
 
-        # A generic task, with the periodic account review as its first type. A review item has
-        # no foreign key to app_user, so it outlives a removed account. See docs/adr/0032.
+        # A generic task, with the periodic account review as its first type. The review's rows
+        # have no foreign key to app_user, so they outlive a removed account. A pending item is
+        # read from the live account; the evidence columns, a confirmed population's entries and
+        # the report are frozen when they are written and never change. See docs/adr/0037.
         - createTable:
             tableName: task
             columns:
@@ -178,26 +186,74 @@ databaseChangeLog:
               - column: { name: completed_at, type: "${instant.type}" }
               - column: { name: completed_by, type: varchar(100) }
         - addUniqueConstraint: { tableName: task, columnNames: "type, start_date", constraintName: uk_task_type_start }
+        # One active account's entry in a task. The identity is fixed when the task is created. The
+        # decision and the evidence columns are null until the item is decided, and groups_after is
+        # null for a removal. The removal's reason, note and actor stay in its audit event.
         - createTable:
-            tableName: review_item
+            tableName: account_review_item
             columns:
-              - column: { name: id, type: bigint, constraints: { nullable: false, primaryKey: true, primaryKeyName: pk_review_item } }
-              - column: { name: public_id, type: uuid, constraints: { nullable: false, unique: true, uniqueConstraintName: uk_review_item_public_id } }
+              - column: { name: id, type: bigint, constraints: { nullable: false, primaryKey: true, primaryKeyName: pk_account_review_item } }
+              - column: { name: public_id, type: uuid, constraints: { nullable: false, unique: true, uniqueConstraintName: uk_account_review_item_public_id } }
               - column: { name: task_id, type: bigint, constraints: { nullable: false } }
               - column: { name: user_public_id, type: uuid, constraints: { nullable: false } }
               - column: { name: username, type: varchar(100), constraints: { nullable: false } }
-              - column: { name: name, type: varchar(100), constraints: { nullable: false } }
-              - column: { name: review_status, type: varchar(30), constraints: { nullable: false } }
+              - column: { name: full_name, type: varchar(100), constraints: { nullable: false } }
+              - column: { name: outcome, type: varchar(30), constraints: { nullable: false } }
               - column: { name: decided_at, type: "${instant.type}" }
               - column: { name: decided_by, type: varchar(100) }
-              - column: { name: decided_account_status, type: varchar(20) }
-              - column: { name: decided_last_login_at, type: "${instant.type}" }
-              - column: { name: decided_suspended_at, type: "${instant.type}" }
-              - column: { name: decided_reason_code, type: varchar(40) }
-              - column: { name: decided_reason_note, type: varchar(200) }
-        - addForeignKeyConstraint: { baseTableName: review_item, baseColumnNames: task_id, constraintName: fk_review_item_task, referencedTableName: task, referencedColumnNames: id }
-        - addUniqueConstraint: { tableName: review_item, columnNames: "task_id, user_public_id", constraintName: uk_review_item_task_user }
-        - createIndex: { tableName: review_item, indexName: ix_review_item_task_status, columns: [ { column: { name: task_id } }, { column: { name: review_status } } ] }
+              - column: { name: removal_audit_event_id, type: bigint }
+              - column: { name: department, type: varchar(100) }
+              - column: { name: last_login_at, type: "${instant.type}" }
+              - column: { name: groups_before, type: clob }
+              - column: { name: groups_after, type: clob }
+        - addForeignKeyConstraint: { baseTableName: account_review_item, baseColumnNames: task_id, constraintName: fk_account_review_item_task, referencedTableName: task, referencedColumnNames: id }
+        - addUniqueConstraint: { tableName: account_review_item, columnNames: "task_id, user_public_id", constraintName: uk_account_review_item_task_user }
+        - createIndex: { tableName: account_review_item, indexName: ix_account_review_item_task_outcome, columns: [ { column: { name: task_id } }, { column: { name: outcome } } ] }
+        # A reviewer's confirmation of the suspended or the removed population, once per task.
+        - createTable:
+            tableName: account_review_attestation
+            columns:
+              - column: { name: id, type: bigint, constraints: { nullable: false, primaryKey: true, primaryKeyName: pk_account_review_attestation } }
+              - column: { name: public_id, type: uuid, constraints: { nullable: false, unique: true, uniqueConstraintName: uk_account_review_attestation_public_id } }
+              - column: { name: task_id, type: bigint, constraints: { nullable: false } }
+              - column: { name: population, type: varchar(20), constraints: { nullable: false } }
+              - column: { name: confirmed_by, type: varchar(100), constraints: { nullable: false } }
+              - column: { name: confirmed_at, type: "${instant.type}", constraints: { nullable: false } }
+              - column: { name: note, type: varchar(200) }
+              - column: { name: entry_count, type: integer, constraints: { nullable: false } }
+        - addForeignKeyConstraint: { baseTableName: account_review_attestation, baseColumnNames: task_id, constraintName: fk_account_review_attestation_task, referencedTableName: task, referencedColumnNames: id }
+        - addUniqueConstraint: { tableName: account_review_attestation, columnNames: "task_id, population", constraintName: uk_account_review_attestation_task_population }
+        # The list of a population as it was when it was confirmed.
+        - createTable:
+            tableName: account_review_population_entry
+            columns:
+              - column: { name: id, type: bigint, constraints: { nullable: false, primaryKey: true, primaryKeyName: pk_account_review_population_entry } }
+              - column: { name: public_id, type: uuid, constraints: { nullable: false, unique: true, uniqueConstraintName: uk_account_review_population_entry_public_id } }
+              - column: { name: attestation_id, type: bigint, constraints: { nullable: false } }
+              - column: { name: user_public_id, type: uuid, constraints: { nullable: false } }
+              - column: { name: username, type: varchar(100), constraints: { nullable: false } }
+              - column: { name: full_name, type: varchar(100), constraints: { nullable: false } }
+              - column: { name: department, type: varchar(100) }
+              - column: { name: last_login_at, type: "${instant.type}" }
+              - column: { name: occurred_at, type: "${instant.type}", constraints: { nullable: false } }
+              - column: { name: actor, type: varchar(100) }
+              - column: { name: reason_code, type: varchar(40) }
+              - column: { name: reason_note, type: varchar(200) }
+        - addForeignKeyConstraint: { baseTableName: account_review_population_entry, baseColumnNames: attestation_id, constraintName: fk_account_review_population_entry_attestation, referencedTableName: account_review_attestation, referencedColumnNames: id }
+        - createIndex: { tableName: account_review_population_entry, indexName: ix_account_review_population_entry_attestation, columns: [ { column: { name: attestation_id } } ] }
+        # The PDF stored when a task completes, written once and never changed.
+        - createTable:
+            tableName: account_review_report
+            columns:
+              - column: { name: id, type: bigint, constraints: { nullable: false, primaryKey: true, primaryKeyName: pk_account_review_report } }
+              - column: { name: public_id, type: uuid, constraints: { nullable: false, unique: true, uniqueConstraintName: uk_account_review_report_public_id } }
+              - column: { name: task_id, type: bigint, constraints: { nullable: false, unique: true, uniqueConstraintName: uk_account_review_report_task } }
+              - column: { name: content, type: "${binary.type}", constraints: { nullable: false } }
+              - column: { name: size_bytes, type: bigint, constraints: { nullable: false } }
+              - column: { name: sha256, type: varchar(64), constraints: { nullable: false } }
+              - column: { name: generated_at, type: "${instant.type}", constraints: { nullable: false } }
+              - column: { name: generated_by, type: varchar(100), constraints: { nullable: false } }
+        - addForeignKeyConstraint: { baseTableName: account_review_report, baseColumnNames: task_id, constraintName: fk_account_review_report_task, referencedTableName: task, referencedColumnNames: id }
 
         # Default settings, applied in every environment.
         - insert: { tableName: app_setting, columns: [ { column: { name: id, valueNumeric: 1 } }, { column: { name: name, value: inactivity.enabled } }, { column: { name: setting_value, value: "true" } }, { column: { name: updated_at, valueComputed: "${instant.now}" } }, { column: { name: updated_by, value: system } } ] }
@@ -208,7 +264,10 @@ databaseChangeLog:
       # The tables in the reverse of their creation order, so a table is dropped before the
       # tables it refers to, then the sequences. This is what schema-drop-<platform>.sql is generated from.
       rollback:
-        - dropTable: { tableName: review_item }
+        - dropTable: { tableName: account_review_report }
+        - dropTable: { tableName: account_review_population_entry }
+        - dropTable: { tableName: account_review_attestation }
+        - dropTable: { tableName: account_review_item }
         - dropTable: { tableName: task }
         - dropTable: { tableName: app_setting }
         - dropTable: { tableName: account_audit_event }
@@ -219,7 +278,10 @@ databaseChangeLog:
         - dropTable: { tableName: app_role }
         - dropTable: { tableName: app_group }
         - dropTable: { tableName: app_user }
-        - dropSequence: { sequenceName: review_item_seq }
+        - dropSequence: { sequenceName: account_review_report_seq }
+        - dropSequence: { sequenceName: account_review_population_entry_seq }
+        - dropSequence: { sequenceName: account_review_attestation_seq }
+        - dropSequence: { sequenceName: account_review_item_seq }
         - dropSequence: { sequenceName: app_setting_seq }
         - dropSequence: { sequenceName: task_seq }
         - dropSequence: { sequenceName: account_audit_event_seq }

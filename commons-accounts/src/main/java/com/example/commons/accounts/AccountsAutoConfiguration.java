@@ -32,14 +32,20 @@ import com.example.commons.accounts.admin.UserPasskeyAdminController;
 import com.example.commons.accounts.domain.AccountAuditEventRepository;
 import com.example.commons.accounts.domain.AppGroupRepository;
 import com.example.commons.accounts.domain.AppRoleRepository;
+import com.example.commons.accounts.domain.AccountReviewAttestationRepository;
+import com.example.commons.accounts.domain.AccountReviewItemRepository;
+import com.example.commons.accounts.domain.AccountReviewPopulationEntryRepository;
+import com.example.commons.accounts.domain.AccountReviewReportRepository;
 import com.example.commons.accounts.domain.AppSettingRepository;
 import com.example.commons.accounts.domain.AppUserRepository;
-import com.example.commons.accounts.domain.ReviewItemRepository;
 import com.example.commons.accounts.domain.TaskRepository;
 import com.example.commons.accounts.review.AccountReviewController;
 import com.example.commons.accounts.review.AccountReviewScheduler;
 import com.example.commons.accounts.review.AccountReviewService;
+import com.example.commons.accounts.review.AccountReviewReports;
+import com.example.commons.accounts.review.DefaultReviewReportRenderer;
 import com.example.commons.accounts.review.ReviewItems;
+import com.example.commons.accounts.review.ReviewReportRenderer;
 import com.example.commons.accounts.review.TaskController;
 import com.example.commons.accounts.settings.SettingsController;
 import com.example.commons.accounts.settings.SettingsService;
@@ -125,15 +131,14 @@ public class AccountsAutoConfiguration {
 	}
 
 	/**
-	 * Keeps review items consistent when an account is removed (see docs/adr/0032).
+	 * Keeps review items consistent when an account is removed (see docs/adr/0037).
 	 * @param items the review item repository
-	 * @param tasks the task repository
 	 * @return the component
 	 */
 	@Bean
 	@ConditionalOnMissingBean
-	ReviewItems reviewItems(ReviewItemRepository items, TaskRepository tasks) {
-		return new ReviewItems(items, tasks, Clock.systemUTC());
+	ReviewItems reviewItems(AccountReviewItemRepository items) {
+		return new ReviewItems(items, Clock.systemUTC());
 	}
 
 	/**
@@ -192,21 +197,39 @@ public class AccountsAutoConfiguration {
 	/**
 	 * Creates the periodic account review task according to the {@code review.*}
 	 * settings, checking every {@code commons.accounts.review.check-interval} (one hour
-	 * by default), with windows aligned to the calendar in
+	 * by default), with review months taken from the calendar in
 	 * {@code commons.accounts.review.time-zone} (the system time zone by default; see
-	 * docs/adr/0032).
+	 * docs/adr/0037).
 	 */
 	@Configuration(proxyBeanMethods = false)
 	@EnableScheduling
 	static class AccountReviewConfiguration {
 
+		/**
+		 * Lays the review report out as PDF, xlsx and csv.
+		 */
 		@Bean
 		@ConditionalOnMissingBean
-		AccountReviewService accountReviewService(TaskRepository tasks, ReviewItemRepository items,
-				AppUserRepository users, AccountAuditEventRepository auditEvents, AccountLifecycleService lifecycle,
-				ReviewItems reviewItems, AccountAuditLogger auditLogger, Environment environment) {
-			return new AccountReviewService(tasks, items, users, auditEvents, lifecycle, reviewItems, auditLogger,
-					Clock.systemUTC(), zone(environment));
+		ReviewReportRenderer reviewReportRenderer() {
+			return new DefaultReviewReportRenderer();
+		}
+
+		@Bean
+		@ConditionalOnMissingBean
+		AccountReviewReports accountReviewReports(AccountReviewReportRepository stored, ReviewReportRenderer renderer,
+				AccountAuditLogger auditLogger) {
+			return new AccountReviewReports(stored, renderer, auditLogger, Clock.systemUTC());
+		}
+
+		@Bean
+		@ConditionalOnMissingBean
+		AccountReviewService accountReviewService(TaskRepository tasks, AccountReviewItemRepository items,
+				AccountReviewAttestationRepository attestations, AccountReviewPopulationEntryRepository entries,
+				AppUserRepository users, AppGroupRepository groups, AccountAuditEventRepository auditEvents,
+				AccountLifecycleService lifecycle, SessionRevocationService sessionRevocationService,
+				AccountAuditLogger auditLogger, AccountReviewReports reports, Environment environment) {
+			return new AccountReviewService(tasks, items, attestations, entries, users, groups, auditEvents, lifecycle,
+					sessionRevocationService, auditLogger, reports, Clock.systemUTC(), zone(environment));
 		}
 
 		@Bean
