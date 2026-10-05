@@ -69,7 +69,7 @@ strips one leading `ROLE_` before prepending it again, so
 | Group administration | `ROLE_GROUP_MANAGE` |
 | Role administration | `ROLE_ROLE_MANAGE` |
 | Application settings | `ROLE_SETTINGS_MANAGE` |
-| Tasks and the account review | `ROLE_ACCOUNT_REVIEWER` |
+| Tasks, the account review and its report downloads | `ROLE_ACCOUNT_REVIEWER` |
 | Audit trail | `ROLE_ACCOUNT_REVIEWER` or `ROLE_USER_MANAGE` |
 
 The administration API is the sole mechanism for maintaining local users,
@@ -93,7 +93,10 @@ role. This trades prevention for detection. An administrator still cannot give
 themselves the role, every grant is in the audit trail that reviewers read, and
 only two administrators acting together could make a colluding user a reviewer,
 a risk accepted for the small number of administrators a deployment is expected
-to have ([ADR 0032](../../../adr/0032-periodic-account-review.md)).
+to have ([ADR 0032](../../../adr/0032-periodic-account-review.md)). A reviewer who edits an
+account's groups in a review stays under the same rule as an administrator: they can add only
+groups whose roles they hold, and they cannot act on their own account
+([ADR 0037](../../../adr/0037-account-review-populations-and-stored-report.md)).
 
 Role names cannot be changed, because a role's name is the authority the
 application checks: there is no `PUT /admin/roles/{id}`. Without these rules,

@@ -124,7 +124,7 @@ the HTTPS endpoint.
 
 Both local start commands also apply the Liquibase `demo` context, which adds twelve
 sample accounts to review (some recently active, some never signed in, some long
-unused, some suspended) and two already removed, and creates the account review about
+unused, some suspended) and two already removed, and makes every month a review month, so the account review is created about
 30 seconds after startup. They have no Keycloak account, so sign in as
 `account-reviewer-1` or `account-reviewer-2` to review them. The sample data is a new
 changeset, so recreate an existing local database first. The tests and production do

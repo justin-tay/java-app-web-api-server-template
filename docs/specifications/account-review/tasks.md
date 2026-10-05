@@ -95,7 +95,7 @@ verification. Each task is independently testable and ordered by its dependencie
     the existing review tests and the demo sample data test for the new model.
   - _Requirements: all_
 
-- [ ] 10.2 Update the system design documents
+- [x] 10.2 Update the system design documents
   - Domain model, building blocks, authorisation, operations, the event reference and
     the README mention; add the stored report and populations; mark ADR 0032 as partly
     superseded.

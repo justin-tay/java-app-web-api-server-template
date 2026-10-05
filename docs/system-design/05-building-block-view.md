@@ -74,8 +74,9 @@ rules, its Liquibase master changelog, and its configuration.
 | `commons-accounts` `admin` | Administration REST API for users, groups, and roles, and the read-only audit trail | `/admin/users/**`, `/admin/groups/**`, `/admin/roles/**` (each individually role-gated), `/audit-events` (`ROLE_ACCOUNT_REVIEWER` or `ROLE_USER_MANAGE`) | `commons-accounts/src/main/java/com/example/commons/accounts/admin/` |
 | `commons-accounts` account lifecycle | Records each user's last sign-in (`LastLoginRecorder`); suspends, unsuspends, and removes accounts in one place (`AccountLifecycleService`); and suspends then removes inactive accounts according to the `inactivity.*` settings (`InactiveUserSuspender`, checked every `commons.accounts.inactivity.check-interval`) | `LastLoginRecorder`, `AccountLifecycleService`, `InactiveUserSuspender` | `commons-accounts/src/main/java/com/example/commons/accounts/` |
 | `commons-accounts` `settings` | The application settings, read from the `app_setting` table and edited through the API by a settings administrator | `SettingsService`, `/admin/settings` (`ROLE_SETTINGS_MANAGE`) | `commons-accounts/src/main/java/com/example/commons/accounts/settings/` |
-| `commons-accounts` `review` | The periodic account review: creates a review task per calendar-aligned window (`AccountReviewScheduler`, `commons.accounts.review.check-interval`, `commons.accounts.review.time-zone`) and lets account reviewers verify, remove, suspend, and unsuspend accounts (`AccountReviewService`) | `/tasks/**`, `/account-reviews/tasks/**` (`ROLE_ACCOUNT_REVIEWER`) | `commons-accounts/src/main/java/com/example/commons/accounts/review/` |
-| `commons-accounts` `domain` | JPA entities (`AppUser`, `AppGroup`, `AppRole`, `AppSetting`, `AccountAuditEvent`, `Task`, `ReviewItem`) and Spring Data repositories | Repository interfaces consumed by `admin` and `AppUserLocalAuthorityLookup` | `commons-accounts/src/main/java/com/example/commons/accounts/domain/` |
+| `commons-accounts` `review` | The periodic account review: creates a review task in each review month and completes tasks finished by outside changes (`AccountReviewScheduler`, `commons.accounts.review.check-interval`, `commons.accounts.review.time-zone`); lets account reviewers confirm, re-group or remove active accounts and confirm the suspended and removed populations, completing the task by itself (`AccountReviewService`); and stores the completion report and serves the downloads (`AccountReviewReports`, `ReviewReportRenderer`, see [ADR 0037](../adr/0037-account-review-populations-and-stored-report.md)) | `/tasks/**`, `/account-reviews/**` (`ROLE_ACCOUNT_REVIEWER`) | `commons-accounts/src/main/java/com/example/commons/accounts/review/` |
+| `commons-accounts` `report` | A reusable PDF base on OpenPDF (`ReportDocument`): title block, key-value metadata, summary tiles, tables and page footers | `ReportDocument` | `commons-accounts/src/main/java/com/example/commons/accounts/report/` |
+| `commons-accounts` `domain` | JPA entities (`AppUser`, `AppGroup`, `AppRole`, `AppSetting`, `AccountAuditEvent`, `Task`, `AccountReviewItem`, `AccountReviewAttestation`, `AccountReviewPopulationEntry`, `AccountReviewReport`) and Spring Data repositories | Repository interfaces consumed by `admin` and `AppUserLocalAuthorityLookup` | `commons-accounts/src/main/java/com/example/commons/accounts/domain/` |
 | `commons-accounts` `validation` | Reusable Bean Validation constraints for account input | `@Username`, `@ResourceName` | `commons-accounts/src/main/java/com/example/commons/accounts/validation/` |
 | `api` | Public, non-administrative REST endpoints: caller's local identity and `ROLE_` authorities, Keycloak account proxy | `GET /login-user`, `GET /account` | `app-web-api-server/src/main/java/com/example/app/web/server/api/` |
 | `config` | Spring `@Configuration` classes: the application's authorization rules, REST client | `WebSecurityConfiguration`; otherwise wiring only | `app-web-api-server/src/main/java/com/example/app/web/server/config/` |
@@ -140,13 +141,17 @@ erDiagram
     APP_GROUP ||--o{ APP_USER_GROUP : "has members"
     APP_GROUP ||--o{ APP_GROUP_ROLE : "grants"
     APP_ROLE ||--o{ APP_GROUP_ROLE : "granted via"
-    TASK ||--o{ REVIEW_ITEM : "has"
+    TASK ||--o{ ACCOUNT_REVIEW_ITEM : "has"
+    TASK ||--o{ ACCOUNT_REVIEW_ATTESTATION : "has"
+    TASK ||--o| ACCOUNT_REVIEW_REPORT : "has"
+    ACCOUNT_REVIEW_ATTESTATION ||--o{ ACCOUNT_REVIEW_POPULATION_ENTRY : "freezes"
 
     APP_USER {
         char36 id PK
         varchar username UK
         varchar name
         varchar email
+        varchar department
         varchar status
         timestamp suspended_at
         timestamp inactivity_clock_started_at
@@ -167,11 +172,31 @@ erDiagram
         date start_date
         date due_date
     }
-    REVIEW_ITEM {
-        char36 id PK
-        char36 task_id FK
-        char36 user_id "no foreign key"
-        varchar review_status
+    ACCOUNT_REVIEW_ITEM {
+        bigint id PK
+        bigint task_id FK
+        uuid user_public_id "no foreign key"
+        varchar outcome
+        varchar department "frozen at decision"
+        clob groups_before "frozen at decision"
+        clob groups_after "frozen at decision"
+    }
+    ACCOUNT_REVIEW_ATTESTATION {
+        bigint id PK
+        bigint task_id FK
+        varchar population
+        varchar confirmed_by
+    }
+    ACCOUNT_REVIEW_POPULATION_ENTRY {
+        bigint id PK
+        bigint attestation_id FK
+        uuid user_public_id "no foreign key"
+    }
+    ACCOUNT_REVIEW_REPORT {
+        bigint id PK
+        bigint task_id FK
+        blob content "written once"
+        varchar sha256
     }
     ACCOUNT_AUDIT_EVENT {
         char36 id PK
@@ -202,9 +227,11 @@ inactivity clock, the audit table and the settings, and the task and review tabl
 `commons` in `com/example/commons/session/jdbc` (Spring Session's tables) and `com/example/commons/session/oidc/jdbc` (the OIDC
 session registry's table). Modules ship schema, applications ship data. There is no
 foreign key from `user_entities` to `app_user` because the passkey user handle is the
-public UUID's bytes, so deleting a user deletes their passkeys in code. `review_item` and
+public UUID's bytes, so deleting a user deletes their passkeys in code. `account_review_item`, `account_review_population_entry` and
 `account_audit_event` hold the user's public ID and username with no foreign key to `app_user`,
-so they outlive a removed account. The application's own changelog, `db/changelog` in
+so they outlive a removed account. A pending review item is read from the live account;
+the evidence columns of a decided item, a confirmed population's entries and the stored
+report are written once and never change ([ADR 0037](../adr/0037-account-review-populations-and-stored-report.md)). The application's own changelog, `db/changelog` in
 `app-web-api-server`, includes the two schemas and then seeds the roles and groups the
 administration API requires by name (`USER_MANAGE`, `GROUP_MANAGE`, `ROLE_MANAGE`), the
 `ACCOUNT_REVIEWER` and `SETTINGS_MANAGE` roles and the `Account Reviewers` group in
