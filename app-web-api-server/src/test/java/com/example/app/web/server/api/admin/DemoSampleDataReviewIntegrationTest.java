@@ -73,7 +73,10 @@ class DemoSampleDataReviewIntegrationTest {
 			assertThat(row.reasonNote()).startsWith("Resigned");
 			assertThat(row.occurredAt()).isNotNull();
 			assertThat(row.department()).isEqualTo("Finance");
+			assertThat(row.actor()).isEqualTo("admin");
 		});
+		assertThat(suspended).extracting(PopulationEntryResponse::actor)
+			.containsExactlyInAnyOrder("system", "admin", "admin");
 
 		List<PopulationEntryResponse> removed = population(task, ReviewPopulation.REMOVED);
 		assertThat(removed).extracting(PopulationEntryResponse::username)
