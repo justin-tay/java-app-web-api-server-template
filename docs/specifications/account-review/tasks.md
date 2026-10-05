@@ -88,7 +88,7 @@ verification. Each task is independently testable and ordered by its dependencie
   - The six actions in R4.7 with their details.
   - _Requirements: R4.7_
 
-- [ ] 10. Tests, documentation and verification
+- [x] 10. Tests, documentation and verification
 
 - [x] 10.1 Update and add tests
   - The frozen data, mid-task, report and migration tests listed in design.md; update
@@ -101,7 +101,7 @@ verification. Each task is independently testable and ordered by its dependencie
     superseded.
   - _Requirements: all_
 
-- [ ] 10.3 Full verification
+- [x] 10.3 Full verification
   - Run the Maven suite and formatter; exercise a review end to end against the local
     stack with two reviewers: confirm, edit groups, remove, the self-review block, both
     population confirmations, completion, and the stored PDF.
