@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Accepted. The window, items, decisions, categories and completion are superseded by
+[ADR 0037](0037-account-review-populations-and-stored-report.md).
 
 ## Context
 
