@@ -28,8 +28,10 @@ import com.example.commons.accounts.review.ReviewDtos.ReviewItemResponse;
  * the scheduler creates both review tasks for the current month, which the demo makes a
  * review month for each. The privileged review has an item for each of the 2
  * administrators and the non-privileged review one for each of the 12 other active sample
- * accounts, and the privileged review's two populations list the 3 suspended accounts and
- * the 2 accounts the sample data records as already removed.
+ * accounts. The sample data's suspended and removed accounts are all non-privileged, so
+ * the non-privileged review's two populations list the 3 suspended accounts and the 2
+ * accounts the sample data records as already removed, and the privileged review's are
+ * empty.
  */
 @SpringBootTest(properties = "spring.liquibase.contexts=dev,demo")
 @ActiveProfiles("test")
@@ -70,7 +72,9 @@ class DemoSampleDataReviewIntegrationTest {
 				assertThat(row.roles()).containsExactly("Users");
 			});
 
-		List<PopulationEntryResponse> suspended = population(privileged, ReviewPopulation.SUSPENDED);
+		assertThat(population(privileged, ReviewPopulation.SUSPENDED)).isEmpty();
+		assertThat(population(privileged, ReviewPopulation.REMOVED)).isEmpty();
+		List<PopulationEntryResponse> suspended = population(nonPrivileged, ReviewPopulation.SUSPENDED);
 		assertThat(suspended).extracting(PopulationEntryResponse::username)
 			.containsExactlyInAnyOrder("farid.hassan", "alicia.wong", "benjamin.teo");
 		assertThat(suspended).filteredOn(row -> row.username().equals("alicia.wong")).singleElement().satisfies(row -> {
@@ -83,7 +87,7 @@ class DemoSampleDataReviewIntegrationTest {
 		assertThat(suspended).extracting(PopulationEntryResponse::actor)
 			.containsExactlyInAnyOrder("system", "admin", "admin");
 
-		List<PopulationEntryResponse> removed = population(privileged, ReviewPopulation.REMOVED);
+		List<PopulationEntryResponse> removed = population(nonPrivileged, ReviewPopulation.REMOVED);
 		assertThat(removed).extracting(PopulationEntryResponse::username)
 			.containsExactlyInAnyOrder("sarah.lim", "tom.yeo");
 		assertThat(removed).extracting(PopulationEntryResponse::actor).containsExactlyInAnyOrder("hr.system", "system");

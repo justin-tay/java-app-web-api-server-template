@@ -13,8 +13,8 @@ import com.example.commons.accounts.review.ReviewDtos.PopulationEntryResponse;
  *
  * @param draft whether the task is still open, in which case the report is marked as a
  * draft and is not evidence
- * @param privileged whether the task is the privileged account review, whose report also
- * holds the suspended and removed populations
+ * @param privileged whether the task is the privileged account review, which the title of
+ * the report names
  * @param zone the time zone the times are shown in
  */
 public record ReviewReportModel(boolean draft, boolean privileged, ZoneId zone, LocalDate periodStart,

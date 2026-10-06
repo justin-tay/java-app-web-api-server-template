@@ -179,6 +179,12 @@ non-privileged interval cannot be shorter than the privileged one. The terms
 follow NIST SP 800-53 (AC-2(7), AC-6(5), AC-6(7)), which leaves the frequency to
 the organization.
 
+Each review covers the accounts of its class in three parts: the active accounts as
+items, and the suspended and the removed accounts as two populations that the reviewer
+confirms once each, even when a population is empty. A suspended account is in the
+review of the class its roles give it, and a removed account in the review of the class it
+had when it was removed, as the removal records.
+
 A reviewer removes access and never grants it. Removing an account needs
 `review:decide` and `user:remove`, and removing a role from an account in the
 review needs `review:decide` and `user:remove-role`. The seeded

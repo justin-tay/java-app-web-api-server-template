@@ -85,24 +85,59 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 			.extracting(AccountReviewItem::getUsername)
 			.containsExactly("alice");
 		assertThat(itemOf(nonPrivileged, "alice").getPrivilegedPermissions()).isNull();
-		assertThat(this.service.response(nonPrivileged).populations()).isNull();
+		assertThat(this.service.response(nonPrivileged).populations().suspended().confirmed()).isFalse();
 	}
 
 	@Test
-	void aNonPrivilegedTaskCompletesWithoutPopulationsAndHasNoneToConfirm() {
+	void aNonPrivilegedTaskNeedsBothPopulationsConfirmedToComplete() {
 		plainUser("alice");
 		authenticateAsReviewer("ravi");
 		Task task = this.service.createTask(Task.NON_PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 		flushAndClear();
 
-		assertThatExceptionOfType(BadRequestException.class)
-			.isThrownBy(() -> this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.SUSPENDED, null));
 		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), Decision.CONFIRM, null,
 				null);
+		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.SUSPENDED, null);
+		flushAndClear();
+		assertThat(this.service.response(reload(task)).status()).isEqualTo("open");
+
+		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.REMOVED, null);
 		flushAndClear();
 
 		assertThat(this.service.response(reload(task)).status()).isEqualTo("completed");
 		assertThat(this.storedReports.existsByTaskId(task.getId())).isTrue();
+	}
+
+	@Test
+	void eachReviewListsTheSuspendedAndRemovedAccountsOfItsOwnClass() {
+		AppUser rachel = user("rachel");
+		AppUser alice = plainUser("alice");
+		AppUser gone = user("gone");
+		AppUser plainGone = plainUser("plain-gone");
+		authenticateAs("admin");
+		this.lifecycle.suspend(rachel.getPublicId(), ReasonCode.OTHER, null);
+		this.lifecycle.suspend(alice.getPublicId(), ReasonCode.OTHER, null);
+		this.lifecycle.remove(gone.getPublicId(), ReasonCode.OTHER, null);
+		this.lifecycle.remove(plainGone.getPublicId(), ReasonCode.OTHER, null);
+		Task privileged = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
+		Task nonPrivileged = this.service.createTask(Task.NON_PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
+		flushAndClear();
+
+		assertThat(names(population(privileged, ReviewPopulation.SUSPENDED))).containsExactly("rachel");
+		assertThat(names(population(nonPrivileged, ReviewPopulation.SUSPENDED))).containsExactly("alice");
+		assertThat(names(population(privileged, ReviewPopulation.REMOVED))).containsExactly("gone");
+		assertThat(names(population(nonPrivileged, ReviewPopulation.REMOVED))).containsExactly("plain-gone");
+	}
+
+	private List<String> names(List<ReviewDtos.PopulationEntryResponse> rows) {
+		return rows.stream().map(ReviewDtos.PopulationEntryResponse::username).toList();
+	}
+
+	private List<ReviewDtos.PopulationEntryResponse> population(Task task, ReviewPopulation population) {
+		return this.service
+			.population(task.getPublicId(), population, new AccountReviewService.PopulationQuery(null, null),
+					PageRequest.of(0, 50, Sort.by("username")))
+			.getContent();
 	}
 
 	@Test

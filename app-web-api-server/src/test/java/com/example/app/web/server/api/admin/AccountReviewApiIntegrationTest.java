@@ -79,7 +79,7 @@ class AccountReviewApiIntegrationTest {
 	}
 
 	@Test
-	void theDashboardListsTheNonPrivilegedTaskWithItsCountsAndProgressAndNoPopulations() throws Exception {
+	void theDashboardListsTheNonPrivilegedTaskWithItsCountsProgressAndPopulations() throws Exception {
 		Task task = nonPrivilegedTask();
 
 		this.mockMvc.perform(get("/tasks").param("status", "open").with(loginAs("account-reviewer-1")))
@@ -93,7 +93,8 @@ class AccountReviewApiIntegrationTest {
 			.andExpect(jsonPath("$.items[0].counts.confirmed").value(0))
 			.andExpect(jsonPath("$.items[0].progress.reviewed").value(0))
 			.andExpect(jsonPath("$.items[0].progress.total").value(3))
-			.andExpect(jsonPath("$.items[0].populations").value(nullValue()))
+			.andExpect(jsonPath("$.items[0].populations.suspended.confirmed").value(false))
+			.andExpect(jsonPath("$.items[0].populations.removed.confirmed").value(false))
 			.andExpect(jsonPath("$.items[0].reportAvailable").value(false));
 		this.mockMvc.perform(get("/tasks").param("status", "completed").with(loginAs("account-reviewer-1")))
 			.andExpect(jsonPath("$.totalItems").value(0));
@@ -120,13 +121,14 @@ class AccountReviewApiIntegrationTest {
 	}
 
 	@Test
-	void aNonPrivilegedTaskHasNoPopulationsToReadOrConfirm() throws Exception {
+	void aNonPrivilegedTaskHasItsOwnPopulationsToReadAndConfirm() throws Exception {
 		Task task = nonPrivilegedTask();
 
 		this.mockMvc.perform(get(population(task, "removed")).with(loginAs("account-reviewer-1")))
-			.andExpect(status().isBadRequest());
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalItems").value(0));
 		this.mockMvc.perform(confirmPopulation(task, "suspended", null, "account-reviewer-1"))
-			.andExpect(status().isBadRequest());
+			.andExpect(status().isNoContent());
 	}
 
 	@Test
@@ -201,6 +203,8 @@ class AccountReviewApiIntegrationTest {
 			.andExpect(jsonPath("$.counts.removed").value(1))
 			.andExpect(jsonPath("$.progress.total").value(2));
 		this.mockMvc.perform(get(population(privileged, "removed")).with(loginAs("account-reviewer-1")))
+			.andExpect(jsonPath("$.totalItems").value(0));
+		this.mockMvc.perform(get(population(task, "removed")).with(loginAs("account-reviewer-1")))
 			.andExpect(jsonPath("$.totalItems").value(1))
 			.andExpect(jsonPath("$.items[0].username").value("user"))
 			.andExpect(jsonPath("$.items[0].name").value("Mary Goh"))
@@ -322,7 +326,7 @@ class AccountReviewApiIntegrationTest {
 	}
 
 	@Test
-	void theNonPrivilegedReviewCompletesWithoutPopulations() throws Exception {
+	void theNonPrivilegedReviewCompletesWhenItsItemsAndPopulationsAreDone() throws Exception {
 		Task task = nonPrivilegedTask();
 
 		this.mockMvc
@@ -330,6 +334,10 @@ class AccountReviewApiIntegrationTest {
 					"{\"itemIds\":[\"" + itemId(task, "user") + "\",\"" + itemId(task, "account-reviewer-2")
 							+ "\"],\"decision\":\"confirm\"}",
 					"account-reviewer-1"))
+			.andExpect(status().isNoContent());
+		this.mockMvc.perform(confirmPopulation(task, "suspended", null, "account-reviewer-1"))
+			.andExpect(status().isNoContent());
+		this.mockMvc.perform(confirmPopulation(task, "removed", null, "account-reviewer-1"))
 			.andExpect(status().isNoContent());
 		this.mockMvc
 			.perform(decisions(task,

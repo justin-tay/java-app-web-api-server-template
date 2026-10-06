@@ -135,10 +135,16 @@ non-privileged account and falls in the yearly review.
 
 The review splits in two, each with its own tasks, items, populations, report and due date.
 
-* **Privileged Account Review** covers the accounts that are privileged at task creation. It
-  also holds the suspended and removed populations, so the evidence that suspension and
-  removal work is gathered at the stricter cadence.
-* **Non-privileged Account Review** covers the other active accounts.
+* **Privileged Account Review** covers the privileged accounts: the active ones that are
+  privileged at task creation, and the suspended and removed ones that were privileged.
+* **Non-privileged Account Review** covers the other accounts in the same three parts.
+
+The two reviews differ only in which accounts they cover. Each has the active accounts as
+items and the suspended and removed accounts as two populations, which a reviewer confirms
+once each, even when a population is empty. The class of a suspended account is computed from
+the roles it holds now, and the class of a removed account is the `privileged` flag recorded
+with its removal, a removal that records none counting as not privileged. Each review's
+removed list starts where the previous review of the same type confirmed it.
 
 An item freezes the account's class and the privileged permissions it held, as text beside
 `groups_before`, so the stored report shows why an account was in the monthly review. An

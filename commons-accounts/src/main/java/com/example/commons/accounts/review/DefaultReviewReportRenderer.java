@@ -87,12 +87,10 @@ public class DefaultReviewReportRenderer implements ReviewReportRenderer {
 			items.add(itemCells(row, dateTime));
 		}
 		document.table(ITEM_HEADERS, new float[] { 0.6f, 2, 1.6f, 1.6f, 2.4f, 1.8f, 2.6f, 1.8f }, items);
-		if (model.privileged()) {
-			populationPdf(document, "Suspended Accounts", model.suspended(), SUSPENDED_HEADERS,
-					new float[] { 1.6f, 1.8f, 1.4f, 1.6f, 1.6f, 1.2f, 1.4f, 2 }, dateTime, true);
-			populationPdf(document, "Removed Accounts", model.removed(), REMOVED_HEADERS,
-					new float[] { 1.6f, 1.8f, 1.4f, 1.6f, 1.2f, 1.4f, 2 }, dateTime, false);
-		}
+		populationPdf(document, "Suspended Accounts", model.suspended(), SUSPENDED_HEADERS,
+				new float[] { 1.6f, 1.8f, 1.4f, 1.6f, 1.6f, 1.2f, 1.4f, 2 }, dateTime, true);
+		populationPdf(document, "Removed Accounts", model.removed(), REMOVED_HEADERS,
+				new float[] { 1.6f, 1.8f, 1.4f, 1.6f, 1.2f, 1.4f, 2 }, dateTime, false);
 		return document.toBytes();
 	}
 
@@ -163,11 +161,8 @@ public class DefaultReviewReportRenderer implements ReviewReportRenderer {
 			for (ReviewReportModel.ItemRow item : model.items()) {
 				line = writeRow(active, line, null, itemCells(item, dateTime));
 			}
-			if (model.privileged()) {
-				populationSheet(workbook, "Suspended accounts", model.suspended(), SUSPENDED_HEADERS, dateTime, true,
-						bold);
-				populationSheet(workbook, "Removed accounts", model.removed(), REMOVED_HEADERS, dateTime, false, bold);
-			}
+			populationSheet(workbook, "Suspended accounts", model.suspended(), SUSPENDED_HEADERS, dateTime, true, bold);
+			populationSheet(workbook, "Removed accounts", model.removed(), REMOVED_HEADERS, dateTime, false, bold);
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			workbook.write(out);
 			return out.toByteArray();

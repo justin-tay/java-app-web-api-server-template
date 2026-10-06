@@ -70,9 +70,9 @@ import com.example.commons.web.problem.ResourceNotFoundException;
 
 /**
  * Creates account review tasks and lets reviewers work through them: confirming, removing
- * roles from or removing the active accounts, and, in the privileged account review,
- * confirming the suspended and removed populations. A task completes by itself when the
- * work is done, and storing its report is part of that (see docs/adr/0037 and
+ * roles from or removing the active accounts, and confirming the suspended and removed
+ * populations, which cover the accounts of the review's class. A task completes by itself
+ * when the work is done, and storing its report is part of that (see docs/adr/0037 and
  * docs/adr/0038).
  *
  * <p>
@@ -179,8 +179,8 @@ public class AccountReviewService {
 	/**
 	 * Creates the task for a review period, with one item for every active account of its
 	 * class: the privileged review takes the accounts that are privileged now and the
-	 * non-privileged review the others. A privileged review with no active accounts is
-	 * complete once both populations are confirmed.
+	 * non-privileged review the others. A review with no active accounts is complete once
+	 * both populations are confirmed.
 	 * @param type {@link Task#PRIVILEGED_ACCOUNT_REVIEW} or
 	 * {@link Task#NON_PRIVILEGED_ACCOUNT_REVIEW}
 	 * @param period the review period
@@ -246,8 +246,8 @@ public class AccountReviewService {
 			.stream()
 			.collect(Collectors.toMap(AccountReviewAttestation::getPopulation, attestation -> attestation));
 		boolean overdue = task.isOpen() && task.getDueDate().isBefore(today());
-		Populations populations = isPrivileged(task) ? new Populations(status(attested.get(ReviewPopulation.SUSPENDED)),
-				status(attested.get(ReviewPopulation.REMOVED))) : null;
+		Populations populations = new Populations(status(attested.get(ReviewPopulation.SUSPENDED)),
+				status(attested.get(ReviewPopulation.REMOVED)));
 		return new TaskResponse(task.getPublicId(), task.getType(), task.getStatus().value(), task.getStartDate(),
 				task.getDueDate(), task.getCompletedAt(), task.getCompletedBy(), overdue, counts, progress, populations,
 				this.reports.exists(task));
@@ -269,13 +269,13 @@ public class AccountReviewService {
 	}
 
 	/**
-	 * Lists one population of a task: live until it is confirmed, then the frozen list.
-	 * Only the privileged account review has populations.
+	 * Lists one population of a task: live until it is confirmed, then the frozen list. A
+	 * review lists the accounts of its own class.
 	 */
 	@Transactional(readOnly = true)
 	public Page<PopulationEntryResponse> population(UUID taskId, ReviewPopulation population, PopulationQuery query,
 			Pageable pageable) {
-		List<PopulationEntryResponse> rows = populationRows(privilegedTask(taskId), population).stream()
+		List<PopulationEntryResponse> rows = populationRows(task(taskId), population).stream()
 			.filter(row -> matches(row, query))
 			.toList();
 		return ListPaging.page(rows, pageable, POPULATION_ORDER);
@@ -292,13 +292,11 @@ public class AccountReviewService {
 			.map(ReviewItemResponse::department)
 			.filter(java.util.Objects::nonNull)
 			.forEach(departments::add);
-		if (isPrivileged(task)) {
-			for (ReviewPopulation population : ReviewPopulation.values()) {
-				populationRows(task, population).stream()
-					.map(PopulationEntryResponse::department)
-					.filter(java.util.Objects::nonNull)
-					.forEach(departments::add);
-			}
+		for (ReviewPopulation population : ReviewPopulation.values()) {
+			populationRows(task, population).stream()
+				.map(PopulationEntryResponse::department)
+				.filter(java.util.Objects::nonNull)
+				.forEach(departments::add);
 		}
 		return List.copyOf(departments);
 	}
@@ -404,17 +402,13 @@ public class AccountReviewService {
 
 	/**
 	 * Confirms the suspended or the removed population of a task, once. The list as it is
-	 * now is frozen and the population becomes read-only. Only the privileged account
-	 * review has populations.
+	 * now is frozen and the population becomes read-only.
 	 * @param taskId the task
 	 * @param population the population
 	 * @param note the optional note
 	 */
 	public void confirmPopulation(UUID taskId, ReviewPopulation population, String note) {
 		Task task = openTask(taskId);
-		if (!isPrivileged(task)) {
-			throw new BadRequestException("Only the privileged account review has populations.");
-		}
 		if (this.attestations.findByTaskIdAndPopulation(task.getId(), population).isPresent()) {
 			throw new ConflictException("The population is already confirmed.");
 		}
@@ -456,9 +450,8 @@ public class AccountReviewService {
 	}
 
 	private void completeIfFinished(Task task, String by) {
-		int populations = isPrivileged(task) ? ReviewPopulation.values().length : 0;
 		if (!task.isOpen() || this.items.countPendingWithActiveAccount(task.getId()) > 0
-				|| this.attestations.findByTaskId(task.getId()).size() < populations) {
+				|| this.attestations.findByTaskId(task.getId()).size() < ReviewPopulation.values().length) {
 			return;
 		}
 		task.complete(this.clock.instant(), by);
@@ -522,8 +515,7 @@ public class AccountReviewService {
 						total[AccountReviewOutcome.CONFIRMED_ROLES_EDITED.ordinal()],
 						total[AccountReviewOutcome.REMOVED.ordinal()], total[AccountReviewOutcome.PENDING.ordinal()],
 						total[4]),
-				departments, rows, privileged ? section(task, ReviewPopulation.SUSPENDED) : null,
-				privileged ? section(task, ReviewPopulation.REMOVED) : null);
+				departments, rows, section(task, ReviewPopulation.SUSPENDED), section(task, ReviewPopulation.REMOVED));
 	}
 
 	private ReviewReportModel.PopulationSection section(Task task, ReviewPopulation population) {
@@ -557,17 +549,6 @@ public class AccountReviewService {
 
 	private static boolean isPrivileged(Task task) {
 		return Task.PRIVILEGED_ACCOUNT_REVIEW.equals(task.getType());
-	}
-
-	/**
-	 * Returns a task that has populations, which only the privileged review has.
-	 */
-	private Task privilegedTask(UUID taskId) {
-		Task task = task(taskId);
-		if (!isPrivileged(task)) {
-			throw new BadRequestException("Only the privileged account review has populations.");
-		}
-		return task;
 	}
 
 	private Task openTask(UUID taskId) {
@@ -676,11 +657,20 @@ public class AccountReviewService {
 						entry.getActor(), entry.getReasonCode(), entry.getReasonNote()))
 				.toList();
 		}
-		return population == ReviewPopulation.SUSPENDED ? liveSuspended() : liveRemoved(task);
+		return population == ReviewPopulation.SUSPENDED ? liveSuspended(task) : liveRemoved(task);
 	}
 
-	private List<PopulationEntryResponse> liveSuspended() {
-		List<AppUser> suspended = this.users.findByStatus(AccountStatus.SUSPENDED);
+	/**
+	 * Returns the suspended accounts of the task's class: those whose roles hold a
+	 * privileged permission for the privileged review, and the others for the
+	 * non-privileged one.
+	 */
+	private List<PopulationEntryResponse> liveSuspended(Task task) {
+		boolean privileged = isPrivileged(task);
+		List<AppUser> suspended = this.users.findByStatus(AccountStatus.SUSPENDED)
+			.stream()
+			.filter(user -> user.isPrivileged() == privileged)
+			.toList();
 		Map<String, AccountAuditEvent> latest = new HashMap<>();
 		if (!suspended.isEmpty()) {
 			for (AccountAuditEvent event : this.auditEvents.findByActionAndTargetIdIn("suspend_user",
@@ -702,7 +692,9 @@ public class AccountReviewService {
 	/**
 	 * Returns the removals since the previous task's removed population was confirmed, or
 	 * since that task started if it never was, or every recorded removal for the first
-	 * task, so no removal falls between two reviews.
+	 * task, so no removal falls between two reviews, and only the removals of the task's
+	 * class: whether the account was privileged is recorded with the removal, and a
+	 * removal that records nothing counts as not privileged.
 	 */
 	private List<PopulationEntryResponse> liveRemoved(Task task) {
 		Instant since = this.tasks
@@ -717,15 +709,20 @@ public class AccountReviewService {
 			specification = specification
 				.and((root, query, builder) -> builder.greaterThanOrEqualTo(root.get("occurredAt"), since));
 		}
+		boolean privileged = isPrivileged(task);
 		return this.auditEvents.findAll(specification, Sort.by("occurredAt"))
 			.stream()
+			.filter(event -> Boolean.TRUE.equals(details(event).get("privileged")) == privileged)
 			.map(AccountReviewService::removedEntry)
 			.toList();
 	}
 
+	private static Map<String, Object> details(AccountAuditEvent event) {
+		return event.getDetails() == null ? Map.of() : JSON.readValue(event.getDetails(), DETAILS);
+	}
+
 	private static PopulationEntryResponse removedEntry(AccountAuditEvent event) {
-		Map<String, Object> details = event.getDetails() == null ? Map.of()
-				: JSON.readValue(event.getDetails(), DETAILS);
+		Map<String, Object> details = details(event);
 		Object lastLogin = details.get("lastLoginAt");
 		return new PopulationEntryResponse(UUID.fromString(event.getTargetId()), event.getTargetName(),
 				event.getTargetFullName(), (String) details.get("department"),
