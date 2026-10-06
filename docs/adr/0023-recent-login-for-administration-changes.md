@@ -66,6 +66,11 @@ Every client of the administration API must handle the
 `reauthentication-required` problem. Non-browser clients have no way to
 re-authenticate and cannot make changes.
 
+The check runs after the application's coarse permission gate, so a caller who holds no
+permission of the API's domain gets 403 and is not sent to sign in again (see
+[ADR 0038](0038-role-permission-model-and-account-review-classes.md) and
+[Authorization](../system-design/08-crosscutting-concepts/02-security-and-authentication/authorization.md#order-of-the-checks)).
+
 `MaxAgeAuthorizationRequestResolver` and `RecentAuthentication` live in
 commons, so an application can require a recent login for its own sensitive
 operations the same way.

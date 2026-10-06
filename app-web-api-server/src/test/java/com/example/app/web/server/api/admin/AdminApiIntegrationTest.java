@@ -128,6 +128,39 @@ class AdminApiIntegrationTest {
 			.andExpect(status().isForbidden());
 	}
 
+	/**
+	 * A caller with no permission of an API's domain is refused before the recent login
+	 * check, so they are not asked to sign in again for something they may not do. A
+	 * caller who holds one is asked, whatever the endpoint, and the method check then
+	 * decides.
+	 */
+	@Test
+	@Transactional
+	void aCallerWithNoPermissionOfTheDomainGetsForbiddenEvenWithAnOldLogin() throws Exception {
+		Instant longAgo = Instant.now().minus(Duration.ofHours(1));
+		String newRole = "{\"name\":\"Report Viewers\"}";
+
+		this.mockMvc
+			.perform(post("/admin/roles").with(oidcLoginAs("user", longAgo))
+				.with(csrf())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(newRole))
+			.andExpect(status().isForbidden());
+		this.mockMvc
+			.perform(post("/admin/roles").with(as("user:read"))
+				.with(csrf())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(newRole))
+			.andExpect(status().isForbidden());
+		this.mockMvc
+			.perform(post("/admin/roles").with(as("role:read"))
+				.with(csrf())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(newRole))
+			.andExpect(status().isUnauthorized());
+		this.mockMvc.perform(get("/admin/roles")).andExpect(status().isUnauthorized());
+	}
+
 	@Test
 	void unknownResourceReturnsNotFoundProblemDetail() throws Exception {
 		this.mockMvc.perform(get("/admin/roles/" + UNKNOWN_ID).with(as("role:read")))

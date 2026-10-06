@@ -140,6 +140,24 @@ Every change also needs a login no older than 15 minutes
 ([ADR 0023](../../../adr/0023-recent-login-for-administration-changes.md)). Requiring a
 second administrator's approval for changes is left to adopters.
 
+### Order of the checks
+
+A request meets three checks, in this order:
+
+1. **Domain gate.** `WebSecurityConfiguration` refuses with 403 a caller who holds no
+   permission of the API's domain at all, such as no `user:*` permission for
+   `/admin/users/**`.
+2. **Recent login.** `AdminReauthenticationInterceptor` answers a change from a login
+   older than 15 minutes with the `reauthentication-required` problem.
+3. **Permission.** `@PreAuthorize` and the service check the permission the endpoint
+   and the change need.
+
+The gate comes first so that someone who may not use an API is never asked to sign in
+again to use it, only to be refused afterwards. The gate is coarse on purpose, and has
+no list of permissions to keep in step with the code: a caller who holds, say, only
+`role:read` passes it for `/admin/roles/**`, is asked for a recent login before a
+change, and is then refused by the permission check.
+
 The inactivity job can remove the last holder of the privileged permissions
 without anyone acting: it removes any account not in use for the removal
 threshold, 180 days by default, including the only administrator who has not

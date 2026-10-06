@@ -73,7 +73,10 @@ permission of the endpoint; it enforces domain invariants, and the rules that
 depend on what a request asks for, which an endpoint-level check cannot see: which
 of `user:add-role`, `user:remove-role` and `user:update` a user update needs, that
 a privileged permission is granted only by someone who holds it, and that
-conflicting permissions are kept apart. This keeps the two concerns
+conflicting permissions are kept apart. A coarse gate in the security filter chain
+sits in front of the controller checks: a caller with no permission of an API's
+domain is refused before the recent login check can ask them to sign in again (see
+[Authorization](../02-security-and-authentication/authorization.md#order-of-the-checks)). This keeps the two concerns
 (who may call this endpoint, and whether this operation is domain-valid)
 independently testable and independently visible at the point that matters
 for each: the HTTP boundary for authorization, the service for business
