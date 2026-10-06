@@ -25,12 +25,12 @@ import com.example.commons.accounts.admin.AccountAuditLogger;
 import com.example.commons.accounts.admin.AccountLifecycleService;
 import com.example.commons.accounts.admin.AuditEventController;
 import com.example.commons.accounts.admin.AdministrationService;
-import com.example.commons.accounts.admin.GroupAdminController;
+import com.example.commons.accounts.admin.PermissionAdminController;
 import com.example.commons.accounts.admin.RoleAdminController;
 import com.example.commons.accounts.admin.UserAdminController;
 import com.example.commons.accounts.admin.UserPasskeyAdminController;
 import com.example.commons.accounts.domain.AccountAuditEventRepository;
-import com.example.commons.accounts.domain.AppGroupRepository;
+import com.example.commons.accounts.domain.AppPermissionRepository;
 import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AccountReviewAttestationRepository;
 import com.example.commons.accounts.domain.AccountReviewItemRepository;
@@ -56,10 +56,10 @@ import com.example.commons.security.authorization.LocalAuthorityLookup;
 import com.example.commons.security.session.SessionRevocationService;
 
 /**
- * Configures local account management: the user, group, and role model the application's
- * authorities come from (see docs/adr/0005), a {@link LocalAuthorityLookup} backed by it,
- * and the administration API under {@code /admin/users}, {@code /admin/groups},
- * {@code /admin/roles}, and {@code /admin/settings}.
+ * Configures local account management: the user, role, and permission model the
+ * application's authorities come from (see docs/adr/0038), a {@link LocalAuthorityLookup}
+ * backed by it, and the administration API under {@code /admin/users},
+ * {@code /admin/roles}, {@code /admin/permissions}, and {@code /admin/settings}.
  *
  * <p>
  * The entities and repositories in {@code com.example.commons.accounts.domain} are
@@ -72,18 +72,17 @@ import com.example.commons.security.session.SessionRevocationService;
  * backend owns leaves it out.
  *
  * <p>
- * This module ships no data. The application seeds its own roles and groups, and the
- * administration API requires three of them by name: {@code USER_MANAGE},
- * {@code GROUP_MANAGE}, and {@code ROLE_MANAGE}, which its controllers check with
- * {@code @PreAuthorize}. Without them no user can hold those roles, so the API denies
- * every request.
+ * This module ships the permissions its controllers check, as {@code domain:action} (see
+ * {@link Permissions}), and the pairs of permissions that no user may hold together, but
+ * no roles. The application seeds its own roles from those permissions. Without a role
+ * that holds them no user has the permissions, so the API denies every request.
  *
  * <p>
  * Applied whenever commons-accounts is on the classpath of a servlet application. Set
  * {@code commons.accounts.enabled=false} to turn it off, or
  * {@code commons.accounts.admin.enabled=false} to keep the model and the authority lookup
- * without the administration API. Each admin controller also enforces its management role
- * with {@code @PreAuthorize}, so the API stays protected whatever URL rules an
+ * without the administration API. Each admin controller also enforces the permission it
+ * needs with {@code @PreAuthorize}, so the API stays protected whatever URL rules an
  * application's filter chain has.
  */
 @AutoConfiguration(before = { HibernateJpaAutoConfiguration.class, DataJpaRepositoriesAutoConfiguration.class },
@@ -101,8 +100,8 @@ public class AccountsAutoConfiguration {
 	}
 
 	/**
-	 * Audit logging of changes to accounts, groups, roles, settings, and reviews, as log
-	 * events and as rows of the business audit trail (see docs/adr/0030).
+	 * Audit logging of changes to accounts, roles, settings, and reviews, as log events
+	 * and as rows of the business audit trail (see docs/adr/0030).
 	 * @param events the audit event repository
 	 * @return the audit logger
 	 */
@@ -195,7 +194,7 @@ public class AccountsAutoConfiguration {
 	}
 
 	/**
-	 * Creates the periodic account review task according to the {@code review.*}
+	 * Creates the periodic account review tasks according to the {@code review.*}
 	 * settings, checking every {@code commons.accounts.review.check-interval} (one hour
 	 * by default), with review months taken from the calendar in
 	 * {@code commons.accounts.review.time-zone} (the system time zone by default; see
@@ -225,10 +224,10 @@ public class AccountsAutoConfiguration {
 		@ConditionalOnMissingBean
 		AccountReviewService accountReviewService(TaskRepository tasks, AccountReviewItemRepository items,
 				AccountReviewAttestationRepository attestations, AccountReviewPopulationEntryRepository entries,
-				AppUserRepository users, AppGroupRepository groups, AccountAuditEventRepository auditEvents,
+				AppUserRepository users, AppRoleRepository roles, AccountAuditEventRepository auditEvents,
 				AccountLifecycleService lifecycle, SessionRevocationService sessionRevocationService,
 				AccountAuditLogger auditLogger, AccountReviewReports reports, Environment environment) {
-			return new AccountReviewService(tasks, items, attestations, entries, users, groups, auditEvents, lifecycle,
+			return new AccountReviewService(tasks, items, attestations, entries, users, roles, auditEvents, lifecycle,
 					sessionRevocationService, auditLogger, reports, Clock.systemUTC(), zone(environment));
 		}
 
@@ -253,10 +252,10 @@ public class AccountsAutoConfiguration {
 	static class AdministrationConfiguration {
 
 		@Bean
-		AdministrationService administrationService(AppUserRepository users, AppGroupRepository groups,
-				AppRoleRepository roles, SessionRevocationService sessionRevocationService,
+		AdministrationService administrationService(AppUserRepository users, AppRoleRepository roles,
+				AppPermissionRepository permissions, SessionRevocationService sessionRevocationService,
 				AccountAuditLogger accountAuditLogger) {
-			return new AdministrationService(users, groups, roles, sessionRevocationService, accountAuditLogger);
+			return new AdministrationService(users, roles, permissions, sessionRevocationService, accountAuditLogger);
 		}
 
 		@Bean
@@ -310,7 +309,7 @@ public class AccountsAutoConfiguration {
 				@Override
 				public void addInterceptors(InterceptorRegistry registry) {
 					registry.addInterceptor(interceptor)
-						.addPathPatterns("/admin/users/**", "/admin/groups/**", "/admin/roles/**", "/admin/settings/**",
+						.addPathPatterns("/admin/users/**", "/admin/roles/**", "/admin/settings/**",
 								"/account-reviews/**")
 						.excludePathPatterns("/admin/users/sessions", "/admin/users/*/sessions");
 				}
@@ -325,13 +324,13 @@ public class AccountsAutoConfiguration {
 		}
 
 		@Bean
-		GroupAdminController groupAdminController(AdministrationService administrationService) {
-			return new GroupAdminController(administrationService);
+		RoleAdminController roleAdminController(AdministrationService administrationService) {
+			return new RoleAdminController(administrationService);
 		}
 
 		@Bean
-		RoleAdminController roleAdminController(AdministrationService administrationService) {
-			return new RoleAdminController(administrationService);
+		PermissionAdminController permissionAdminController(AdministrationService administrationService) {
+			return new PermissionAdminController(administrationService);
 		}
 
 	}

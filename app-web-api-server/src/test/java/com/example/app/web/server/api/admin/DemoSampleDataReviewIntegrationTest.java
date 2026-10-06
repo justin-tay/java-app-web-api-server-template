@@ -25,10 +25,11 @@ import com.example.commons.accounts.review.ReviewDtos.ReviewItemResponse;
 
 /**
  * Checks what a developer sees on a local start: with the {@code demo} context applied,
- * the scheduler creates the review task for the current month, which the demo makes a
- * review month, with an item for each of the 14 active sample accounts, and the two
- * populations list the 3 suspended accounts and the 2 accounts the sample data records as
- * already removed.
+ * the scheduler creates both review tasks for the current month, which the demo makes a
+ * review month for each. The privileged review has an item for each of the 2
+ * administrators and the non-privileged review one for each of the 12 other active sample
+ * accounts, and the privileged review's two populations list the 3 suspended accounts and
+ * the 2 accounts the sample data records as already removed.
  */
 @SpringBootTest(properties = "spring.liquibase.contexts=dev,demo")
 @ActiveProfiles("test")
@@ -45,27 +46,31 @@ class DemoSampleDataReviewIntegrationTest {
 	private TaskRepository tasks;
 
 	@Test
-	void theSchedulerCreatesTheTaskAndTheTabsListTheSampleAccounts() {
+	void theSchedulerCreatesTheTasksAndTheTabsListTheSampleAccounts() {
 		this.scheduler.run();
 
-		assertThat(this.tasks.findAll()).hasSize(1);
-		Task task = this.tasks.findAll().get(0);
+		assertThat(this.tasks.findAll()).hasSize(2);
+		Task privileged = task(Task.PRIVILEGED_ACCOUNT_REVIEW);
+		Task nonPrivileged = task(Task.NON_PRIVILEGED_ACCOUNT_REVIEW);
 		LocalDate today = LocalDate.now();
-		assertThat(task.getStartDate()).isEqualTo(today.withDayOfMonth(1));
-		assertThat(task.getDueDate()).isEqualTo(today.withDayOfMonth(today.lengthOfMonth()));
-		assertThat(this.service.response(task).counts().pending()).isEqualTo(14L);
+		assertThat(privileged.getStartDate()).isEqualTo(today.withDayOfMonth(1));
+		assertThat(nonPrivileged.getDueDate()).isEqualTo(today.withDayOfMonth(today.lengthOfMonth()));
+		assertThat(this.service.response(privileged).counts().pending()).isEqualTo(2L);
+		assertThat(this.service.response(nonPrivileged).counts().pending()).isEqualTo(12L);
 
-		assertThat(active(task)).hasSize(14)
+		assertThat(active(privileged)).extracting(ReviewItemResponse::username)
+			.containsExactlyInAnyOrder("admin", "multi-group-user");
+		assertThat(active(nonPrivileged)).hasSize(12)
 			.extracting(ReviewItemResponse::username)
 			.contains("account-reviewer-1", "olivia.chan", "kumar.raj", "jason.lee");
-		assertThat(active(task)).filteredOn(row -> row.username().equals("olivia.chan"))
+		assertThat(active(nonPrivileged)).filteredOn(row -> row.username().equals("olivia.chan"))
 			.singleElement()
 			.satisfies(row -> {
 				assertThat(row.department()).isEqualTo("Finance");
-				assertThat(row.groups()).containsExactly("Users");
+				assertThat(row.roles()).containsExactly("Users");
 			});
 
-		List<PopulationEntryResponse> suspended = population(task, ReviewPopulation.SUSPENDED);
+		List<PopulationEntryResponse> suspended = population(privileged, ReviewPopulation.SUSPENDED);
 		assertThat(suspended).extracting(PopulationEntryResponse::username)
 			.containsExactlyInAnyOrder("farid.hassan", "alicia.wong", "benjamin.teo");
 		assertThat(suspended).filteredOn(row -> row.username().equals("alicia.wong")).singleElement().satisfies(row -> {
@@ -78,11 +83,15 @@ class DemoSampleDataReviewIntegrationTest {
 		assertThat(suspended).extracting(PopulationEntryResponse::actor)
 			.containsExactlyInAnyOrder("system", "admin", "admin");
 
-		List<PopulationEntryResponse> removed = population(task, ReviewPopulation.REMOVED);
+		List<PopulationEntryResponse> removed = population(privileged, ReviewPopulation.REMOVED);
 		assertThat(removed).extracting(PopulationEntryResponse::username)
 			.containsExactlyInAnyOrder("sarah.lim", "tom.yeo");
 		assertThat(removed).extracting(PopulationEntryResponse::actor).containsExactlyInAnyOrder("hr.system", "system");
 		assertThat(removed).extracting(PopulationEntryResponse::department).containsExactlyInAnyOrder("HR", "IT");
+	}
+
+	private Task task(String type) {
+		return this.tasks.findAll().stream().filter(task -> task.getType().equals(type)).findFirst().orElseThrow();
 	}
 
 	private List<ReviewItemResponse> active(Task task) {

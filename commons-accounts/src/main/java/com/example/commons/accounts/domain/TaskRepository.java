@@ -14,7 +14,7 @@ public interface TaskRepository extends JpaRepository<Task, Long>, JpaSpecificat
 
 	boolean existsByTypeAndStartDate(String type, LocalDate startDate);
 
-	List<Task> findByTypeAndStatus(String type, TaskStatus status);
+	List<Task> findByTypeInAndStatus(java.util.Collection<String> types, TaskStatus status);
 
 	/**
 	 * Returns the latest task of a type that started before the given date.

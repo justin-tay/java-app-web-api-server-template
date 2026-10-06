@@ -9,11 +9,10 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import com.example.commons.accounts.domain.AccountStatus;
 import com.example.commons.accounts.domain.AppUserRepository;
 import com.example.commons.security.authorization.LocalAuthorityLookup;
-import com.example.commons.security.authorization.RolePrefix;
 
 /**
- * Grants each active local user a {@code ROLE_} authority for every role of every group
- * the user belongs to.
+ * Grants each active local user an authority for every permission of every role the user
+ * holds, named {@code domain:action} with no prefix (see docs/adr/0038).
  */
 public class AppUserLocalAuthorityLookup implements LocalAuthorityLookup {
 
@@ -26,10 +25,9 @@ public class AppUserLocalAuthorityLookup implements LocalAuthorityLookup {
 	@Override
 	public Optional<Collection<GrantedAuthority>> findAuthorities(String username) {
 		return this.users.findByUsernameAndStatus(username, AccountStatus.ACTIVE)
-			.map(user -> user.getGroups()
+			.map(user -> user.permissions()
 				.stream()
-				.flatMap(group -> group.getRoles().stream())
-				.<GrantedAuthority>map(role -> new SimpleGrantedAuthority(RolePrefix.VALUE + role.getName()))
+				.<GrantedAuthority>map(permission -> new SimpleGrantedAuthority(permission.getName()))
 				.distinct()
 				.toList());
 	}

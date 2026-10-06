@@ -6,7 +6,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 
 /**
- * Reloads the local {@code ROLE_} authorities of one kind of authentication for
+ * Reloads the local authorities of one kind of authentication for
  * {@link LocalAuthorityRefreshFilter}, so each way of logging in (OpenID Connect,
  * passkey) is refreshed, and revoked when its local user is disabled or deleted, the same
  * way.
@@ -29,8 +29,8 @@ public interface LocalAuthorityRefresher {
 	String username(Authentication authentication);
 
 	/**
-	 * Returns the authentication with its {@code ROLE_} authorities replaced by the local
-	 * ones, keeping its other authorities.
+	 * Returns the authentication with its local authorities replaced by the current ones,
+	 * keeping the authorities the login itself supplied (see {@link LocalAuthorities}).
 	 * @param authentication the current authentication
 	 * @param localAuthorities the authorities the local model grants the user now
 	 * @return the refreshed authentication

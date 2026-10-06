@@ -6,7 +6,8 @@
 # public_id, a UUID in the database's UUID type that the application generates as a random
 # version 4 value and that the API, the audit trail and the logs use. The sequences step by 50,
 # which is what Hibernate's default sequence generator expects, and start at 1000, so an
-# application can seed rows with fixed ids below 900, as the default settings do. A setting has
+# application can seed rows with fixed ids below 900, as the default settings and the permissions
+# do. A setting has
 # no public_id, because nothing addresses a setting by id; its name is unique. An instant is
 # held in a time zone aware column, which is what Hibernate expects of a Java Instant and does
 # not depend on the session time zone; the exception is the passkey tables, whose timestamps
@@ -29,8 +30,8 @@ databaseChangeLog:
       changes:
         # One sequence per table, named as Hibernate names the sequence of an entity.
         - createSequence: { sequenceName: app_user_seq, startValue: 1000, incrementBy: 50 }
-        - createSequence: { sequenceName: app_group_seq, startValue: 1000, incrementBy: 50 }
         - createSequence: { sequenceName: app_role_seq, startValue: 1000, incrementBy: 50 }
+        - createSequence: { sequenceName: app_permission_seq, startValue: 1000, incrementBy: 50 }
         - createSequence: { sequenceName: account_audit_event_seq, startValue: 1000, incrementBy: 50 }
         - createSequence: { sequenceName: app_setting_seq, startValue: 1000, incrementBy: 50 }
         - createSequence: { sequenceName: task_seq, startValue: 1000, incrementBy: 50 }
@@ -39,7 +40,7 @@ databaseChangeLog:
         - createSequence: { sequenceName: account_review_population_entry_seq, startValue: 1000, incrementBy: 50 }
         - createSequence: { sequenceName: account_review_report_seq, startValue: 1000, incrementBy: 50 }
 
-        # Users, groups and roles, and the join tables between them.
+        # Users, roles and permissions, and the join tables between them (see docs/adr/0038).
         - createTable:
             tableName: app_user
             columns:
@@ -65,46 +66,59 @@ databaseChangeLog:
               - column: { name: created_by, type: varchar(100), constraints: { nullable: false } }
               - column: { name: updated_by, type: varchar(100), constraints: { nullable: false } }
         - createIndex: { tableName: app_user, indexName: ix_app_user_department, columns: [ { column: { name: department } } ] }
-        - createTable:
-            tableName: app_group
-            columns:
-              - column: { name: id, type: bigint, constraints: { nullable: false, primaryKey: true, primaryKeyName: pk_app_group } }
-              - column: { name: public_id, type: uuid, constraints: { nullable: false, unique: true, uniqueConstraintName: uk_app_group_public_id } }
-              - column: { name: name, type: varchar(100), constraints: { nullable: false, unique: true, uniqueConstraintName: uk_app_group_name } }
-              - column: { name: created_at, type: "${instant.type}", constraints: { nullable: false } }
-              - column: { name: updated_at, type: "${instant.type}", constraints: { nullable: false } }
-              - column: { name: created_by, type: varchar(100), constraints: { nullable: false } }
-              - column: { name: updated_by, type: varchar(100), constraints: { nullable: false } }
-        # A role's name is the stable authority; its display name is the label clients show.
+        # A role is a named set of permissions that a user can hold. Roles are managed through the
+        # API, and a role's name is only a label.
         - createTable:
             tableName: app_role
             columns:
               - column: { name: id, type: bigint, constraints: { nullable: false, primaryKey: true, primaryKeyName: pk_app_role } }
               - column: { name: public_id, type: uuid, constraints: { nullable: false, unique: true, uniqueConstraintName: uk_app_role_public_id } }
               - column: { name: name, type: varchar(100), constraints: { nullable: false, unique: true, uniqueConstraintName: uk_app_role_name } }
-              - column: { name: display_name, type: varchar(100), constraints: { nullable: false } }
               - column: { name: created_at, type: "${instant.type}", constraints: { nullable: false } }
               - column: { name: updated_at, type: "${instant.type}", constraints: { nullable: false } }
               - column: { name: created_by, type: varchar(100), constraints: { nullable: false } }
               - column: { name: updated_by, type: varchar(100), constraints: { nullable: false } }
+        # A permission is a domain and an action, and its authority is domain:action. The code
+        # checks permissions by that name, so they are reference data that this schema seeds and
+        # the API cannot change. A user is privileged when a role they hold has a privileged
+        # permission.
         - createTable:
-            tableName: app_user_group
+            tableName: app_permission
+            columns:
+              - column: { name: id, type: bigint, constraints: { nullable: false, primaryKey: true, primaryKeyName: pk_app_permission } }
+              - column: { name: public_id, type: uuid, constraints: { nullable: false, unique: true, uniqueConstraintName: uk_app_permission_public_id } }
+              - column: { name: domain, type: varchar(50), constraints: { nullable: false } }
+              - column: { name: action, type: varchar(50), constraints: { nullable: false } }
+              - column: { name: privileged, type: boolean, defaultValueBoolean: false, constraints: { nullable: false } }
+        - addUniqueConstraint: { tableName: app_permission, columnNames: "domain, action", constraintName: uk_app_permission_domain_action }
+        - createTable:
+            tableName: app_user_role
             columns:
               - column: { name: user_id, type: bigint, constraints: { nullable: false } }
-              - column: { name: group_id, type: bigint, constraints: { nullable: false } }
-        - addPrimaryKey: { tableName: app_user_group, columnNames: "user_id, group_id", constraintName: pk_app_user_group }
-        - addForeignKeyConstraint: { baseTableName: app_user_group, baseColumnNames: user_id, constraintName: fk_app_user_group_user, referencedTableName: app_user, referencedColumnNames: id }
-        - addForeignKeyConstraint: { baseTableName: app_user_group, baseColumnNames: group_id, constraintName: fk_app_user_group_group, referencedTableName: app_group, referencedColumnNames: id }
-        - createTable:
-            tableName: app_group_role
-            columns:
-              - column: { name: group_id, type: bigint, constraints: { nullable: false } }
               - column: { name: role_id, type: bigint, constraints: { nullable: false } }
-        - addPrimaryKey: { tableName: app_group_role, columnNames: "group_id, role_id", constraintName: pk_app_group_role }
-        - addForeignKeyConstraint: { baseTableName: app_group_role, baseColumnNames: group_id, constraintName: fk_app_group_role_group, referencedTableName: app_group, referencedColumnNames: id }
-        - addForeignKeyConstraint: { baseTableName: app_group_role, baseColumnNames: role_id, constraintName: fk_app_group_role_role, referencedTableName: app_role, referencedColumnNames: id }
-        - createIndex: { tableName: app_user_group, indexName: ix_app_user_group_group, columns: [ { column: { name: group_id } } ] }
-        - createIndex: { tableName: app_group_role, indexName: ix_app_group_role_role, columns: [ { column: { name: role_id } } ] }
+        - addPrimaryKey: { tableName: app_user_role, columnNames: "user_id, role_id", constraintName: pk_app_user_role }
+        - addForeignKeyConstraint: { baseTableName: app_user_role, baseColumnNames: user_id, constraintName: fk_app_user_role_user, referencedTableName: app_user, referencedColumnNames: id }
+        - addForeignKeyConstraint: { baseTableName: app_user_role, baseColumnNames: role_id, constraintName: fk_app_user_role_role, referencedTableName: app_role, referencedColumnNames: id }
+        - createTable:
+            tableName: app_role_permission
+            columns:
+              - column: { name: role_id, type: bigint, constraints: { nullable: false } }
+              - column: { name: permission_id, type: bigint, constraints: { nullable: false } }
+        - addPrimaryKey: { tableName: app_role_permission, columnNames: "role_id, permission_id", constraintName: pk_app_role_permission }
+        - addForeignKeyConstraint: { baseTableName: app_role_permission, baseColumnNames: role_id, constraintName: fk_app_role_permission_role, referencedTableName: app_role, referencedColumnNames: id }
+        - addForeignKeyConstraint: { baseTableName: app_role_permission, baseColumnNames: permission_id, constraintName: fk_app_role_permission_permission, referencedTableName: app_permission, referencedColumnNames: id }
+        - createIndex: { tableName: app_user_role, indexName: ix_app_user_role_role, columns: [ { column: { name: role_id } } ] }
+        - createIndex: { tableName: app_role_permission, indexName: ix_app_role_permission_permission, columns: [ { column: { name: permission_id } } ] }
+        # Separation of duties: a pair of permissions that no user may hold together, whether
+        # through one role or several. A pair is listed once and applies in both directions.
+        - createTable:
+            tableName: app_permission_conflict
+            columns:
+              - column: { name: permission_id, type: bigint, constraints: { nullable: false } }
+              - column: { name: conflicting_permission_id, type: bigint, constraints: { nullable: false } }
+        - addPrimaryKey: { tableName: app_permission_conflict, columnNames: "permission_id, conflicting_permission_id", constraintName: pk_app_permission_conflict }
+        - addForeignKeyConstraint: { baseTableName: app_permission_conflict, baseColumnNames: permission_id, constraintName: fk_app_permission_conflict_permission, referencedTableName: app_permission, referencedColumnNames: id }
+        - addForeignKeyConstraint: { baseTableName: app_permission_conflict, baseColumnNames: conflicting_permission_id, constraintName: fk_app_permission_conflict_other, referencedTableName: app_permission, referencedColumnNames: id }
 
         # Storage for Spring Security's JdbcPublicKeyCredentialUserEntityRepository and
         # JdbcUserCredentialRepository, with the table and column names they expect. The user
@@ -169,10 +183,10 @@ databaseChangeLog:
               - column: { name: updated_at, type: "${instant.type}", constraints: { nullable: false } }
               - column: { name: updated_by, type: varchar(100), constraints: { nullable: false } }
 
-        # A generic task, with the periodic account review as its first type. The review's rows
+        # A generic task, with the privileged and the non-privileged account review as its first types. The review's rows
         # have no foreign key to app_user, so they outlive a removed account. A pending item is
         # read from the live account; the evidence columns, a confirmed population's entries and
-        # the report are frozen when they are written and never change. See docs/adr/0037.
+        # the report are frozen when they are written and never change. See docs/adr/0037 and 0038.
         - createTable:
             tableName: task
             columns:
@@ -187,7 +201,7 @@ databaseChangeLog:
               - column: { name: completed_by, type: varchar(100) }
         - addUniqueConstraint: { tableName: task, columnNames: "type, start_date", constraintName: uk_task_type_start }
         # One active account's entry in a task. The identity is fixed when the task is created. The
-        # decision and the evidence columns are null until the item is decided, and groups_after is
+        # decision and the evidence columns are null until the item is decided, and roles_after is
         # null for a removal. The removal's reason, note and actor stay in its audit event.
         - createTable:
             tableName: account_review_item
@@ -204,8 +218,11 @@ databaseChangeLog:
               - column: { name: removal_audit_event_id, type: bigint }
               - column: { name: department, type: varchar(100) }
               - column: { name: last_login_at, type: "${instant.type}" }
-              - column: { name: groups_before, type: clob }
-              - column: { name: groups_after, type: clob }
+              - column: { name: roles_before, type: clob }
+              - column: { name: roles_after, type: clob }
+              # The privileged permissions the account held when the item was created, which is
+              # why a privileged review covers it. Null for a non-privileged review.
+              - column: { name: privileged_permissions, type: clob }
         - addForeignKeyConstraint: { baseTableName: account_review_item, baseColumnNames: task_id, constraintName: fk_account_review_item_task, referencedTableName: task, referencedColumnNames: id }
         - addUniqueConstraint: { tableName: account_review_item, columnNames: "task_id, user_public_id", constraintName: uk_account_review_item_task_user }
         - createIndex: { tableName: account_review_item, indexName: ix_account_review_item_task_outcome, columns: [ { column: { name: task_id } }, { column: { name: outcome } } ] }
@@ -260,7 +277,41 @@ databaseChangeLog:
         - insert: { tableName: app_setting, columns: [ { column: { name: id, valueNumeric: 2 } }, { column: { name: name, value: inactivity.suspendAfterDays } }, { column: { name: setting_value, value: "90" } }, { column: { name: updated_at, valueComputed: "${instant.now}" } }, { column: { name: updated_by, value: system } } ] }
         - insert: { tableName: app_setting, columns: [ { column: { name: id, valueNumeric: 3 } }, { column: { name: name, value: inactivity.removeAfterDays } }, { column: { name: setting_value, value: "180" } }, { column: { name: updated_at, valueComputed: "${instant.now}" } }, { column: { name: updated_by, value: system } } ] }
         - insert: { tableName: app_setting, columns: [ { column: { name: id, valueNumeric: 4 } }, { column: { name: name, value: review.enabled } }, { column: { name: setting_value, value: "true" } }, { column: { name: updated_at, valueComputed: "${instant.now}" } }, { column: { name: updated_by, value: system } } ] }
-        - insert: { tableName: app_setting, columns: [ { column: { name: id, valueNumeric: 5 } }, { column: { name: name, value: review.intervalMonths } }, { column: { name: setting_value, value: "3" } }, { column: { name: updated_at, valueComputed: "${instant.now}" } }, { column: { name: updated_by, value: system } } ] }
+        - insert: { tableName: app_setting, columns: [ { column: { name: id, valueNumeric: 5 } }, { column: { name: name, value: review.privilegedIntervalMonths } }, { column: { name: setting_value, value: "1" } }, { column: { name: updated_at, valueComputed: "${instant.now}" } }, { column: { name: updated_by, value: system } } ] }
+        - insert: { tableName: app_setting, columns: [ { column: { name: id, valueNumeric: 6 } }, { column: { name: name, value: review.nonPrivilegedIntervalMonths } }, { column: { name: setting_value, value: "12" } }, { column: { name: updated_at, valueComputed: "${instant.now}" } }, { column: { name: updated_by, value: system } } ] }
+
+        # The permissions, applied in every environment, and the separation of duties between
+        # reviewing accounts and every privileged permission. See docs/adr/0038.
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 1 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000001" } }, { column: { name: domain, value: application } }, { column: { name: action, value: access } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 2 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000002" } }, { column: { name: domain, value: user } }, { column: { name: action, value: read } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 3 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000003" } }, { column: { name: domain, value: user } }, { column: { name: action, value: create } }, { column: { name: privileged, valueBoolean: true } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 4 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000004" } }, { column: { name: domain, value: user } }, { column: { name: action, value: update } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 5 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000005" } }, { column: { name: domain, value: user } }, { column: { name: action, value: add-role } }, { column: { name: privileged, valueBoolean: true } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 6 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000006" } }, { column: { name: domain, value: user } }, { column: { name: action, value: remove-role } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 7 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000007" } }, { column: { name: domain, value: user } }, { column: { name: action, value: suspend } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 8 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000008" } }, { column: { name: domain, value: user } }, { column: { name: action, value: unsuspend } }, { column: { name: privileged, valueBoolean: true } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 9 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000009" } }, { column: { name: domain, value: user } }, { column: { name: action, value: remove } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 10 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-00000000000a" } }, { column: { name: domain, value: user } }, { column: { name: action, value: revoke-session } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 11 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-00000000000b" } }, { column: { name: domain, value: user } }, { column: { name: action, value: remove-passkey } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 12 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-00000000000c" } }, { column: { name: domain, value: role } }, { column: { name: action, value: read } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 13 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-00000000000d" } }, { column: { name: domain, value: role } }, { column: { name: action, value: create } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 14 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-00000000000e" } }, { column: { name: domain, value: role } }, { column: { name: action, value: update } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 15 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-00000000000f" } }, { column: { name: domain, value: role } }, { column: { name: action, value: delete } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 16 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000010" } }, { column: { name: domain, value: role } }, { column: { name: action, value: add-permission } }, { column: { name: privileged, valueBoolean: true } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 17 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000011" } }, { column: { name: domain, value: role } }, { column: { name: action, value: remove-permission } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 18 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000012" } }, { column: { name: domain, value: permission } }, { column: { name: action, value: read } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 19 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000013" } }, { column: { name: domain, value: settings } }, { column: { name: action, value: read } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 20 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000014" } }, { column: { name: domain, value: settings } }, { column: { name: action, value: update } }, { column: { name: privileged, valueBoolean: true } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 21 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000015" } }, { column: { name: domain, value: audit } }, { column: { name: action, value: read } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 22 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000016" } }, { column: { name: domain, value: review } }, { column: { name: action, value: read } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 23 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000017" } }, { column: { name: domain, value: review } }, { column: { name: action, value: decide } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 24 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000018" } }, { column: { name: domain, value: review } }, { column: { name: action, value: confirm-population } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission, columns: [ { column: { name: id, valueNumeric: 25 } }, { column: { name: public_id, value: "00000000-0000-0000-0100-000000000019" } }, { column: { name: domain, value: review } }, { column: { name: action, value: download-report } }, { column: { name: privileged, valueBoolean: false } } ] }
+        - insert: { tableName: app_permission_conflict, columns: [ { column: { name: permission_id, valueNumeric: 23 } }, { column: { name: conflicting_permission_id, valueNumeric: 3 } } ] }
+        - insert: { tableName: app_permission_conflict, columns: [ { column: { name: permission_id, valueNumeric: 23 } }, { column: { name: conflicting_permission_id, valueNumeric: 5 } } ] }
+        - insert: { tableName: app_permission_conflict, columns: [ { column: { name: permission_id, valueNumeric: 23 } }, { column: { name: conflicting_permission_id, valueNumeric: 8 } } ] }
+        - insert: { tableName: app_permission_conflict, columns: [ { column: { name: permission_id, valueNumeric: 23 } }, { column: { name: conflicting_permission_id, valueNumeric: 16 } } ] }
+        - insert: { tableName: app_permission_conflict, columns: [ { column: { name: permission_id, valueNumeric: 23 } }, { column: { name: conflicting_permission_id, valueNumeric: 20 } } ] }
       # The tables in the reverse of their creation order, so a table is dropped before the
       # tables it refers to, then the sequences. This is what schema-drop-<platform>.sql is generated from.
       rollback:
@@ -273,10 +324,11 @@ databaseChangeLog:
         - dropTable: { tableName: account_audit_event }
         - dropTable: { tableName: user_credentials }
         - dropTable: { tableName: user_entities }
-        - dropTable: { tableName: app_group_role }
-        - dropTable: { tableName: app_user_group }
+        - dropTable: { tableName: app_permission_conflict }
+        - dropTable: { tableName: app_role_permission }
+        - dropTable: { tableName: app_user_role }
+        - dropTable: { tableName: app_permission }
         - dropTable: { tableName: app_role }
-        - dropTable: { tableName: app_group }
         - dropTable: { tableName: app_user }
         - dropSequence: { sequenceName: account_review_report_seq }
         - dropSequence: { sequenceName: account_review_population_entry_seq }
@@ -285,6 +337,6 @@ databaseChangeLog:
         - dropSequence: { sequenceName: app_setting_seq }
         - dropSequence: { sequenceName: task_seq }
         - dropSequence: { sequenceName: account_audit_event_seq }
+        - dropSequence: { sequenceName: app_permission_seq }
         - dropSequence: { sequenceName: app_role_seq }
-        - dropSequence: { sequenceName: app_group_seq }
         - dropSequence: { sequenceName: app_user_seq }

@@ -17,8 +17,15 @@ import jakarta.persistence.Table;
 @Table(name = "task")
 public class Task extends AbstractIdentifiedEntity {
 
-	/** The type of the periodic account review. */
-	public static final String ACCOUNT_REVIEW = "account_review";
+	/** The type of the review of the privileged accounts (see docs/adr/0038). */
+	public static final String PRIVILEGED_ACCOUNT_REVIEW = "privileged_account_review";
+
+	/** The type of the review of the accounts that are not privileged. */
+	public static final String NON_PRIVILEGED_ACCOUNT_REVIEW = "non_privileged_account_review";
+
+	/** The types of the periodic account reviews. */
+	public static final java.util.List<String> ACCOUNT_REVIEWS = java.util.List.of(PRIVILEGED_ACCOUNT_REVIEW,
+			NON_PRIVILEGED_ACCOUNT_REVIEW);
 
 	private String type;
 

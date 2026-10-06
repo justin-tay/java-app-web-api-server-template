@@ -28,7 +28,7 @@ import com.example.commons.accounts.domain.AccountReviewAttestation;
 import com.example.commons.accounts.domain.AccountReviewItem;
 import com.example.commons.accounts.domain.AccountReviewPopulationEntry;
 import com.example.commons.accounts.domain.AccountReviewReport;
-import com.example.commons.accounts.domain.AppGroup;
+import com.example.commons.accounts.domain.AppPermission;
 import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppSetting;
 import com.example.commons.accounts.domain.AppUser;
@@ -106,7 +106,7 @@ class SchemaScriptsContainerTest {
 			.build();
 		try {
 			MetadataSources sources = new MetadataSources(registry);
-			for (Class<?> entity : List.of(AppUser.class, AppGroup.class, AppRole.class, AppSetting.class,
+			for (Class<?> entity : List.of(AppUser.class, AppPermission.class, AppRole.class, AppSetting.class,
 					AccountAuditEvent.class, Task.class, AccountReviewItem.class, AccountReviewAttestation.class,
 					AccountReviewPopulationEntry.class, AccountReviewReport.class)) {
 				sources.addAnnotatedClass(entity);

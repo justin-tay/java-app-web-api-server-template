@@ -3,6 +3,7 @@ package com.example.app.web.server.api.admin;
 import static com.example.app.web.server.test.OidcLogins.oidcLoginAs;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -30,18 +31,21 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.commons.accounts.domain.AccountReviewItemRepository;
-import com.example.commons.accounts.domain.AppGroupRepository;
+import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.Task;
 import com.example.commons.accounts.review.AccountReviewService;
 import com.example.commons.accounts.review.ReviewPeriod;
 
 /**
- * Tests the account review API against the seeded test database: only account reviewers
- * use it, a reviewer cannot review their own account, a batch is applied entirely or not
- * at all, the review completes by itself and serves its report, and every change needs a
- * recent login. The seed has two account reviewers, {@code account-reviewer-1} and
- * {@code account-reviewer-2}, who can review each other, and three other accounts. Each
- * test runs in a transaction that is rolled back.
+ * Tests the account review API against the seeded test database: only those who hold the
+ * review permissions use it, a reviewer cannot review their own account, a batch is
+ * applied entirely or not at all, a reviewer removes access and never grants it, the
+ * review completes by itself and serves its report, and every change needs a recent login
+ * (see docs/adr/0038). The seed has two account reviewers, {@code account-reviewer-1} and
+ * {@code account-reviewer-2}, who can review each other. The privileged review covers the
+ * two administrators, {@code admin} and {@code multi-group-user}, and the non-privileged
+ * review the reviewers and {@code user}. Each test runs in a transaction that is rolled
+ * back.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -59,37 +63,35 @@ class AccountReviewApiIntegrationTest {
 	private AccountReviewItemRepository items;
 
 	@Autowired
-	private AppGroupRepository groups;
+	private AppRoleRepository roles;
 
 	@Test
-	void onlyAccountReviewersCanUseTheTaskAndReviewEndpoints() throws Exception {
-		Task task = createTask();
+	void onlyThoseWithTheReviewPermissionsCanUseTheTaskAndReviewEndpoints() throws Exception {
+		Task task = nonPrivilegedTask();
 
 		this.mockMvc.perform(get("/tasks").with(loginAs("admin"))).andExpect(status().isForbidden());
 		this.mockMvc.perform(get("/tasks/summary").with(loginAs("user"))).andExpect(status().isForbidden());
 		this.mockMvc.perform(get("/account-reviews/tasks/" + task.getPublicId()).with(loginAs("admin")))
 			.andExpect(status().isForbidden());
-		this.mockMvc.perform(get("/account-reviews/groups").with(loginAs("admin"))).andExpect(status().isForbidden());
 		this.mockMvc.perform(get("/tasks")).andExpect(status().isUnauthorized());
 	}
 
 	@Test
-	void theDashboardListsTheTaskWithItsCountsProgressAndPopulations() throws Exception {
-		Task task = createTask();
+	void theDashboardListsTheNonPrivilegedTaskWithItsCountsAndProgressAndNoPopulations() throws Exception {
+		Task task = nonPrivilegedTask();
 
 		this.mockMvc.perform(get("/tasks").param("status", "open").with(loginAs("account-reviewer-1")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.totalItems").value(1))
 			.andExpect(jsonPath("$.items[0].id").value(task.getPublicId().toString()))
-			.andExpect(jsonPath("$.items[0].type").value("account_review"))
+			.andExpect(jsonPath("$.items[0].type").value("non_privileged_account_review"))
 			.andExpect(jsonPath("$.items[0].status").value("open"))
 			.andExpect(jsonPath("$.items[0].overdue").value(false))
-			.andExpect(jsonPath("$.items[0].counts.pending").value(5))
+			.andExpect(jsonPath("$.items[0].counts.pending").value(3))
 			.andExpect(jsonPath("$.items[0].counts.confirmed").value(0))
 			.andExpect(jsonPath("$.items[0].progress.reviewed").value(0))
-			.andExpect(jsonPath("$.items[0].progress.total").value(5))
-			.andExpect(jsonPath("$.items[0].populations.suspended.confirmed").value(false))
-			.andExpect(jsonPath("$.items[0].populations.removed.confirmed").value(false))
+			.andExpect(jsonPath("$.items[0].progress.total").value(3))
+			.andExpect(jsonPath("$.items[0].populations").value(nullValue()))
 			.andExpect(jsonPath("$.items[0].reportAvailable").value(false));
 		this.mockMvc.perform(get("/tasks").param("status", "completed").with(loginAs("account-reviewer-1")))
 			.andExpect(jsonPath("$.totalItems").value(0));
@@ -100,30 +102,57 @@ class AccountReviewApiIntegrationTest {
 	}
 
 	@Test
-	void theTaskShowsTheActiveAccountsWithDepartmentAndGroupsAndFlagsTheReviewersOwn() throws Exception {
-		Task task = createTask();
+	void thePrivilegedTaskCoversTheAdministratorsAndHasPopulations() throws Exception {
+		Task task = privilegedTask();
+
+		this.mockMvc.perform(get("/account-reviews/tasks/" + task.getPublicId()).with(loginAs("account-reviewer-1")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.type").value("privileged_account_review"))
+			.andExpect(jsonPath("$.counts.pending").value(2))
+			.andExpect(jsonPath("$.populations.suspended.confirmed").value(false))
+			.andExpect(jsonPath("$.populations.removed.confirmed").value(false));
+		this.mockMvc.perform(get(items(task)).with(loginAs("account-reviewer-1")))
+			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("admin", "multi-group-user")))
+			.andExpect(jsonPath("$.items[?(@.username == 'admin')].privilegedPermissions[0]")
+				.value(hasItem("role:add-permission")));
+	}
+
+	@Test
+	void aNonPrivilegedTaskHasNoPopulationsToReadOrConfirm() throws Exception {
+		Task task = nonPrivilegedTask();
+
+		this.mockMvc.perform(get(population(task, "removed")).with(loginAs("account-reviewer-1")))
+			.andExpect(status().isBadRequest());
+		this.mockMvc.perform(confirmPopulation(task, "suspended", null, "account-reviewer-1"))
+			.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void theTaskShowsTheActiveAccountsWithDepartmentAndRolesAndFlagsTheReviewersOwn() throws Exception {
+		Task task = nonPrivilegedTask();
 
 		this.mockMvc.perform(get(items(task)).with(loginAs("account-reviewer-1")))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.totalItems").value(5))
+			.andExpect(jsonPath("$.totalItems").value(3))
 			.andExpect(jsonPath("$.items[?(@.ownAccount == true)].username").value(hasItem("account-reviewer-1")))
 			.andExpect(jsonPath("$.items[0].outcome").value("pending"));
 		this.mockMvc.perform(get(items(task)).param("department", "Compliance").with(loginAs("account-reviewer-1")))
 			.andExpect(jsonPath("$.items[*].username")
 				.value(containsInAnyOrder("account-reviewer-1", "account-reviewer-2")))
 			.andExpect(jsonPath("$.items[0].department").value("Compliance"))
-			.andExpect(jsonPath("$.items[0].groups[0]").value("Account Reviewers"));
+			.andExpect(jsonPath("$.items[0].roles[0]").value("Account Reviewers"))
+			.andExpect(jsonPath("$.items[0].privilegedPermissions").value(nullValue()));
 		this.mockMvc.perform(get(items(task)).param("outcome", "removed").with(loginAs("account-reviewer-1")))
 			.andExpect(status().isBadRequest());
 		this.mockMvc
 			.perform(get("/account-reviews/tasks/" + task.getPublicId() + "/departments")
 				.with(loginAs("account-reviewer-1")))
-			.andExpect(jsonPath("$").value(containsInAnyOrder("Compliance", "Finance", "IT", "Operations")));
+			.andExpect(jsonPath("$").value(containsInAnyOrder("Compliance", "Finance")));
 	}
 
 	@Test
 	void aReviewerConfirmsAnotherReviewersAccountButNotTheirOwn() throws Exception {
-		Task task = createTask();
+		Task task = nonPrivilegedTask();
 		UUID own = itemId(task, "account-reviewer-1");
 		UUID other = itemId(task, "account-reviewer-2");
 
@@ -138,7 +167,7 @@ class AccountReviewApiIntegrationTest {
 
 		this.mockMvc.perform(get("/account-reviews/tasks/" + task.getPublicId()).with(loginAs("account-reviewer-1")))
 			.andExpect(jsonPath("$.counts.confirmed").value(1))
-			.andExpect(jsonPath("$.counts.pending").value(4))
+			.andExpect(jsonPath("$.counts.pending").value(2))
 			.andExpect(jsonPath("$.progress.reviewed").value(1));
 		this.mockMvc.perform(get(items(task)).param("outcome", "confirmed").with(loginAs("account-reviewer-1")))
 			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("account-reviewer-2")))
@@ -148,7 +177,8 @@ class AccountReviewApiIntegrationTest {
 
 	@Test
 	void aRemovalNeedsAReasonAndTheRemovedAccountLeavesTheActiveListForTheRemovedPopulation() throws Exception {
-		Task task = createTask();
+		Task task = nonPrivilegedTask();
+		Task privileged = privilegedTask();
 		UUID user = itemId(task, "user");
 
 		this.mockMvc
@@ -162,11 +192,11 @@ class AccountReviewApiIntegrationTest {
 			.andExpect(status().isNoContent());
 
 		this.mockMvc.perform(get(items(task)).with(loginAs("account-reviewer-1")))
-			.andExpect(jsonPath("$.totalItems").value(4));
+			.andExpect(jsonPath("$.totalItems").value(2));
 		this.mockMvc.perform(get("/account-reviews/tasks/" + task.getPublicId()).with(loginAs("account-reviewer-1")))
 			.andExpect(jsonPath("$.counts.removed").value(1))
-			.andExpect(jsonPath("$.progress.total").value(4));
-		this.mockMvc.perform(get(population(task, "removed")).with(loginAs("account-reviewer-1")))
+			.andExpect(jsonPath("$.progress.total").value(2));
+		this.mockMvc.perform(get(population(privileged, "removed")).with(loginAs("account-reviewer-1")))
 			.andExpect(jsonPath("$.totalItems").value(1))
 			.andExpect(jsonPath("$.items[0].username").value("user"))
 			.andExpect(jsonPath("$.items[0].name").value("Mary Goh"))
@@ -181,57 +211,58 @@ class AccountReviewApiIntegrationTest {
 	}
 
 	@Test
-	void aReviewerEditsTheGroupsOfAnAccountWhichConfirmsItAndTheOptionsAreOnlyThoseTheyMayGrant() throws Exception {
-		Task task = createTask();
+	void aReviewerRemovesRolesFromAnAccountWhichConfirmsItButCannotAddARole() throws Exception {
+		Task privileged = privilegedTask();
+		Task task = nonPrivilegedTask();
+		UUID multiRole = itemId(privileged, "multi-group-user");
 		UUID user = itemId(task, "user");
-		UUID reviewers = this.groups.findAll()
-			.stream()
-			.filter(group -> group.getName().equals("Account Reviewers"))
-			.findFirst()
-			.orElseThrow()
-			.getPublicId();
-		UUID administrators = this.groups.findAll()
-			.stream()
-			.filter(group -> group.getName().equals("Administrators"))
-			.findFirst()
-			.orElseThrow()
-			.getPublicId();
+		UUID users = roleId("Users");
+		UUID administrators = roleId("Administrators");
 
-		this.mockMvc.perform(get("/account-reviews/groups").with(loginAs("account-reviewer-1")))
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$[*].name").value(hasItem("Account Reviewers")));
-		this.mockMvc
-			.perform(editGroups(task, user, "{\"groupIds\":[\"" + administrators + "\"]}", "account-reviewer-1"))
+		this.mockMvc.perform(editRoles(task, user, "{\"roleIds\":[\"" + administrators + "\"]}", "account-reviewer-1"))
 			.andExpect(status().isForbidden());
-		this.mockMvc.perform(editGroups(task, user, "{\"groupIds\":[]}", "account-reviewer-1"))
+		this.mockMvc
+			.perform(editRoles(task, user, "{\"roleIds\":[\"" + users + "\",\"" + administrators + "\"]}",
+					"account-reviewer-1"))
+			.andExpect(status().isForbidden());
+		this.mockMvc.perform(editRoles(task, user, "{\"roleIds\":[]}", "account-reviewer-1"))
 			.andExpect(status().isBadRequest());
-		this.mockMvc.perform(editGroups(task, user, "{\"groupIds\":[\"" + reviewers + "\"]}", "account-reviewer-1"))
+		this.mockMvc.perform(editRoles(task, user, "{\"roleIds\":[\"" + users + "\"]}", "account-reviewer-1"))
+			.andExpect(status().isBadRequest());
+		this.mockMvc
+			.perform(editRoles(privileged, multiRole, "{\"roleIds\":[\"" + users + "\"]}", "account-reviewer-1"))
 			.andExpect(status().isNoContent());
 
 		this.mockMvc
-			.perform(get(items(task)).param("outcome", "confirmed_groups_edited").with(loginAs("account-reviewer-1")))
-			.andExpect(jsonPath("$.items[0].username").value("user"))
-			.andExpect(jsonPath("$.items[0].groups[0]").value("Account Reviewers"))
-			.andExpect(jsonPath("$.items[0].groupsBefore[0]").value("Users"))
-			.andExpect(jsonPath("$.items[0].remark").value("Added Account Reviewers; Removed Users"));
+			.perform(get(items(privileged)).param("outcome", "confirmed_roles_edited")
+				.with(loginAs("account-reviewer-1")))
+			.andExpect(jsonPath("$.items[0].username").value("multi-group-user"))
+			.andExpect(jsonPath("$.items[0].roles[0]").value("Users"))
+			.andExpect(jsonPath("$.items[0].rolesBefore[0]").value("Administrators"))
+			.andExpect(jsonPath("$.items[0].remark").value("Removed Administrators"));
 	}
 
 	@Test
-	void theReviewCompletesWhenTheWorkIsDoneAndServesItsReportAndThenIsReadOnly() throws Exception {
-		Task task = createTask();
+	void aUserWithoutTheReviewPermissionsCannotDecide() throws Exception {
+		Task task = nonPrivilegedTask();
+
+		this.mockMvc
+			.perform(decisions(task, "{\"itemIds\":[\"" + itemId(task, "user") + "\"],\"decision\":\"confirm\"}",
+					"admin"))
+			.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void thePrivilegedReviewCompletesWhenTheWorkIsDoneAndServesItsReportAndThenIsReadOnly() throws Exception {
+		Task task = privilegedTask();
 		this.mockMvc
 			.perform(get("/account-reviews/tasks/" + task.getPublicId() + "/report").param("format", "csv")
 				.with(loginAs("account-reviewer-1")))
 			.andExpect(status().isOk())
-			.andExpect(header().string("Content-Disposition", startsWith("attachment; filename=\"account-review-")))
+			.andExpect(header().string("Content-Disposition",
+					startsWith("attachment; filename=\"privileged-account-review-")))
 			.andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("-draft.csv")));
 
-		String othersOfReviewerOne = "[\"" + itemId(task, "admin") + "\",\"" + itemId(task, "user") + "\",\""
-				+ itemId(task, "multi-group-user") + "\",\"" + itemId(task, "account-reviewer-2") + "\"]";
-		this.mockMvc
-			.perform(decisions(task, "{\"itemIds\":" + othersOfReviewerOne + ",\"decision\":\"confirm\"}",
-					"account-reviewer-1"))
-			.andExpect(status().isNoContent());
 		this.mockMvc
 			.perform(confirmPopulation(task, "suspended", "{\"note\":\"none suspended\"}", "account-reviewer-1"))
 			.andExpect(status().isNoContent());
@@ -239,13 +270,17 @@ class AccountReviewApiIntegrationTest {
 			.andExpect(status().isConflict());
 		this.mockMvc.perform(confirmPopulation(task, "removed", null, "account-reviewer-1"))
 			.andExpect(status().isNoContent());
+		this.mockMvc
+			.perform(decisions(task, "{\"itemIds\":[\"" + itemId(task, "admin") + "\"],\"decision\":\"confirm\"}",
+					"account-reviewer-1"))
+			.andExpect(status().isNoContent());
 		this.mockMvc.perform(get("/account-reviews/tasks/" + task.getPublicId()).with(loginAs("account-reviewer-1")))
 			.andExpect(jsonPath("$.status").value("open"))
 			.andExpect(jsonPath("$.populations.suspended.confirmedBy").value("account-reviewer-1"));
 
 		this.mockMvc
 			.perform(decisions(task,
-					"{\"itemIds\":[\"" + itemId(task, "account-reviewer-1") + "\"],\"decision\":\"confirm\"}",
+					"{\"itemIds\":[\"" + itemId(task, "multi-group-user") + "\"],\"decision\":\"confirm\"}",
 					"account-reviewer-2"))
 			.andExpect(status().isNoContent());
 
@@ -282,8 +317,29 @@ class AccountReviewApiIntegrationTest {
 	}
 
 	@Test
+	void theNonPrivilegedReviewCompletesWithoutPopulations() throws Exception {
+		Task task = nonPrivilegedTask();
+
+		this.mockMvc
+			.perform(decisions(task,
+					"{\"itemIds\":[\"" + itemId(task, "user") + "\",\"" + itemId(task, "account-reviewer-2")
+							+ "\"],\"decision\":\"confirm\"}",
+					"account-reviewer-1"))
+			.andExpect(status().isNoContent());
+		this.mockMvc
+			.perform(decisions(task,
+					"{\"itemIds\":[\"" + itemId(task, "account-reviewer-1") + "\"],\"decision\":\"confirm\"}",
+					"account-reviewer-2"))
+			.andExpect(status().isNoContent());
+
+		this.mockMvc.perform(get("/account-reviews/tasks/" + task.getPublicId()).with(loginAs("account-reviewer-1")))
+			.andExpect(jsonPath("$.status").value("completed"))
+			.andExpect(jsonPath("$.reportAvailable").value(true));
+	}
+
+	@Test
 	void aChangeNeedsARecentLogin() throws Exception {
-		Task task = createTask();
+		Task task = nonPrivilegedTask();
 		UUID user = itemId(task, "user");
 
 		this.mockMvc
@@ -302,21 +358,39 @@ class AccountReviewApiIntegrationTest {
 	}
 
 	@Test
-	void theAuditTrailIsReadableByReviewersAndUserAdministratorsOnly() throws Exception {
-		createTask();
+	void theAuditTrailIsReadableByWhoeverHoldsTheAuditReadPermissionOnly() throws Exception {
+		nonPrivilegedTask();
 
 		this.mockMvc.perform(get("/audit-events").param("targetType", "REVIEW").with(loginAs("account-reviewer-1")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.items[0].action").value("create_review_task"))
-			.andExpect(jsonPath("$.items[0].details.itemCount").value(5));
+			.andExpect(jsonPath("$.items[0].details.itemCount").value(3))
+			.andExpect(jsonPath("$.items[0].details.type").value("non_privileged_account_review"));
 		this.mockMvc.perform(get("/audit-events").with(loginAs("admin"))).andExpect(status().isOk());
 		this.mockMvc.perform(get("/audit-events").with(loginAs("user"))).andExpect(status().isForbidden());
 		this.mockMvc.perform(get("/audit-events").param("targetType", "BOGUS").with(loginAs("admin")))
 			.andExpect(status().isBadRequest());
 	}
 
-	private Task createTask() {
-		return this.service.createTask(ReviewPeriod.containing(LocalDate.now(), 1).orElseThrow());
+	private Task privilegedTask() {
+		return this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, period());
+	}
+
+	private Task nonPrivilegedTask() {
+		return this.service.createTask(Task.NON_PRIVILEGED_ACCOUNT_REVIEW, period());
+	}
+
+	private static ReviewPeriod period() {
+		return ReviewPeriod.containing(LocalDate.now(), 1).orElseThrow();
+	}
+
+	private UUID roleId(String name) {
+		return this.roles.findAll()
+			.stream()
+			.filter(role -> role.getName().equals(name))
+			.findFirst()
+			.orElseThrow()
+			.getPublicId();
 	}
 
 	private UUID itemId(Task task, String username) {
@@ -343,8 +417,8 @@ class AccountReviewApiIntegrationTest {
 			.content(body);
 	}
 
-	private MockHttpServletRequestBuilder editGroups(Task task, UUID item, String body, String reviewer) {
-		return put(items(task) + "/" + item + "/groups").with(loginAs(reviewer))
+	private MockHttpServletRequestBuilder editRoles(Task task, UUID item, String body, String reviewer) {
+		return put(items(task) + "/" + item + "/roles").with(loginAs(reviewer))
 			.with(csrf())
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(body);

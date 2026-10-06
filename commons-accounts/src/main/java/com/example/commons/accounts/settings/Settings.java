@@ -7,10 +7,10 @@ import jakarta.validation.constraints.NotNull;
 
 /**
  * The application settings the account lifecycle and the account review follow (see
- * docs/adr/0031 and docs/adr/0032).
+ * docs/adr/0031 and docs/adr/0038).
  *
  * @param inactivity how inactive accounts are suspended and removed
- * @param review how often accounts are reviewed
+ * @param review how often privileged and other accounts are reviewed
  */
 public record Settings(@Valid @NotNull Inactivity inactivity, @Valid @NotNull Review review) {
 
@@ -26,9 +26,13 @@ public record Settings(@Valid @NotNull Inactivity inactivity, @Valid @NotNull Re
 
 	/**
 	 * @param enabled whether review tasks are created
-	 * @param intervalMonths the length of a review window in months
+	 * @param privilegedIntervalMonths the months between reviews of the privileged
+	 * accounts: 1, 3, 6 or 12
+	 * @param nonPrivilegedIntervalMonths the months between reviews of the other
+	 * accounts: 1, 3, 6 or 12, and not fewer than the privileged interval
 	 */
-	public record Review(boolean enabled, @Min(1) @Max(12) int intervalMonths) {
+	public record Review(boolean enabled, @Min(1) @Max(12) int privilegedIntervalMonths,
+			@Min(1) @Max(12) int nonPrivilegedIntervalMonths) {
 	}
 
 }

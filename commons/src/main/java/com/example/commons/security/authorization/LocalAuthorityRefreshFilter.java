@@ -25,24 +25,25 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import com.example.commons.security.session.SessionLifecycleAuditLogger;
 
 /**
- * Reloads the authenticated user's {@code ROLE_} authorities from the local user, group,
- * and role model, through {@link LocalAuthorityLookup}, on every request, instead of
- * trusting the authorities computed once at login and cached in the session. A local user
- * who has been disabled or deleted since login is deauthenticated immediately, rather
- * than continuing to act under stale authorities for the rest of the session's lifetime.
+ * Reloads the authenticated user's local authorities, the permissions of their roles,
+ * from the local user, role, and permission model, through {@link LocalAuthorityLookup},
+ * on every request, instead of trusting the authorities computed once at login and cached
+ * in the session. A local user who has been disabled or deleted since login is
+ * deauthenticated immediately, rather than continuing to act under stale authorities for
+ * the rest of the session's lifetime.
  *
  * This is a defense-in-depth backstop, not the primary revocation path: an administrator
- * disabling or deleting a user, or changing their group membership, already triggers
+ * disabling or deleting a user, or changing their role membership, already triggers
  * immediate revocation through {@code SessionRevocationService}. This filter additionally
  * covers any authorization-relevant change that revocation does not enumerate (for
- * example, redefining a group's role set, or deleting a role), and guards against a
+ * example, redefining a role's permission set, or deleting a role), and guards against a
  * session outliving its user for any other reason.
  * <p>
- * When the reloaded {@code ROLE_} authorities differ from the ones the session holds, and
- * the session is not already expired for revocation, the change is logged as a
- * {@code privilege_change} session event, naming the added and removed roles by their
- * stored names, and the refreshed authentication is saved to the session, so the change
- * is logged once rather than on every later request.
+ * When the reloaded local authorities differ from the ones the session holds, and the
+ * session is not already expired for revocation, the change is logged as a
+ * {@code privilege_change} session event, naming the added and removed permissions, and
+ * the refreshed authentication is saved to the session, so the change is logged once
+ * rather than on every later request.
  * <p>
  * Each way of logging in is handled by a {@link LocalAuthorityRefresher}: OpenID Connect
  * always, and any others passed to the constructor, such as passkeys.
@@ -102,21 +103,21 @@ public class LocalAuthorityRefreshFilter extends OncePerRequestFilter {
 		}
 		Authentication refreshed = refresher.refresh(authentication, localAuthorities);
 		SecurityContextHolder.getContext().setAuthentication(refreshed);
-		Set<String> previousRoles = roleNames(authentication.getAuthorities());
-		Set<String> currentRoles = roleNames(refreshed.getAuthorities());
-		if (!previousRoles.equals(currentRoles)) {
-			privilegeChanged(request, response, username, previousRoles, currentRoles);
+		Set<String> previous = LocalAuthorities.names(authentication.getAuthorities());
+		Set<String> current = LocalAuthorities.names(refreshed.getAuthorities());
+		if (!previous.equals(current)) {
+			privilegeChanged(request, response, username, previous, current);
 		}
 	}
 
 	private void privilegeChanged(HttpServletRequest request, HttpServletResponse response, String username,
-			Set<String> previousRoles, Set<String> currentRoles) {
+			Set<String> previous, Set<String> current) {
 		HttpSession session = request.getSession(false);
 		if (session == null || isExpired(session)) {
 			return;
 		}
-		Set<String> added = storedRoleNames(currentRoles, previousRoles);
-		Set<String> removed = storedRoleNames(previousRoles, currentRoles);
+		Set<String> added = difference(current, previous);
+		Set<String> removed = difference(previous, current);
 		this.sessionLifecycleAuditLogger.logSessionPrivilegeChanged(session, username, added, removed);
 		this.securityContextRepository.saveContext(SecurityContextHolder.getContext(), request, response);
 	}
@@ -126,22 +127,11 @@ public class LocalAuthorityRefreshFilter extends OncePerRequestFilter {
 		return sessionInformation != null && sessionInformation.isExpired();
 	}
 
-	private static Set<String> roleNames(Collection<? extends GrantedAuthority> authorities) {
-		return authorities.stream()
-			.map(GrantedAuthority::getAuthority)
-			.filter(authority -> authority.startsWith(RolePrefix.VALUE))
-			.collect(Collectors.toSet());
-	}
-
 	/**
-	 * Returns the {@code ROLE_} authorities in {@code authorities} that are not in
-	 * {@code excluded}, as the stored role names the audit log uses, without the prefix.
+	 * Returns the authorities in {@code authorities} that are not in {@code excluded}.
 	 */
-	private static Set<String> storedRoleNames(Set<String> authorities, Set<String> excluded) {
-		return authorities.stream()
-			.filter(authority -> !excluded.contains(authority))
-			.map(authority -> authority.substring(RolePrefix.VALUE.length()))
-			.collect(Collectors.toSet());
+	private static Set<String> difference(Set<String> authorities, Set<String> excluded) {
+		return authorities.stream().filter(authority -> !excluded.contains(authority)).collect(Collectors.toSet());
 	}
 
 	private void deauthenticate(HttpServletRequest request) {

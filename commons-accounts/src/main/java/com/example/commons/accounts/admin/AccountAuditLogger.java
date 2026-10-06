@@ -24,7 +24,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import com.example.commons.accounts.domain.AccountAuditEvent;
 import com.example.commons.accounts.domain.AccountAuditEventRepository;
-import com.example.commons.accounts.domain.AppGroup;
+import com.example.commons.accounts.domain.AppPermission;
 import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.Auditor;
@@ -32,20 +32,19 @@ import com.example.commons.accounts.domain.ReasonCode;
 import com.example.commons.logging.LoggingContextKeys;
 
 /**
- * Records every change to the local accounts, groups, roles, settings, and reviews. Each
- * is logged as an ECS {@code iam} event, so who granted or withdrew which access, and
- * when, can be reconstructed from the logs alone (see docs/adr/0021), and, when a
- * repository is supplied, appended to the business audit trail that the application
- * itself shows (see docs/adr/0030).
+ * Records every change to the local accounts, roles, settings, and reviews. Each is
+ * logged as an ECS {@code iam} event, so who granted or withdrew which access, and when,
+ * can be reconstructed from the logs alone (see docs/adr/0021), and, when a repository is
+ * supplied, appended to the business audit trail that the application itself shows (see
+ * docs/adr/0030).
  *
  * <p>
- * Following ECS's user field usage, {@code user.target.*}, {@code group.*}, and
- * {@code role.*} hold an object's state before the change, and {@code *.changes.*} hold
- * only the values that changed, so every event is self-contained. Role values are the
- * stored role names, never the {@code ROLE_}-prefixed authorities, and
- * {@code roles.added}, {@code roles.removed}, {@code groups.added}, and
- * {@code groups.removed} list the access each change grants or withdraws. The values of
- * personal-data fields are never logged, only the names of the ones that changed.
+ * Following ECS's user field usage, {@code user.target.*} and {@code role.*} hold an
+ * object's state before the change, and {@code *.changes.*} hold only the values that
+ * changed, so every event is self-contained. Permission values are {@code domain:action},
+ * and {@code roles.added}, {@code roles.removed}, {@code permissions.added}, and
+ * {@code permissions.removed} list the access each change grants or withdraws. The values
+ * of personal-data fields are never logged, only the names of the ones that changed.
  *
  * <p>
  * A successful change is logged after its transaction commits, on the same thread, so a
@@ -86,68 +85,53 @@ public class AccountAuditLogger {
 	 * @param id the user ID
 	 * @param username the username
 	 * @param status the account status, {@code active} or {@code suspended}
-	 * @param groups the names of the user's groups
-	 * @param roles the names of the roles the user's groups grant
+	 * @param roles the names of the user's roles
+	 * @param permissions the permissions the user's roles grant, as {@code domain:action}
+	 * @param privileged whether any of the permissions is privileged
 	 * @param email the email address, compared but never logged
 	 * @param name the name, compared but never logged
 	 * @param department the department, kept in a removal's audit details but never
 	 * logged
 	 * @param lastLoginAt the last sign-in time, kept in a removal's audit details
 	 */
-	public record UserState(UUID id, String username, String status, SortedSet<String> groups, SortedSet<String> roles,
-			String email, String name, String department, Instant lastLoginAt) {
+	public record UserState(UUID id, String username, String status, SortedSet<String> roles,
+			SortedSet<String> permissions, boolean privileged, String email, String name, String department,
+			Instant lastLoginAt) {
 
 		public static UserState of(AppUser user) {
 			return new UserState(user.getPublicId(), user.getUsername(),
 					user.getStatus().name().toLowerCase(Locale.ROOT),
-					names(user.getGroups().stream().map(AppGroup::getName).toList()),
-					names(user.getGroups()
-						.stream()
-						.flatMap(group -> group.getRoles().stream())
-						.map(AppRole::getName)
-						.toList()),
+					names(user.getRoles().stream().map(AppRole::getName).toList()),
+					names(user.permissions().stream().map(AppPermission::getName).toList()), user.isPrivileged(),
 					user.getEmail(), user.getName(), user.getDepartment(), user.getLastLoginAt());
 		}
 
 	}
 
 	/**
-	 * A group's security-relevant state.
-	 *
-	 * @param id the group ID
-	 * @param name the group name
-	 * @param roles the names of the roles the group grants
-	 */
-	public record GroupState(UUID id, String name, SortedSet<String> roles) {
-
-		static GroupState of(AppGroup group) {
-			return new GroupState(group.getPublicId(), group.getName(),
-					names(group.getRoles().stream().map(AppRole::getName).toList()));
-		}
-
-	}
-
-	/**
-	 * A role's state.
+	 * A role's security-relevant state.
 	 *
 	 * @param id the role ID
 	 * @param name the role name
+	 * @param permissions the permissions the role grants, as {@code domain:action}
 	 */
-	public record RoleState(UUID id, String name) {
+	public record RoleState(UUID id, String name, SortedSet<String> permissions) {
 
 		static RoleState of(AppRole role) {
-			return new RoleState(role.getPublicId(), role.getName());
+			return new RoleState(role.getPublicId(), role.getName(),
+					names(role.getPermissions().stream().map(AppPermission::getName).toList()));
 		}
 
 	}
 
 	public void userCreated(UserState user) {
-		record("create_user", "USER", user, null, null, details("groups", user.groups(), "roles", user.roles()));
+		record("create_user", "USER", user, null, null,
+				details("roles", user.roles(), "permissions", user.permissions(), "privileged", user.privileged()));
 		afterCommit(() -> {
 			LoggingEventBuilder event = event("create_user", "user", "creation", user.username());
 			target(event, user);
-			event.addKeyValue("groups.added", List.copyOf(user.groups()))
-				.addKeyValue("roles.added", List.copyOf(user.roles()))
+			event.addKeyValue("roles.added", List.copyOf(user.roles()))
+				.addKeyValue("permissions.added", List.copyOf(user.permissions()))
 				.log("User created");
 		});
 	}
@@ -164,7 +148,8 @@ public class AccountAuditLogger {
 	 */
 	public void userUpdated(UserState before, UserState after, String reason) {
 		Map<String, Object> details = new LinkedHashMap<>();
-		details.put("before", Map.of("status", before.status(), "groups", before.groups(), "roles", before.roles()));
+		details.put("before", Map.of("status", before.status(), "roles", before.roles(), "permissions",
+				before.permissions(), "privileged", before.privileged()));
 		List<String> changedFields = new ArrayList<>();
 		if (!Objects.equals(before.email(), after.email())) {
 			changedFields.add("email");
@@ -173,10 +158,11 @@ public class AccountAuditLogger {
 			changedFields.add("name");
 		}
 		details.put("fields", changedFields);
-		details.put("groupsAdded", added(before.groups(), after.groups()));
-		details.put("groupsRemoved", added(after.groups(), before.groups()));
 		details.put("rolesAdded", added(before.roles(), after.roles()));
 		details.put("rolesRemoved", added(after.roles(), before.roles()));
+		details.put("permissionsAdded", added(before.permissions(), after.permissions()));
+		details.put("permissionsRemoved", added(after.permissions(), before.permissions()));
+		details.put("privileged", after.privileged());
 		record("update_user", "USER", after, reason, null, details);
 		afterCommit(() -> {
 			LoggingEventBuilder event = event("update_user", "user", "change", before.username());
@@ -187,11 +173,14 @@ public class AccountAuditLogger {
 			if (!before.status().equals(after.status())) {
 				event.addKeyValue("user.changes.status", after.status());
 			}
-			if (!before.groups().equals(after.groups())) {
-				event.addKeyValue("user.changes.group.name", List.copyOf(after.groups()));
-			}
 			if (!before.roles().equals(after.roles())) {
-				event.addKeyValue("user.changes.roles", List.copyOf(after.roles()));
+				event.addKeyValue("user.changes.role.name", List.copyOf(after.roles()));
+			}
+			if (!before.permissions().equals(after.permissions())) {
+				event.addKeyValue("user.changes.permissions", List.copyOf(after.permissions()));
+			}
+			if (before.privileged() != after.privileged()) {
+				event.addKeyValue("user.changes.privileged", after.privileged());
 			}
 			List<String> fields = new ArrayList<>();
 			if (!Objects.equals(before.email(), after.email())) {
@@ -203,10 +192,10 @@ public class AccountAuditLogger {
 			if (!fields.isEmpty()) {
 				event.addKeyValue("user.changes.fields", fields);
 			}
-			event.addKeyValue("groups.added", added(before.groups(), after.groups()))
-				.addKeyValue("groups.removed", added(after.groups(), before.groups()))
-				.addKeyValue("roles.added", added(before.roles(), after.roles()))
+			event.addKeyValue("roles.added", added(before.roles(), after.roles()))
 				.addKeyValue("roles.removed", added(after.roles(), before.roles()))
+				.addKeyValue("permissions.added", added(before.permissions(), after.permissions()))
+				.addKeyValue("permissions.removed", added(after.permissions(), before.permissions()))
 				.log("User updated");
 		});
 	}
@@ -220,15 +209,15 @@ public class AccountAuditLogger {
 	 */
 	public AccountAuditEvent userDeleted(UserState user, ReasonCode reason, String note) {
 		AccountAuditEvent saved = record("delete_user", "USER", user, reason.value(), note,
-				details("status", user.status(), "groups", user.groups(), "roles", user.roles(), "department",
-						user.department(), "lastLoginAt",
+				details("status", user.status(), "roles", user.roles(), "permissions", user.permissions(), "privileged",
+						user.privileged(), "department", user.department(), "lastLoginAt",
 						user.lastLoginAt() == null ? null : user.lastLoginAt().toString()));
 		afterCommit(() -> {
 			LoggingEventBuilder event = event("delete_user", "user", "deletion", user.username());
 			event.addKeyValue("event.reason", reason.value());
 			target(event, user);
-			event.addKeyValue("groups.removed", List.copyOf(user.groups()))
-				.addKeyValue("roles.removed", List.copyOf(user.roles()))
+			event.addKeyValue("roles.removed", List.copyOf(user.roles()))
+				.addKeyValue("permissions.removed", List.copyOf(user.permissions()))
 				.log("User deleted");
 		});
 		return saved;
@@ -292,75 +281,57 @@ public class AccountAuditLogger {
 		event.addKeyValue("session.revoked_count", revoked).log("Sessions revoked");
 	}
 
-	public void groupCreated(GroupState group) {
-		record("create_group", "GROUP", group.id().toString(), group.name(), null, null, null,
-				details("rolesAdded", group.roles()));
-		afterCommit(() -> group(event("create_group", "group", "creation", null), group)
-			.addKeyValue("roles.added", List.copyOf(group.roles()))
-			.log("Group created"));
+	public void roleCreated(RoleState role) {
+		record("create_role", "ROLE", role.id().toString(), role.name(), null, null, null,
+				details("permissionsAdded", role.permissions()));
+		afterCommit(() -> role(event("create_role", "group", "creation", null), role)
+			.addKeyValue("permissions.added", List.copyOf(role.permissions()))
+			.log("Role created"));
 	}
 
-	public void groupUpdated(GroupState before, GroupState after, long affectedUserCount) {
-		record("update_group", "GROUP", after.id().toString(), after.name(), null, null, null,
-				details("beforeName", before.name(), "rolesAdded", added(before.roles(), after.roles()), "rolesRemoved",
-						added(after.roles(), before.roles()), "affectedUserCount", affectedUserCount));
+	public void roleUpdated(RoleState before, RoleState after, long affectedUserCount) {
+		record("update_role", "ROLE", after.id().toString(), after.name(), null, null, null,
+				details("beforeName", before.name(), "permissionsAdded",
+						added(before.permissions(), after.permissions()), "permissionsRemoved",
+						added(after.permissions(), before.permissions()), "affectedUserCount", affectedUserCount));
 		afterCommit(() -> {
-			LoggingEventBuilder event = group(event("update_group", "group", "change", null), before);
+			LoggingEventBuilder event = role(event("update_role", "group", "change", null), before);
 			if (!before.name().equals(after.name())) {
-				event.addKeyValue("group.changes.name", after.name());
+				event.addKeyValue("role.changes.name", after.name());
 			}
-			if (!before.roles().equals(after.roles())) {
-				event.addKeyValue("group.changes.roles", List.copyOf(after.roles()));
+			if (!before.permissions().equals(after.permissions())) {
+				event.addKeyValue("role.changes.permissions", List.copyOf(after.permissions()));
 			}
-			event.addKeyValue("group.affected_user_count", affectedUserCount)
-				.addKeyValue("roles.added", added(before.roles(), after.roles()))
-				.addKeyValue("roles.removed", added(after.roles(), before.roles()))
-				.log("Group updated");
+			event.addKeyValue("role.affected_user_count", affectedUserCount)
+				.addKeyValue("permissions.added", added(before.permissions(), after.permissions()))
+				.addKeyValue("permissions.removed", added(after.permissions(), before.permissions()))
+				.log("Role updated");
 		});
 	}
 
-	public void groupDeleted(GroupState group) {
-		record("delete_group", "GROUP", group.id().toString(), group.name(), null, null, null,
-				details("rolesRemoved", group.roles()));
-		afterCommit(() -> group(event("delete_group", "group", "deletion", null), group)
-			.addKeyValue("roles.removed", List.copyOf(group.roles()))
-			.log("Group deleted"));
-	}
-
-	public void groupCreationRejected(String name, String reason) {
-		rejected("create_group", "group", "creation", null, reason).addKeyValue("group.name", name)
-			.log("Group creation rejected");
-	}
-
-	public void groupUpdateRejected(GroupState group, String requestedName, String reason) {
-		LoggingEventBuilder event = group(rejected("update_group", "group", "change", null, reason), group);
-		if (!group.name().equals(requestedName)) {
-			event.addKeyValue("group.changes.name", requestedName);
-		}
-		event.log("Group update rejected");
-	}
-
-	public void groupDeletionRejected(GroupState group, String reason) {
-		group(rejected("delete_group", "group", "deletion", null, reason), group).log("Group deletion rejected");
-	}
-
-	public void roleCreated(RoleState role) {
-		record("create_role", "ROLE", role.id().toString(), role.name(), null, null, null, details());
-		afterCommit(() -> role(event("create_role", "admin", "creation", null), role).log("Role created"));
-	}
-
 	public void roleDeleted(RoleState role) {
-		record("delete_role", "ROLE", role.id().toString(), role.name(), null, null, null, details());
-		afterCommit(() -> role(event("delete_role", "admin", "deletion", null), role).log("Role deleted"));
+		record("delete_role", "ROLE", role.id().toString(), role.name(), null, null, null,
+				details("permissionsRemoved", role.permissions()));
+		afterCommit(() -> role(event("delete_role", "group", "deletion", null), role)
+			.addKeyValue("permissions.removed", List.copyOf(role.permissions()))
+			.log("Role deleted"));
 	}
 
 	public void roleCreationRejected(String name, String reason) {
-		rejected("create_role", "admin", "creation", null, reason).addKeyValue("role.name", name)
+		rejected("create_role", "group", "creation", null, reason).addKeyValue("role.name", name)
 			.log("Role creation rejected");
 	}
 
+	public void roleUpdateRejected(RoleState role, String requestedName, String reason) {
+		LoggingEventBuilder event = role(rejected("update_role", "group", "change", null, reason), role);
+		if (!role.name().equals(requestedName)) {
+			event.addKeyValue("role.changes.name", requestedName);
+		}
+		event.log("Role update rejected");
+	}
+
 	public void roleDeletionRejected(RoleState role, String reason) {
-		role(rejected("delete_role", "admin", "deletion", null, reason), role).log("Role deletion rejected");
+		role(rejected("delete_role", "group", "deletion", null, reason), role).log("Role deletion rejected");
 	}
 
 	/**
@@ -445,18 +416,15 @@ public class AccountAuditLogger {
 		event.addKeyValue("user.target.id", user.id())
 			.addKeyValue("user.target.name", user.username())
 			.addKeyValue("user.target.status", user.status())
-			.addKeyValue("user.target.group.name", List.copyOf(user.groups()))
-			.addKeyValue("user.target.roles", List.copyOf(user.roles()));
-	}
-
-	private static LoggingEventBuilder group(LoggingEventBuilder event, GroupState group) {
-		return event.addKeyValue("group.id", group.id())
-			.addKeyValue("group.name", group.name())
-			.addKeyValue("group.roles", List.copyOf(group.roles()));
+			.addKeyValue("user.target.role.name", List.copyOf(user.roles()))
+			.addKeyValue("user.target.permissions", List.copyOf(user.permissions()))
+			.addKeyValue("user.target.privileged", user.privileged());
 	}
 
 	private static LoggingEventBuilder role(LoggingEventBuilder event, RoleState role) {
-		return event.addKeyValue("role.id", role.id()).addKeyValue("role.name", role.name());
+		return event.addKeyValue("role.id", role.id())
+			.addKeyValue("role.name", role.name())
+			.addKeyValue("role.permissions", List.copyOf(role.permissions()));
 	}
 
 	/**

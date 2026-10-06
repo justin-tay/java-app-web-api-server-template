@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 
+import com.example.commons.accounts.Permissions;
 import com.example.commons.accounts.AccountsJpaTest;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.ReasonCode;
@@ -36,11 +37,11 @@ class AccountReviewPopulationsTest extends AccountReviewTestSupport {
 		user("rachel");
 		AppUser alice = user("alice", "Finance");
 		AppUser bob = user("bob");
-		authenticateAs("admin", "USER_MANAGE");
+		authenticateAs("admin", Permissions.USER_REMOVE);
 		this.lifecycle.suspend(alice.getPublicId(), ReasonCode.LEFT_ORGANISATION, "resigned");
 		authenticateAsSystem();
 		this.lifecycle.suspend(bob.getPublicId(), ReasonCode.INACTIVE_ACCOUNT, null);
-		Task task = this.service.createTask(OCTOBER);
+		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 		flushAndClear();
 
 		List<PopulationEntryResponse> suspended = population(task, ReviewPopulation.SUSPENDED);
@@ -60,16 +61,16 @@ class AccountReviewPopulationsTest extends AccountReviewTestSupport {
 		user("rachel");
 		AppUser alice = user("alice");
 		AppUser bob = user("bob");
-		authenticateAs("admin", "USER_MANAGE");
+		authenticateAs("admin", Permissions.USER_REMOVE);
 		this.lifecycle.suspend(alice.getPublicId(), ReasonCode.OTHER, null);
-		Task task = this.service.createTask(OCTOBER);
+		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 		flushAndClear();
 
-		authenticateAs("rachel", "ACCOUNT_REVIEWER");
+		authenticateAsReviewer("rachel");
 		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.SUSPENDED, "spot checked two accounts");
 		flushAndClear();
 
-		authenticateAs("admin", "USER_MANAGE");
+		authenticateAs("admin", Permissions.USER_REMOVE);
 		this.lifecycle.suspend(bob.getPublicId(), ReasonCode.OTHER, null);
 		this.lifecycle.unsuspend(alice.getPublicId());
 		flushAndClear();
@@ -87,8 +88,8 @@ class AccountReviewPopulationsTest extends AccountReviewTestSupport {
 	@Test
 	void aPopulationCanBeConfirmedOnlyOnce() {
 		user("rachel");
-		Task task = this.service.createTask(OCTOBER);
-		authenticateAs("rachel", "ACCOUNT_REVIEWER");
+		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
+		authenticateAsReviewer("rachel");
 
 		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.REMOVED, null);
 
@@ -101,9 +102,9 @@ class AccountReviewPopulationsTest extends AccountReviewTestSupport {
 	void theRemovedPopulationOfTheFirstTaskHoldsEveryRecordedRemoval() {
 		user("rachel");
 		AppUser alice = user("alice", "HR");
-		authenticateAs("admin", "USER_MANAGE");
+		authenticateAs("admin", Permissions.USER_REMOVE);
 		this.lifecycle.remove(alice.getPublicId(), ReasonCode.LEFT_ORGANISATION, "resigned");
-		Task task = this.service.createTask(OCTOBER);
+		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 		flushAndClear();
 
 		List<PopulationEntryResponse> removed = population(task, ReviewPopulation.REMOVED);
@@ -123,24 +124,25 @@ class AccountReviewPopulationsTest extends AccountReviewTestSupport {
 		AppUser late = user("late");
 		AppUser later = user("later");
 		this.clock.set(Instant.parse("2026-07-10T10:00:00Z"));
-		authenticateAs("admin", "USER_MANAGE");
+		authenticateAs("admin", Permissions.USER_REMOVE);
 		this.lifecycle.remove(early.getPublicId(), ReasonCode.OTHER, null);
-		Task previous = this.service.createTask(new ReviewPeriod(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31)));
+		Task previous = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW,
+				new ReviewPeriod(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31)));
 		flushAndClear();
 
 		this.clock.set(Instant.parse("2026-07-20T10:00:00Z"));
-		authenticateAs("rachel", "ACCOUNT_REVIEWER");
+		authenticateAsReviewer("rachel");
 		this.service.confirmPopulation(previous.getPublicId(), ReviewPopulation.REMOVED, null);
 		flushAndClear();
 		assertThat(population(previous, ReviewPopulation.REMOVED)).extracting(PopulationEntryResponse::username)
 			.containsExactly("early");
 
 		this.clock.set(Instant.parse("2026-07-25T10:00:00Z"));
-		authenticateAs("admin", "USER_MANAGE");
+		authenticateAs("admin", Permissions.USER_REMOVE);
 		this.lifecycle.remove(late.getPublicId(), ReasonCode.OTHER, null);
 		this.clock.set(NOW);
 		this.lifecycle.remove(later.getPublicId(), ReasonCode.OTHER, null);
-		Task current = this.service.createTask(OCTOBER);
+		Task current = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 		flushAndClear();
 
 		assertThat(population(current, ReviewPopulation.REMOVED)).extracting(PopulationEntryResponse::username)
@@ -153,13 +155,14 @@ class AccountReviewPopulationsTest extends AccountReviewTestSupport {
 		AppUser before = user("before");
 		AppUser during = user("during");
 		this.clock.set(Instant.parse("2026-06-20T10:00:00Z"));
-		authenticateAs("admin", "USER_MANAGE");
+		authenticateAs("admin", Permissions.USER_REMOVE);
 		this.lifecycle.remove(before.getPublicId(), ReasonCode.OTHER, null);
-		this.service.createTask(new ReviewPeriod(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31)));
+		this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW,
+				new ReviewPeriod(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31)));
 		this.clock.set(Instant.parse("2026-07-20T10:00:00Z"));
 		this.lifecycle.remove(during.getPublicId(), ReasonCode.OTHER, null);
 		this.clock.set(NOW);
-		Task current = this.service.createTask(OCTOBER);
+		Task current = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 		flushAndClear();
 
 		assertThat(population(current, ReviewPopulation.REMOVED)).extracting(PopulationEntryResponse::username)
@@ -170,8 +173,8 @@ class AccountReviewPopulationsTest extends AccountReviewTestSupport {
 	void aRemovalMadeThroughTheReviewAppearsInTheRemovedPopulation() {
 		user("rachel");
 		AppUser alice = user("alice");
-		authenticateAs("rachel", "ACCOUNT_REVIEWER");
-		Task task = this.service.createTask(OCTOBER);
+		authenticateAsReviewer("rachel");
+		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 		flushAndClear();
 
 		this.clock.set(LATER);

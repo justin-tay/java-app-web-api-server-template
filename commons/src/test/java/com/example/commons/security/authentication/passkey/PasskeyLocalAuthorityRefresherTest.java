@@ -47,9 +47,9 @@ class PasskeyLocalAuthorityRefresherTest {
 
 	@Test
 	void aPasskeySessionGetsTheCurrentLocalRolesAndKeepsItsFactorAuthority() throws Exception {
-		this.localUsers.put("alice", List.of(new SimpleGrantedAuthority("ROLE_USER_MANAGE")));
+		this.localUsers.put("alice", List.of(new SimpleGrantedAuthority("user:read")));
 		SecurityContextHolder.getContext()
-			.setAuthentication(passkeyLogin("alice", new SimpleGrantedAuthority("ROLE_STALE"),
+			.setAuthentication(passkeyLogin("alice", new SimpleGrantedAuthority("stale:action"),
 					FactorGrantedAuthority.fromAuthority(FactorGrantedAuthority.WEBAUTHN_AUTHORITY)));
 
 		this.filter.doFilter(new MockHttpServletRequest("GET", "/account"), new MockHttpServletResponse(),
@@ -59,7 +59,7 @@ class PasskeyLocalAuthorityRefresherTest {
 		assertThat(SecurityContextHolder.getContext().getAuthentication()).isInstanceOf(WebAuthnAuthentication.class);
 		assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
 			.extracting(GrantedAuthority::getAuthority)
-			.containsExactlyInAnyOrder("ROLE_USER_MANAGE", FactorGrantedAuthority.WEBAUTHN_AUTHORITY);
+			.containsExactlyInAnyOrder("user:read", FactorGrantedAuthority.WEBAUTHN_AUTHORITY);
 	}
 
 	@Test
@@ -78,10 +78,10 @@ class PasskeyLocalAuthorityRefresherTest {
 	@Test
 	void aUserWhoIsNotEnabledLocallyCannotBeLoadedForAPasskeyLogin() {
 		LocalAuthorityUserDetailsService service = new LocalAuthorityUserDetailsService(this.lookup);
-		this.localUsers.put("alice", List.of(new SimpleGrantedAuthority("ROLE_APPLICATION_USER")));
+		this.localUsers.put("alice", List.of(new SimpleGrantedAuthority("application:access")));
 
 		assertThat(service.loadUserByUsername("alice").getAuthorities()).extracting(GrantedAuthority::getAuthority)
-			.containsExactly("ROLE_APPLICATION_USER");
+			.containsExactly("application:access");
 		org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.loadUserByUsername("mallory"))
 			.isInstanceOf(org.springframework.security.core.userdetails.UsernameNotFoundException.class);
 	}

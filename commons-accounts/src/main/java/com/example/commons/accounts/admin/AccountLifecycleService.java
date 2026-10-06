@@ -25,10 +25,10 @@ import com.example.commons.web.problem.ResourceNotFoundException;
  * applies the same rules and writes the same audit event (see docs/adr/0031).
  *
  * <p>
- * Suspending ends the account's sessions. Removing deletes the account, its group
+ * Suspending ends the account's sessions. Removing deletes the account, its role
  * memberships and its passkeys in one transaction, ends its sessions, and leaves only the
  * audit trail and any review item, which hold no foreign key to the account. An
- * authenticated actor cannot change their own account (see docs/adr/0022); a change the
+ * authenticated actor cannot change their own account (see docs/adr/0038); a change the
  * application makes itself, with no authenticated user, is trusted.
  */
 @Transactional
@@ -124,7 +124,7 @@ public class AccountLifecycleService {
 			else {
 				this.auditLogger.userUpdateRejected(state, "self_modification");
 			}
-			throw new AccessDeniedException("Administrators cannot change their own account.");
+			throw new AccessDeniedException("Users cannot change their own account.");
 		}
 	}
 

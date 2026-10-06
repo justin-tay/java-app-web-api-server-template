@@ -23,13 +23,13 @@ import com.example.commons.accounts.review.ReviewDtos.TaskResponse;
 import com.example.commons.accounts.review.ReviewDtos.TaskSummary;
 
 /**
- * The dashboard of tasks, for account reviewers. Written against the generic task so it
- * lists other types of task without change (see docs/adr/0032).
+ * The dashboard of tasks, for whoever holds {@code review:read}. Written against the
+ * generic task so it lists other types of task without change (see docs/adr/0032).
  */
 @RestController
 @Validated
 @RequestMapping("/tasks")
-@PreAuthorize("hasRole('ACCOUNT_REVIEWER')")
+@PreAuthorize("hasAuthority('review:read')")
 public class TaskController {
 
 	private final AccountReviewService service;

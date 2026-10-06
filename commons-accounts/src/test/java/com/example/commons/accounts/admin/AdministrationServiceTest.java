@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,8 +30,9 @@ import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.session.MapSession;
 
 import com.example.commons.accounts.AccountsJpaTest;
-import com.example.commons.accounts.domain.AppGroup;
-import com.example.commons.accounts.domain.AppGroupRepository;
+import com.example.commons.accounts.Permissions;
+import com.example.commons.accounts.domain.AppPermission;
+import com.example.commons.accounts.domain.AppPermissionRepository;
 import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppUser;
@@ -44,11 +44,12 @@ import com.example.commons.web.problem.ConflictException;
 import com.example.commons.web.problem.ResourceNotFoundException;
 
 /**
- * Tests {@link AdministrationService} against the real user, group, and role schema: it
- * revokes a user's active sessions exactly when their disabled status or group membership
- * changes, rejects changes that would break the model's integrity with a
- * {@link ConflictException}, and reports an unknown user, group, or role with a
- * {@link ResourceNotFoundException}.
+ * Tests {@link AdministrationService} against the real user, role, and permission schema:
+ * it revokes a user's active sessions exactly when their disabled status or role
+ * membership changes, rejects changes that would break the model's integrity with a
+ * {@link ConflictException}, keeps an actor from granting more than they hold, keeps
+ * conflicting permissions apart, and reports an unknown user, role, or permission with a
+ * {@link ResourceNotFoundException} (see docs/adr/0038).
  */
 @AccountsJpaTest
 @ExtendWith(OutputCaptureExtension.class)
@@ -63,10 +64,10 @@ class AdministrationServiceTest {
 	private AppUserRepository users;
 
 	@Autowired
-	private AppGroupRepository groups;
+	private AppRoleRepository roles;
 
 	@Autowired
-	private AppRoleRepository roles;
+	private AppPermissionRepository permissions;
 
 	private final SessionLifecycleAuditLogger sessionLifecycleAuditLogger = new SessionLifecycleAuditLogger();
 
@@ -78,11 +79,11 @@ class AdministrationServiceTest {
 
 	private AccountLifecycleService lifecycle;
 
-	private AppRole userManage;
+	private AppRole managers;
 
-	private AppGroup managers;
+	private AppRole administrators;
 
-	private AppGroup administrators;
+	private AppRole reviewers;
 
 	private AppUser testUser;
 
@@ -91,15 +92,17 @@ class AdministrationServiceTest {
 		SessionRevocationService revocation = new SessionRevocationService(this.sessionRegistry, this.sessionRepository,
 				this.sessionLifecycleAuditLogger);
 		AccountAuditLogger auditLogger = new AccountAuditLogger();
-		this.service = new AdministrationService(this.users, this.groups, this.roles, revocation, auditLogger);
+		this.service = new AdministrationService(this.users, this.roles, this.permissions, revocation, auditLogger);
 		this.lifecycle = new AccountLifecycleService(this.users, revocation, auditLogger, null, null,
 				Clock.systemUTC());
-		this.userManage = this.entityManager.persist(new AppRole("USER_MANAGE"));
-		this.managers = this.entityManager.persist(new AppGroup("Managers"));
-		this.managers.getRoles().add(this.userManage);
-		this.administrators = this.entityManager.persist(new AppGroup("Administrators"));
+		this.managers = this.entityManager.persist(new AppRole("Managers"));
+		this.managers.getPermissions().add(permission(Permissions.USER_READ));
+		this.administrators = this.entityManager.persist(new AppRole("Administrators"));
+		this.administrators.getPermissions().add(permission(Permissions.USER_CREATE));
+		this.reviewers = this.entityManager.persist(new AppRole("Reviewers"));
+		this.reviewers.getPermissions().add(permission(Permissions.REVIEW_DECIDE));
 		this.testUser = new AppUser("test-user", "Test User", "test@example.test");
-		this.testUser.getGroups().add(this.managers);
+		this.testUser.getRoles().add(this.managers);
 		this.entityManager.persist(this.testUser);
 		this.entityManager.flush();
 		signIn("session-1", "test-user");
@@ -147,16 +150,16 @@ class AdministrationServiceTest {
 	}
 
 	@Test
-	void revokesSessionsWhenGroupMembershipChanges() {
+	void revokesSessionsWhenRoleMembershipChanges() {
 		this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("Test User",
 				"test@example.test", null, Set.of(this.administrators.getPublicId())));
 
 		assertThat(sessionOf("test-user").isExpired()).isTrue();
-		assertThat(reload(this.testUser).getGroups()).extracting(AppGroup::getName).containsExactly("Administrators");
+		assertThat(reload(this.testUser).getRoles()).extracting(AppRole::getName).containsExactly("Administrators");
 	}
 
 	@Test
-	void doesNotRevokeSessionsWhenGroupsDoNotChange() {
+	void doesNotRevokeSessionsWhenRolesDoNotChange() {
 		this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("New Display Name",
 				"test@example.test", null, Set.of(this.managers.getPublicId())));
 
@@ -184,22 +187,22 @@ class AdministrationServiceTest {
 	}
 
 	@Test
-	void rejectsAUserInAGroupThatDoesNotExist() {
+	void rejectsAUserInARoleThatDoesNotExist() {
 		assertThatExceptionOfType(ResourceNotFoundException.class)
 			.isThrownBy(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null,
 					null, Set.of(this.managers.getPublicId(), MISSING))))
-			.withMessage("Group was not found.");
+			.withMessage("Role was not found.");
 		assertThat(this.users.existsByUsername("new-user")).isFalse();
 	}
 
 	@Test
-	void reportsAnUnknownUserGroupOrRole() {
+	void reportsAnUnknownUserRoleOrPermission() {
 		assertThatExceptionOfType(ResourceNotFoundException.class).isThrownBy(() -> this.service.user(MISSING))
 			.withMessage("User was not found.");
-		assertThatExceptionOfType(ResourceNotFoundException.class).isThrownBy(() -> this.service.group(MISSING))
-			.withMessage("Group was not found.");
 		assertThatExceptionOfType(ResourceNotFoundException.class).isThrownBy(() -> this.service.role(MISSING))
 			.withMessage("Role was not found.");
+		assertThatExceptionOfType(ResourceNotFoundException.class).isThrownBy(() -> this.service.permission(MISSING))
+			.withMessage("Permission was not found.");
 	}
 
 	@Test
@@ -212,105 +215,98 @@ class AdministrationServiceTest {
 	}
 
 	@Test
-	void findsTheUsersOfAGroupOnceEach() {
+	void findsTheUsersOfARoleOnceEach() {
 		AppUser other = new AppUser("other-user", "Other User", null);
-		other.getGroups().add(this.administrators);
+		other.getRoles().add(this.administrators);
 		this.entityManager.persist(other);
-		this.testUser.getGroups().add(this.administrators);
+		this.testUser.getRoles().add(this.administrators);
 		this.entityManager.flush();
 
 		assertThat(this.service
 			.users(new AdministrationService.UserQuery(null, null, null, null, null, null, null,
-					this.administrators.getPublicId(), null, null), Pageable.unpaged())
+					this.administrators.getPublicId(), null, null, null), Pageable.unpaged())
 			.getContent()).extracting(AppUser::getUsername).containsExactlyInAnyOrder("test-user", "other-user");
 		assertThat(this.service
 			.users(new AdministrationService.UserQuery(null, null, null, null, null, null, null,
-					this.managers.getPublicId(), null, null), Pageable.unpaged())
+					this.managers.getPublicId(), null, null, null), Pageable.unpaged())
 			.getContent()).extracting(AppUser::getUsername).containsExactly("test-user");
 	}
 
 	@Test
-	void rejectsADuplicateGroupName() {
-		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.createGroup(new AdminDtos.GroupRequest("Administrators", null)))
-			.withMessage("Group name already exists.");
-		assertThat(this.groups.count()).isEqualTo(2);
-	}
-
-	@Test
-	void rejectsAGroupWithARoleThatDoesNotExist() {
-		assertThatExceptionOfType(ResourceNotFoundException.class)
-			.isThrownBy(() -> this.service.createGroup(new AdminDtos.GroupRequest("New Group", Set.of(MISSING))))
-			.withMessage("Role was not found.");
-		assertThat(this.groups.existsByName("New Group")).isFalse();
-	}
-
-	@Test
-	void rejectsRenamingAGroupToAnExistingName() {
-		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.updateGroup(this.managers.getPublicId(),
-					new AdminDtos.GroupRequest("Administrators", null)))
-			.withMessage("Group name already exists.");
-		assertThat(reload(this.managers).getName()).isEqualTo("Managers");
-	}
-
-	@Test
-	void keepingAGroupsOwnNameIsNotAConflict() {
-		AppGroup updated = this.service.updateGroup(this.managers.getPublicId(),
-				new AdminDtos.GroupRequest("Managers", Set.of(this.userManage.getPublicId())));
-
-		assertThat(updated.getName()).isEqualTo("Managers");
-	}
-
-	@Test
-	void rejectsDeletingAGroupThatContainsUsers() {
-		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.deleteGroup(this.managers.getPublicId()))
-			.withMessage("Group contains users.");
-		assertThat(this.groups.existsById(this.managers.getId())).isTrue();
-	}
-
-	@Test
-	void deletesAGroupWithoutUsers() {
-		this.service.deleteGroup(this.administrators.getPublicId());
+	void filtersUsersByWhetherTheyArePrivileged() {
+		this.testUser.getRoles().add(this.administrators);
+		AppUser plain = new AppUser("plain-user", "Plain User", null);
+		plain.getRoles().add(this.managers);
+		this.entityManager.persist(plain);
 		this.entityManager.flush();
+		this.entityManager.clear();
 
-		assertThat(this.groups.existsById(this.administrators.getId())).isFalse();
-	}
-
-	@Test
-	void aRoleDisplayNameDefaultsToTheNameWhenOmitted() {
-		assertThat(this.service.createRole(new AdminDtos.RoleRequest("REPORT_VIEW", null)).getDisplayName())
-			.isEqualTo("REPORT_VIEW");
-		assertThat(
-				this.service.createRole(new AdminDtos.RoleRequest("REPORT_EXPORT", "Export reports")).getDisplayName())
-			.isEqualTo("Export reports");
+		assertThat(this.service
+			.users(new AdministrationService.UserQuery(null, null, null, null, null, null, null, null, true, null,
+					null), Pageable.unpaged())
+			.getContent()).extracting(AppUser::getUsername).containsExactly("test-user");
+		assertThat(this.service
+			.users(new AdministrationService.UserQuery(null, null, null, null, null, null, null, null, false, null,
+					null), Pageable.unpaged())
+			.getContent()).extracting(AppUser::getUsername).containsExactly("plain-user");
+		assertThat(reload(this.testUser).isPrivileged()).isTrue();
 	}
 
 	@Test
 	void rejectsADuplicateRoleName() {
 		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.createRole(new AdminDtos.RoleRequest("USER_MANAGE", null)))
+			.isThrownBy(() -> this.service.createRole(new AdminDtos.RoleRequest("Administrators", null)))
 			.withMessage("Role name already exists.");
-		assertThat(this.roles.count()).isEqualTo(1);
+		assertThat(this.roles.count()).isEqualTo(3);
 	}
 
 	@Test
-	void rejectsDeletingARoleThatIsAssignedToAGroup() {
-		AppRole reportView = this.entityManager.persist(new AppRole("REPORT_VIEW"));
-		this.administrators.getRoles().add(reportView);
+	void rejectsARoleWithAPermissionThatDoesNotExist() {
+		assertThatExceptionOfType(ResourceNotFoundException.class)
+			.isThrownBy(() -> this.service.createRole(new AdminDtos.RoleRequest("New Role", Set.of(MISSING))))
+			.withMessage("Permission was not found.");
+		assertThat(this.roles.existsByName("New Role")).isFalse();
+	}
 
+	@Test
+	void rejectsRenamingARoleToAnExistingName() {
 		assertThatExceptionOfType(ConflictException.class)
-			.isThrownBy(() -> this.service.deleteRole(reportView.getPublicId()))
-			.withMessage("Role is assigned to a group.");
-		assertThat(this.roles.existsById(reportView.getId())).isTrue();
+			.isThrownBy(() -> this.service.updateRole(this.managers.getPublicId(),
+					new AdminDtos.RoleRequest("Administrators", null)))
+			.withMessage("Role name already exists.");
+		assertThat(reload(this.managers).getName()).isEqualTo("Managers");
 	}
 
 	@Test
-	void anAdministratorCannotGiveAUserAGroupGrantingARoleTheyDoNotHold(CapturedOutput output) {
-		AppRole groupManage = this.entityManager.persist(new AppRole("GROUP_MANAGE"));
-		this.administrators.getRoles().add(groupManage);
-		authenticate("admin", "USER_MANAGE");
+	void keepingARolesOwnNameIsNotAConflictAndARoleCanBeRenamed() {
+		AppRole updated = this.service.updateRole(this.managers.getPublicId(),
+				new AdminDtos.RoleRequest("Managers", Set.of(permission(Permissions.USER_READ).getPublicId())));
+		AppRole renamed = this.service.updateRole(this.managers.getPublicId(),
+				new AdminDtos.RoleRequest("Team Managers", Set.of(permission(Permissions.USER_READ).getPublicId())));
+
+		assertThat(updated.getName()).isEqualTo("Team Managers");
+		assertThat(renamed.getPermissions()).extracting(AppPermission::getName).containsExactly("user:read");
+	}
+
+	@Test
+	void rejectsDeletingARoleThatHasUsers() {
+		assertThatExceptionOfType(ConflictException.class)
+			.isThrownBy(() -> this.service.deleteRole(this.managers.getPublicId()))
+			.withMessage("Role has users.");
+		assertThat(this.roles.existsById(this.managers.getId())).isTrue();
+	}
+
+	@Test
+	void deletesARoleWithoutUsers() {
+		this.service.deleteRole(this.administrators.getPublicId());
+		this.entityManager.flush();
+
+		assertThat(this.roles.existsById(this.administrators.getId())).isFalse();
+	}
+
+	@Test
+	void anActorCannotGiveAUserARoleWithAPrivilegedPermissionTheyDoNotHold(CapturedOutput output) {
+		authenticate("admin", Permissions.USER_ADD_ROLE);
 
 		assertThatExceptionOfType(AccessDeniedException.class)
 			.isThrownBy(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null,
@@ -321,49 +317,124 @@ class AdministrationServiceTest {
 
 		assertThat(output).contains("\"exceeds_actor_privileges\"");
 		assertThat(this.users.existsByUsername("new-user")).isFalse();
-		assertThat(reload(this.testUser).getGroups()).extracting(AppGroup::getName).containsExactly("Managers");
+		assertThat(reload(this.testUser).getRoles()).extracting(AppRole::getName).containsExactly("Managers");
 	}
 
 	@Test
-	void anAdministratorCanMaintainAccountReviewersWithoutHoldingTheRole() {
-		AppRole reviewer = this.entityManager.persist(new AppRole("ACCOUNT_REVIEWER"));
-		AppGroup reviewers = this.entityManager.persist(new AppGroup("Account Reviewers"));
-		reviewers.getRoles().add(reviewer);
-		authenticate("admin", "USER_MANAGE", "GROUP_MANAGE");
+	void anActorCanGrantAPrivilegedPermissionTheyHoldThemselves() {
+		authenticate("admin", Permissions.USER_ADD_ROLE, Permissions.USER_CREATE);
 
-		AppUser user = this.service.createUser(new AdminDtos.UserCreateRequest("new-reviewer", "New Reviewer", null,
-				null, Set.of(reviewers.getPublicId())));
-		this.service.createGroup(new AdminDtos.GroupRequest("More Reviewers", Set.of(reviewer.getPublicId())));
+		AppUser user = this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null, null,
+				Set.of(this.administrators.getPublicId())));
 
-		assertThat(user.getGroups()).extracting(AppGroup::getName).containsExactly("Account Reviewers");
-		assertThat(this.groups.existsByName("More Reviewers")).isTrue();
+		assertThat(user.getRoles()).extracting(AppRole::getName).containsExactly("Administrators");
+		assertThat(user.isPrivileged()).isTrue();
 	}
 
 	@Test
-	void anAdministratorCannotMakeThemselvesAnAccountReviewer() {
-		AppRole reviewer = this.entityManager.persist(new AppRole("ACCOUNT_REVIEWER"));
-		AppGroup reviewers = this.entityManager.persist(new AppGroup("Account Reviewers"));
-		reviewers.getRoles().add(reviewer);
-		authenticate("test-user", "USER_MANAGE");
-
-		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
-				() -> this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("Test User",
-						"test@example.test", null, Set.of(this.managers.getPublicId(), reviewers.getPublicId()))));
-	}
-
-	@Test
-	void anAdministratorCanGiveAGroupGrantingOnlyRolesTheyHold() {
-		authenticate("admin", "USER_MANAGE");
+	void anActorCanGrantNonPrivilegedPermissionsWithoutHoldingThem() {
+		authenticate("admin", Permissions.USER_ADD_ROLE);
 
 		AppUser user = this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null, null,
 				Set.of(this.managers.getPublicId())));
 
-		assertThat(user.getGroups()).extracting(AppGroup::getName).containsExactly("Managers");
+		assertThat(user.getRoles()).extracting(AppRole::getName).containsExactly("Managers");
+		assertThat(user.isPrivileged()).isFalse();
 	}
 
 	@Test
-	void anAdministratorCannotChangeTheirOwnAccessOrSuspendOrRemoveThemselves(CapturedOutput output) {
-		authenticate("test-user", "USER_MANAGE");
+	void givingAUserARoleNeedsTheAddRolePermissionAndRemovingOneTheRemoveRolePermission(CapturedOutput output) {
+		authenticate("admin", Permissions.USER_CREATE, Permissions.USER_UPDATE);
+
+		assertThatExceptionOfType(AccessDeniedException.class)
+			.isThrownBy(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null,
+					null, Set.of(this.managers.getPublicId()))));
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
+				() -> this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("Test User",
+						"test@example.test", null, Set.of(this.managers.getPublicId(), this.reviewers.getPublicId()))));
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
+				() -> this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("Test User",
+						"test@example.test", null, Set.of(this.administrators.getPublicId()))));
+
+		assertThat(output).contains("\"missing_permission\"");
+		assertThat(reload(this.testUser).getRoles()).extracting(AppRole::getName).containsExactly("Managers");
+	}
+
+	@Test
+	void changingAUsersDetailsNeedsTheUpdatePermission() {
+		authenticate("admin", Permissions.USER_ADD_ROLE);
+
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(
+				() -> this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("Renamed",
+						"test@example.test", null, Set.of(this.managers.getPublicId()))));
+
+		authenticate("admin", Permissions.USER_UPDATE);
+		this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("Renamed",
+				"test@example.test", null, Set.of(this.managers.getPublicId())));
+
+		assertThat(reload(this.testUser).getName()).isEqualTo("Renamed");
+	}
+
+	@Test
+	void anActorCanTakeARoleAwayWithOnlyTheRemoveRolePermission() {
+		this.testUser.getRoles().add(this.reviewers);
+		this.entityManager.flush();
+		authenticate("admin", Permissions.USER_REMOVE_ROLE);
+
+		this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("Test User",
+				"test@example.test", null, Set.of(this.managers.getPublicId())));
+
+		assertThat(reload(this.testUser).getRoles()).extracting(AppRole::getName).containsExactly("Managers");
+	}
+
+	@Test
+	void noUserCanHoldReviewingAndAPrivilegedPermissionTogether(CapturedOutput output) {
+		this.testUser.getRoles().clear();
+		this.testUser.getRoles().add(this.reviewers);
+		this.entityManager.flush();
+
+		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> this.service
+			.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("Test User", "test@example.test",
+					null, Set.of(this.reviewers.getPublicId(), this.administrators.getPublicId()))));
+		assertThatExceptionOfType(ConflictException.class)
+			.isThrownBy(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null,
+					null, Set.of(this.reviewers.getPublicId(), this.administrators.getPublicId()))));
+
+		assertThat(output).contains("\"separation_of_duties\"");
+		assertThat(reload(this.testUser).getRoles()).extracting(AppRole::getName).containsExactly("Reviewers");
+		assertThat(this.users.existsByUsername("new-user")).isFalse();
+	}
+
+	@Test
+	void aRoleCannotHoldReviewingAndAPrivilegedPermissionTogether() {
+		Set<UUID> both = Set.of(permission(Permissions.REVIEW_DECIDE).getPublicId(),
+				permission(Permissions.SETTINGS_UPDATE).getPublicId());
+
+		assertThatExceptionOfType(ConflictException.class)
+			.isThrownBy(() -> this.service.createRole(new AdminDtos.RoleRequest("Mixed", both)));
+		assertThatExceptionOfType(ConflictException.class)
+			.isThrownBy(() -> this.service.updateRole(this.reviewers.getPublicId(),
+					new AdminDtos.RoleRequest("Reviewers", Set.of(permission(Permissions.REVIEW_DECIDE).getPublicId(),
+							permission(Permissions.SETTINGS_UPDATE).getPublicId()))));
+		assertThat(this.roles.existsByName("Mixed")).isFalse();
+	}
+
+	@Test
+	void givingARoleAPermissionIsRejectedWhenAUserOfTheRoleHoldsAConflictingOneThroughAnotherRole() {
+		this.testUser.getRoles().add(this.reviewers);
+		this.entityManager.flush();
+		this.entityManager.clear();
+
+		assertThatExceptionOfType(ConflictException.class)
+			.isThrownBy(() -> this.service.updateRole(this.managers.getPublicId(),
+					new AdminDtos.RoleRequest("Managers", Set.of(permission(Permissions.USER_READ).getPublicId(),
+							permission(Permissions.USER_CREATE).getPublicId()))));
+	}
+
+	@Test
+	void anActorCannotChangeTheirOwnAccessOrSuspendOrRemoveThemselves(CapturedOutput output) {
+		authenticate("test-user", Permissions.USER_ADD_ROLE, Permissions.USER_REMOVE_ROLE, Permissions.USER_SUSPEND,
+				Permissions.USER_REMOVE);
 
 		assertThatExceptionOfType(AccessDeniedException.class)
 			.isThrownBy(() -> this.lifecycle.suspend(this.testUser.getPublicId(), ReasonCode.OTHER, null));
@@ -378,8 +449,8 @@ class AdministrationServiceTest {
 	}
 
 	@Test
-	void anAdministratorCanChangeTheirOwnNameAndEmail() {
-		authenticate("test-user", "USER_MANAGE");
+	void anActorCanChangeTheirOwnNameAndEmail() {
+		authenticate("test-user", Permissions.USER_UPDATE);
 
 		this.service.updateUser(this.testUser.getPublicId(), new AdminDtos.UserUpdateRequest("Renamed User",
 				"renamed@example.test", null, Set.of(this.managers.getPublicId())));
@@ -388,41 +459,45 @@ class AdministrationServiceTest {
 	}
 
 	@Test
-	void anAdministratorCannotGiveAGroupARoleTheyDoNotHold(CapturedOutput output) {
-		AppRole reportView = this.entityManager.persist(new AppRole("REPORT_VIEW"));
-		authenticate("admin", "GROUP_MANAGE");
+	void anActorCannotGiveARolePrivilegedPermissionsTheyDoNotHold(CapturedOutput output) {
+		authenticate("admin", Permissions.ROLE_ADD_PERMISSION);
+		Set<UUID> privileged = Set.of(permission(Permissions.USER_CREATE).getPublicId());
 
-		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(() -> this.service
-			.createGroup(new AdminDtos.GroupRequest("Viewers", Set.of(reportView.getPublicId()))));
 		assertThatExceptionOfType(AccessDeniedException.class)
-			.isThrownBy(() -> this.service.updateGroup(this.administrators.getPublicId(),
-					new AdminDtos.GroupRequest("Administrators", Set.of(reportView.getPublicId()))));
+			.isThrownBy(() -> this.service.createRole(new AdminDtos.RoleRequest("Creators", privileged)));
+		assertThatExceptionOfType(AccessDeniedException.class)
+			.isThrownBy(() -> this.service.updateRole(this.managers.getPublicId(),
+					new AdminDtos.RoleRequest("Managers", Set.of(permission(Permissions.USER_READ).getPublicId(),
+							permission(Permissions.USER_CREATE).getPublicId()))));
 
 		assertThat(output).contains("\"exceeds_actor_privileges\"");
-		assertThat(reload(this.administrators).getRoles()).isEmpty();
+		assertThat(reload(this.managers).getPermissions()).extracting(AppPermission::getName)
+			.containsExactly("user:read");
 	}
 
 	@Test
-	void anAdministratorCanKeepARoleTheyDoNotHoldOnAGroupTheyChange() {
-		authenticate("admin", "GROUP_MANAGE");
+	void givingARolePermissionsNeedsTheAddPermissionAndTakingThemAwayTheRemovePermission(CapturedOutput output) {
+		authenticate("admin", Permissions.ROLE_CREATE, Permissions.ROLE_UPDATE);
 
-		AppGroup group = this.service.updateGroup(this.managers.getPublicId(),
-				new AdminDtos.GroupRequest("Team Managers", Set.of(this.userManage.getPublicId())));
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(() -> this.service
+			.createRole(new AdminDtos.RoleRequest("Readers", Set.of(permission(Permissions.USER_READ).getPublicId()))));
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(() -> this.service
+			.updateRole(this.managers.getPublicId(), new AdminDtos.RoleRequest("Managers", null)));
 
-		assertThat(group.getName()).isEqualTo("Team Managers");
-		assertThat(group.getRoles()).containsExactly(this.userManage);
+		assertThat(output).contains("\"missing_permission\"");
+		assertThat(reload(this.managers).getPermissions()).extracting(AppPermission::getName)
+			.containsExactly("user:read");
 	}
 
 	@Test
-	void aReservedRoleCannotBeDeleted(CapturedOutput output) {
-		AppRole roleManage = this.entityManager.persist(new AppRole("ROLE_MANAGE"));
-		authenticate("admin", "ROLE_MANAGE");
+	void anActorCanKeepAPermissionTheyDoNotHoldOnARoleTheyRename() {
+		authenticate("admin", Permissions.ROLE_UPDATE);
 
-		assertThatExceptionOfType(AccessDeniedException.class)
-			.isThrownBy(() -> this.service.deleteRole(roleManage.getPublicId()));
+		AppRole role = this.service.updateRole(this.administrators.getPublicId(),
+				new AdminDtos.RoleRequest("Creators", Set.of(permission(Permissions.USER_CREATE).getPublicId())));
 
-		assertThat(output).contains("\"reserved_role\"");
-		assertThat(this.roles.existsById(roleManage.getId())).isTrue();
+		assertThat(role.getName()).isEqualTo("Creators");
+		assertThat(role.getPermissions()).extracting(AppPermission::getName).containsExactly("user:create");
 	}
 
 	@Test
@@ -437,10 +512,10 @@ class AdministrationServiceTest {
 	@Test
 	void revokesEveryUsersSessionsExceptTheCallers() {
 		AppUser admin = new AppUser("admin", "Administrator", null);
-		admin.getGroups().add(this.managers);
+		admin.getRoles().add(this.managers);
 		this.entityManager.persist(admin);
 		signIn("session-2", "admin");
-		authenticate("admin", "USER_MANAGE");
+		authenticate("admin", Permissions.USER_REVOKE_SESSION);
 
 		this.service.revokeAllSessions();
 
@@ -448,10 +523,37 @@ class AdministrationServiceTest {
 		assertThat(sessionOf("admin").isExpired()).isFalse();
 	}
 
-	private void authenticate(String username, String... roles) {
+	@Test
+	void theSeededPermissionsAreTheOnesTheCodeChecks() throws Exception {
+		Set<String> constants = new java.util.HashSet<>();
+		for (java.lang.reflect.Field field : Permissions.class.getDeclaredFields()) {
+			if (java.lang.reflect.Modifier.isPublic(field.getModifiers())) {
+				constants.add((String) field.get(null));
+			}
+		}
+
+		assertThat(this.permissions.findAll()).extracting(AppPermission::getName)
+			.containsExactlyInAnyOrderElementsOf(constants);
+		assertThat(this.permissions.findAll()).filteredOn(AppPermission::isPrivileged)
+			.extracting(AppPermission::getName)
+			.containsExactlyInAnyOrder("user:create", "user:add-role", "user:unsuspend", "role:add-permission",
+					"settings:update");
+		AppPermission decide = permission(Permissions.REVIEW_DECIDE);
+		assertThat(this.permissions.findAll()).filteredOn(AppPermission::isPrivileged)
+			.allSatisfy(privileged -> assertThat(decide.conflictsWith(privileged)).isTrue());
+	}
+
+	private AppPermission permission(String name) {
+		return this.permissions.findAll()
+			.stream()
+			.filter(permission -> permission.getName().equals(name))
+			.findFirst()
+			.orElseThrow();
+	}
+
+	private void authenticate(String username, String... authorities) {
 		SecurityContextHolder.getContext()
-			.setAuthentication(new TestingAuthenticationToken(username, null,
-					Arrays.stream(roles).map(role -> "ROLE_" + role).toArray(String[]::new)));
+			.setAuthentication(new TestingAuthenticationToken(username, null, authorities));
 	}
 
 	@AfterEach

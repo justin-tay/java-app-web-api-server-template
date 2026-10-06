@@ -27,11 +27,11 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
+import com.example.commons.accounts.Permissions;
 import com.example.commons.accounts.admin.AccountAuditLogger;
 import com.example.commons.accounts.admin.AccountAuditLogger.UserState;
 import com.example.commons.accounts.admin.AccountLifecycleService;
-import com.example.commons.accounts.admin.AdminDtos.Summary;
-import com.example.commons.accounts.admin.AdministrationService;
+import com.example.commons.accounts.admin.Actor;
 import com.example.commons.accounts.domain.AccountAuditEvent;
 import com.example.commons.accounts.domain.AccountAuditEventRepository;
 import com.example.commons.accounts.domain.AccountReviewAttestation;
@@ -42,8 +42,8 @@ import com.example.commons.accounts.domain.AccountReviewOutcome;
 import com.example.commons.accounts.domain.AccountReviewPopulationEntry;
 import com.example.commons.accounts.domain.AccountReviewPopulationEntryRepository;
 import com.example.commons.accounts.domain.AccountStatus;
-import com.example.commons.accounts.domain.AppGroup;
-import com.example.commons.accounts.domain.AppGroupRepository;
+import com.example.commons.accounts.domain.AppRole;
+import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
 import com.example.commons.accounts.domain.Auditor;
@@ -68,16 +68,22 @@ import com.example.commons.web.problem.ConflictException;
 import com.example.commons.web.problem.ResourceNotFoundException;
 
 /**
- * Creates account review tasks and lets reviewers work through them: confirming,
- * re-grouping or removing the active accounts, and confirming the suspended and removed
- * populations. A task completes by itself when the work is done, and storing its report
- * is part of that (see docs/adr/0037).
+ * Creates account review tasks and lets reviewers work through them: confirming, removing
+ * roles from or removing the active accounts, and, in the privileged account review,
+ * confirming the suspended and removed populations. A task completes by itself when the
+ * work is done, and storing its report is part of that (see docs/adr/0037 and
+ * docs/adr/0038).
  *
  * <p>
  * The scope of a task is fixed when it is created. A pending item shows the live account;
  * a decision freezes what the reviewer saw, and a confirmed population freezes its list.
  * A reviewer cannot act on their own account, and a batch is applied entirely or not at
  * all.
+ *
+ * <p>
+ * A reviewer removes access and never grants it. Removing an account needs
+ * {@code user:remove}, and removing a role {@code user:remove-role}, as well as
+ * {@code review:decide}; adding a role is refused.
  */
 @Transactional
 public class AccountReviewService {
@@ -93,10 +99,10 @@ public class AccountReviewService {
 	 *
 	 * @param outcome one outcome
 	 * @param department the exact department
-	 * @param group the exact group name
+	 * @param role the exact role name
 	 * @param search matches a username or name containing it
 	 */
-	public record ItemQuery(AccountReviewOutcome outcome, String department, String group, String search) {
+	public record ItemQuery(AccountReviewOutcome outcome, String department, String role, String search) {
 	}
 
 	/**
@@ -133,7 +139,7 @@ public class AccountReviewService {
 
 	private final AppUserRepository users;
 
-	private final AppGroupRepository groups;
+	private final AppRoleRepository roles;
 
 	private final AccountAuditEventRepository auditEvents;
 
@@ -151,7 +157,7 @@ public class AccountReviewService {
 
 	public AccountReviewService(TaskRepository tasks, AccountReviewItemRepository items,
 			AccountReviewAttestationRepository attestations, AccountReviewPopulationEntryRepository entries,
-			AppUserRepository users, AppGroupRepository groups, AccountAuditEventRepository auditEvents,
+			AppUserRepository users, AppRoleRepository roles, AccountAuditEventRepository auditEvents,
 			AccountLifecycleService lifecycle, SessionRevocationService sessionRevocationService,
 			AccountAuditLogger auditLogger, AccountReviewReports reports, Clock clock, ZoneId zone) {
 		this.tasks = tasks;
@@ -159,7 +165,7 @@ public class AccountReviewService {
 		this.attestations = attestations;
 		this.entries = entries;
 		this.users = users;
-		this.groups = groups;
+		this.roles = roles;
 		this.auditEvents = auditEvents;
 		this.lifecycle = lifecycle;
 		this.sessionRevocationService = sessionRevocationService;
@@ -170,22 +176,30 @@ public class AccountReviewService {
 	}
 
 	/**
-	 * Creates the task for a review period, with one item for every account that is
-	 * active now. A task with no active accounts is complete once both populations are
-	 * confirmed.
+	 * Creates the task for a review period, with one item for every active account of its
+	 * class: the privileged review takes the accounts that are privileged now and the
+	 * non-privileged review the others. A privileged review with no active accounts is
+	 * complete once both populations are confirmed.
+	 * @param type {@link Task#PRIVILEGED_ACCOUNT_REVIEW} or
+	 * {@link Task#NON_PRIVILEGED_ACCOUNT_REVIEW}
 	 * @param period the review period
 	 * @return the task
 	 */
-	public Task createTask(ReviewPeriod period) {
-		Task task = this.tasks
-			.saveAndFlush(new Task(Task.ACCOUNT_REVIEW, period.start(), period.due(), this.clock.instant()));
+	public Task createTask(String type, ReviewPeriod period) {
+		if (!Task.ACCOUNT_REVIEWS.contains(type)) {
+			throw new IllegalArgumentException("Not an account review type: " + type);
+		}
+		boolean privilegedReview = Task.PRIVILEGED_ACCOUNT_REVIEW.equals(type);
+		Task task = this.tasks.saveAndFlush(new Task(type, period.start(), period.due(), this.clock.instant()));
 		List<AccountReviewItem> created = this.users.findByStatus(AccountStatus.ACTIVE)
 			.stream()
-			.map(user -> new AccountReviewItem(task.getId(), user))
+			.filter(user -> user.isPrivileged() == privilegedReview)
+			.map(user -> new AccountReviewItem(task.getId(), user,
+					privilegedReview ? ReviewItems.privilegedPermissions(user) : null))
 			.toList();
 		this.items.saveAll(created);
 		this.auditLogger.record("create_review_task", "REVIEW", task.getPublicId().toString(),
-				"account_review " + period.start(), null, null, Map.of("startDate", period.start().toString(),
+				type + " " + period.start(), null, null, Map.of("type", type, "startDate", period.start().toString(),
 						"dueDate", period.due().toString(), "itemCount", created.size()));
 		return task;
 	}
@@ -222,7 +236,7 @@ public class AccountReviewService {
 			byOutcome.put((AccountReviewOutcome) row[0], (Long) row[1]);
 		}
 		long confirmed = byOutcome.getOrDefault(AccountReviewOutcome.CONFIRMED, 0L);
-		long edited = byOutcome.getOrDefault(AccountReviewOutcome.CONFIRMED_GROUPS_EDITED, 0L);
+		long edited = byOutcome.getOrDefault(AccountReviewOutcome.CONFIRMED_ROLES_EDITED, 0L);
 		Counts counts = new Counts(byOutcome.getOrDefault(AccountReviewOutcome.PENDING, 0L), confirmed, edited,
 				byOutcome.getOrDefault(AccountReviewOutcome.REMOVED, 0L));
 		long decided = confirmed + edited;
@@ -231,10 +245,10 @@ public class AccountReviewService {
 			.stream()
 			.collect(Collectors.toMap(AccountReviewAttestation::getPopulation, attestation -> attestation));
 		boolean overdue = task.isOpen() && task.getDueDate().isBefore(today());
+		Populations populations = isPrivileged(task) ? new Populations(status(attested.get(ReviewPopulation.SUSPENDED)),
+				status(attested.get(ReviewPopulation.REMOVED))) : null;
 		return new TaskResponse(task.getPublicId(), task.getType(), task.getStatus().value(), task.getStartDate(),
-				task.getDueDate(), task.getCompletedAt(), task.getCompletedBy(), overdue, counts, progress,
-				new Populations(status(attested.get(ReviewPopulation.SUSPENDED)),
-						status(attested.get(ReviewPopulation.REMOVED))),
+				task.getDueDate(), task.getCompletedAt(), task.getCompletedBy(), overdue, counts, progress, populations,
 				this.reports.exists(task));
 	}
 
@@ -255,11 +269,12 @@ public class AccountReviewService {
 
 	/**
 	 * Lists one population of a task: live until it is confirmed, then the frozen list.
+	 * Only the privileged account review has populations.
 	 */
 	@Transactional(readOnly = true)
 	public Page<PopulationEntryResponse> population(UUID taskId, ReviewPopulation population, PopulationQuery query,
 			Pageable pageable) {
-		List<PopulationEntryResponse> rows = populationRows(task(taskId), population).stream()
+		List<PopulationEntryResponse> rows = populationRows(privilegedTask(taskId), population).stream()
 			.filter(row -> matches(row, query))
 			.toList();
 		return ListPaging.page(rows, pageable, POPULATION_ORDER);
@@ -276,31 +291,20 @@ public class AccountReviewService {
 			.map(ReviewItemResponse::department)
 			.filter(java.util.Objects::nonNull)
 			.forEach(departments::add);
-		for (ReviewPopulation population : ReviewPopulation.values()) {
-			populationRows(task, population).stream()
-				.map(PopulationEntryResponse::department)
-				.filter(java.util.Objects::nonNull)
-				.forEach(departments::add);
+		if (isPrivileged(task)) {
+			for (ReviewPopulation population : ReviewPopulation.values()) {
+				populationRows(task, population).stream()
+					.map(PopulationEntryResponse::department)
+					.filter(java.util.Objects::nonNull)
+					.forEach(departments::add);
+			}
 		}
 		return List.copyOf(departments);
 	}
 
 	/**
-	 * Returns the groups the caller may assign: those whose roles they hold, as in
-	 * docs/adr/0022.
-	 */
-	@Transactional(readOnly = true)
-	public List<Summary> assignableGroups() {
-		return this.groups.findAll()
-			.stream()
-			.filter(group -> AdministrationService.holdsRolesOf(List.of(group)))
-			.map(group -> new Summary(group.getPublicId(), group.getName()))
-			.sorted(Comparator.comparing(Summary::name, String.CASE_INSENSITIVE_ORDER))
-			.toList();
-	}
-
-	/**
-	 * Confirms or removes the given items, all or none. Removing needs a reason.
+	 * Confirms or removes the given items, all or none. Removing needs a reason, and the
+	 * reviewer must hold {@code user:remove}.
 	 * @param taskId the task
 	 * @param itemIds the items
 	 * @param decision confirm or remove
@@ -309,6 +313,11 @@ public class AccountReviewService {
 	 */
 	public void decide(UUID taskId, List<UUID> itemIds, Decision decision, ReasonCode reason, String note) {
 		Task task = openTask(taskId);
+		if (decision == Decision.REMOVE && !Actor.currentHolds(Permissions.USER_REMOVE)) {
+			this.auditLogger.record("review_rejected", "REVIEW", taskId.toString(), "decide", "missing_permission",
+					null, Map.of("taskId", taskId));
+			throw new AccessDeniedException("Removing an account needs " + Permissions.USER_REMOVE + ".");
+		}
 		Set<UUID> ids = new LinkedHashSet<>(itemIds);
 		Map<UUID, AccountReviewItem> found = this.items.findByTaskIdAndPublicIdIn(task.getId(), ids)
 			.stream()
@@ -324,7 +333,7 @@ public class AccountReviewService {
 			AccountReviewItem item = found.get(id);
 			AppUser account = item.getUser();
 			if (decision == Decision.CONFIRM) {
-				item.confirm(account, ReviewItems.groupNames(account), actor, this.clock.instant());
+				item.confirm(account, ReviewItems.roleNames(account), actor, this.clock.instant());
 				this.items.save(item);
 				this.auditLogger.record("confirm_review_item", "REVIEW", item.getPublicId().toString(),
 						item.getUsername(), null, null, Map.of("taskId", taskId));
@@ -342,14 +351,21 @@ public class AccountReviewService {
 	}
 
 	/**
-	 * Sets the groups of an active account in a task, which confirms it in the same step.
-	 * The reviewer may add only groups whose roles they hold (docs/adr/0022).
+	 * Sets the roles of an active account in a task, which confirms it in the same step.
+	 * The reviewer can only remove roles: a role the account does not hold is refused,
+	 * because adding access is not the reviewer's to do (docs/adr/0038). Needs
+	 * {@code user:remove-role}.
 	 * @param taskId the task
 	 * @param itemId the item
-	 * @param groupIds the full set of groups the account should hold
+	 * @param roleIds the full set of roles the account should hold
 	 */
-	public void editGroups(UUID taskId, UUID itemId, Set<UUID> groupIds) {
+	public void editRoles(UUID taskId, UUID itemId, Set<UUID> roleIds) {
 		Task task = openTask(taskId);
+		if (!Actor.currentHolds(Permissions.USER_REMOVE_ROLE)) {
+			this.auditLogger.record("review_rejected", "REVIEW", itemId.toString(), "edit_roles", "missing_permission",
+					null, Map.of("taskId", taskId));
+			throw new AccessDeniedException("Removing a role needs " + Permissions.USER_REMOVE_ROLE + ".");
+		}
 		AccountReviewItem item = this.items.findByPublicId(itemId)
 			.filter(candidate -> candidate.getTaskId().equals(task.getId()))
 			.orElseThrow(() -> new ResourceNotFoundException("Review item"));
@@ -359,44 +375,45 @@ public class AccountReviewService {
 			throw new ConflictException("The item is not an active account or is already decided.");
 		}
 		AppUser account = item.getUser();
-		Set<AppGroup> requested = Set.copyOf(this.groups.findAllByPublicIdIn(groupIds));
-		if (requested.size() != groupIds.size()) {
-			throw new ResourceNotFoundException("Group");
+		Set<AppRole> requested = Set.copyOf(this.roles.findAllByPublicIdIn(roleIds));
+		if (requested.size() != roleIds.size()) {
+			throw new ResourceNotFoundException("Role");
 		}
-		List<String> before = ReviewItems.groupNames(account);
-		Set<AppGroup> added = new java.util.HashSet<>(requested);
-		added.removeAll(account.getGroups());
+		List<String> before = ReviewItems.roleNames(account);
 		UserState state = UserState.of(account);
-		if (requested.equals(account.getGroups())) {
-			throw new BadRequestException("The groups are unchanged.");
+		if (requested.equals(account.getRoles())) {
+			throw new BadRequestException("The roles are unchanged.");
 		}
-		if (!AdministrationService.holdsRolesOf(added)) {
-			this.auditLogger.userUpdateRejected(state, "exceeds_actor_privileges");
-			throw new AccessDeniedException("Cannot grant a role the reviewer does not hold.");
+		if (!account.getRoles().containsAll(requested)) {
+			this.auditLogger.userUpdateRejected(state, "role_added_in_review");
+			throw new AccessDeniedException("A reviewer cannot add a role.");
 		}
-		account.getGroups().clear();
-		account.getGroups().addAll(requested);
+		account.getRoles().clear();
+		account.getRoles().addAll(requested);
 		this.sessionRevocationService.revoke(account.getUsername(), "privilege_change");
 		this.auditLogger.userUpdated(state, UserState.of(account));
-		List<String> after = ReviewItems.groupNames(account);
-		item.confirmWithGroupsEdited(account, before, after, actor, this.clock.instant());
+		List<String> after = ReviewItems.roleNames(account);
+		item.confirmWithRolesEdited(account, before, after, actor, this.clock.instant());
 		this.items.saveAndFlush(item);
-		this.auditLogger.record("edit_review_item_groups", "REVIEW", item.getPublicId().toString(), item.getUsername(),
-				null, null,
-				Map.of("taskId", taskId, "groupsAdded", after.stream().filter(name -> !before.contains(name)).toList(),
-						"groupsRemoved", before.stream().filter(name -> !after.contains(name)).toList()));
+		this.auditLogger.record("edit_review_item_roles", "REVIEW", item.getPublicId().toString(), item.getUsername(),
+				null, null, Map.of("taskId", taskId, "rolesRemoved",
+						before.stream().filter(name -> !after.contains(name)).toList()));
 		completeIfFinished(task, actor);
 	}
 
 	/**
 	 * Confirms the suspended or the removed population of a task, once. The list as it is
-	 * now is frozen and the population becomes read-only.
+	 * now is frozen and the population becomes read-only. Only the privileged account
+	 * review has populations.
 	 * @param taskId the task
 	 * @param population the population
 	 * @param note the optional note
 	 */
 	public void confirmPopulation(UUID taskId, ReviewPopulation population, String note) {
 		Task task = openTask(taskId);
+		if (!isPrivileged(task)) {
+			throw new BadRequestException("Only the privileged account review has populations.");
+		}
 		if (this.attestations.findByTaskIdAndPopulation(task.getId(), population).isPresent()) {
 			throw new ConflictException("The population is already confirmed.");
 		}
@@ -421,7 +438,7 @@ public class AccountReviewService {
 	 */
 	@Transactional(readOnly = true)
 	public List<UUID> openTaskIds() {
-		return this.tasks.findByTypeAndStatus(Task.ACCOUNT_REVIEW, TaskStatus.OPEN)
+		return this.tasks.findByTypeInAndStatus(Task.ACCOUNT_REVIEWS, TaskStatus.OPEN)
 			.stream()
 			.map(Task::getPublicId)
 			.toList();
@@ -438,8 +455,9 @@ public class AccountReviewService {
 	}
 
 	private void completeIfFinished(Task task, String by) {
+		int populations = isPrivileged(task) ? ReviewPopulation.values().length : 0;
 		if (!task.isOpen() || this.items.countPendingWithActiveAccount(task.getId()) > 0
-				|| this.attestations.findByTaskId(task.getId()).size() < ReviewPopulation.values().length) {
+				|| this.attestations.findByTaskId(task.getId()).size() < populations) {
 			return;
 		}
 		task.complete(this.clock.instant(), by);
@@ -478,14 +496,14 @@ public class AccountReviewService {
 			boolean pending = item.isPending();
 			AppUser live = item.getUser();
 			String department = pending && live != null ? live.getDepartment() : item.getDepartment();
-			List<String> groups = pending ? (live == null ? List.of() : ReviewItems.groupNames(live))
-					: item.getGroupsAfter() == null ? List.of() : item.getGroupsAfter();
+			List<String> roleNames = pending ? (live == null ? List.of() : ReviewItems.roleNames(live))
+					: item.getRolesAfter() == null ? List.of() : item.getRolesAfter();
 			AccountAuditEvent removal = item.getRemovalAuditEventId() == null ? null
 					: removals.get(item.getRemovalAuditEventId());
-			String remark = ReviewRemarks.remark(item.getOutcome(), item.getGroupsBefore(), item.getGroupsAfter(),
+			String remark = ReviewRemarks.remark(item.getOutcome(), item.getRolesBefore(), item.getRolesAfter(),
 					removal == null ? null : removal.getReasonCode());
 			rows.add(new ReviewReportModel.ItemRow(rows.size() + 1, displayName(item), item.getUsername(), department,
-					String.join(", ", groups), outcomeLabel(item.getOutcome()), remark, item.getDecidedAt()));
+					String.join(", ", roleNames), outcomeLabel(item.getOutcome()), remark, item.getDecidedAt()));
 			int column = item.getOutcome().ordinal();
 			byDepartment.computeIfAbsent(department == null ? "(none)" : department, key -> new long[5])[column]++;
 			byDepartment.get(department == null ? "(none)" : department)[4]++;
@@ -496,13 +514,15 @@ public class AccountReviewService {
 			.stream()
 			.map(entry -> departmentRow(entry.getKey(), entry.getValue()))
 			.toList();
-		return new ReviewReportModel(draft, this.zone, task.getStartDate(), task.getDueDate(), task.getDueDate(),
-				task.getCompletedAt(), task.getCompletedBy(), this.clock.instant(), generatedBy,
+		boolean privileged = isPrivileged(task);
+		return new ReviewReportModel(draft, privileged, this.zone, task.getStartDate(), task.getDueDate(),
+				task.getDueDate(), task.getCompletedAt(), task.getCompletedBy(), this.clock.instant(), generatedBy,
 				new ReviewReportModel.Summary(total[AccountReviewOutcome.CONFIRMED.ordinal()],
-						total[AccountReviewOutcome.CONFIRMED_GROUPS_EDITED.ordinal()],
+						total[AccountReviewOutcome.CONFIRMED_ROLES_EDITED.ordinal()],
 						total[AccountReviewOutcome.REMOVED.ordinal()], total[AccountReviewOutcome.PENDING.ordinal()],
 						total[4]),
-				departments, rows, section(task, ReviewPopulation.SUSPENDED), section(task, ReviewPopulation.REMOVED));
+				departments, rows, privileged ? section(task, ReviewPopulation.SUSPENDED) : null,
+				privileged ? section(task, ReviewPopulation.REMOVED) : null);
 	}
 
 	private ReviewReportModel.PopulationSection section(Task task, ReviewPopulation population) {
@@ -516,7 +536,7 @@ public class AccountReviewService {
 
 	private static ReviewReportModel.DepartmentRow departmentRow(String department, long[] counts) {
 		return new ReviewReportModel.DepartmentRow(department, counts[AccountReviewOutcome.CONFIRMED.ordinal()],
-				counts[AccountReviewOutcome.CONFIRMED_GROUPS_EDITED.ordinal()],
+				counts[AccountReviewOutcome.CONFIRMED_ROLES_EDITED.ordinal()],
 				counts[AccountReviewOutcome.REMOVED.ordinal()], counts[AccountReviewOutcome.PENDING.ordinal()],
 				counts[4]);
 	}
@@ -529,9 +549,24 @@ public class AccountReviewService {
 		return switch (outcome) {
 			case PENDING -> "Pending";
 			case CONFIRMED -> "Confirmed";
-			case CONFIRMED_GROUPS_EDITED -> "Confirmed (Groups Edited)";
+			case CONFIRMED_ROLES_EDITED -> "Confirmed (Roles Edited)";
 			case REMOVED -> "Removed";
 		};
+	}
+
+	private static boolean isPrivileged(Task task) {
+		return Task.PRIVILEGED_ACCOUNT_REVIEW.equals(task.getType());
+	}
+
+	/**
+	 * Returns a task that has populations, which only the privileged review has.
+	 */
+	private Task privilegedTask(UUID taskId) {
+		Task task = task(taskId);
+		if (!isPrivileged(task)) {
+			throw new BadRequestException("Only the privileged account review has populations.");
+		}
+		return task;
 	}
 
 	private Task openTask(UUID taskId) {
@@ -571,7 +606,7 @@ public class AccountReviewService {
 
 	private static boolean inActiveCategory(AccountReviewItem item) {
 		return switch (item.getOutcome()) {
-			case CONFIRMED, CONFIRMED_GROUPS_EDITED -> true;
+			case CONFIRMED, CONFIRMED_ROLES_EDITED -> true;
 			case PENDING -> item.getUser() != null && item.getUser().getStatus() == AccountStatus.ACTIVE;
 			case REMOVED -> false;
 		};
@@ -582,21 +617,21 @@ public class AccountReviewService {
 		if (item.isPending()) {
 			AppUser user = item.getUser();
 			return new ReviewItemResponse(item.getPublicId(), item.getUserPublicId(), item.getUsername(),
-					user.getName(), user.getDepartment(), ReviewItems.groupNames(user), null, user.getLastLoginAt(),
-					item.getOutcome().value(), null, own, null, null);
+					user.getName(), user.getDepartment(), ReviewItems.roleNames(user), null,
+					item.getPrivilegedPermissions(), user.getLastLoginAt(), item.getOutcome().value(), null, own, null,
+					null);
 		}
 		return new ReviewItemResponse(item.getPublicId(), item.getUserPublicId(), item.getUsername(),
-				item.getFullName(), item.getDepartment(), item.getGroupsAfter(), item.getGroupsBefore(),
-				item.getLastLoginAt(), item.getOutcome().value(),
-				ReviewRemarks.remark(item.getOutcome(), item.getGroupsBefore(), item.getGroupsAfter(), null), own,
+				item.getFullName(), item.getDepartment(), item.getRolesAfter(), item.getRolesBefore(),
+				item.getPrivilegedPermissions(), item.getLastLoginAt(), item.getOutcome().value(),
+				ReviewRemarks.remark(item.getOutcome(), item.getRolesBefore(), item.getRolesAfter(), null), own,
 				item.getDecidedBy(), item.getDecidedAt());
 	}
 
 	private static boolean matches(ReviewItemResponse row, ItemQuery query) {
 		return (query.outcome() == null || row.outcome().equals(query.outcome().value()))
 				&& (query.department() == null || query.department().equalsIgnoreCase(row.department()))
-				&& (query.group() == null
-						|| row.groups().stream().anyMatch(name -> name.equalsIgnoreCase(query.group())))
+				&& (query.role() == null || row.roles().stream().anyMatch(name -> name.equalsIgnoreCase(query.role())))
 				&& containsText(query.search(), row.username(), row.name());
 	}
 

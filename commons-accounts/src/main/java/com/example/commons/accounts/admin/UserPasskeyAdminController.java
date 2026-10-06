@@ -26,7 +26,6 @@ import com.example.commons.web.problem.ResourceNotFoundException;
 @RestController
 @Validated
 @RequestMapping("/admin/users/{id}/passkeys")
-@PreAuthorize("hasRole('USER_MANAGE')")
 public class UserPasskeyAdminController {
 
 	private final AdministrationService service;
@@ -39,11 +38,13 @@ public class UserPasskeyAdminController {
 	}
 
 	@GetMapping
+	@PreAuthorize("hasAuthority('user:read')")
 	public List<Passkey> list(@PathVariable UUID id) {
 		return this.passkeyManager.list(this.service.user(id).getPublicId().toString());
 	}
 
 	@DeleteMapping("/{credentialId}")
+	@PreAuthorize("hasAuthority('user:remove-passkey')")
 	public ResponseEntity<Void> remove(@PathVariable UUID id, @PathVariable String credentialId) {
 		if (!this.passkeyManager.remove(this.service.user(id).getPublicId().toString(), credentialId)) {
 			throw new ResourceNotFoundException("Passkey");

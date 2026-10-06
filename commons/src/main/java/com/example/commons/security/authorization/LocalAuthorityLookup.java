@@ -7,7 +7,7 @@ import org.springframework.security.core.GrantedAuthority;
 
 /**
  * Looks up the authorities the application grants a user, from the application's own
- * local user, group, and role model rather than from identity provider claims (see
+ * local user, role, and permission model rather than from identity provider claims (see
  * docs/adr/0005).
  *
  * <p>
@@ -26,7 +26,7 @@ public interface LocalAuthorityLookup {
 	 * Returns the authorities of the enabled local user with the given username.
 	 * @param username the username from the identity provider's
 	 * {@code user-name-attribute} claim
-	 * @return the user's {@code ROLE_} authorities, or empty when there is no enabled
+	 * @return the user's permissions as authorities, or empty when there is no enabled
 	 * local user with that username, which denies the login or ends the session
 	 */
 	Optional<Collection<GrantedAuthority>> findAuthorities(String username);

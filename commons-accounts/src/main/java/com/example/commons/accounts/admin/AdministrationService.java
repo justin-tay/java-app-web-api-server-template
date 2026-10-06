@@ -2,10 +2,13 @@ package com.example.commons.accounts.admin;
 
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -17,12 +20,12 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.commons.accounts.admin.AccountAuditLogger.GroupState;
+import com.example.commons.accounts.Permissions;
 import com.example.commons.accounts.admin.AccountAuditLogger.RoleState;
 import com.example.commons.accounts.admin.AccountAuditLogger.UserState;
 import com.example.commons.accounts.domain.AccountStatus;
-import com.example.commons.accounts.domain.AppGroup;
-import com.example.commons.accounts.domain.AppGroupRepository;
+import com.example.commons.accounts.domain.AppPermission;
+import com.example.commons.accounts.domain.AppPermissionRepository;
 import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppUser;
@@ -32,51 +35,38 @@ import com.example.commons.web.problem.ConflictException;
 import com.example.commons.web.problem.ResourceNotFoundException;
 
 /**
- * Changes the local user, group, and role model, logging every change and rejection
+ * Changes the local user, role, and permission model, logging every change and rejection
  * through {@link AccountAuditLogger}.
  *
  * <p>
- * Each management role is kept from granting more than its holder has (see
- * docs/adr/0022): an administrator cannot grant a role they do not hold, other than one
- * in {@link #GRANTABLE_WITHOUT_HOLDING}, whether by giving a user a group or by giving a
- * group a role; cannot change their own groups, or suspend, unsuspend, or remove
- * themselves (see {@link AccountLifecycleService}); and cannot delete a
- * {@link #RESERVED_ROLES reserved role}. Role names cannot be changed at all, because a
- * role's name is the authority the application checks. These checks apply to an
- * authenticated administrator; a change the application makes itself, with no
- * authenticated user, is trusted.
+ * A change needs the permission for what it does: {@code user:add-role} to give a user a
+ * role and {@code user:remove-role} to take one away, and {@code role:add-permission} and
+ * {@code role:remove-permission} for a role's permissions. Granting is kept from going
+ * beyond the grantor (see docs/adr/0038): an actor can grant only the privileged
+ * permissions they hold themselves, and cannot change their own roles, or suspend,
+ * unsuspend, or remove themselves (see {@link AccountLifecycleService}). No user may hold
+ * two permissions the schema lists as conflicting, whether through one role or several.
+ * These checks apply to an authenticated user; a change the application makes itself,
+ * with no authenticated user, is trusted.
  */
 @Transactional
 public class AdministrationService {
 
-	/**
-	 * The roles the administration API itself requires. Deleting one would lock every
-	 * administrator out of the part of the API it guards.
-	 */
-	public static final Set<String> RESERVED_ROLES = Set.of("USER_MANAGE", "GROUP_MANAGE", "ROLE_MANAGE");
-
-	/**
-	 * Roles an administrator can grant without holding them. Reviewing accounts is kept
-	 * apart from administering them, so administrators do not hold it, yet they maintain
-	 * who does (see docs/adr/0032). Granting it is audited like any other change.
-	 */
-	public static final Set<String> GRANTABLE_WITHOUT_HOLDING = Set.of("ACCOUNT_REVIEWER");
-
 	private final AppUserRepository users;
 
-	private final AppGroupRepository groups;
-
 	private final AppRoleRepository roles;
+
+	private final AppPermissionRepository permissions;
 
 	private final SessionRevocationService sessionRevocationService;
 
 	private final AccountAuditLogger auditLogger;
 
-	public AdministrationService(AppUserRepository users, AppGroupRepository groups, AppRoleRepository roles,
+	public AdministrationService(AppUserRepository users, AppRoleRepository roles, AppPermissionRepository permissions,
 			SessionRevocationService sessionRevocationService, AccountAuditLogger auditLogger) {
 		this.users = users;
-		this.groups = groups;
 		this.roles = roles;
+		this.permissions = permissions;
 		this.sessionRevocationService = sessionRevocationService;
 		this.auditLogger = auditLogger;
 	}
@@ -86,14 +76,22 @@ public class AdministrationService {
 			this.auditLogger.userCreationRejected(request.username(), "username_exists");
 			throw new ConflictException("Username already exists.");
 		}
-		Set<AppGroup> requestedGroups = groups(request.groupIds());
-		if (!holdsRolesOf(requestedGroups)) {
+		Set<AppRole> requestedRoles = roles(request.roleIds());
+		if (!Actor.currentHolds(Permissions.USER_ADD_ROLE)) {
+			this.auditLogger.userCreationRejected(request.username(), "missing_permission");
+			throw new AccessDeniedException("Giving a user a role needs " + Permissions.USER_ADD_ROLE + ".");
+		}
+		if (!mayGrantRoles(requestedRoles)) {
 			this.auditLogger.userCreationRejected(request.username(), "exceeds_actor_privileges");
-			throw new AccessDeniedException("Cannot grant a role the administrator does not hold.");
+			throw new AccessDeniedException("Cannot grant a privileged permission the actor does not hold.");
+		}
+		if (conflict(permissionsOf(requestedRoles)).isPresent()) {
+			this.auditLogger.userCreationRejected(request.username(), "separation_of_duties");
+			throw new ConflictException("The roles give the user permissions that must not be held together.");
 		}
 		AppUser user = new AppUser(request.username(), request.name(), request.email(),
 				blankToNull(request.department()));
-		user.getGroups().addAll(requestedGroups);
+		user.getRoles().addAll(requestedRoles);
 		AppUser saved = this.users.save(user);
 		this.auditLogger.userCreated(UserState.of(saved));
 		return saved;
@@ -102,23 +100,38 @@ public class AdministrationService {
 	public AppUser updateUser(UUID id, AdminDtos.UserUpdateRequest request) {
 		AppUser user = user(id);
 		UserState before = UserState.of(user);
-		Set<UUID> previousGroupIds = user.getGroups().stream().map(AppGroup::getPublicId).collect(Collectors.toSet());
-		Set<AppGroup> requestedGroups = groups(request.groupIds());
-		boolean accessChanged = !previousGroupIds.equals(request.groupIds());
+		Set<UUID> previousRoleIds = user.getRoles().stream().map(AppRole::getPublicId).collect(Collectors.toSet());
+		Set<AppRole> requestedRoles = roles(request.roleIds());
+		boolean accessChanged = !previousRoleIds.equals(request.roleIds());
 		if (accessChanged && isActor(user)) {
 			this.auditLogger.userUpdateRejected(before, "self_modification");
-			throw new AccessDeniedException("Administrators cannot change their own access.");
+			throw new AccessDeniedException("Users cannot change their own access.");
 		}
-		Set<AppGroup> addedGroups = new HashSet<>(requestedGroups);
-		addedGroups.removeAll(user.getGroups());
-		if (!holdsRolesOf(addedGroups)) {
+		Set<AppRole> addedRoles = new HashSet<>(requestedRoles);
+		addedRoles.removeAll(user.getRoles());
+		Set<AppRole> removedRoles = new HashSet<>(user.getRoles());
+		removedRoles.removeAll(requestedRoles);
+		boolean detailsChanged = !Objects.equals(user.getName(), request.name())
+				|| !Objects.equals(user.getEmail(), request.email())
+				|| !Objects.equals(user.getDepartment(), blankToNull(request.department()));
+		if ((!addedRoles.isEmpty() && !Actor.currentHolds(Permissions.USER_ADD_ROLE))
+				|| (!removedRoles.isEmpty() && !Actor.currentHolds(Permissions.USER_REMOVE_ROLE))
+				|| (detailsChanged && !Actor.currentHolds(Permissions.USER_UPDATE))) {
+			this.auditLogger.userUpdateRejected(before, "missing_permission");
+			throw new AccessDeniedException("The change needs permissions the actor does not hold.");
+		}
+		if (!mayGrantRoles(addedRoles)) {
 			this.auditLogger.userUpdateRejected(before, "exceeds_actor_privileges");
-			throw new AccessDeniedException("Cannot grant a role the administrator does not hold.");
+			throw new AccessDeniedException("Cannot grant a privileged permission the actor does not hold.");
+		}
+		if (!addedRoles.isEmpty() && conflict(permissionsOf(requestedRoles)).isPresent()) {
+			this.auditLogger.userUpdateRejected(before, "separation_of_duties");
+			throw new ConflictException("The roles give the user permissions that must not be held together.");
 		}
 		user.update(request.name(), request.email(), blankToNull(request.department()));
-		user.getGroups().clear();
-		user.getGroups().addAll(requestedGroups);
-		if (!previousGroupIds.equals(request.groupIds())) {
+		user.getRoles().clear();
+		user.getRoles().addAll(requestedRoles);
+		if (accessChanged) {
 			this.sessionRevocationService.revoke(user.getUsername(), "privilege_change");
 		}
 		this.auditLogger.userUpdated(before, UserState.of(user));
@@ -137,8 +150,8 @@ public class AdministrationService {
 	}
 
 	/**
-	 * Ends the sessions of every local user except the administrator making the request,
-	 * who stays signed in to respond to the incident that prompted it.
+	 * Ends the sessions of every local user except the one making the request, who stays
+	 * signed in to respond to the incident that prompted it.
 	 */
 	public void revokeAllSessions() {
 		String actor = Actor.current().map(Actor::name).orElse(null);
@@ -168,7 +181,8 @@ public class AdministrationService {
 	 * {@code search} matches a username, name, or email containing it, or an exact ID.
 	 */
 	public record UserQuery(String search, String username, String name, String email, String department,
-			AccountStatus status, Boolean neverSignedIn, UUID groupId, LocalDate createdFrom, LocalDate createdTo) {
+			AccountStatus status, Boolean neverSignedIn, UUID roleId, Boolean privileged, LocalDate createdFrom,
+			LocalDate createdTo) {
 	}
 
 	public Page<AppUser> users(UserQuery query, Pageable pageable) {
@@ -184,10 +198,10 @@ public class AdministrationService {
 					this.<AppUser>contains("name", query.name()), this.<AppUser>contains("email", query.email()),
 					this.<AppUser>equals("department", blankToNull(query.department())),
 					query.status() == null ? null : this.<AppUser>equals("status", query.status()),
-					neverSignedIn(query.neverSignedIn()),
-					query.groupId() == null ? null
+					neverSignedIn(query.neverSignedIn()), privileged(query.privileged()),
+					query.roleId() == null ? null
 							: (Specification<AppUser>) (root, criteria, builder) -> builder
-								.equal(root.join("groups").get("publicId"), query.groupId()),
+								.equal(root.join("roles").get("publicId"), query.roleId()),
 					query.createdFrom() == null ? null
 							: (Specification<AppUser>) (root, criteria, builder) -> builder.greaterThanOrEqualTo(
 									root.get("createdAt"),
@@ -201,91 +215,73 @@ public class AdministrationService {
 		return this.users.findAll(distinct(specification), pageable);
 	}
 
-	public AppGroup createGroup(AdminDtos.GroupRequest request) {
-		if (this.groups.existsByName(request.name())) {
-			this.auditLogger.groupCreationRejected(request.name(), "name_exists");
-			throw new ConflictException("Group name already exists.");
-		}
-		Set<AppRole> requestedRoles = roles(request.roleIds());
-		if (!holds(requestedRoles)) {
-			this.auditLogger.groupCreationRejected(request.name(), "exceeds_actor_privileges");
-			throw new AccessDeniedException("Cannot grant a role the administrator does not hold.");
-		}
-		AppGroup group = new AppGroup(request.name());
-		group.getRoles().addAll(requestedRoles);
-		AppGroup saved = this.groups.save(group);
-		this.auditLogger.groupCreated(GroupState.of(saved));
-		return saved;
-	}
-
-	public AppGroup updateGroup(UUID id, AdminDtos.GroupRequest request) {
-		AppGroup group = group(id);
-		GroupState before = GroupState.of(group);
-		if (!group.getName().equals(request.name()) && this.groups.existsByName(request.name())) {
-			this.auditLogger.groupUpdateRejected(before, request.name(), "name_exists");
-			throw new ConflictException("Group name already exists.");
-		}
-		Set<AppRole> requestedRoles = roles(request.roleIds());
-		Set<AppRole> addedRoles = new HashSet<>(requestedRoles);
-		addedRoles.removeAll(group.getRoles());
-		if (!holds(addedRoles)) {
-			this.auditLogger.groupUpdateRejected(before, request.name(), "exceeds_actor_privileges");
-			throw new AccessDeniedException("Cannot grant a role the administrator does not hold.");
-		}
-		group.setName(request.name());
-		group.getRoles().clear();
-		group.getRoles().addAll(requestedRoles);
-		group.touch();
-		this.auditLogger.groupUpdated(before, GroupState.of(group), this.users.countByGroups_PublicId(id));
-		return group;
-	}
-
-	public void deleteGroup(UUID id) {
-		AppGroup group = group(id);
-		GroupState before = GroupState.of(group);
-		if (this.users.existsByGroups_PublicId(id)) {
-			this.auditLogger.groupDeletionRejected(before, "group_has_users");
-			throw new ConflictException("Group contains users.");
-		}
-		this.groups.delete(group);
-		this.auditLogger.groupDeleted(before);
-	}
-
-	public AppGroup group(UUID id) {
-		return this.groups.findByPublicId(id).orElseThrow(() -> new ResourceNotFoundException("Group"));
-	}
-
-	public Page<AppGroup> groups(String search, String name, UUID roleId, Pageable pageable) {
-		Specification<AppGroup> specification = Specification.allOf(Stream
-			.of(this.<AppGroup>contains("name", search), this.<AppGroup>contains("name", name),
-					roleId == null ? null
-							: (Specification<AppGroup>) (root, query, builder) -> builder
-								.equal(root.join("roles").get("publicId"), roleId))
-			.filter(value -> value != null)
-			.toList());
-		return this.groups.findAll(distinct(specification), pageable);
-	}
-
 	public AppRole createRole(AdminDtos.RoleRequest request) {
 		if (this.roles.existsByName(request.name())) {
 			this.auditLogger.roleCreationRejected(request.name(), "name_exists");
 			throw new ConflictException("Role name already exists.");
 		}
-		AppRole saved = this.roles.save(new AppRole(request.name(), request.displayName()));
+		Set<AppPermission> requested = permissions(request.permissionIds());
+		if (!requested.isEmpty() && !Actor.currentHolds(Permissions.ROLE_ADD_PERMISSION)) {
+			this.auditLogger.roleCreationRejected(request.name(), "missing_permission");
+			throw new AccessDeniedException(
+					"Giving a role a permission needs " + Permissions.ROLE_ADD_PERMISSION + ".");
+		}
+		if (!mayGrant(requested)) {
+			this.auditLogger.roleCreationRejected(request.name(), "exceeds_actor_privileges");
+			throw new AccessDeniedException("Cannot grant a privileged permission the actor does not hold.");
+		}
+		if (conflict(requested).isPresent()) {
+			this.auditLogger.roleCreationRejected(request.name(), "separation_of_duties");
+			throw new ConflictException("The permissions must not be held together.");
+		}
+		AppRole role = new AppRole(request.name());
+		role.getPermissions().addAll(requested);
+		AppRole saved = this.roles.save(role);
 		this.auditLogger.roleCreated(RoleState.of(saved));
 		return saved;
+	}
+
+	public AppRole updateRole(UUID id, AdminDtos.RoleRequest request) {
+		AppRole role = role(id);
+		RoleState before = RoleState.of(role);
+		boolean renamed = !role.getName().equals(request.name());
+		if (renamed && this.roles.existsByName(request.name())) {
+			this.auditLogger.roleUpdateRejected(before, request.name(), "name_exists");
+			throw new ConflictException("Role name already exists.");
+		}
+		Set<AppPermission> requested = permissions(request.permissionIds());
+		Set<AppPermission> added = new HashSet<>(requested);
+		added.removeAll(role.getPermissions());
+		Set<AppPermission> removed = new HashSet<>(role.getPermissions());
+		removed.removeAll(requested);
+		if ((renamed && !Actor.currentHolds(Permissions.ROLE_UPDATE))
+				|| (!added.isEmpty() && !Actor.currentHolds(Permissions.ROLE_ADD_PERMISSION))
+				|| (!removed.isEmpty() && !Actor.currentHolds(Permissions.ROLE_REMOVE_PERMISSION))) {
+			this.auditLogger.roleUpdateRejected(before, request.name(), "missing_permission");
+			throw new AccessDeniedException("The change needs permissions the actor does not hold.");
+		}
+		if (!mayGrant(added)) {
+			this.auditLogger.roleUpdateRejected(before, request.name(), "exceeds_actor_privileges");
+			throw new AccessDeniedException("Cannot grant a privileged permission the actor does not hold.");
+		}
+		if (!added.isEmpty() && conflictsForHolders(role, requested)) {
+			this.auditLogger.roleUpdateRejected(before, request.name(), "separation_of_duties");
+			throw new ConflictException("The permissions must not be held together by a user of the role.");
+		}
+		role.setName(request.name());
+		role.getPermissions().clear();
+		role.getPermissions().addAll(requested);
+		role.touch();
+		this.auditLogger.roleUpdated(before, RoleState.of(role), this.users.countByRoles_PublicId(id));
+		return role;
 	}
 
 	public void deleteRole(UUID id) {
 		AppRole role = role(id);
 		RoleState before = RoleState.of(role);
-		if (RESERVED_ROLES.contains(role.getName())) {
-			this.auditLogger.roleDeletionRejected(before, "reserved_role");
-			throw new AccessDeniedException("Reserved roles cannot be deleted.");
-		}
-		if (this.groups.existsByRoles_PublicId(id)) {
-			this.auditLogger.roleDeletionRejected(before, "role_in_use");
-			throw new ConflictException("Role is assigned to a group.");
+		if (this.users.existsByRoles_PublicId(id)) {
+			this.auditLogger.roleDeletionRejected(before, "role_has_users");
+			throw new ConflictException("Role has users.");
 		}
 		this.roles.delete(role);
 		this.auditLogger.roleDeleted(before);
@@ -295,51 +291,121 @@ public class AdministrationService {
 		return this.roles.findByPublicId(id).orElseThrow(() -> new ResourceNotFoundException("Role"));
 	}
 
-	public Page<AppRole> roles(String search, String name, Pageable pageable) {
-		Specification<AppRole> anyName = isBlank(search) ? null : Specification
-			.anyOf(this.<AppRole>contains("name", search), this.<AppRole>contains("displayName", search));
-		Specification<AppRole> specification = Specification
-			.allOf(Stream.of(anyName, this.<AppRole>contains("name", name)).filter(value -> value != null).toList());
+	public Page<AppRole> roles(String search, String name, UUID permissionId, Pageable pageable) {
+		Specification<AppRole> specification = Specification.allOf(Stream
+			.of(this.<AppRole>contains("name", search), this.<AppRole>contains("name", name),
+					permissionId == null ? null
+							: (Specification<AppRole>) (root, query, builder) -> builder
+								.equal(root.join("permissions").get("publicId"), permissionId))
+			.filter(value -> value != null)
+			.toList());
 		return this.roles.findAll(distinct(specification), pageable);
 	}
 
+	public AppPermission permission(UUID id) {
+		return this.permissions.findByPublicId(id).orElseThrow(() -> new ResourceNotFoundException("Permission"));
+	}
+
+	@Transactional(readOnly = true)
+	public Page<AppPermission> permissions(String search, String domain, Boolean privileged, Pageable pageable) {
+		Specification<AppPermission> anyName = isBlank(search) ? null : Specification
+			.anyOf(this.<AppPermission>contains("domain", search), this.<AppPermission>contains("action", search));
+		Specification<AppPermission> specification = Specification.allOf(Stream
+			.of(anyName, this.<AppPermission>contains("domain", domain),
+					privileged == null ? null : this.<AppPermission>equals("privileged", privileged))
+			.filter(value -> value != null)
+			.toList());
+		return this.permissions.findAll(specification, pageable);
+	}
+
 	/**
-	 * Returns whether the user is the administrator making the change.
+	 * Returns whether the user is the one making the change.
 	 */
 	private boolean isActor(AppUser user) {
 		return Actor.current().map(actor -> actor.name().equals(user.getUsername())).orElse(false);
 	}
 
 	/**
-	 * Returns whether the administrator holds every role the given groups grant.
+	 * Returns whether the actor may grant every permission of the given roles, which is
+	 * whether they hold each privileged one themselves.
 	 */
-	public static boolean holdsRolesOf(Collection<AppGroup> groups) {
-		return holds(groups.stream().flatMap(group -> group.getRoles().stream()).toList());
+	public static boolean mayGrantRoles(Collection<AppRole> roles) {
+		return mayGrant(permissionsOf(roles));
 	}
 
 	/**
-	 * Returns whether the administrator holds every given role. A change with no
-	 * authenticated administrator is made by the application itself and is trusted.
+	 * Returns whether the actor may grant the given permissions: every privileged one
+	 * must be one they hold. The others are reads, removals and review actions, which
+	 * anyone with the permission to grant may. A change with no authenticated user is
+	 * made by the application itself and is trusted.
 	 */
-	public static boolean holds(Collection<AppRole> roles) {
+	public static boolean mayGrant(Collection<AppPermission> permissions) {
 		return Actor.current()
-			.map(actor -> roles.stream()
-				.map(AppRole::getName)
-				.allMatch(name -> GRANTABLE_WITHOUT_HOLDING.contains(name) || actor.roles().contains(name)))
+			.map(actor -> permissions.stream()
+				.filter(AppPermission::isPrivileged)
+				.map(AppPermission::getName)
+				.allMatch(actor.permissions()::contains))
 			.orElse(true);
 	}
 
-	private Set<AppGroup> groups(Set<UUID> ids) {
-		Set<AppGroup> values = Set.copyOf(this.groups.findAllByPublicIdIn(ids));
-		if (values.size() != ids.size())
-			throw new ResourceNotFoundException("Group");
-		return values;
+	/**
+	 * Returns the permissions of all the given roles.
+	 */
+	public static Set<AppPermission> permissionsOf(Collection<AppRole> roles) {
+		return roles.stream().flatMap(role -> role.getPermissions().stream()).collect(Collectors.toSet());
+	}
+
+	/**
+	 * Returns a pair of the given permissions that no user may hold together, if there is
+	 * one, such as reviewing accounts and any privileged permission (see docs/adr/0038).
+	 * @param permissions the permissions one user would hold
+	 * @return the first conflicting pair, named as {@code a and b}, or empty
+	 */
+	public static Optional<String> conflict(Collection<AppPermission> permissions) {
+		List<AppPermission> list = new ArrayList<>(new LinkedHashSet<>(permissions));
+		for (int i = 0; i < list.size(); i++) {
+			for (int j = i + 1; j < list.size(); j++) {
+				if (list.get(i).conflictsWith(list.get(j))) {
+					return Optional.of(list.get(i).getName() + " and " + list.get(j).getName());
+				}
+			}
+		}
+		return Optional.empty();
+	}
+
+	/**
+	 * Returns whether giving the role the requested permissions would leave a user of the
+	 * role with two that must not be held together, counting the user's other roles.
+	 */
+	private boolean conflictsForHolders(AppRole role, Set<AppPermission> requested) {
+		if (conflict(requested).isPresent()) {
+			return true;
+		}
+		for (AppUser holder : this.users.findByRoles_PublicId(role.getPublicId())) {
+			Set<AppPermission> all = holder.getRoles()
+				.stream()
+				.filter(held -> !held.getPublicId().equals(role.getPublicId()))
+				.flatMap(held -> held.getPermissions().stream())
+				.collect(Collectors.toCollection(HashSet::new));
+			all.addAll(requested);
+			if (conflict(all).isPresent()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private Set<AppRole> roles(Set<UUID> ids) {
 		Set<AppRole> values = Set.copyOf(this.roles.findAllByPublicIdIn(ids));
 		if (values.size() != ids.size())
 			throw new ResourceNotFoundException("Role");
+		return values;
+	}
+
+	private Set<AppPermission> permissions(Set<UUID> ids) {
+		Set<AppPermission> values = Set.copyOf(this.permissions.findAllByPublicIdIn(ids));
+		if (values.size() != ids.size())
+			throw new ResourceNotFoundException("Permission");
 		return values;
 	}
 
@@ -354,6 +420,24 @@ public class AdministrationService {
 		}
 		return (root, query, builder) -> neverSignedIn ? builder.isNull(root.get("lastLoginAt"))
 				: builder.isNotNull(root.get("lastLoginAt"));
+	}
+
+	/**
+	 * Selects the privileged accounts, or the others: an account is privileged when one
+	 * of its roles has a privileged permission.
+	 */
+	private Specification<AppUser> privileged(Boolean privileged) {
+		if (privileged == null) {
+			return null;
+		}
+		return (root, query, builder) -> {
+			var subquery = query.subquery(Long.class);
+			var inner = subquery.from(AppUser.class);
+			var permission = inner.join("roles").join("permissions");
+			subquery.select(inner.get("id"))
+				.where(builder.equal(inner.get("id"), root.get("id")), builder.isTrue(permission.get("privileged")));
+			return privileged ? builder.exists(subquery) : builder.not(builder.exists(subquery));
+		};
 	}
 
 	private static boolean isBlank(String value) {

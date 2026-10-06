@@ -15,7 +15,7 @@ import org.springframework.data.jpa.domain.Specification;
 import com.example.commons.accounts.AccountsJpaTest;
 import com.example.commons.accounts.domain.AccountAuditEvent;
 import com.example.commons.accounts.domain.AccountReviewReport;
-import com.example.commons.accounts.domain.AppGroup;
+import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.ReasonCode;
 import com.example.commons.accounts.domain.ReviewPopulation;
@@ -38,8 +38,8 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 		user("rachel");
 		user("ravi");
 		user("alice");
-		authenticateAs("rachel", "ACCOUNT_REVIEWER");
-		Task task = this.service.createTask(OCTOBER);
+		authenticateAsReviewer("rachel");
+		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 		flushAndClear();
 		this.service.decide(task.getPublicId(),
 				List.of(itemOf(task, "alice").getPublicId(), itemOf(task, "ravi").getPublicId()), Decision.CONFIRM,
@@ -52,7 +52,7 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 		assertThat(this.service.response(reload(task)).progress().reviewed()).isEqualTo(2);
 		assertThat(this.service.response(reload(task)).progress().total()).isEqualTo(3);
 
-		authenticateAs("ravi", "ACCOUNT_REVIEWER");
+		authenticateAsReviewer("ravi");
 		this.service.decide(task.getPublicId(), List.of(itemOf(task, "rachel").getPublicId()), Decision.CONFIRM, null,
 				null);
 		flushAndClear();
@@ -62,12 +62,13 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 	}
 
 	@Test
-	void editingGroupsCanBeTheLastActionThatCompletesTheTask() {
+	void editingRolesCanBeTheLastActionThatCompletesTheTask() {
 		user("rachel");
-		user("alice");
-		AppGroup viewers = this.entityManager.persist(new AppGroup("viewers"));
-		authenticateAs("ravi", "ACCOUNT_REVIEWER");
-		Task task = this.service.createTask(OCTOBER);
+		AppUser alice = user("alice");
+		AppRole viewers = this.entityManager.persist(new AppRole("viewers"));
+		alice.getRoles().add(viewers);
+		authenticateAsReviewer("ravi");
+		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 		flushAndClear();
 		this.service.decide(task.getPublicId(), List.of(itemOf(task, "rachel").getPublicId()), Decision.CONFIRM, null,
 				null);
@@ -75,19 +76,19 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.REMOVED, null);
 		flushAndClear();
 
-		this.service.editGroups(task.getPublicId(), itemOf(task, "alice").getPublicId(), Set.of(viewers.getPublicId()));
+		this.service.editRoles(task.getPublicId(), itemOf(task, "alice").getPublicId(), Set.of(viewers.getPublicId()));
 		flushAndClear();
 
 		assertThat(this.service.response(reload(task)).status()).isEqualTo("completed");
-		assertThat(this.service.response(reload(task)).counts().confirmedGroupsEdited()).isEqualTo(1);
+		assertThat(this.service.response(reload(task)).counts().confirmedRolesEdited()).isEqualTo(1);
 	}
 
 	@Test
 	void doesNotCompleteWhileAnItemIsPendingOrAPopulationIsUnconfirmed() {
 		user("rachel");
 		user("alice");
-		authenticateAs("rachel", "ACCOUNT_REVIEWER");
-		Task task = this.service.createTask(OCTOBER);
+		authenticateAsReviewer("rachel");
+		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 		flushAndClear();
 		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), Decision.CONFIRM, null,
 				null);
@@ -102,8 +103,8 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 	void theLastActionCompletesTheTaskRecordsTheCompleterAndStoresTheReportOnce() throws Exception {
 		user("rachel", "Compliance");
 		user("alice", "Finance");
-		authenticateAs("ravi", "ACCOUNT_REVIEWER");
-		Task task = this.service.createTask(OCTOBER);
+		authenticateAsReviewer("ravi");
+		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 		flushAndClear();
 		this.service.decide(task.getPublicId(),
 				List.of(itemOf(task, "alice").getPublicId(), itemOf(task, "rachel").getPublicId()), Decision.CONFIRM,
@@ -137,21 +138,21 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 	void aCompletedTaskRejectsEveryChange() {
 		user("rachel");
 		user("alice");
-		authenticateAs("ravi", "ACCOUNT_REVIEWER");
+		authenticateAsReviewer("ravi");
 		Task task = completed("alice", "rachel");
 
 		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> this.service.decide(task.getPublicId(),
 				List.of(itemOf(task, "alice").getPublicId()), Decision.CONFIRM, null, null));
-		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> this.service.editGroups(task.getPublicId(),
-				itemOf(task, "alice").getPublicId(), Set.of(this.group.getPublicId())));
+		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> this.service.editRoles(task.getPublicId(),
+				itemOf(task, "alice").getPublicId(), Set.of(this.role.getPublicId())));
 		assertThatExceptionOfType(ConflictException.class)
 			.isThrownBy(() -> this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.REMOVED, null));
 	}
 
 	@Test
 	void aTaskWithNoActiveAccountsCompletesOnceBothPopulationsAreConfirmed() {
-		authenticateAs("ravi", "ACCOUNT_REVIEWER");
-		Task task = this.service.createTask(OCTOBER);
+		authenticateAsReviewer("ravi");
+		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 
 		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.SUSPENDED, null);
 		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.REMOVED, null);
@@ -164,8 +165,8 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 	void theJobCompletesATaskThatAnOutsideRemovalFinishedWithTheSystemAsCompleter() {
 		user("rachel");
 		AppUser alice = user("alice");
-		authenticateAs("ravi", "ACCOUNT_REVIEWER");
-		Task task = this.service.createTask(OCTOBER);
+		authenticateAsReviewer("ravi");
+		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 		flushAndClear();
 		this.service.decide(task.getPublicId(), List.of(itemOf(task, "rachel").getPublicId()), Decision.CONFIRM, null,
 				null);
@@ -193,8 +194,8 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 	void aDraftDownloadIsMarkedNotStoredAndAudited() {
 		user("rachel");
 		user("alice");
-		authenticateAs("ravi", "ACCOUNT_REVIEWER");
-		Task task = this.service.createTask(OCTOBER);
+		authenticateAsReviewer("ravi");
+		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 		flushAndClear();
 
 		Download draft = this.service.download(task.getPublicId(), Format.CSV);
@@ -219,7 +220,7 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 	void aCompletedTaskAlwaysReturnsTheStoredPdfAndGeneratesTheOtherFormatsFromFrozenData() {
 		user("rachel", "Compliance");
 		user("alice", "Finance");
-		authenticateAs("ravi", "ACCOUNT_REVIEWER");
+		authenticateAsReviewer("ravi");
 		Task task = completed("alice", "rachel");
 		byte[] stored = this.storedReports.findByTaskId(task.getId()).orElseThrow().getContent();
 
@@ -239,7 +240,7 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 	 * confirmed.
 	 */
 	private Task completed(String... usernames) {
-		Task task = this.service.createTask(OCTOBER);
+		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 		flushAndClear();
 		this.service.decide(task.getPublicId(),
 				java.util.Arrays.stream(usernames).map(username -> itemOf(task, username).getPublicId()).toList(),

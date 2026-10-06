@@ -3,7 +3,7 @@ package com.example.commons.accounts.admin;
 import static com.example.commons.accounts.admin.AdminDtos.*;
 
 import java.net.URI;
-import java.util.List;
+import java.util.Comparator;
 import java.util.Set;
 import java.util.UUID;
 
@@ -19,15 +19,14 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import com.example.commons.accounts.domain.AppRole;
 
+/**
+ * Manages roles and the permissions they grant. Which permissions a request needs is
+ * checked here for the endpoint and, for the permissions of a role, by
+ * {@link AdministrationService} (see docs/adr/0038).
+ */
 @RestController
 @Validated
 @RequestMapping("/admin/roles")
-// The seeded role "ROLE_MANAGE" becomes the authority "ROLE_ROLE_MANAGE" (see
-// LocalAuthoritiesOidcUserService), which hasRole() cannot name. In this expression it
-// strips one leading "ROLE_" before adding the prefix, so hasRole('ROLE_MANAGE') checks
-// ROLE_MANAGE and hasRole('ROLE_ROLE_MANAGE') is rejected; the Java configuration form
-// rejects any argument starting with "ROLE_". hasAuthority() names it exactly.
-@PreAuthorize("hasAuthority('ROLE_ROLE_MANAGE')")
 public class RoleAdminController {
 
 	private final AdministrationService service;
@@ -37,36 +36,51 @@ public class RoleAdminController {
 	}
 
 	@PostMapping
+	@PreAuthorize("hasAuthority('role:create')")
 	public ResponseEntity<RoleResponse> create(@Valid @RequestBody RoleRequest request) {
 		AppRole role = this.service.createRole(request);
 		return ResponseEntity.created(URI.create("/admin/roles/" + role.getPublicId())).body(response(role));
 	}
 
 	@GetMapping
+	@PreAuthorize("hasAuthority('role:read')")
 	public PageResponse<RoleResponse> list(@RequestParam(required = false) @Size(max = 100) String search,
 			@RequestParam(required = false) @Size(max = 100) String name,
-			@RequestParam(defaultValue = "0") @Min(0) int page,
+			@RequestParam(required = false) UUID permissionId, @RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size, HttpServletRequest request) {
-		Page<AppRole> result = this.service.roles(search, name, AdminPageable.create(page, size,
-				request.getParameterValues("sort"), Set.of("name", "displayName", "createdAt", "updatedAt"), "name"));
-		return new PageResponse<>(result.map(RoleAdminController::response).toList(), result.getNumber(),
-				result.getSize(), result.getTotalElements(), result.getTotalPages());
+		Page<AppRole> result = this.service.roles(search, name, permissionId, AdminPageable.create(page, size,
+				request.getParameterValues("sort"), Set.of("name", "createdAt", "updatedAt"), "name"));
+		return new PageResponse<>(result.map(this::response).toList(), result.getNumber(), result.getSize(),
+				result.getTotalElements(), result.getTotalPages());
 	}
 
 	@GetMapping("/{id}")
+	@PreAuthorize("hasAuthority('role:read')")
 	public RoleResponse get(@PathVariable UUID id) {
-		AppRole role = this.service.role(id);
-		return response(role);
+		return response(this.service.role(id));
 	}
 
-	private static RoleResponse response(AppRole role) {
-		return new RoleResponse(role.getPublicId(), role.getName(), role.getDisplayName());
+	@PutMapping("/{id}")
+	@PreAuthorize("hasAnyAuthority('role:update', 'role:add-permission', 'role:remove-permission')")
+	public RoleResponse update(@PathVariable UUID id, @Valid @RequestBody RoleRequest request) {
+		return response(this.service.updateRole(id, request));
 	}
 
 	@DeleteMapping("/{id}")
+	@PreAuthorize("hasAuthority('role:delete')")
 	public ResponseEntity<Void> delete(@PathVariable UUID id) {
 		this.service.deleteRole(id);
 		return ResponseEntity.noContent().build();
+	}
+
+	private RoleResponse response(AppRole role) {
+		return new RoleResponse(role.getPublicId(), role.getName(),
+				role.getPermissions()
+					.stream()
+					.map(permission -> new PermissionSummary(permission.getPublicId(), permission.getName(),
+							permission.isPrivileged()))
+					.sorted(Comparator.comparing(PermissionSummary::name))
+					.toList());
 	}
 
 }

@@ -25,10 +25,10 @@ public interface AccountReviewItemRepository
 	List<AccountReviewItem> findPendingInOpenTasks(@Param("userPublicId") UUID userPublicId);
 
 	/**
-	 * Returns every item of a task with its live account and the account's groups, so a
+	 * Returns every item of a task with its live account and the account's roles, so a
 	 * row can be shown without further queries.
 	 */
-	@Query("select distinct i from AccountReviewItem i left join fetch i.user u left join fetch u.groups where i.taskId = :taskId")
+	@Query("select distinct i from AccountReviewItem i left join fetch i.user u left join fetch u.roles r left join fetch r.permissions where i.taskId = :taskId")
 	List<AccountReviewItem> findAllWithAccount(@Param("taskId") Long taskId);
 
 	/**

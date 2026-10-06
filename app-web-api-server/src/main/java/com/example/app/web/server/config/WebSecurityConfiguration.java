@@ -15,7 +15,9 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
  * Problem Details responses, and the health and JWKS endpoint rules) to the
  * {@link HttpSecurity} this method receives, so this chain holds only this application's
  * own authorization rules. Spring Security denies any request no rule matches; the final
- * rule grants every other request to an authenticated user.
+ * rule grants every other request to an authenticated user. Which permission an
+ * administration endpoint needs is checked by {@code @PreAuthorize} on its controller
+ * method (see docs/adr/0038), so there is no URL rule for it here.
  */
 @Configuration(proxyBeanMethods = false)
 public class WebSecurityConfiguration {
@@ -29,13 +31,6 @@ public class WebSecurityConfiguration {
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 		return http
-			.authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
-				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/admin/users/**"))
-				.hasRole("USER_MANAGE")
-				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/admin/groups/**"))
-				.hasRole("GROUP_MANAGE")
-				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/admin/roles/**"))
-				.hasAuthority("ROLE_ROLE_MANAGE"))
 			.authorizeHttpRequests(authorizeHttpRequests -> authorizeHttpRequests
 				.requestMatchers(PathPatternRequestMatcher.withDefaults().matcher("/**"))
 				.authenticated())

@@ -20,11 +20,11 @@ public final class AdminDtos {
 	}
 
 	public record UserCreateRequest(@Username String username, @ResourceName String name,
-			@Email @Size(max = 254) String email, @Size(max = 100) String department, @NotEmpty Set<UUID> groupIds) {
+			@Email @Size(max = 254) String email, @Size(max = 100) String department, @NotEmpty Set<UUID> roleIds) {
 	}
 
 	public record UserUpdateRequest(@ResourceName String name, @Email @Size(max = 254) String email,
-			@Size(max = 100) String department, @NotEmpty Set<UUID> groupIds) {
+			@Size(max = 100) String department, @NotEmpty Set<UUID> roleIds) {
 	}
 
 	/**
@@ -36,33 +36,30 @@ public final class AdminDtos {
 			@Size(max = 200) String note) {
 	}
 
-	public record GroupRequest(@ResourceName String name, Set<UUID> roleIds) {
-		public GroupRequest {
-			roleIds = roleIds == null ? Set.of() : roleIds;
-		}
-	}
-
-	public record RoleRequest(@ResourceName String name, @Size(max = 100) String displayName) {
+	public record RoleRequest(@ResourceName String name, Set<UUID> permissionIds) {
 		public RoleRequest {
-			displayName = displayName == null || displayName.isBlank() ? name : displayName;
+			permissionIds = permissionIds == null ? Set.of() : permissionIds;
 		}
 	}
 
 	public record Summary(UUID id, String name) {
 	}
 
-	public record RoleSummary(UUID id, String name, String displayName) {
+	public record PermissionSummary(UUID id, String name, boolean privileged) {
 	}
 
+	/**
+	 * A user. {@code privileged} is computed from the user's roles, not stored.
+	 */
 	public record UserResponse(UUID id, String username, String name, String email, String department,
 			Instant lastLoginAt, String status, Instant suspendedAt, String suspensionReasonCode, String suspensionNote,
-			List<Summary> groups) {
+			boolean privileged, List<Summary> roles) {
 	}
 
-	public record GroupResponse(UUID id, String name, List<RoleSummary> roles) {
+	public record RoleResponse(UUID id, String name, List<PermissionSummary> permissions) {
 	}
 
-	public record RoleResponse(UUID id, String name, String displayName) {
+	public record PermissionResponse(UUID id, String domain, String action, String name, boolean privileged) {
 	}
 
 	public record PageResponse<T>(List<T> items, int page, int size, long totalItems, int totalPages) {

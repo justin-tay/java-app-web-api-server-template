@@ -38,7 +38,6 @@ import com.example.commons.accounts.domain.AccountStatus;
 @RestController
 @Validated
 @RequestMapping("/admin/users")
-@PreAuthorize("hasRole('USER_MANAGE')")
 public class UserAdminController {
 
 	private final AdministrationService service;
@@ -51,19 +50,22 @@ public class UserAdminController {
 	}
 
 	@PostMapping
+	@PreAuthorize("hasAuthority('user:create')")
 	public ResponseEntity<UserResponse> create(@Valid @RequestBody UserCreateRequest request) {
 		AppUser user = this.service.createUser(request);
 		return ResponseEntity.created(URI.create("/admin/users/" + user.getPublicId())).body(response(user));
 	}
 
 	@GetMapping
+	@PreAuthorize("hasAuthority('user:read')")
 	public PageResponse<UserResponse> list(@RequestParam(required = false) @Size(max = 100) String search,
 			@RequestParam(required = false) @Size(max = 100) String username,
 			@RequestParam(required = false) @Size(max = 100) String name,
 			@RequestParam(required = false) @Size(max = 100) String email,
 			@RequestParam(required = false) @Size(max = 100) String department,
 			@RequestParam(required = false) @Pattern(regexp = "active|suspended") String status,
-			@RequestParam(required = false) Boolean neverSignedIn, @RequestParam(required = false) UUID groupId,
+			@RequestParam(required = false) Boolean neverSignedIn, @RequestParam(required = false) UUID roleId,
+			@RequestParam(required = false) Boolean privileged,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdFrom,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate createdTo,
 			@RequestParam(defaultValue = "0") @Min(0) int page,
@@ -71,7 +73,7 @@ public class UserAdminController {
 		Page<AppUser> result = this.service.users(
 				new AdministrationService.UserQuery(search, username, name, email, department,
 						status == null ? null : AccountStatus.valueOf(status.toUpperCase(Locale.ROOT)), neverSignedIn,
-						groupId, createdFrom, createdTo),
+						roleId, privileged, createdFrom, createdTo),
 				AdminPageable.create(page, size, request.getParameterValues("sort"),
 						Set.of("username", "name", "department", "lastLoginAt", "createdAt", "updatedAt"), "username"));
 		return new PageResponse<>(result.map(this::response).toList(), result.getNumber(), result.getSize(),
@@ -82,16 +84,19 @@ public class UserAdminController {
 	 * Lists the distinct departments in use, for a filter control.
 	 */
 	@GetMapping("/departments")
+	@PreAuthorize("hasAuthority('user:read')")
 	public List<String> departments() {
 		return this.service.departments();
 	}
 
 	@GetMapping("/{id}")
+	@PreAuthorize("hasAuthority('user:read')")
 	public UserResponse get(@PathVariable UUID id) {
 		return response(this.service.user(id));
 	}
 
 	@PutMapping("/{id}")
+	@PreAuthorize("hasAnyAuthority('user:update', 'user:add-role', 'user:remove-role')")
 	public UserResponse update(@PathVariable UUID id, @Valid @RequestBody UserUpdateRequest request) {
 		return response(this.service.updateUser(id, request));
 	}
@@ -103,12 +108,14 @@ public class UserAdminController {
 	 * @return no content
 	 */
 	@PostMapping("/{id}/suspend")
+	@PreAuthorize("hasAuthority('user:suspend')")
 	public ResponseEntity<Void> suspend(@PathVariable UUID id, @Valid @RequestBody AccountActionRequest request) {
 		this.lifecycle.suspend(id, ReasonCode.fromValue(request.reasonCode()), request.note());
 		return ResponseEntity.noContent().build();
 	}
 
 	@PostMapping("/{id}/unsuspend")
+	@PreAuthorize("hasAuthority('user:unsuspend')")
 	public ResponseEntity<Void> unsuspend(@PathVariable UUID id) {
 		this.lifecycle.unsuspend(id);
 		return ResponseEntity.noContent().build();
@@ -121,6 +128,7 @@ public class UserAdminController {
 	 * @return no content
 	 */
 	@PostMapping("/{id}/remove")
+	@PreAuthorize("hasAuthority('user:remove')")
 	public ResponseEntity<Void> remove(@PathVariable UUID id, @Valid @RequestBody AccountActionRequest request) {
 		this.lifecycle.remove(id, ReasonCode.fromValue(request.reasonCode()), request.note());
 		return ResponseEntity.noContent().build();
@@ -132,6 +140,7 @@ public class UserAdminController {
 	 * @return no content
 	 */
 	@DeleteMapping("/{id}/sessions")
+	@PreAuthorize("hasAuthority('user:revoke-session')")
 	public ResponseEntity<Void> revokeSessions(@PathVariable UUID id) {
 		this.service.revokeSessions(id);
 		return ResponseEntity.noContent().build();
@@ -142,6 +151,7 @@ public class UserAdminController {
 	 * @return no content
 	 */
 	@DeleteMapping("/sessions")
+	@PreAuthorize("hasAuthority('user:revoke-session')")
 	public ResponseEntity<Void> revokeAllSessions() {
 		this.service.revokeAllSessions();
 		return ResponseEntity.noContent().build();
@@ -150,10 +160,10 @@ public class UserAdminController {
 	private UserResponse response(AppUser user) {
 		return new UserResponse(user.getPublicId(), user.getUsername(), user.getName(), user.getEmail(),
 				user.getDepartment(), user.getLastLoginAt(), user.getStatus().name().toLowerCase(Locale.ROOT),
-				user.getSuspendedAt(), user.getSuspensionReasonCode(), user.getSuspensionNote(),
-				user.getGroups()
+				user.getSuspendedAt(), user.getSuspensionReasonCode(), user.getSuspensionNote(), user.isPrivileged(),
+				user.getRoles()
 					.stream()
-					.map(group -> new Summary(group.getPublicId(), group.getName()))
+					.map(role -> new Summary(role.getPublicId(), role.getName()))
 					.sorted(Comparator.comparing(Summary::name, String.CASE_INSENSITIVE_ORDER))
 					.toList());
 	}

@@ -106,14 +106,14 @@ public class SessionLifecycleAuditLogger {
 	}
 
 	/**
-	 * Records a change to the roles an authenticated session acts with, found when its
-	 * {@code ROLE_} authorities are reloaded from the local user, group, and role model.
-	 * Roles are logged by their stored names, without the {@code ROLE_} prefix, the same
-	 * vocabulary the administration audit events use (see docs/adr/0021).
-	 * @param session the session whose roles changed
+	 * Records a change to the permissions an authenticated session acts with, found when
+	 * its local authorities are reloaded from the local user, role, and permission model.
+	 * Permissions are logged as {@code domain:action}, the same vocabulary the
+	 * administration audit events use (see docs/adr/0021).
+	 * @param session the session whose permissions changed
 	 * @param username the authenticated user
-	 * @param added the role names granted since the session's previous roles
-	 * @param removed the role names withdrawn since the session's previous roles
+	 * @param added the permissions granted since the session's previous permissions
+	 * @param removed the permissions withdrawn since the session's previous permissions
 	 */
 	public void logSessionPrivilegeChanged(HttpSession session, String username, Collection<String> added,
 			Collection<String> removed) {
@@ -125,8 +125,8 @@ public class SessionLifecycleAuditLogger {
 			.addKeyValue("event.outcome", "success")
 			.addKeyValue("event.reason", "privilege_change")
 			.addKeyValue("session.id", auditSessionId(session))
-			.addKeyValue("roles.added", added.stream().sorted().toList())
-			.addKeyValue("roles.removed", removed.stream().sorted().toList());
+			.addKeyValue("permissions.added", added.stream().sorted().toList())
+			.addKeyValue("permissions.removed", removed.stream().sorted().toList());
 		if (MDC.get(LoggingContextKeys.USER_NAME) == null) {
 			event.addKeyValue(LoggingContextKeys.USER_NAME, username);
 		}

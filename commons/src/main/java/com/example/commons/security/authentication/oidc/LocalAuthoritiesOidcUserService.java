@@ -25,8 +25,8 @@ import com.example.commons.security.authorization.LocalAuthorityLookup;
 
 /**
  * Loads the OIDC user from the identity provider and adds the application's local
- * {@code ROLE_} authorities from {@link LocalAuthorityLookup}, rejecting the login when
- * there is no enabled local user for the username.
+ * authorities from {@link LocalAuthorityLookup}, rejecting the login when there is no
+ * enabled local user for the username.
  *
  * <p>
  * The username is the claim named by the client registration's

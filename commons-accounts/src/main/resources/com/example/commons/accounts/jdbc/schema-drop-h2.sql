@@ -16,13 +16,15 @@ DROP TABLE user_credentials;
 
 DROP TABLE user_entities;
 
-DROP TABLE app_group_role;
+DROP TABLE app_permission_conflict;
 
-DROP TABLE app_user_group;
+DROP TABLE app_role_permission;
+
+DROP TABLE app_user_role;
+
+DROP TABLE app_permission;
 
 DROP TABLE app_role;
-
-DROP TABLE app_group;
 
 DROP TABLE app_user;
 
@@ -40,8 +42,8 @@ DROP SEQUENCE task_seq;
 
 DROP SEQUENCE account_audit_event_seq;
 
-DROP SEQUENCE app_role_seq;
+DROP SEQUENCE app_permission_seq;
 
-DROP SEQUENCE app_group_seq;
+DROP SEQUENCE app_role_seq;
 
 DROP SEQUENCE app_user_seq;

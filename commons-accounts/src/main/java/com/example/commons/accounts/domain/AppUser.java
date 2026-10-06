@@ -3,6 +3,7 @@ package com.example.commons.accounts.domain;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -50,9 +51,9 @@ public class AppUser extends AbstractAuditableEntity {
 
 	@NotEmpty
 	@ManyToMany
-	@JoinTable(name = "app_user_group", joinColumns = @JoinColumn(name = "user_id"),
-			inverseJoinColumns = @JoinColumn(name = "group_id"))
-	private Set<AppGroup> groups = new HashSet<>();
+	@JoinTable(name = "app_user_role", joinColumns = @JoinColumn(name = "user_id"),
+			inverseJoinColumns = @JoinColumn(name = "role_id"))
+	private Set<AppRole> roles = new HashSet<>();
 
 	protected AppUser() {
 	}
@@ -128,8 +129,25 @@ public class AppUser extends AbstractAuditableEntity {
 		return this.lastLoginAt;
 	}
 
-	public Set<AppGroup> getGroups() {
-		return this.groups;
+	public Set<AppRole> getRoles() {
+		return this.roles;
+	}
+
+	/**
+	 * Returns the permissions of all of the user's roles.
+	 * @return the permissions
+	 */
+	public Set<AppPermission> permissions() {
+		return this.roles.stream().flatMap(role -> role.getPermissions().stream()).collect(Collectors.toSet());
+	}
+
+	/**
+	 * Returns whether the account is privileged: whether any of its roles holds a
+	 * privileged permission (see docs/adr/0038).
+	 * @return whether the account is privileged
+	 */
+	public boolean isPrivileged() {
+		return permissions().stream().anyMatch(AppPermission::isPrivileged);
 	}
 
 	public void update(String name, String email, String department) {

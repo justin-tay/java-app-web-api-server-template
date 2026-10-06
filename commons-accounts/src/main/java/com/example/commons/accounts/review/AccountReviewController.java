@@ -30,7 +30,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.commons.accounts.admin.AdminDtos.PageResponse;
-import com.example.commons.accounts.admin.AdminDtos.Summary;
 import com.example.commons.accounts.admin.AdminPageable;
 import com.example.commons.accounts.domain.AccountReviewOutcome;
 import com.example.commons.accounts.domain.ReasonCode;
@@ -42,20 +41,21 @@ import com.example.commons.accounts.review.AccountReviewService.Decision;
 import com.example.commons.accounts.review.AccountReviewService.ItemQuery;
 import com.example.commons.accounts.review.AccountReviewService.PopulationQuery;
 import com.example.commons.accounts.review.ReviewDtos.DecisionRequest;
-import com.example.commons.accounts.review.ReviewDtos.GroupsRequest;
 import com.example.commons.accounts.review.ReviewDtos.PopulationConfirmationRequest;
 import com.example.commons.accounts.review.ReviewDtos.PopulationEntryResponse;
+import com.example.commons.accounts.review.ReviewDtos.RolesRequest;
 import com.example.commons.accounts.review.ReviewDtos.ReviewItemResponse;
 import com.example.commons.accounts.review.ReviewDtos.TaskResponse;
 import com.example.commons.web.problem.BadRequestException;
 
 /**
- * Working through an account review task, for account reviewers.
+ * Working through an account review task. What a request needs is a {@code review:*}
+ * permission for the endpoint, and for removing access also the permission to remove it
+ * (see docs/adr/0038).
  */
 @RestController
 @Validated
 @RequestMapping("/account-reviews")
-@PreAuthorize("hasRole('ACCOUNT_REVIEWER')")
 public class AccountReviewController {
 
 	private final AccountReviewService service;
@@ -64,30 +64,24 @@ public class AccountReviewController {
 		this.service = service;
 	}
 
-	/**
-	 * Lists the groups the caller may assign when editing an account's groups.
-	 */
-	@GetMapping("/groups")
-	public List<Summary> assignableGroups() {
-		return this.service.assignableGroups();
-	}
-
 	@GetMapping("/tasks/{taskId}")
+	@PreAuthorize("hasAuthority('review:read')")
 	public TaskResponse get(@PathVariable UUID taskId) {
 		return this.service.response(this.service.task(taskId));
 	}
 
 	@GetMapping("/tasks/{taskId}/items")
+	@PreAuthorize("hasAuthority('review:read')")
 	public PageResponse<ReviewItemResponse> items(@PathVariable UUID taskId,
 			@RequestParam(required = false) @Pattern(
-					regexp = "pending|confirmed|confirmed_groups_edited") String outcome,
+					regexp = "pending|confirmed|confirmed_roles_edited") String outcome,
 			@RequestParam(required = false) @Size(max = 100) String department,
-			@RequestParam(required = false) @Size(max = 100) String group,
+			@RequestParam(required = false) @Size(max = 100) String role,
 			@RequestParam(required = false) @Size(max = 100) String search,
 			@RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size, HttpServletRequest request) {
 		Page<ReviewItemResponse> result = this.service.items(taskId,
-				new ItemQuery(outcome == null ? null : AccountReviewOutcome.fromValue(outcome), department, group,
+				new ItemQuery(outcome == null ? null : AccountReviewOutcome.fromValue(outcome), department, role,
 						search),
 				AdminPageable.create(page, size, request.getParameterValues("sort"),
 						Set.of("username", "name", "department", "lastLoginAt", "decidedAt"), "username"));
@@ -99,6 +93,7 @@ public class AccountReviewController {
 	 * Lists the distinct departments shown in a task, for a filter control.
 	 */
 	@GetMapping("/tasks/{taskId}/departments")
+	@PreAuthorize("hasAuthority('review:read')")
 	public List<String> departments(@PathVariable UUID taskId) {
 		return this.service.departments(taskId);
 	}
@@ -110,6 +105,7 @@ public class AccountReviewController {
 	 * @return no content
 	 */
 	@PostMapping("/tasks/{taskId}/decisions")
+	@PreAuthorize("hasAuthority('review:decide')")
 	public ResponseEntity<Void> decide(@PathVariable UUID taskId, @Valid @RequestBody DecisionRequest request) {
 		boolean confirm = request.decision().equals("confirm");
 		if (!confirm && request.reasonCode() == null) {
@@ -121,16 +117,20 @@ public class AccountReviewController {
 	}
 
 	/**
-	 * Sets the full set of groups of an account, which confirms it.
+	 * Sets the full set of roles of an account, which confirms it. The roles can only be
+	 * some of those the account holds, because a reviewer removes access and never grants
+	 * it.
 	 */
-	@PutMapping("/tasks/{taskId}/items/{itemId}/groups")
-	public ResponseEntity<Void> editGroups(@PathVariable UUID taskId, @PathVariable UUID itemId,
-			@Valid @RequestBody GroupsRequest request) {
-		this.service.editGroups(taskId, itemId, request.groupIds());
+	@PutMapping("/tasks/{taskId}/items/{itemId}/roles")
+	@PreAuthorize("hasAuthority('review:decide')")
+	public ResponseEntity<Void> editRoles(@PathVariable UUID taskId, @PathVariable UUID itemId,
+			@Valid @RequestBody RolesRequest request) {
+		this.service.editRoles(taskId, itemId, request.roleIds());
 		return ResponseEntity.noContent().build();
 	}
 
 	@GetMapping("/tasks/{taskId}/populations/{population}")
+	@PreAuthorize("hasAuthority('review:read')")
 	public PageResponse<PopulationEntryResponse> population(@PathVariable UUID taskId,
 			@PathVariable @Pattern(regexp = "suspended|removed") String population,
 			@RequestParam(required = false) @Size(max = 100) String department,
@@ -148,6 +148,7 @@ public class AccountReviewController {
 	 * Confirms a population as reviewed, once.
 	 */
 	@PostMapping("/tasks/{taskId}/populations/{population}/confirmation")
+	@PreAuthorize("hasAuthority('review:confirm-population')")
 	public ResponseEntity<Void> confirmPopulation(@PathVariable UUID taskId,
 			@PathVariable @Pattern(regexp = "suspended|removed") String population,
 			@Valid @RequestBody(required = false) PopulationConfirmationRequest request) {
@@ -160,11 +161,12 @@ public class AccountReviewController {
 	 * Downloads the report: the stored PDF once the task is completed, otherwise a draft.
 	 */
 	@GetMapping("/tasks/{taskId}/report")
+	@PreAuthorize("hasAuthority('review:download-report')")
 	public ResponseEntity<byte[]> report(@PathVariable UUID taskId,
 			@RequestParam @NotNull @Pattern(regexp = "pdf|xlsx|csv") String format) {
 		Task task = this.service.task(taskId);
 		Download download = this.service.download(taskId, Format.fromValue(format));
-		String name = "account-review-" + task.getStartDate().toString().substring(0, 7)
+		String name = task.getType().replace('_', '-') + "-" + task.getStartDate().toString().substring(0, 7)
 				+ (download.draft() ? "-draft" : "") + "." + download.format().extension();
 		return ResponseEntity.ok()
 			.contentType(MediaType.parseMediaType(download.format().contentType()))

@@ -8,12 +8,11 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-public interface AppRoleRepository extends JpaRepository<AppRole, Long>, JpaSpecificationExecutor<AppRole> {
+public interface AppPermissionRepository
+		extends JpaRepository<AppPermission, Long>, JpaSpecificationExecutor<AppPermission> {
 
-	boolean existsByName(String name);
+	Optional<AppPermission> findByPublicId(UUID publicId);
 
-	Optional<AppRole> findByPublicId(UUID publicId);
-
-	List<AppRole> findAllByPublicIdIn(Collection<UUID> publicIds);
+	List<AppPermission> findAllByPublicIdIn(Collection<UUID> publicIds);
 
 }

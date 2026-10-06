@@ -8,7 +8,8 @@ import java.util.List;
 import com.example.commons.accounts.domain.AccountAuditEvent;
 import com.example.commons.accounts.domain.AccountReviewItem;
 import com.example.commons.accounts.domain.AccountReviewItemRepository;
-import com.example.commons.accounts.domain.AppGroup;
+import com.example.commons.accounts.domain.AppPermission;
+import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppUser;
 
 /**
@@ -38,16 +39,28 @@ public class ReviewItems {
 	public void accountRemoved(AppUser account, String actor, AccountAuditEvent removalEvent) {
 		Instant now = this.clock.instant();
 		for (AccountReviewItem item : this.items.findPendingInOpenTasks(account.getPublicId())) {
-			item.remove(account, groupNames(account), actor, now, removalEvent == null ? null : removalEvent.getId());
+			item.remove(account, roleNames(account), actor, now, removalEvent == null ? null : removalEvent.getId());
 			this.items.saveAndFlush(item);
 		}
 	}
 
 	/**
-	 * Returns the names of an account's groups, sorted.
+	 * Returns the names of an account's roles, sorted.
 	 */
-	static List<String> groupNames(AppUser account) {
-		return account.getGroups().stream().map(AppGroup::getName).sorted(Comparator.naturalOrder()).toList();
+	static List<String> roleNames(AppUser account) {
+		return account.getRoles().stream().map(AppRole::getName).sorted(Comparator.naturalOrder()).toList();
+	}
+
+	/**
+	 * Returns the privileged permissions an account holds, sorted.
+	 */
+	static List<String> privilegedPermissions(AppUser account) {
+		return account.permissions()
+			.stream()
+			.filter(AppPermission::isPrivileged)
+			.map(AppPermission::getName)
+			.sorted(Comparator.naturalOrder())
+			.toList();
 	}
 
 }

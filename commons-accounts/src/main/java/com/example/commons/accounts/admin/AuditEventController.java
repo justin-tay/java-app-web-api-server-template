@@ -28,13 +28,13 @@ import com.example.commons.accounts.domain.AccountAuditEvent;
 import com.example.commons.accounts.domain.AccountAuditEventRepository;
 
 /**
- * Reads the business audit trail (see docs/adr/0030), for account reviewers and user
- * administrators. It is read-only: nothing here changes or deletes an event.
+ * Reads the business audit trail (see docs/adr/0030), for whoever holds
+ * {@code audit:read}. It is read-only: nothing here changes or deletes an event.
  */
 @RestController
 @Validated
 @RequestMapping("/audit-events")
-@PreAuthorize("hasAnyRole('ACCOUNT_REVIEWER', 'USER_MANAGE')")
+@PreAuthorize("hasAuthority('audit:read')")
 public class AuditEventController {
 
 	private static final JsonMapper JSON = JsonMapper.builder().build();
@@ -55,7 +55,7 @@ public class AuditEventController {
 
 	@GetMapping
 	public PageResponse<AuditEventResponse> list(@RequestParam(required = false) @Size(max = 100) String actor,
-			@RequestParam(required = false) @Pattern(regexp = "USER|GROUP|ROLE|SETTING|REVIEW") String targetType,
+			@RequestParam(required = false) @Pattern(regexp = "USER|ROLE|SETTING|REVIEW") String targetType,
 			@RequestParam(required = false) @Size(max = 100) String targetName,
 			@RequestParam(required = false) @Size(max = 50) String action,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate occurredFrom,

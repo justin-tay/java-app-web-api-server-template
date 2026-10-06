@@ -19,7 +19,7 @@ public final class ReviewDtos {
 	/**
 	 * The number of items in each outcome.
 	 */
-	public record Counts(long pending, long confirmed, long confirmedGroupsEdited, long removed) {
+	public record Counts(long pending, long confirmed, long confirmedRolesEdited, long removed) {
 	}
 
 	/**
@@ -63,16 +63,18 @@ public final class ReviewDtos {
 	 * decided row shows what was frozen when it was decided.
 	 *
 	 * @param id the item ID
-	 * @param groups the groups the account holds, after the decision for a decided row
-	 * @param groupsBefore the groups before the decision, null while pending
-	 * @param remark derived text: no changes, the groups added and removed, or the
-	 * removal with its reason
+	 * @param roles the roles the account holds, after the decision for a decided row
+	 * @param rolesBefore the roles before the decision, null while pending
+	 * @param privilegedPermissions the privileged permissions the account held when the
+	 * task was created, null in a non-privileged review
+	 * @param remark derived text: no changes, the roles removed, or the removal with its
+	 * reason
 	 * @param ownAccount whether the row is the caller's own account, which they cannot
 	 * act on
 	 */
 	public record ReviewItemResponse(UUID id, UUID userId, String username, String name, String department,
-			List<String> groups, List<String> groupsBefore, Instant lastLoginAt, String outcome, String remark,
-			boolean ownAccount, String decidedBy, Instant decidedAt) {
+			List<String> roles, List<String> rolesBefore, List<String> privilegedPermissions, Instant lastLoginAt,
+			String outcome, String remark, boolean ownAccount, String decidedBy, Instant decidedAt) {
 	}
 
 	/**
@@ -92,9 +94,10 @@ public final class ReviewDtos {
 	}
 
 	/**
-	 * The full set of groups an account should hold.
+	 * The full set of roles an account should hold, which can only be some of the roles
+	 * it holds already, because a reviewer removes access and does not grant it.
 	 */
-	public record GroupsRequest(@NotEmpty Set<UUID> groupIds) {
+	public record RolesRequest(@NotEmpty Set<UUID> roleIds) {
 	}
 
 	public record PopulationConfirmationRequest(@Size(max = 200) String note) {

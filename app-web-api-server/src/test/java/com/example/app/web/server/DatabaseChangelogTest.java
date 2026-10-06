@@ -39,31 +39,37 @@ class DatabaseChangelogTest {
 	void migrationWithoutAContextCreatesReferenceDataButNoUsers() throws Exception {
 		migrate(this.database, null);
 
-		assertThat(names("app_role")).containsExactlyInAnyOrder("USER_MANAGE", "GROUP_MANAGE", "ROLE_MANAGE",
-				"APPLICATION_USER", "ACCOUNT_REVIEWER", "SETTINGS_MANAGE");
-		assertThat(roleDisplayNames()).containsExactlyInAnyOrderEntriesOf(Map.of("USER_MANAGE", "Manage users",
-				"GROUP_MANAGE", "Manage groups", "ROLE_MANAGE", "Manage roles", "APPLICATION_USER", "Application user",
-				"ACCOUNT_REVIEWER", "Account reviewer", "SETTINGS_MANAGE", "Manage settings"));
-		assertThat(names("app_group")).containsExactlyInAnyOrder("Administrators", "Account Reviewers");
-		assertThat(count("app_group_role")).isEqualTo(5);
+		assertThat(names("app_role")).containsExactlyInAnyOrder("Administrators", "Account Reviewers");
+		assertThat(this.jdbcTemplate.queryForList("SELECT domain || ':' || action FROM app_permission", String.class))
+			.hasSize(25)
+			.contains("user:create", "user:add-role", "role:add-permission", "settings:update", "review:decide");
 		assertThat(this.jdbcTemplate
-			.queryForObject("SELECT COUNT(*) FROM app_group_role gr JOIN app_group g ON g.id = gr.group_id "
-					+ "JOIN app_role r ON r.id = gr.role_id WHERE g.name = 'Account Reviewers' AND r.name = 'ACCOUNT_REVIEWER'",
-					Integer.class))
-			.isEqualTo(1);
-		assertThat(this.jdbcTemplate
-			.queryForObject("SELECT COUNT(*) FROM app_group_role gr JOIN app_group g ON g.id = gr.group_id "
-					+ "JOIN app_role r ON r.id = gr.role_id WHERE g.name = 'Administrators' AND r.name = 'ACCOUNT_REVIEWER'",
-					Integer.class))
-			.as("administrators do not review accounts")
-			.isZero();
+			.queryForList("SELECT domain || ':' || action FROM app_permission WHERE privileged = TRUE", String.class))
+			.containsExactlyInAnyOrder("user:create", "user:add-role", "user:unsuspend", "role:add-permission",
+					"settings:update");
+		assertThat(rolePermissions("Account Reviewers")).containsExactlyInAnyOrder("application:access", "user:read",
+				"user:remove-role", "user:remove", "role:read", "audit:read", "review:read", "review:decide",
+				"review:confirm-population", "review:download-report");
+		assertThat(rolePermissions("Administrators")).hasSize(21)
+			.contains("user:create", "user:add-role", "role:add-permission", "settings:update", "audit:read")
+			.doesNotContain("review:decide")
+			.as("administrators do not review accounts");
+		assertThat(this.jdbcTemplate.queryForObject("""
+				SELECT COUNT(*) FROM app_role_permission rp JOIN app_permission p ON p.id = rp.permission_id
+				WHERE rp.role_id = 19 AND p.privileged = TRUE
+				""", Integer.class)).as("reviewers hold no privileged permission").isZero();
+		assertThat(this.jdbcTemplate.queryForList("""
+				SELECT a.domain || ':' || a.action FROM app_permission_conflict c
+				JOIN app_permission a ON a.id = c.permission_id
+				""", String.class)).containsOnly("review:decide").hasSize(5);
 		assertThat(settings()).containsEntry("inactivity.enabled", "true")
 			.containsEntry("inactivity.suspendAfterDays", "90")
 			.containsEntry("inactivity.removeAfterDays", "180")
 			.containsEntry("review.enabled", "true")
-			.containsEntry("review.intervalMonths", "3");
+			.containsEntry("review.privilegedIntervalMonths", "1")
+			.containsEntry("review.nonPrivilegedIntervalMonths", "12");
 		assertThat(count("app_user")).isZero();
-		assertThat(count("app_user_group")).isZero();
+		assertThat(count("app_user_role")).isZero();
 	}
 
 	@Test
@@ -71,7 +77,7 @@ class DatabaseChangelogTest {
 		migrate(this.database, "production");
 
 		assertThat(count("app_user")).isZero();
-		assertThat(names("app_group")).containsExactlyInAnyOrder("Administrators", "Account Reviewers");
+		assertThat(names("app_role")).containsExactlyInAnyOrder("Administrators", "Account Reviewers");
 	}
 
 	@Test
@@ -80,29 +86,31 @@ class DatabaseChangelogTest {
 
 		assertThat(this.jdbcTemplate.queryForList("SELECT username FROM app_user", String.class))
 			.containsExactlyInAnyOrder("admin", "user", "multi-group-user", "account-reviewer-1", "account-reviewer-2");
-		assertThat(names("app_group")).containsExactlyInAnyOrder("Administrators", "Users", "Account Reviewers");
+		assertThat(names("app_role")).containsExactlyInAnyOrder("Administrators", "Users", "Account Reviewers");
 		assertThat(departments()).containsEntry("admin", "IT")
 			.containsEntry("user", "Finance")
 			.containsEntry("multi-group-user", "Operations")
 			.containsEntry("account-reviewer-1", "Compliance")
 			.containsEntry("account-reviewer-2", "Compliance");
 		assertThat(this.jdbcTemplate.queryForList("SELECT status FROM app_user", String.class)).containsOnly("ACTIVE");
-		assertThat(this.jdbcTemplate.queryForList("SELECT DISTINCT u.username FROM app_user u "
-				+ "JOIN app_user_group ug ON ug.user_id = u.id JOIN app_group_role gr ON gr.group_id = ug.group_id "
-				+ "JOIN app_role r ON r.id = gr.role_id WHERE r.name = 'ACCOUNT_REVIEWER'", String.class))
-			.containsExactlyInAnyOrder("account-reviewer-1", "account-reviewer-2");
+		assertThat(this.jdbcTemplate.queryForList("""
+				SELECT DISTINCT u.username FROM app_user u
+				JOIN app_user_role ur ON ur.user_id = u.id
+				JOIN app_role_permission rp ON rp.role_id = ur.role_id
+				JOIN app_permission p ON p.id = rp.permission_id
+				WHERE p.domain = 'review' AND p.action = 'decide'
+				""", String.class)).containsExactlyInAnyOrder("account-reviewer-1", "account-reviewer-2");
+		assertThat(this.jdbcTemplate.queryForList("""
+				SELECT DISTINCT u.username FROM app_user u
+				JOIN app_user_role ur ON ur.user_id = u.id
+				JOIN app_role_permission rp ON rp.role_id = ur.role_id
+				JOIN app_permission p ON p.id = rp.permission_id
+				WHERE p.privileged = TRUE
+				""", String.class)).containsExactlyInAnyOrder("admin", "multi-group-user");
 		assertThat(settings()).as("automation is off for development data")
 			.containsEntry("inactivity.enabled", "false")
 			.containsEntry("review.enabled", "false")
 			.containsEntry("inactivity.suspendAfterDays", "90");
-		assertThat(this.jdbcTemplate.queryForList("""
-				SELECT DISTINCT r.name FROM app_user u
-				JOIN app_user_group ug ON ug.user_id = u.id
-				JOIN app_group_role gr ON gr.group_id = ug.group_id
-				JOIN app_role r ON r.id = gr.role_id
-				WHERE u.username = 'admin'
-				""", String.class)).containsExactlyInAnyOrder("USER_MANAGE", "GROUP_MANAGE", "ROLE_MANAGE",
-				"SETTINGS_MANAGE");
 	}
 
 	@Test
@@ -119,7 +127,8 @@ class DatabaseChangelogTest {
 			.queryForObject("SELECT COUNT(*) FROM account_audit_event WHERE action = 'delete_user'", Integer.class))
 			.isEqualTo(2);
 		assertThat(settings()).containsEntry("review.enabled", "true")
-			.containsEntry("review.intervalMonths", "1")
+			.containsEntry("review.privilegedIntervalMonths", "1")
+			.containsEntry("review.nonPrivilegedIntervalMonths", "1")
 			.containsEntry("inactivity.enabled", "false");
 		assertThat(this.jdbcTemplate.queryForObject(
 				"SELECT COUNT(*) FROM app_user WHERE department IS NULL AND status = 'ACTIVE'", Integer.class))
@@ -163,12 +172,13 @@ class DatabaseChangelogTest {
 		liquibase.afterPropertiesSet();
 	}
 
-	private Map<String, String> roleDisplayNames() {
-		Map<String, String> labels = new HashMap<>();
-		this.jdbcTemplate.query("SELECT name, display_name FROM app_role", rs -> {
-			labels.put(rs.getString("name"), rs.getString("display_name"));
-		});
-		return labels;
+	private List<String> rolePermissions(String role) {
+		return this.jdbcTemplate.queryForList("""
+				SELECT p.domain || ':' || p.action FROM app_role r
+				JOIN app_role_permission rp ON rp.role_id = r.id
+				JOIN app_permission p ON p.id = rp.permission_id
+				WHERE r.name = ?
+				""", String.class, role);
 	}
 
 	private List<String> names(String table) {

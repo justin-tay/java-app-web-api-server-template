@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 public interface AppUserRepository extends JpaRepository<AppUser, Long>, JpaSpecificationExecutor<AppUser> {
 
-	@EntityGraph(attributePaths = { "groups", "groups.roles" })
+	@EntityGraph(attributePaths = { "roles", "roles.permissions" })
 	Optional<AppUser> findByUsernameAndStatus(String username, AccountStatus status);
 
 	Optional<AppUser> findByUsername(String username);
@@ -24,9 +24,16 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long>, JpaSpec
 
 	boolean existsByUsername(String username);
 
-	boolean existsByGroups_PublicId(UUID groupId);
+	boolean existsByRoles_PublicId(UUID roleId);
 
-	long countByGroups_PublicId(UUID groupId);
+	/**
+	 * Returns the users who hold a role, with their roles and permissions, for the check
+	 * that a change to the role does not put two conflicting permissions together.
+	 */
+	@EntityGraph(attributePaths = { "roles", "roles.permissions" })
+	List<AppUser> findByRoles_PublicId(UUID roleId);
+
+	long countByRoles_PublicId(UUID roleId);
 
 	/**
 	 * Records a sign-in without touching the audit columns, which track administrative

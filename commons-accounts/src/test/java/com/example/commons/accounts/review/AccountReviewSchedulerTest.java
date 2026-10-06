@@ -42,19 +42,72 @@ class AccountReviewSchedulerTest extends AccountReviewTestSupport {
 				new SettingsService(this.settings, new AccountAuditLogger(this.auditEvents, this.clock)), this.clock,
 				java.time.ZoneOffset.UTC);
 		user("alice");
+		setInterval("review.privilegedIntervalMonths", 3);
+	}
+
+	private void setInterval(String name, int months) {
+		this.jdbcTemplate.update("UPDATE app_setting SET setting_value = ? WHERE name = ?", String.valueOf(months),
+				name);
 	}
 
 	@Test
-	void createsTheTaskInAReviewMonthOnTheFirstRunAndNotAgain() {
+	void createsThePrivilegedTaskInItsReviewMonthOnTheFirstRunAndNotAgain() {
 		this.scheduler.run();
 		this.scheduler.run();
 
 		assertThat(this.tasks.findAll()).hasSize(1);
 		Task task = this.tasks.findAll().get(0);
+		assertThat(task.getType()).isEqualTo(Task.PRIVILEGED_ACCOUNT_REVIEW);
 		assertThat(task.getStartDate()).isEqualTo(LocalDate.of(2026, 10, 1));
 		assertThat(task.getDueDate()).isEqualTo(LocalDate.of(2026, 10, 31));
 		assertThat(task.getStatus()).isEqualTo(TaskStatus.OPEN);
 		assertThat(this.items.findAll()).hasSize(1);
+	}
+
+	@Test
+	void createsTheNonPrivilegedTaskOnItsOwnIntervalAndCoversTheOtherAccounts() {
+		plainUser("bob");
+		this.clock.set(Instant.parse("2027-01-15T10:00:00Z"));
+
+		this.scheduler.run();
+		flushAndClear();
+
+		assertThat(this.tasks.findAll()).extracting(Task::getType)
+			.containsExactlyInAnyOrder(Task.PRIVILEGED_ACCOUNT_REVIEW, Task.NON_PRIVILEGED_ACCOUNT_REVIEW);
+		Task privileged = this.tasks.findAll()
+			.stream()
+			.filter(task -> task.getType().equals(Task.PRIVILEGED_ACCOUNT_REVIEW))
+			.findFirst()
+			.orElseThrow();
+		Task nonPrivileged = this.tasks.findAll()
+			.stream()
+			.filter(task -> task.getType().equals(Task.NON_PRIVILEGED_ACCOUNT_REVIEW))
+			.findFirst()
+			.orElseThrow();
+		assertThat(this.items.findAll().stream().filter(item -> item.getTaskId().equals(privileged.getId())))
+			.extracting(item -> item.getUsername())
+			.containsExactly("alice");
+		assertThat(this.items.findAll().stream().filter(item -> item.getTaskId().equals(nonPrivileged.getId())))
+			.extracting(item -> item.getUsername())
+			.containsExactly("bob");
+	}
+
+	@Test
+	void theTwoReviewsFollowTheirOwnIntervals() {
+		setInterval("review.privilegedIntervalMonths", 1);
+		setInterval("review.nonPrivilegedIntervalMonths", 6);
+		this.clock.set(Instant.parse("2026-11-15T10:00:00Z"));
+
+		this.scheduler.run();
+
+		assertThat(this.tasks.findAll()).extracting(Task::getType).containsExactly(Task.PRIVILEGED_ACCOUNT_REVIEW);
+		this.clock.set(Instant.parse("2026-07-15T10:00:00Z"));
+
+		this.scheduler.run();
+
+		assertThat(this.tasks.findAll()).extracting(Task::getType)
+			.containsExactlyInAnyOrder(Task.PRIVILEGED_ACCOUNT_REVIEW, Task.PRIVILEGED_ACCOUNT_REVIEW,
+					Task.NON_PRIVILEGED_ACCOUNT_REVIEW);
 	}
 
 	@Test
@@ -68,7 +121,8 @@ class AccountReviewSchedulerTest extends AccountReviewTestSupport {
 
 	@Test
 	void createsTheNextTaskEvenWhileAnEarlierOneIsStillOpen() {
-		this.tasks.save(new Task(Task.ACCOUNT_REVIEW, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31), NOW));
+		this.tasks
+			.save(new Task(Task.PRIVILEGED_ACCOUNT_REVIEW, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31), NOW));
 
 		this.scheduler.run();
 
@@ -88,7 +142,7 @@ class AccountReviewSchedulerTest extends AccountReviewTestSupport {
 
 	@Test
 	void followsAChangedInterval() {
-		this.jdbcTemplate.update("UPDATE app_setting SET setting_value = '1' WHERE name = 'review.intervalMonths'");
+		setInterval("review.privilegedIntervalMonths", 1);
 		this.clock.set(Instant.parse("2026-11-15T10:00:00Z"));
 
 		this.scheduler.run();
@@ -101,7 +155,7 @@ class AccountReviewSchedulerTest extends AccountReviewTestSupport {
 	@Test
 	void anExistingTaskKeepsItsDatesWhenTheIntervalChanges() {
 		this.scheduler.run();
-		this.jdbcTemplate.update("UPDATE app_setting SET setting_value = '12' WHERE name = 'review.intervalMonths'");
+		setInterval("review.privilegedIntervalMonths", 12);
 
 		this.scheduler.run();
 
@@ -113,7 +167,7 @@ class AccountReviewSchedulerTest extends AccountReviewTestSupport {
 	void stillCompletesAFinishedTaskWhileTheReviewSettingIsOff() {
 		this.scheduler.run();
 		Task task = this.tasks.findAll().get(0);
-		authenticateAs("ravi", "ACCOUNT_REVIEWER");
+		authenticateAsReviewer("ravi");
 		flushAndClear();
 		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), Decision.CONFIRM, null,
 				null);

@@ -11,8 +11,8 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import com.example.commons.security.authorization.LocalAuthorityLookup;
 
 /**
- * Supplies the local {@code ROLE_} authorities of a user who logged in with a passkey,
- * from {@link LocalAuthorityLookup}, and refuses a user who is not enabled locally.
+ * Supplies the local authorities of a user who logged in with a passkey, from
+ * {@link LocalAuthorityLookup}, and refuses a user who is not enabled locally.
  * <p>
  * The passkey has proven who the user is, so the returned details carry a password only
  * because {@link UserDetails} requires one: it is random, unknown to anyone, and nothing

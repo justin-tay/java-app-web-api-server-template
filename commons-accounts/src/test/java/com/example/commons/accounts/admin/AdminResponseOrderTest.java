@@ -13,12 +13,13 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.core.session.SessionRegistryImpl;
 
 import com.example.commons.accounts.AccountsJpaTest;
-import com.example.commons.accounts.admin.AdminDtos.GroupResponse;
-import com.example.commons.accounts.admin.AdminDtos.RoleSummary;
+import com.example.commons.accounts.Permissions;
+import com.example.commons.accounts.admin.AdminDtos.PermissionSummary;
+import com.example.commons.accounts.admin.AdminDtos.RoleResponse;
 import com.example.commons.accounts.admin.AdminDtos.Summary;
 import com.example.commons.accounts.admin.AdminDtos.UserResponse;
-import com.example.commons.accounts.domain.AppGroup;
-import com.example.commons.accounts.domain.AppGroupRepository;
+import com.example.commons.accounts.domain.AppPermission;
+import com.example.commons.accounts.domain.AppPermissionRepository;
 import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppUser;
@@ -27,11 +28,11 @@ import com.example.commons.security.session.SessionLifecycleAuditLogger;
 import com.example.commons.security.session.SessionRevocationService;
 
 /**
- * Tests that {@link GroupAdminController} returns the roles of a group sorted by display
- * name then name, and {@link UserAdminController} returns the groups of a user sorted by
- * name, each ignoring case. The entities hold these in hash sets ordered by object
- * identity, so every read reloads them in a cleared persistence context to get new
- * instances, as each request does.
+ * Tests that {@link RoleAdminController} returns the permissions of a role sorted by
+ * name, and {@link UserAdminController} returns the roles of a user sorted by name, each
+ * ignoring case. The entities hold these in hash sets ordered by object identity, so
+ * every read reloads them in a cleared persistence context to get new instances, as each
+ * request does.
  */
 @AccountsJpaTest
 class AdminResponseOrderTest {
@@ -43,12 +44,12 @@ class AdminResponseOrderTest {
 	private AppUserRepository users;
 
 	@Autowired
-	private AppGroupRepository groups;
-
-	@Autowired
 	private AppRoleRepository roles;
 
-	private GroupAdminController groupController;
+	@Autowired
+	private AppPermissionRepository permissions;
+
+	private RoleAdminController roleController;
 
 	private UserAdminController userController;
 
@@ -57,37 +58,37 @@ class AdminResponseOrderTest {
 		SessionRevocationService revocation = new SessionRevocationService(new SessionRegistryImpl(), null,
 				new SessionLifecycleAuditLogger());
 		AccountAuditLogger auditLogger = new AccountAuditLogger();
-		AdministrationService service = new AdministrationService(this.users, this.groups, this.roles, revocation,
+		AdministrationService service = new AdministrationService(this.users, this.roles, this.permissions, revocation,
 				auditLogger);
-		this.groupController = new GroupAdminController(service);
+		this.roleController = new RoleAdminController(service);
 		this.userController = new UserAdminController(service,
 				new AccountLifecycleService(this.users, revocation, auditLogger, null, null, Clock.systemUTC()));
 	}
 
 	@Test
-	void returnsTheRolesOfAGroupSortedByDisplayNameThenName() {
-		AppGroup group = this.entityManager.persist(new AppGroup("Staff"));
-		for (AppRole role : List.of(new AppRole("ZETA", "reports"), new AppRole("ALPHA", "Users"),
-				new AppRole("MIKE", "admin"), new AppRole("BETA", "Users"), new AppRole("OMEGA", "Billing"))) {
-			group.getRoles().add(this.entityManager.persist(role));
+	void returnsThePermissionsOfARoleSortedByName() {
+		AppRole role = this.entityManager.persist(new AppRole("Staff"));
+		for (String name : List.of(Permissions.USER_UPDATE, Permissions.AUDIT_READ, Permissions.USER_READ,
+				Permissions.APPLICATION_ACCESS, Permissions.ROLE_CREATE)) {
+			role.getPermissions().add(permission(name));
 		}
 		this.entityManager.flush();
 
-		List<String> expected = List.of("MIKE", "OMEGA", "ZETA", "ALPHA", "BETA");
+		List<String> expected = List.of("application:access", "audit:read", "role:create", "user:read", "user:update");
 		for (int read = 0; read < 5; read++) {
-			assertThat(roleNames(this.groupController.get(reload(group).getPublicId()))).isEqualTo(expected);
+			assertThat(permissionNames(this.roleController.get(reload(role).getPublicId()))).isEqualTo(expected);
 		}
 		this.entityManager.clear();
-		assertThat(this.groupController.list(null, "Staff", null, 0, 20, new MockHttpServletRequest()).items())
+		assertThat(this.roleController.list(null, "Staff", null, 0, 20, new MockHttpServletRequest()).items())
 			.singleElement()
-			.satisfies((response) -> assertThat(roleNames(response)).isEqualTo(expected));
+			.satisfies((response) -> assertThat(permissionNames(response)).isEqualTo(expected));
 	}
 
 	@Test
-	void returnsTheGroupsOfAUserSortedByName() {
+	void returnsTheRolesOfAUserSortedByName() {
 		AppUser user = new AppUser("sorted-user", "Sorted User", null);
 		for (String name : List.of("zebras", "Mangoes", "apples", "Bananas")) {
-			user.getGroups().add(this.entityManager.persist(new AppGroup(name)));
+			user.getRoles().add(this.entityManager.persist(new AppRole(name)));
 		}
 		this.entityManager.persist(user);
 		this.entityManager.flush();
@@ -95,26 +96,34 @@ class AdminResponseOrderTest {
 		List<String> expected = List.of("apples", "Bananas", "Mangoes", "zebras");
 		for (int read = 0; read < 5; read++) {
 			this.entityManager.clear();
-			assertThat(groupNames(this.userController.get(user.getPublicId()))).isEqualTo(expected);
+			assertThat(roleNames(this.userController.get(user.getPublicId()))).isEqualTo(expected);
 		}
 		this.entityManager.clear();
 		assertThat(this.userController
-			.list(null, "sorted-user", null, null, null, null, null, null, null, null, 0, 20,
+			.list(null, "sorted-user", null, null, null, null, null, null, null, null, null, 0, 20,
 					new MockHttpServletRequest())
-			.items()).singleElement().satisfies((response) -> assertThat(groupNames(response)).isEqualTo(expected));
+			.items()).singleElement().satisfies((response) -> assertThat(roleNames(response)).isEqualTo(expected));
 	}
 
-	private AppGroup reload(AppGroup group) {
+	private AppPermission permission(String name) {
+		return this.permissions.findAll()
+			.stream()
+			.filter(permission -> permission.getName().equals(name))
+			.findFirst()
+			.orElseThrow();
+	}
+
+	private AppRole reload(AppRole role) {
 		this.entityManager.clear();
-		return this.entityManager.find(AppGroup.class, group.getId());
+		return this.entityManager.find(AppRole.class, role.getId());
 	}
 
-	private List<String> roleNames(GroupResponse response) {
-		return response.roles().stream().map(RoleSummary::name).toList();
+	private List<String> permissionNames(RoleResponse response) {
+		return response.permissions().stream().map(PermissionSummary::name).toList();
 	}
 
-	private List<String> groupNames(UserResponse response) {
-		return response.groups().stream().map(Summary::name).toList();
+	private List<String> roleNames(UserResponse response) {
+		return response.roles().stream().map(Summary::name).toList();
 	}
 
 }

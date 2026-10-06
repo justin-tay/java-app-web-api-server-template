@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
 
 import com.example.commons.accounts.admin.AccountLifecycleService;
 import com.example.commons.accounts.admin.AdministrationService;
-import com.example.commons.accounts.admin.GroupAdminController;
+import com.example.commons.accounts.admin.PermissionAdminController;
 import com.example.commons.accounts.admin.RoleAdminController;
 import com.example.commons.accounts.admin.UserAdminController;
 import com.example.commons.accounts.domain.AccountAuditEventRepository;
@@ -22,7 +22,7 @@ import com.example.commons.accounts.domain.AccountReviewAttestationRepository;
 import com.example.commons.accounts.domain.AccountReviewItemRepository;
 import com.example.commons.accounts.domain.AccountReviewPopulationEntryRepository;
 import com.example.commons.accounts.domain.AccountReviewReportRepository;
-import com.example.commons.accounts.domain.AppGroupRepository;
+import com.example.commons.accounts.domain.AppPermissionRepository;
 import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppSettingRepository;
 import com.example.commons.accounts.domain.AppUserRepository;
@@ -46,7 +46,7 @@ class AccountsAutoConfigurationTest {
 		this.contextRunner.run(context -> assertThat(context).hasSingleBean(AppUserLocalAuthorityLookup.class)
 			.hasSingleBean(AdministrationService.class)
 			.hasSingleBean(UserAdminController.class)
-			.hasSingleBean(GroupAdminController.class)
+			.hasSingleBean(PermissionAdminController.class)
 			.hasSingleBean(RoleAdminController.class));
 	}
 
@@ -102,8 +102,8 @@ class AccountsAutoConfigurationTest {
 		}
 
 		@Bean
-		AppGroupRepository appGroupRepository() {
-			return mock(AppGroupRepository.class);
+		AppPermissionRepository appPermissionRepository() {
+			return mock(AppPermissionRepository.class);
 		}
 
 		@Bean

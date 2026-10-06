@@ -1,9 +1,9 @@
 -- Changeset com/example/commons/accounts/jdbc/schema.yaml::accounts-schema::commons-accounts
 CREATE SEQUENCE app_user_seq START WITH 1000 INCREMENT BY 50;
 
-CREATE SEQUENCE app_group_seq START WITH 1000 INCREMENT BY 50;
-
 CREATE SEQUENCE app_role_seq START WITH 1000 INCREMENT BY 50;
+
+CREATE SEQUENCE app_permission_seq START WITH 1000 INCREMENT BY 50;
 
 CREATE SEQUENCE account_audit_event_seq START WITH 1000 INCREMENT BY 50;
 
@@ -23,29 +23,39 @@ CREATE TABLE app_user (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, 
 
 CREATE NONCLUSTERED INDEX ix_app_user_department ON app_user(department);
 
-CREATE TABLE app_group (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, name varchar(100) NOT NULL, created_at DATETIMEOFFSET NOT NULL, updated_at DATETIMEOFFSET NOT NULL, created_by varchar(100) NOT NULL, updated_by varchar(100) NOT NULL, CONSTRAINT pk_app_group PRIMARY KEY (id), CONSTRAINT uk_app_group_public_id UNIQUE (public_id), CONSTRAINT uk_app_group_name UNIQUE (name));
+CREATE TABLE app_role (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, name varchar(100) NOT NULL, created_at DATETIMEOFFSET NOT NULL, updated_at DATETIMEOFFSET NOT NULL, created_by varchar(100) NOT NULL, updated_by varchar(100) NOT NULL, CONSTRAINT pk_app_role PRIMARY KEY (id), CONSTRAINT uk_app_role_public_id UNIQUE (public_id), CONSTRAINT uk_app_role_name UNIQUE (name));
 
-CREATE TABLE app_role (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, name varchar(100) NOT NULL, display_name varchar(100) NOT NULL, created_at DATETIMEOFFSET NOT NULL, updated_at DATETIMEOFFSET NOT NULL, created_by varchar(100) NOT NULL, updated_by varchar(100) NOT NULL, CONSTRAINT pk_app_role PRIMARY KEY (id), CONSTRAINT uk_app_role_public_id UNIQUE (public_id), CONSTRAINT uk_app_role_name UNIQUE (name));
+CREATE TABLE app_permission (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, domain varchar(50) NOT NULL, action varchar(50) NOT NULL, privileged bit CONSTRAINT DF_app_permission_privileged DEFAULT 0 NOT NULL, CONSTRAINT pk_app_permission PRIMARY KEY (id), CONSTRAINT uk_app_permission_public_id UNIQUE (public_id));
 
-CREATE TABLE app_user_group (user_id bigint NOT NULL, group_id bigint NOT NULL);
+ALTER TABLE app_permission ADD CONSTRAINT uk_app_permission_domain_action UNIQUE (domain, action);
 
-ALTER TABLE app_user_group ADD CONSTRAINT pk_app_user_group PRIMARY KEY (user_id, group_id);
+CREATE TABLE app_user_role (user_id bigint NOT NULL, role_id bigint NOT NULL);
 
-ALTER TABLE app_user_group ADD CONSTRAINT fk_app_user_group_user FOREIGN KEY (user_id) REFERENCES app_user (id);
+ALTER TABLE app_user_role ADD CONSTRAINT pk_app_user_role PRIMARY KEY (user_id, role_id);
 
-ALTER TABLE app_user_group ADD CONSTRAINT fk_app_user_group_group FOREIGN KEY (group_id) REFERENCES app_group (id);
+ALTER TABLE app_user_role ADD CONSTRAINT fk_app_user_role_user FOREIGN KEY (user_id) REFERENCES app_user (id);
 
-CREATE TABLE app_group_role (group_id bigint NOT NULL, role_id bigint NOT NULL);
+ALTER TABLE app_user_role ADD CONSTRAINT fk_app_user_role_role FOREIGN KEY (role_id) REFERENCES app_role (id);
 
-ALTER TABLE app_group_role ADD CONSTRAINT pk_app_group_role PRIMARY KEY (group_id, role_id);
+CREATE TABLE app_role_permission (role_id bigint NOT NULL, permission_id bigint NOT NULL);
 
-ALTER TABLE app_group_role ADD CONSTRAINT fk_app_group_role_group FOREIGN KEY (group_id) REFERENCES app_group (id);
+ALTER TABLE app_role_permission ADD CONSTRAINT pk_app_role_permission PRIMARY KEY (role_id, permission_id);
 
-ALTER TABLE app_group_role ADD CONSTRAINT fk_app_group_role_role FOREIGN KEY (role_id) REFERENCES app_role (id);
+ALTER TABLE app_role_permission ADD CONSTRAINT fk_app_role_permission_role FOREIGN KEY (role_id) REFERENCES app_role (id);
 
-CREATE NONCLUSTERED INDEX ix_app_user_group_group ON app_user_group(group_id);
+ALTER TABLE app_role_permission ADD CONSTRAINT fk_app_role_permission_permission FOREIGN KEY (permission_id) REFERENCES app_permission (id);
 
-CREATE NONCLUSTERED INDEX ix_app_group_role_role ON app_group_role(role_id);
+CREATE NONCLUSTERED INDEX ix_app_user_role_role ON app_user_role(role_id);
+
+CREATE NONCLUSTERED INDEX ix_app_role_permission_permission ON app_role_permission(permission_id);
+
+CREATE TABLE app_permission_conflict (permission_id bigint NOT NULL, conflicting_permission_id bigint NOT NULL);
+
+ALTER TABLE app_permission_conflict ADD CONSTRAINT pk_app_permission_conflict PRIMARY KEY (permission_id, conflicting_permission_id);
+
+ALTER TABLE app_permission_conflict ADD CONSTRAINT fk_app_permission_conflict_permission FOREIGN KEY (permission_id) REFERENCES app_permission (id);
+
+ALTER TABLE app_permission_conflict ADD CONSTRAINT fk_app_permission_conflict_other FOREIGN KEY (conflicting_permission_id) REFERENCES app_permission (id);
 
 CREATE TABLE user_entities (id varchar(1000) NOT NULL, name varchar(100) NOT NULL, display_name varchar(200), CONSTRAINT pk_user_entities PRIMARY KEY (id), CONSTRAINT uk_user_entities_name UNIQUE (name));
 
@@ -71,7 +81,7 @@ CREATE TABLE task (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, type
 
 ALTER TABLE task ADD CONSTRAINT uk_task_type_start UNIQUE (type, start_date);
 
-CREATE TABLE account_review_item (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, task_id bigint NOT NULL, user_public_id uniqueidentifier NOT NULL, username varchar(100) NOT NULL, full_name varchar(100) NOT NULL, outcome varchar(30) NOT NULL, decided_at DATETIMEOFFSET, decided_by varchar(100), removal_audit_event_id bigint, department varchar(100), last_login_at DATETIMEOFFSET, groups_before varchar(MAX), groups_after varchar(MAX), CONSTRAINT pk_account_review_item PRIMARY KEY (id), CONSTRAINT uk_account_review_item_public_id UNIQUE (public_id));
+CREATE TABLE account_review_item (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, task_id bigint NOT NULL, user_public_id uniqueidentifier NOT NULL, username varchar(100) NOT NULL, full_name varchar(100) NOT NULL, outcome varchar(30) NOT NULL, decided_at DATETIMEOFFSET, decided_by varchar(100), removal_audit_event_id bigint, department varchar(100), last_login_at DATETIMEOFFSET, roles_before varchar(MAX), roles_after varchar(MAX), privileged_permissions varchar(MAX), CONSTRAINT pk_account_review_item PRIMARY KEY (id), CONSTRAINT uk_account_review_item_public_id UNIQUE (public_id));
 
 ALTER TABLE account_review_item ADD CONSTRAINT fk_account_review_item_task FOREIGN KEY (task_id) REFERENCES task (id);
 
@@ -103,4 +113,66 @@ INSERT INTO app_setting (id, name, setting_value, updated_at, updated_by) VALUES
 
 INSERT INTO app_setting (id, name, setting_value, updated_at, updated_by) VALUES (4, 'review.enabled', 'true', SYSDATETIMEOFFSET(), 'system');
 
-INSERT INTO app_setting (id, name, setting_value, updated_at, updated_by) VALUES (5, 'review.intervalMonths', '3', SYSDATETIMEOFFSET(), 'system');
+INSERT INTO app_setting (id, name, setting_value, updated_at, updated_by) VALUES (5, 'review.privilegedIntervalMonths', '1', SYSDATETIMEOFFSET(), 'system');
+
+INSERT INTO app_setting (id, name, setting_value, updated_at, updated_by) VALUES (6, 'review.nonPrivilegedIntervalMonths', '12', SYSDATETIMEOFFSET(), 'system');
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (1, '00000000-0000-0000-0100-000000000001', 'application', 'access', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (2, '00000000-0000-0000-0100-000000000002', 'user', 'read', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (3, '00000000-0000-0000-0100-000000000003', 'user', 'create', 1);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (4, '00000000-0000-0000-0100-000000000004', 'user', 'update', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (5, '00000000-0000-0000-0100-000000000005', 'user', 'add-role', 1);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (6, '00000000-0000-0000-0100-000000000006', 'user', 'remove-role', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (7, '00000000-0000-0000-0100-000000000007', 'user', 'suspend', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (8, '00000000-0000-0000-0100-000000000008', 'user', 'unsuspend', 1);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (9, '00000000-0000-0000-0100-000000000009', 'user', 'remove', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (10, '00000000-0000-0000-0100-00000000000a', 'user', 'revoke-session', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (11, '00000000-0000-0000-0100-00000000000b', 'user', 'remove-passkey', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (12, '00000000-0000-0000-0100-00000000000c', 'role', 'read', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (13, '00000000-0000-0000-0100-00000000000d', 'role', 'create', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (14, '00000000-0000-0000-0100-00000000000e', 'role', 'update', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (15, '00000000-0000-0000-0100-00000000000f', 'role', 'delete', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (16, '00000000-0000-0000-0100-000000000010', 'role', 'add-permission', 1);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (17, '00000000-0000-0000-0100-000000000011', 'role', 'remove-permission', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (18, '00000000-0000-0000-0100-000000000012', 'permission', 'read', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (19, '00000000-0000-0000-0100-000000000013', 'settings', 'read', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (20, '00000000-0000-0000-0100-000000000014', 'settings', 'update', 1);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (21, '00000000-0000-0000-0100-000000000015', 'audit', 'read', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (22, '00000000-0000-0000-0100-000000000016', 'review', 'read', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (23, '00000000-0000-0000-0100-000000000017', 'review', 'decide', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (24, '00000000-0000-0000-0100-000000000018', 'review', 'confirm-population', 0);
+
+INSERT INTO app_permission (id, public_id, domain, action, privileged) VALUES (25, '00000000-0000-0000-0100-000000000019', 'review', 'download-report', 0);
+
+INSERT INTO app_permission_conflict (permission_id, conflicting_permission_id) VALUES (23, 3);
+
+INSERT INTO app_permission_conflict (permission_id, conflicting_permission_id) VALUES (23, 5);
+
+INSERT INTO app_permission_conflict (permission_id, conflicting_permission_id) VALUES (23, 8);
+
+INSERT INTO app_permission_conflict (permission_id, conflicting_permission_id) VALUES (23, 16);
+
+INSERT INTO app_permission_conflict (permission_id, conflicting_permission_id) VALUES (23, 20);

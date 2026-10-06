@@ -62,10 +62,10 @@ class LocalAuthorityRefreshFilterTest {
 
 	@Test
 	void replacesRoleAuthoritiesWithFreshOnesFromTheDatabaseButKeepsOtherAuthorities() throws Exception {
-		this.localUsers.put("alice", roles("USER_MANAGE"));
+		this.localUsers.put("alice", permissions("user:read"));
 		SecurityContextHolder.getContext()
 			.setAuthentication(oauthToken("alice", new SimpleGrantedAuthority("SCOPE_openid"),
-					new SimpleGrantedAuthority("ROLE_STALE_ROLE")));
+					new SimpleGrantedAuthority("stale:action")));
 
 		this.filter.doFilter(new MockHttpServletRequest("GET", "/accounts"), new MockHttpServletResponse(),
 				(request, response) -> {
@@ -75,7 +75,7 @@ class LocalAuthorityRefreshFilterTest {
 			.getAuthentication()
 			.getAuthorities();
 		assertThat(authorities).extracting(GrantedAuthority::getAuthority)
-			.containsExactlyInAnyOrder("SCOPE_openid", "ROLE_USER_MANAGE");
+			.containsExactlyInAnyOrder("SCOPE_openid", "user:read");
 	}
 
 	@Test
@@ -97,10 +97,10 @@ class LocalAuthorityRefreshFilterTest {
 	@Test
 	void logsAPrivilegeChangeOnceAndSavesTheRefreshedAuthenticationToTheSession(CapturedOutput output)
 			throws Exception {
-		this.localUsers.put("alice", roles("USER_MANAGE"));
+		this.localUsers.put("alice", permissions("user:read"));
 		SecurityContextHolder.getContext()
 			.setAuthentication(oauthToken("alice", new SimpleGrantedAuthority("SCOPE_openid"),
-					new SimpleGrantedAuthority("ROLE_STALE_ROLE")));
+					new SimpleGrantedAuthority("stale:action")));
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/accounts");
 		MockHttpSession session = (MockHttpSession) request.getSession(true);
 
@@ -108,19 +108,19 @@ class LocalAuthorityRefreshFilterTest {
 		});
 
 		assertThat(output).containsOnlyOnce("event.action=\"update_session\"")
-			.contains("roles.added=\"[USER_MANAGE]\"")
-			.contains("roles.removed=\"[STALE_ROLE]\"");
+			.contains("permissions.added=\"[user:read]\"")
+			.contains("permissions.removed=\"[stale:action]\"");
 		SecurityContext savedContext = (SecurityContext) session
 			.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
 		assertThat(savedContext.getAuthentication().getAuthorities()).extracting(GrantedAuthority::getAuthority)
-			.containsExactlyInAnyOrder("SCOPE_openid", "ROLE_USER_MANAGE");
+			.containsExactlyInAnyOrder("SCOPE_openid", "user:read");
 	}
 
 	@Test
 	void doesNotLogWhenTheReloadedAuthoritiesAreUnchanged(CapturedOutput output) throws Exception {
-		this.localUsers.put("alice", roles("USER_MANAGE"));
+		this.localUsers.put("alice", permissions("user:read"));
 		SecurityContextHolder.getContext()
-			.setAuthentication(oauthToken("alice", new SimpleGrantedAuthority("ROLE_USER_MANAGE")));
+			.setAuthentication(oauthToken("alice", new SimpleGrantedAuthority("user:read")));
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/accounts");
 		MockHttpSession session = (MockHttpSession) request.getSession(true);
 
@@ -133,9 +133,9 @@ class LocalAuthorityRefreshFilterTest {
 
 	@Test
 	void doesNotLogAPrivilegeChangeForASessionAlreadyExpiredForRevocation(CapturedOutput output) throws Exception {
-		this.localUsers.put("alice", roles("USER_MANAGE"));
+		this.localUsers.put("alice", permissions("user:read"));
 		SecurityContextHolder.getContext()
-			.setAuthentication(oauthToken("alice", new SimpleGrantedAuthority("ROLE_STALE_ROLE")));
+			.setAuthentication(oauthToken("alice", new SimpleGrantedAuthority("stale:action")));
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/accounts");
 		MockHttpSession session = (MockHttpSession) request.getSession(true);
 		this.sessionRegistry.registerNewSession(session.getId(), "alice");
@@ -160,10 +160,8 @@ class LocalAuthorityRefreshFilterTest {
 		assertThat(this.lookedUp).isEmpty();
 	}
 
-	private static Collection<GrantedAuthority> roles(String... roleNames) {
-		return Arrays.stream(roleNames)
-			.<GrantedAuthority>map((roleName) -> new SimpleGrantedAuthority("ROLE_" + roleName))
-			.toList();
+	private static Collection<GrantedAuthority> permissions(String... names) {
+		return Arrays.stream(names).<GrantedAuthority>map((name) -> new SimpleGrantedAuthority(name)).toList();
 	}
 
 	private OAuth2AuthenticationToken oauthToken(String preferredUsername, GrantedAuthority... authorities) {

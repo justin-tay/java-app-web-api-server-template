@@ -13,30 +13,32 @@ import com.example.commons.accounts.review.ReviewDtos.PopulationEntryResponse;
  *
  * @param draft whether the task is still open, in which case the report is marked as a
  * draft and is not evidence
+ * @param privileged whether the task is the privileged account review, whose report also
+ * holds the suspended and removed populations
  * @param zone the time zone the times are shown in
  */
-public record ReviewReportModel(boolean draft, ZoneId zone, LocalDate periodStart, LocalDate periodEnd,
-		LocalDate dueDate, Instant completedAt, String completedBy, Instant generatedAt, String generatedBy,
-		Summary summary, List<DepartmentRow> departments, List<ItemRow> items, PopulationSection suspended,
-		PopulationSection removed) {
+public record ReviewReportModel(boolean draft, boolean privileged, ZoneId zone, LocalDate periodStart,
+		LocalDate periodEnd, LocalDate dueDate, Instant completedAt, String completedBy, Instant generatedAt,
+		String generatedBy, Summary summary, List<DepartmentRow> departments, List<ItemRow> items,
+		PopulationSection suspended, PopulationSection removed) {
 
 	/**
 	 * The number of accounts in each outcome.
 	 */
-	public record Summary(long confirmed, long confirmedGroupsEdited, long removed, long pending, long total) {
+	public record Summary(long confirmed, long confirmedRolesEdited, long removed, long pending, long total) {
 	}
 
 	/**
 	 * The outcomes of one department's accounts.
 	 */
-	public record DepartmentRow(String department, long confirmed, long confirmedGroupsEdited, long removed,
+	public record DepartmentRow(String department, long confirmed, long confirmedRolesEdited, long removed,
 			long pending, long total) {
 	}
 
 	/**
-	 * One account of the review, with the groups it holds after the review.
+	 * One account of the review, with the roles it holds after the review.
 	 */
-	public record ItemRow(int number, String name, String username, String department, String groups, String outcome,
+	public record ItemRow(int number, String name, String username, String department, String roles, String outcome,
 			String remark, Instant decidedAt) {
 	}
 

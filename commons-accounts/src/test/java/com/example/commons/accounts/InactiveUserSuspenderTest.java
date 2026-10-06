@@ -18,7 +18,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.example.commons.accounts.admin.AccountAuditLogger;
 import com.example.commons.accounts.admin.AccountLifecycleService;
-import com.example.commons.accounts.domain.AppGroup;
+import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppSettingRepository;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
@@ -49,11 +49,11 @@ class InactiveUserSuspenderTest {
 
 	private final SessionRevocationService sessionRevocationService = mock(SessionRevocationService.class);
 
-	private AppGroup group;
+	private AppRole role;
 
 	@BeforeEach
-	void createGroup() {
-		this.group = this.entityManager.persist(new AppGroup("users"));
+	void createRole() {
+		this.role = this.entityManager.persist(new AppRole("users"));
 	}
 
 	@Test
@@ -141,7 +141,7 @@ class InactiveUserSuspenderTest {
 	private void user(String username, Instant clockStartedAt, Instant lastLoginAt, ReasonCode suspendedFor,
 			boolean suspended) {
 		AppUser user = new AppUser(username, username, null);
-		user.getGroups().add(this.group);
+		user.getRoles().add(this.role);
 		if (suspended) {
 			user.suspend(clockStartedAt, suspendedFor, null);
 		}

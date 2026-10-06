@@ -89,12 +89,12 @@ class SessionLifecycleAuditLoggerTest {
 	}
 
 	@Test
-	void logsAPrivilegeChangeWithTheAuditIdentifierUserAndChangedRoles() {
+	void logsAPrivilegeChangeWithTheAuditIdentifierUserAndChangedPermissions() {
 		MockHttpSession session = new MockHttpSession(null, "browser-session-credential");
 		session.setAttribute(SessionLifecycleAuditLogger.AUDIT_SESSION_ID_ATTRIBUTE, "audit-id");
 
-		this.sessionLifecycleAuditLogger.logSessionPrivilegeChanged(session, "alice",
-				List.of("USER_MANAGE", "GROUP_MANAGE"), List.of("APPLICATION_USER"));
+		this.sessionLifecycleAuditLogger.logSessionPrivilegeChanged(session, "alice", List.of("user:read", "role:read"),
+				List.of("application:access"));
 
 		assertThat(this.logEvents.list).singleElement().satisfies(event -> {
 			assertThat(event.getKeyValuePairs().toString()).doesNotContain("browser-session-credential")
@@ -102,8 +102,8 @@ class SessionLifecycleAuditLoggerTest {
 				.contains("event.reason=\"privilege_change\"")
 				.contains("session.id=\"audit-id\"")
 				.contains("user.name=\"alice\"")
-				.contains("roles.added=\"[GROUP_MANAGE, USER_MANAGE]\"")
-				.contains("roles.removed=\"[APPLICATION_USER]\"");
+				.contains("permissions.added=\"[role:read, user:read]\"")
+				.contains("permissions.removed=\"[application:access]\"");
 		});
 	}
 

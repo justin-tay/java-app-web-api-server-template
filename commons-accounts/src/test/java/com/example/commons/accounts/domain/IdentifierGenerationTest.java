@@ -20,22 +20,22 @@ class IdentifierGenerationTest {
 
 	@Test
 	void persistingAnEntityAssignsASequenceNumberAndAVersion4PublicId() {
-		AppGroup first = this.entityManager.persistAndFlush(new AppGroup("First"));
-		AppGroup second = this.entityManager.persistAndFlush(new AppGroup("Second"));
+		AppRole first = this.entityManager.persistAndFlush(new AppRole("First"));
+		AppRole second = this.entityManager.persistAndFlush(new AppRole("Second"));
 
 		assertThat(first.getId()).isNotNull().isNotEqualTo(second.getId());
 		assertThat(first.getPublicId().version()).isEqualTo(4);
 		assertThat(second.getPublicId().version()).isEqualTo(4);
 		assertThat(first.getPublicId()).isNotEqualTo(second.getPublicId());
-		assertThat(this.entityManager.find(AppGroup.class, first.getId()).getName()).isEqualTo("First");
+		assertThat(this.entityManager.find(AppRole.class, first.getId()).getName()).isEqualTo("First");
 	}
 
 	@Test
 	void thePublicIdIsKnownBeforeTheEntityIsPersisted() {
-		AppGroup group = new AppGroup("Unsaved");
+		AppRole role = new AppRole("Unsaved");
 
-		assertThat(group.getPublicId()).isNotNull();
-		assertThat(group.getId()).isNull();
+		assertThat(role.getPublicId()).isNotNull();
+		assertThat(role.getId()).isNull();
 	}
 
 }

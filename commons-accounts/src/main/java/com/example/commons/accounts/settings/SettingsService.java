@@ -2,6 +2,7 @@ package com.example.commons.accounts.settings;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -28,7 +29,11 @@ public class SettingsService {
 
 	static final String REVIEW_ENABLED = "review.enabled";
 
-	static final String REVIEW_INTERVAL_MONTHS = "review.intervalMonths";
+	static final String REVIEW_PRIVILEGED_INTERVAL_MONTHS = "review.privilegedIntervalMonths";
+
+	static final String REVIEW_NON_PRIVILEGED_INTERVAL_MONTHS = "review.nonPrivilegedIntervalMonths";
+
+	private static final Set<Integer> VALID_INTERVALS = Set.of(1, 3, 6, 12);
 
 	private final AppSettingRepository settings;
 
@@ -47,6 +52,14 @@ public class SettingsService {
 	public Settings update(Settings requested) {
 		if (requested.inactivity().removeAfterDays() <= requested.inactivity().suspendAfterDays()) {
 			throw new BadRequestException("The removal threshold must be greater than the suspension threshold.");
+		}
+		if (!VALID_INTERVALS.contains(requested.review().privilegedIntervalMonths())
+				|| !VALID_INTERVALS.contains(requested.review().nonPrivilegedIntervalMonths())) {
+			throw new BadRequestException("A review interval must be 1, 3, 6 or 12 months.");
+		}
+		if (requested.review().nonPrivilegedIntervalMonths() < requested.review().privilegedIntervalMonths()) {
+			throw new BadRequestException(
+					"The non-privileged review interval cannot be shorter than the privileged review interval.");
 		}
 		Map<String, String> before = values();
 		Map<String, String> after = toValues(requested);
@@ -81,7 +94,8 @@ public class SettingsService {
 		return new Settings(new Settings.Inactivity(Boolean.parseBoolean(value.apply(INACTIVITY_ENABLED)),
 				Integer.parseInt(value.apply(SUSPEND_AFTER_DAYS)), Integer.parseInt(value.apply(REMOVE_AFTER_DAYS))),
 				new Settings.Review(Boolean.parseBoolean(value.apply(REVIEW_ENABLED)),
-						Integer.parseInt(value.apply(REVIEW_INTERVAL_MONTHS))));
+						Integer.parseInt(value.apply(REVIEW_PRIVILEGED_INTERVAL_MONTHS)),
+						Integer.parseInt(value.apply(REVIEW_NON_PRIVILEGED_INTERVAL_MONTHS))));
 	}
 
 	private static Map<String, String> toValues(Settings settings) {
@@ -90,13 +104,15 @@ public class SettingsService {
 		values.put(SUSPEND_AFTER_DAYS, String.valueOf(settings.inactivity().suspendAfterDays()));
 		values.put(REMOVE_AFTER_DAYS, String.valueOf(settings.inactivity().removeAfterDays()));
 		values.put(REVIEW_ENABLED, String.valueOf(settings.review().enabled()));
-		values.put(REVIEW_INTERVAL_MONTHS, String.valueOf(settings.review().intervalMonths()));
+		values.put(REVIEW_PRIVILEGED_INTERVAL_MONTHS, String.valueOf(settings.review().privilegedIntervalMonths()));
+		values.put(REVIEW_NON_PRIVILEGED_INTERVAL_MONTHS,
+				String.valueOf(settings.review().nonPrivilegedIntervalMonths()));
 		return values;
 	}
 
 	private static Map<String, String> defaults() {
 		return Map.of(INACTIVITY_ENABLED, "true", SUSPEND_AFTER_DAYS, "90", REMOVE_AFTER_DAYS, "180", REVIEW_ENABLED,
-				"true", REVIEW_INTERVAL_MONTHS, "3");
+				"true", REVIEW_PRIVILEGED_INTERVAL_MONTHS, "1", REVIEW_NON_PRIVILEGED_INTERVAL_MONTHS, "12");
 	}
 
 }

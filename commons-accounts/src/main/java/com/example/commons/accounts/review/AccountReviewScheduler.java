@@ -16,10 +16,11 @@ import com.example.commons.accounts.settings.Settings;
 import com.example.commons.accounts.settings.SettingsService;
 
 /**
- * Creates the account review task on the first run in a review month, and completes tasks
- * that a change outside the review has finished (see docs/adr/0037). It reads the
- * {@code review.*} settings on every run. When {@code review.enabled} is false it creates
- * nothing, but tasks that already exist are still completed when they are finished.
+ * Creates the privileged and the non-privileged account review tasks on the first run in
+ * each one's review month, and completes tasks that a change outside the review has
+ * finished (see docs/adr/0037 and docs/adr/0038). It reads the {@code review.*} settings
+ * on every run. When {@code review.enabled} is false it creates nothing, but tasks that
+ * already exist are still completed when they are finished.
  *
  * <p>
  * A task that is still open does not stop the next one from being created: the two review
@@ -55,18 +56,19 @@ public class AccountReviewScheduler {
 	public void run() {
 		Settings.Review review = this.settings.get().review();
 		if (review.enabled()) {
-			createDueTask(review.intervalMonths());
+			createDueTask(Task.PRIVILEGED_ACCOUNT_REVIEW, review.privilegedIntervalMonths());
+			createDueTask(Task.NON_PRIVILEGED_ACCOUNT_REVIEW, review.nonPrivilegedIntervalMonths());
 		}
 		completeFinishedTasks();
 	}
 
-	private void createDueTask(int intervalMonths) {
+	private void createDueTask(String type, int intervalMonths) {
 		ReviewPeriod.containing(LocalDate.ofInstant(this.clock.instant(), this.zone), intervalMonths)
-			.filter(period -> !this.tasks.existsByTypeAndStartDate(Task.ACCOUNT_REVIEW, period.start()))
+			.filter(period -> !this.tasks.existsByTypeAndStartDate(type, period.start()))
 			.ifPresent(period -> {
 				try {
-					this.service.createTask(period);
-					LOGGER.info("Created the account review for {} to {}", period.start(), period.due());
+					this.service.createTask(type, period);
+					LOGGER.info("Created the {} for {} to {}", type, period.start(), period.due());
 				}
 				catch (DataIntegrityViolationException ex) {
 					// Another instance created the month's task first.

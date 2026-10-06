@@ -12,7 +12,7 @@ import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.authentication.event.InteractiveAuthenticationSuccessEvent;
 
-import com.example.commons.accounts.domain.AppGroup;
+import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
 import com.example.commons.accounts.domain.ReasonCode;
@@ -32,7 +32,7 @@ class LastLoginRecorderTest {
 	@Test
 	void recordsTheSignInTimeAndMakesAPendingUserActiveWithoutTouchingAuditColumns() {
 		AppUser alice = new AppUser("alice", "Alice", null);
-		alice.getGroups().add(this.entityManager.persist(new AppGroup("users")));
+		alice.getRoles().add(this.entityManager.persist(new AppRole("users")));
 		this.entityManager.persist(alice);
 		this.entityManager.flush();
 		this.entityManager.clear();

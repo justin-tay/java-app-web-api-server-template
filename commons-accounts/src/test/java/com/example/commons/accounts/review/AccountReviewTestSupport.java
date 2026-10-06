@@ -23,8 +23,11 @@ import com.example.commons.accounts.domain.AccountReviewItem;
 import com.example.commons.accounts.domain.AccountReviewItemRepository;
 import com.example.commons.accounts.domain.AccountReviewPopulationEntryRepository;
 import com.example.commons.accounts.domain.AccountReviewReportRepository;
-import com.example.commons.accounts.domain.AppGroup;
-import com.example.commons.accounts.domain.AppGroupRepository;
+import com.example.commons.accounts.Permissions;
+import com.example.commons.accounts.domain.AppPermission;
+import com.example.commons.accounts.domain.AppPermissionRepository;
+import com.example.commons.accounts.domain.AppRole;
+import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
 import com.example.commons.accounts.domain.Task;
@@ -48,7 +51,10 @@ abstract class AccountReviewTestSupport {
 	protected AppUserRepository users;
 
 	@Autowired
-	protected AppGroupRepository groups;
+	protected AppRoleRepository roles;
+
+	@Autowired
+	protected AppPermissionRepository permissions;
 
 	@Autowired
 	protected TaskRepository tasks;
@@ -76,7 +82,17 @@ abstract class AccountReviewTestSupport {
 
 	protected AccountLifecycleService lifecycle;
 
-	protected AppGroup group;
+	/**
+	 * The role the test users hold. It has a privileged permission, so they are
+	 * privileged accounts and a privileged review covers them.
+	 */
+	protected AppRole role;
+
+	/**
+	 * A role with no privileged permission, for the accounts a non-privileged review
+	 * covers.
+	 */
+	protected AppRole plainRole;
 
 	@BeforeEach
 	void setUpService() {
@@ -87,9 +103,22 @@ abstract class AccountReviewTestSupport {
 		AccountReviewReports reports = new AccountReviewReports(this.storedReports, new DefaultReviewReportRenderer(),
 				auditLogger, this.clock);
 		this.service = new AccountReviewService(this.tasks, this.items, this.attestations, this.entries, this.users,
-				this.groups, this.auditEvents, this.lifecycle, this.sessionRevocationService, auditLogger, reports,
+				this.roles, this.auditEvents, this.lifecycle, this.sessionRevocationService, auditLogger, reports,
 				this.clock, ZoneOffset.UTC);
-		this.group = this.entityManager.persist(new AppGroup("users"));
+		AppRole privileged = new AppRole("users");
+		privileged.getPermissions().add(permission(Permissions.USER_CREATE));
+		this.role = this.entityManager.persist(privileged);
+		AppRole plain = new AppRole("readers");
+		plain.getPermissions().add(permission(Permissions.APPLICATION_ACCESS));
+		this.plainRole = this.entityManager.persist(plain);
+	}
+
+	protected AppPermission permission(String name) {
+		return this.permissions.findAll()
+			.stream()
+			.filter(permission -> permission.getName().equals(name))
+			.findFirst()
+			.orElseThrow();
 	}
 
 	@AfterEach
@@ -103,7 +132,16 @@ abstract class AccountReviewTestSupport {
 
 	protected AppUser user(String username, String department) {
 		AppUser user = new AppUser(username, username, null, department);
-		user.getGroups().add(this.group);
+		user.getRoles().add(this.role);
+		return this.entityManager.persist(user);
+	}
+
+	/**
+	 * Creates an account that is not privileged.
+	 */
+	protected AppUser plainUser(String username) {
+		AppUser user = new AppUser(username, username, null, null);
+		user.getRoles().add(this.plainRole);
 		return this.entityManager.persist(user);
 	}
 
@@ -124,13 +162,22 @@ abstract class AccountReviewTestSupport {
 			.orElseThrow();
 	}
 
-	protected static void authenticateAs(String username, String... roles) {
-		String[] authorities = new String[roles.length];
-		for (int i = 0; i < roles.length; i++) {
-			authorities[i] = "ROLE_" + roles[i];
-		}
+	/**
+	 * Signs in as the user with the given permissions as authorities.
+	 */
+	protected static void authenticateAs(String username, String... permissions) {
 		SecurityContextHolder.getContext()
-			.setAuthentication(new TestingAuthenticationToken(username, null, authorities));
+			.setAuthentication(new TestingAuthenticationToken(username, null, permissions));
+	}
+
+	/**
+	 * Signs in as a user with what the Account Reviewers role grants: the review
+	 * permissions and removing roles and accounts, but nothing that adds.
+	 */
+	protected static void authenticateAsReviewer(String username) {
+		authenticateAs(username, Permissions.REVIEW_READ, Permissions.REVIEW_DECIDE,
+				Permissions.REVIEW_CONFIRM_POPULATION, Permissions.REVIEW_DOWNLOAD_REPORT, Permissions.USER_READ,
+				Permissions.USER_REMOVE_ROLE, Permissions.USER_REMOVE);
 	}
 
 	/**

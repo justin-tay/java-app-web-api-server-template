@@ -4,12 +4,12 @@ import java.util.Locale;
 
 /**
  * What a reviewer decided about an active account in an account review: still to be
- * decided, confirmed as needed with correct groups, confirmed after the groups were
- * edited, or removed (see docs/adr/0037).
+ * decided, confirmed as needed with correct roles, confirmed after the roles were edited,
+ * or removed (see docs/adr/0037).
  */
 public enum AccountReviewOutcome {
 
-	PENDING, CONFIRMED, CONFIRMED_GROUPS_EDITED, REMOVED;
+	PENDING, CONFIRMED, CONFIRMED_ROLES_EDITED, REMOVED;
 
 	/**
 	 * Returns the lower case value used in the API.

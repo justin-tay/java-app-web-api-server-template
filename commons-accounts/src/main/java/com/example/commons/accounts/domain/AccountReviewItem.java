@@ -23,7 +23,7 @@ import org.hibernate.type.SqlTypes;
  * is frozen when the task is created. While the item is pending the account is read live
  * through {@link #getUser()}. When the item is decided, or the account is removed outside
  * the review, the evidence columns are written once: the department, last login time and
- * the groups before and after. A decided item never changes afterwards.
+ * the roles before and after. A decided item never changes afterwards.
  *
  * <p>
  * The item holds {@code userPublicId} and {@code username} as plain values with no
@@ -57,13 +57,21 @@ public class AccountReviewItem extends AbstractIdentifiedEntity {
 
 	private Instant lastLoginAt;
 
-	@Convert(converter = GroupNamesConverter.class)
+	@Convert(converter = NamesConverter.class)
 	@JdbcTypeCode(SqlTypes.LONG32VARCHAR)
-	private List<String> groupsBefore;
+	private List<String> rolesBefore;
 
-	@Convert(converter = GroupNamesConverter.class)
+	@Convert(converter = NamesConverter.class)
 	@JdbcTypeCode(SqlTypes.LONG32VARCHAR)
-	private List<String> groupsAfter;
+	private List<String> rolesAfter;
+
+	/**
+	 * The privileged permissions the account held when the item was created, which is why
+	 * a privileged account review covers it. Null in a non-privileged review.
+	 */
+	@Convert(converter = NamesConverter.class)
+	@JdbcTypeCode(SqlTypes.LONG32VARCHAR)
+	private List<String> privilegedPermissions;
 
 	@ManyToOne
 	@JoinColumn(name = "user_public_id", referencedColumnName = "publicId", insertable = false, updatable = false,
@@ -74,7 +82,15 @@ public class AccountReviewItem extends AbstractIdentifiedEntity {
 	protected AccountReviewItem() {
 	}
 
-	public AccountReviewItem(Long taskId, AppUser user) {
+	/**
+	 * Creates a pending item for an account.
+	 * @param taskId the task
+	 * @param user the account
+	 * @param privilegedPermissions the privileged permissions the account holds, for a
+	 * privileged account review, or null for a non-privileged one
+	 */
+	public AccountReviewItem(Long taskId, AppUser user, List<String> privilegedPermissions) {
+		this.privilegedPermissions = privilegedPermissions == null ? null : List.copyOf(privilegedPermissions);
 		this.taskId = taskId;
 		this.userPublicId = user.getPublicId();
 		this.user = user;
@@ -127,12 +143,16 @@ public class AccountReviewItem extends AbstractIdentifiedEntity {
 		return this.lastLoginAt;
 	}
 
-	public List<String> getGroupsBefore() {
-		return this.groupsBefore;
+	public List<String> getRolesBefore() {
+		return this.rolesBefore;
 	}
 
-	public List<String> getGroupsAfter() {
-		return this.groupsAfter;
+	public List<String> getRolesAfter() {
+		return this.rolesAfter;
+	}
+
+	public List<String> getPrivilegedPermissions() {
+		return this.privilegedPermissions;
 	}
 
 	/**
@@ -143,21 +163,21 @@ public class AccountReviewItem extends AbstractIdentifiedEntity {
 	}
 
 	/**
-	 * Confirms the account and its groups, freezing the evidence.
+	 * Confirms the account and its roles, freezing the evidence.
 	 * @param account the account as it stands now
-	 * @param groups the names of the groups it holds
+	 * @param roles the names of the roles it holds
 	 */
-	public void confirm(AppUser account, List<String> groups, String by, Instant at) {
-		decide(AccountReviewOutcome.CONFIRMED, account, groups, groups, by, at);
+	public void confirm(AppUser account, List<String> roles, String by, Instant at) {
+		decide(AccountReviewOutcome.CONFIRMED, account, roles, roles, by, at);
 	}
 
 	/**
-	 * Records that the reviewer changed the groups, which confirms the account in the
-	 * same step.
+	 * Records that the reviewer removed roles, which confirms the account in the same
+	 * step.
 	 */
-	public void confirmWithGroupsEdited(AppUser account, List<String> before, List<String> after, String by,
+	public void confirmWithRolesEdited(AppUser account, List<String> before, List<String> after, String by,
 			Instant at) {
-		decide(AccountReviewOutcome.CONFIRMED_GROUPS_EDITED, account, before, after, by, at);
+		decide(AccountReviewOutcome.CONFIRMED_ROLES_EDITED, account, before, after, by, at);
 	}
 
 	/**
@@ -166,8 +186,8 @@ public class AccountReviewItem extends AbstractIdentifiedEntity {
 	 * account is deleted.
 	 * @param removalAuditEventId the removal's audit event
 	 */
-	public void remove(AppUser account, List<String> groups, String by, Instant at, Long removalAuditEventId) {
-		decide(AccountReviewOutcome.REMOVED, account, groups, null, by, at);
+	public void remove(AppUser account, List<String> roles, String by, Instant at, Long removalAuditEventId) {
+		decide(AccountReviewOutcome.REMOVED, account, roles, null, by, at);
 		this.removalAuditEventId = removalAuditEventId;
 		// The account is about to be deleted; letting go of it keeps the session
 		// consistent.
@@ -184,8 +204,8 @@ public class AccountReviewItem extends AbstractIdentifiedEntity {
 		this.decidedBy = by;
 		this.department = account.getDepartment();
 		this.lastLoginAt = account.getLastLoginAt();
-		this.groupsBefore = List.copyOf(before);
-		this.groupsAfter = after == null ? null : List.copyOf(after);
+		this.rolesBefore = List.copyOf(before);
+		this.rolesAfter = after == null ? null : List.copyOf(after);
 	}
 
 }

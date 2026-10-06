@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -27,9 +28,10 @@ class AdminControllerTest {
 	private MockMvc mockMvc;
 
 	@Test
-	void userListRequiresUserManagementRole() throws Exception {
+	void userListRequiresTheUserReadPermission() throws Exception {
 		this.mockMvc.perform(get("/admin/users").with(user("test"))).andExpect(status().isForbidden());
-		this.mockMvc.perform(get("/admin/users").with(user("admin").roles("USER_MANAGE")))
+		this.mockMvc
+			.perform(get("/admin/users").with(user("admin").authorities(new SimpleGrantedAuthority("user:read"))))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.page").value(0))
 			.andExpect(jsonPath("$.size").value(20));
@@ -38,10 +40,13 @@ class AdminControllerTest {
 	@Test
 	void userListHonoursSupportedSortAndRejectsUnsupportedSort() throws Exception {
 		this.mockMvc
-			.perform(get("/admin/users").param("sort", "username,desc").with(user("admin").roles("USER_MANAGE")))
+			.perform(get("/admin/users").param("sort", "username,desc")
+				.with(user("admin").authorities(new SimpleGrantedAuthority("user:read"))))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.items[0].username").value("user"));
-		this.mockMvc.perform(get("/admin/users").param("sort", "password,asc").with(user("admin").roles("USER_MANAGE")))
+		this.mockMvc
+			.perform(get("/admin/users").param("sort", "password,asc")
+				.with(user("admin").authorities(new SimpleGrantedAuthority("user:read"))))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].source.pointer").doesNotExist());
 	}
@@ -52,7 +57,7 @@ class AdminControllerTest {
 			.perform(post("/admin/users").with(oidcLoginAs("admin", Instant.now()))
 				.with(csrf())
 				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"username\":\"\",\"name\":\"\",\"email\":null,\"enabled\":false,\"groupIds\":[]}"))
+				.content("{\"username\":\"\",\"name\":\"\",\"email\":null,\"enabled\":false,\"roleIds\":[]}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].source.pointer").exists());
 	}
