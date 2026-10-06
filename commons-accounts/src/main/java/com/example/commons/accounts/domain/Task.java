@@ -81,6 +81,15 @@ public class Task extends AbstractIdentifiedEntity {
 		return this.completedBy;
 	}
 
+	/**
+	 * Returns whether the task is the privileged account review rather than the
+	 * non-privileged one.
+	 * @return whether the task is the privileged account review
+	 */
+	public boolean isPrivilegedReview() {
+		return PRIVILEGED_ACCOUNT_REVIEW.equals(this.type);
+	}
+
 	public boolean isOpen() {
 		return this.status == TaskStatus.OPEN;
 	}

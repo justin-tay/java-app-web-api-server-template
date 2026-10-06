@@ -76,3 +76,16 @@ grants access or changes the settings the application runs under. It is computed
 not stored, and it is reviewed in the Privileged Account Review rather than the
 Non-privileged Account Review.
 _Avoid_: "admin account", "standard account"
+
+**Review population**:
+The suspended accounts, or the removed accounts, of an account review's class,
+shown to the reviewer alongside the active accounts. It is computed live until
+a reviewer confirms it, then frozen as it was when confirmed. See
+[ADR 0038](docs/adr/0038-role-permission-model-and-account-review-classes.md).
+_Avoid_: "attestation" or "snapshot" for the confirmed list
+
+**Confirmed population**:
+A review population a reviewer has confirmed, once, for a review task. Its list
+is frozen and read-only, and a task completes when both its populations are
+confirmed and no active account is pending.
+_Avoid_: "attested population", "signed-off population"

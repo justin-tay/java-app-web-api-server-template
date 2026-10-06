@@ -1,7 +1,9 @@
 package com.example.commons.accounts.domain;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -148,6 +150,26 @@ public class AppUser extends AbstractAuditableEntity {
 	 */
 	public boolean isPrivileged() {
 		return permissions().stream().anyMatch(AppPermission::isPrivileged);
+	}
+
+	/**
+	 * Returns the names of the account's roles, sorted.
+	 * @return the role names
+	 */
+	public List<String> roleNames() {
+		return this.roles.stream().map(AppRole::getName).sorted(Comparator.naturalOrder()).toList();
+	}
+
+	/**
+	 * Returns the names of the privileged permissions the account holds, sorted.
+	 * @return the permission names
+	 */
+	public List<String> privilegedPermissionNames() {
+		return permissions().stream()
+			.filter(AppPermission::isPrivileged)
+			.map(AppPermission::getName)
+			.sorted(Comparator.naturalOrder())
+			.toList();
 	}
 
 	public void update(String name, String email, String department) {

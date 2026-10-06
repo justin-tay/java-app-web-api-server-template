@@ -5,11 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 
 import com.example.commons.accounts.Permissions;
 import com.example.commons.accounts.AccountsJpaTest;
@@ -17,7 +16,6 @@ import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.ReasonCode;
 import com.example.commons.accounts.domain.ReviewPopulation;
 import com.example.commons.accounts.domain.Task;
-import com.example.commons.accounts.review.AccountReviewService.PopulationQuery;
 import com.example.commons.accounts.review.ReviewDtos.PopulationEntryResponse;
 import com.example.commons.web.problem.ConflictException;
 
@@ -26,11 +24,9 @@ import com.example.commons.web.problem.ConflictException;
  * the range of the removed population so no removal falls between two reviews.
  */
 @AccountsJpaTest
-class AccountReviewPopulationsTest extends AccountReviewTestSupport {
+class ReviewPopulationsTest extends AccountReviewTestSupport {
 
 	private static final Instant LATER = Instant.parse("2026-10-20T10:00:00Z");
-
-	private static final PopulationQuery ALL = new PopulationQuery(null, null);
 
 	@Test
 	void theSuspendedPopulationIsLiveAndNamesWhoSuspendedEachAccount() {
@@ -77,12 +73,12 @@ class AccountReviewPopulationsTest extends AccountReviewTestSupport {
 
 		assertThat(population(task, ReviewPopulation.SUSPENDED)).extracting(PopulationEntryResponse::username)
 			.containsExactly("alice");
-		var status = this.service.response(task).populations().suspended();
+		var status = this.populations.status(task).suspended();
 		assertThat(status.confirmed()).isTrue();
 		assertThat(status.confirmedBy()).isEqualTo("rachel");
 		assertThat(status.note()).isEqualTo("spot checked two accounts");
 		assertThat(status.count()).isEqualTo(1);
-		assertThat(this.service.response(task).populations().removed().confirmed()).isFalse();
+		assertThat(this.populations.status(task).removed().confirmed()).isFalse();
 	}
 
 	@Test
@@ -190,8 +186,10 @@ class AccountReviewPopulationsTest extends AccountReviewTestSupport {
 	}
 
 	private List<PopulationEntryResponse> population(Task task, ReviewPopulation population) {
-		return this.service.population(task.getPublicId(), population, ALL, PageRequest.of(0, 50, Sort.by("username")))
-			.getContent();
+		return this.populations.rows(task, population)
+			.stream()
+			.sorted(Comparator.comparing(PopulationEntryResponse::username))
+			.toList();
 	}
 
 	private static void authenticateAsSystem() {

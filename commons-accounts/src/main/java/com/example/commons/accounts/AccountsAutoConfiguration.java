@@ -45,6 +45,8 @@ import com.example.commons.accounts.review.AccountReviewService;
 import com.example.commons.accounts.review.AccountReviewReports;
 import com.example.commons.accounts.review.DefaultReviewReportRenderer;
 import com.example.commons.accounts.review.ReviewItems;
+import com.example.commons.accounts.review.ReviewPopulations;
+import com.example.commons.accounts.review.ReviewReportModels;
 import com.example.commons.accounts.review.ReviewReportRenderer;
 import com.example.commons.accounts.review.TaskController;
 import com.example.commons.accounts.settings.SettingsController;
@@ -222,13 +224,29 @@ public class AccountsAutoConfiguration {
 
 		@Bean
 		@ConditionalOnMissingBean
+		ReviewPopulations reviewPopulations(TaskRepository tasks, AccountReviewAttestationRepository attestations,
+				AccountReviewPopulationEntryRepository entries, AppUserRepository users,
+				AccountAuditEventRepository auditEvents, Environment environment) {
+			return new ReviewPopulations(tasks, attestations, entries, users, auditEvents, Clock.systemUTC(),
+					zone(environment));
+		}
+
+		@Bean
+		@ConditionalOnMissingBean
+		ReviewReportModels reviewReportModels(AccountReviewItemRepository items,
+				AccountAuditEventRepository auditEvents, ReviewPopulations populations, Environment environment) {
+			return new ReviewReportModels(items, auditEvents, populations, Clock.systemUTC(), zone(environment));
+		}
+
+		@Bean
+		@ConditionalOnMissingBean
 		AccountReviewService accountReviewService(TaskRepository tasks, AccountReviewItemRepository items,
-				AccountReviewAttestationRepository attestations, AccountReviewPopulationEntryRepository entries,
-				AppUserRepository users, AppRoleRepository roles, AccountAuditEventRepository auditEvents,
-				AccountLifecycleService lifecycle, SessionRevocationService sessionRevocationService,
-				AccountAuditLogger auditLogger, AccountReviewReports reports, Environment environment) {
-			return new AccountReviewService(tasks, items, attestations, entries, users, roles, auditEvents, lifecycle,
-					sessionRevocationService, auditLogger, reports, Clock.systemUTC(), zone(environment));
+				AppUserRepository users, AppRoleRepository roles, AccountLifecycleService lifecycle,
+				SessionRevocationService sessionRevocationService, AccountAuditLogger auditLogger,
+				AccountReviewReports reports, ReviewPopulations populations, ReviewReportModels reportModels,
+				Environment environment) {
+			return new AccountReviewService(tasks, items, users, roles, lifecycle, sessionRevocationService,
+					auditLogger, reports, populations, reportModels, Clock.systemUTC(), zone(environment));
 		}
 
 		@Bean

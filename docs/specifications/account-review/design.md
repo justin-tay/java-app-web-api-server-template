@@ -270,7 +270,9 @@ same transaction.
 | `SettingsService` | Reads and validates the five settings; audits changes |
 | `AccountAuditLogger` | Appends the row and writes the ECS event |
 | `AccountReviewScheduler` | `@Scheduled` job; decides whether this is a review month; creates the task and items; completes tasks that satisfy R12.1 because of outside changes |
-| `AccountReviewService` | Lists tasks, items and populations, applies decisions and group edits, confirms populations, completes tasks |
+| `AccountReviewService` | Lists tasks and items, applies decisions and group edits, completes tasks |
+| `ReviewPopulations` | The suspended and removed populations: live until confirmed, then the frozen list; confirms a population once |
+| `ReviewReportModels` | Assembles the report of a task from its items and populations, with the tally by outcome and department |
 | `ReviewReportRenderer` | Interface: renders the report model to PDF, xlsx or csv. The default, `DefaultReviewReportRenderer`, uses OpenPDF 2.0.x for PDF (the last line that runs on Java 17), Apache POI streaming workbooks for xlsx and plain writing for csv |
 | `ReportDocument` | In `com.example.commons.accounts.report`. Reusable PDF base on OpenPDF, using the built-in Helvetica font, so text outside Western European characters is not drawn and an application that needs it supplies its own renderer: page setup, fonts and colours, a title block with key-value metadata, a footer with page numbers and the draft marker, and helpers for summary tiles and tables. `AccountReviewReport` composes sections from it, and later reports can reuse it |
 | `TaskController`, `AccountReviewController`, `SettingsController`, `AuditEventController` | REST endpoints below |

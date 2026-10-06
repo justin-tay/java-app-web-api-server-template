@@ -1,10 +1,8 @@
 package com.example.commons.accounts.review;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -12,7 +10,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -20,12 +17,9 @@ import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.json.JsonMapper;
 
 import com.example.commons.accounts.Permissions;
 import com.example.commons.accounts.admin.AccountAuditLogger;
@@ -33,15 +27,9 @@ import com.example.commons.accounts.admin.AccountAuditLogger.UserState;
 import com.example.commons.accounts.admin.AccountLifecycleService;
 import com.example.commons.accounts.admin.Actor;
 import com.example.commons.accounts.admin.AdminDtos.Summary;
-import com.example.commons.accounts.domain.AccountAuditEvent;
-import com.example.commons.accounts.domain.AccountAuditEventRepository;
-import com.example.commons.accounts.domain.AccountReviewAttestation;
-import com.example.commons.accounts.domain.AccountReviewAttestationRepository;
 import com.example.commons.accounts.domain.AccountReviewItem;
 import com.example.commons.accounts.domain.AccountReviewItemRepository;
 import com.example.commons.accounts.domain.AccountReviewOutcome;
-import com.example.commons.accounts.domain.AccountReviewPopulationEntry;
-import com.example.commons.accounts.domain.AccountReviewPopulationEntryRepository;
 import com.example.commons.accounts.domain.AccountStatus;
 import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppRoleRepository;
@@ -57,8 +45,6 @@ import com.example.commons.accounts.review.AccountReviewReports.Download;
 import com.example.commons.accounts.review.AccountReviewReports.Format;
 import com.example.commons.accounts.review.ReviewDtos.Counts;
 import com.example.commons.accounts.review.ReviewDtos.PopulationEntryResponse;
-import com.example.commons.accounts.review.ReviewDtos.PopulationStatus;
-import com.example.commons.accounts.review.ReviewDtos.Populations;
 import com.example.commons.accounts.review.ReviewDtos.Progress;
 import com.example.commons.accounts.review.ReviewDtos.ReviewItemResponse;
 import com.example.commons.accounts.review.ReviewDtos.TaskResponse;
@@ -115,11 +101,6 @@ public class AccountReviewService {
 	public record PopulationQuery(String department, String search) {
 	}
 
-	private static final JsonMapper JSON = JsonMapper.builder().build();
-
-	private static final TypeReference<Map<String, Object>> DETAILS = new TypeReference<>() {
-	};
-
 	private static final Map<String, Comparator<ReviewItemResponse>> ITEM_ORDER = Map.of("username",
 			ListPaging.text(ReviewItemResponse::username), "name", ListPaging.text(ReviewItemResponse::name),
 			"department", ListPaging.text(ReviewItemResponse::department), "lastLoginAt",
@@ -134,15 +115,9 @@ public class AccountReviewService {
 
 	private final AccountReviewItemRepository items;
 
-	private final AccountReviewAttestationRepository attestations;
-
-	private final AccountReviewPopulationEntryRepository entries;
-
 	private final AppUserRepository users;
 
 	private final AppRoleRepository roles;
-
-	private final AccountAuditEventRepository auditEvents;
 
 	private final AccountLifecycleService lifecycle;
 
@@ -152,26 +127,29 @@ public class AccountReviewService {
 
 	private final AccountReviewReports reports;
 
+	private final ReviewPopulations populations;
+
+	private final ReviewReportModels reportModels;
+
 	private final Clock clock;
 
 	private final ZoneId zone;
 
-	public AccountReviewService(TaskRepository tasks, AccountReviewItemRepository items,
-			AccountReviewAttestationRepository attestations, AccountReviewPopulationEntryRepository entries,
-			AppUserRepository users, AppRoleRepository roles, AccountAuditEventRepository auditEvents,
-			AccountLifecycleService lifecycle, SessionRevocationService sessionRevocationService,
-			AccountAuditLogger auditLogger, AccountReviewReports reports, Clock clock, ZoneId zone) {
+	public AccountReviewService(TaskRepository tasks, AccountReviewItemRepository items, AppUserRepository users,
+			AppRoleRepository roles, AccountLifecycleService lifecycle,
+			SessionRevocationService sessionRevocationService, AccountAuditLogger auditLogger,
+			AccountReviewReports reports, ReviewPopulations populations, ReviewReportModels reportModels, Clock clock,
+			ZoneId zone) {
 		this.tasks = tasks;
 		this.items = items;
-		this.attestations = attestations;
-		this.entries = entries;
 		this.users = users;
 		this.roles = roles;
-		this.auditEvents = auditEvents;
 		this.lifecycle = lifecycle;
 		this.sessionRevocationService = sessionRevocationService;
 		this.auditLogger = auditLogger;
 		this.reports = reports;
+		this.populations = populations;
+		this.reportModels = reportModels;
 		this.clock = clock;
 		this.zone = zone;
 	}
@@ -190,13 +168,13 @@ public class AccountReviewService {
 		if (!Task.ACCOUNT_REVIEWS.contains(type)) {
 			throw new IllegalArgumentException("Not an account review type: " + type);
 		}
-		boolean privilegedReview = Task.PRIVILEGED_ACCOUNT_REVIEW.equals(type);
 		Task task = this.tasks.saveAndFlush(new Task(type, period.start(), period.due(), this.clock.instant()));
+		boolean privilegedReview = task.isPrivilegedReview();
 		List<AccountReviewItem> created = this.users.findByStatus(AccountStatus.ACTIVE)
 			.stream()
 			.filter(user -> user.isPrivileged() == privilegedReview)
 			.map(user -> new AccountReviewItem(task.getId(), user,
-					privilegedReview ? ReviewItems.privilegedPermissions(user) : null))
+					privilegedReview ? user.privilegedPermissionNames() : null))
 			.toList();
 		this.items.saveAll(created);
 		this.auditLogger.record("create_review_task", "REVIEW", task.getPublicId().toString(),
@@ -242,15 +220,10 @@ public class AccountReviewService {
 				byOutcome.getOrDefault(AccountReviewOutcome.REMOVED, 0L));
 		long decided = confirmed + edited;
 		Progress progress = new Progress(decided, decided + this.items.countPendingWithActiveAccount(task.getId()));
-		Map<ReviewPopulation, AccountReviewAttestation> attested = this.attestations.findByTaskId(task.getId())
-			.stream()
-			.collect(Collectors.toMap(AccountReviewAttestation::getPopulation, attestation -> attestation));
 		boolean overdue = task.isOpen() && task.getDueDate().isBefore(today());
-		Populations populations = new Populations(status(attested.get(ReviewPopulation.SUSPENDED)),
-				status(attested.get(ReviewPopulation.REMOVED)));
 		return new TaskResponse(task.getPublicId(), task.getType(), task.getStatus().value(), task.getStartDate(),
-				task.getDueDate(), task.getCompletedAt(), task.getCompletedBy(), overdue, counts, progress, populations,
-				this.reports.exists(task));
+				task.getDueDate(), task.getCompletedAt(), task.getCompletedBy(), overdue, counts, progress,
+				this.populations.status(task), this.reports.exists(task));
 	}
 
 	/**
@@ -275,7 +248,8 @@ public class AccountReviewService {
 	@Transactional(readOnly = true)
 	public Page<PopulationEntryResponse> population(UUID taskId, ReviewPopulation population, PopulationQuery query,
 			Pageable pageable) {
-		List<PopulationEntryResponse> rows = populationRows(task(taskId), population).stream()
+		List<PopulationEntryResponse> rows = this.populations.rows(task(taskId), population)
+			.stream()
 			.filter(row -> matches(row, query))
 			.toList();
 		return ListPaging.page(rows, pageable, POPULATION_ORDER);
@@ -293,7 +267,8 @@ public class AccountReviewService {
 			.filter(java.util.Objects::nonNull)
 			.forEach(departments::add);
 		for (ReviewPopulation population : ReviewPopulation.values()) {
-			populationRows(task, population).stream()
+			this.populations.rows(task, population)
+				.stream()
 				.map(PopulationEntryResponse::department)
 				.filter(java.util.Objects::nonNull)
 				.forEach(departments::add);
@@ -332,7 +307,7 @@ public class AccountReviewService {
 			AccountReviewItem item = found.get(id);
 			AppUser account = item.getUser();
 			if (decision == Decision.CONFIRM) {
-				item.confirm(account, ReviewItems.roleNames(account), actor, this.clock.instant());
+				item.confirm(account, account.roleNames(), actor, this.clock.instant());
 				this.items.save(item);
 				this.auditLogger.record("confirm_review_item", "REVIEW", item.getPublicId().toString(),
 						item.getUsername(), null, null, Map.of("taskId", taskId));
@@ -378,7 +353,7 @@ public class AccountReviewService {
 		if (requested.size() != roleIds.size()) {
 			throw new ResourceNotFoundException("Role");
 		}
-		List<String> before = ReviewItems.roleNames(account);
+		List<String> before = account.roleNames();
 		UserState state = UserState.of(account);
 		if (requested.equals(account.getRoles())) {
 			throw new BadRequestException("The roles are unchanged.");
@@ -391,7 +366,7 @@ public class AccountReviewService {
 		account.getRoles().addAll(requested);
 		this.sessionRevocationService.revoke(account.getUsername(), "privilege_change");
 		this.auditLogger.userUpdated(state, UserState.of(account));
-		List<String> after = ReviewItems.roleNames(account);
+		List<String> after = account.roleNames();
 		item.confirmWithRolesEdited(account, before, after, actor, this.clock.instant());
 		this.items.saveAndFlush(item);
 		this.auditLogger.record("edit_review_item_roles", "REVIEW", item.getPublicId().toString(), item.getUsername(),
@@ -409,21 +384,11 @@ public class AccountReviewService {
 	 */
 	public void confirmPopulation(UUID taskId, ReviewPopulation population, String note) {
 		Task task = openTask(taskId);
-		if (this.attestations.findByTaskIdAndPopulation(task.getId(), population).isPresent()) {
-			throw new ConflictException("The population is already confirmed.");
-		}
 		String actor = Auditor.current();
-		List<PopulationEntryResponse> rows = populationRows(task, population);
-		AccountReviewAttestation attestation = this.attestations.save(
-				new AccountReviewAttestation(task.getId(), population, actor, this.clock.instant(), note, rows.size()));
-		this.entries.saveAll(rows.stream()
-			.map(row -> new AccountReviewPopulationEntry(attestation.getId(), row.userId(), row.username(), row.name(),
-					row.department(), row.lastLoginAt(), row.lastActivityAt(), row.occurredAt(), row.actor(),
-					row.reasonCode(), row.reasonNote()))
-			.toList());
+		int count = this.populations.confirm(task, population, actor, note);
 		this.auditLogger.record("confirm_review_population", "REVIEW", task.getPublicId().toString(),
 				population.value(), null, note,
-				Map.of("taskId", taskId, "population", population.value(), "count", rows.size()));
+				Map.of("taskId", taskId, "population", population.value(), "count", count));
 		completeIfFinished(task, actor);
 	}
 
@@ -451,12 +416,12 @@ public class AccountReviewService {
 
 	private void completeIfFinished(Task task, String by) {
 		if (!task.isOpen() || this.items.countPendingWithActiveAccount(task.getId()) > 0
-				|| this.attestations.findByTaskId(task.getId()).size() < ReviewPopulation.values().length) {
+				|| !this.populations.allConfirmed(task)) {
 			return;
 		}
 		task.complete(this.clock.instant(), by);
 		this.tasks.saveAndFlush(task);
-		this.reports.store(task, reportModel(task, false, by), by);
+		this.reports.store(task, this.reportModels.build(task, false, by), by);
 	}
 
 	/**
@@ -467,88 +432,7 @@ public class AccountReviewService {
 	 */
 	public Download download(UUID taskId, Format format) {
 		Task task = task(taskId);
-		return this.reports.download(task, reportModel(task, task.isOpen(), Auditor.current()), format);
-	}
-
-	/**
-	 * Assembles the report of a task from its items and populations, which are frozen for
-	 * what has been decided and confirmed and live for the rest.
-	 */
-	private ReviewReportModel reportModel(Task task, boolean draft, String generatedBy) {
-		List<AccountReviewItem> all = this.items.findAllWithAccount(task.getId());
-		Map<Long, AccountAuditEvent> removals = this.auditEvents.findAllById(
-				all.stream().map(AccountReviewItem::getRemovalAuditEventId).filter(java.util.Objects::nonNull).toList())
-			.stream()
-			.collect(Collectors.toMap(AccountAuditEvent::getId, event -> event));
-		List<ReviewReportModel.ItemRow> rows = new ArrayList<>();
-		Map<String, long[]> byDepartment = new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-		long[] total = new long[5];
-		List<AccountReviewItem> ordered = all.stream()
-			.sorted(Comparator.comparing(item -> displayName(item), String.CASE_INSENSITIVE_ORDER))
-			.toList();
-		for (AccountReviewItem item : ordered) {
-			boolean pending = item.isPending();
-			AppUser live = item.getUser();
-			String department = pending && live != null ? live.getDepartment() : item.getDepartment();
-			List<String> roleNames = pending ? (live == null ? List.of() : ReviewItems.roleNames(live))
-					: item.getRolesAfter() == null ? List.of() : item.getRolesAfter();
-			AccountAuditEvent removal = item.getRemovalAuditEventId() == null ? null
-					: removals.get(item.getRemovalAuditEventId());
-			String remark = ReviewRemarks.remark(item.getOutcome(), item.getRolesBefore(), item.getRolesAfter(),
-					removal == null ? null : removal.getReasonCode());
-			rows.add(new ReviewReportModel.ItemRow(rows.size() + 1, displayName(item), item.getUsername(), department,
-					String.join(", ", roleNames), outcomeLabel(item.getOutcome()), remark, item.getDecidedAt()));
-			int column = item.getOutcome().ordinal();
-			byDepartment.computeIfAbsent(department == null ? "(none)" : department, key -> new long[5])[column]++;
-			byDepartment.get(department == null ? "(none)" : department)[4]++;
-			total[column]++;
-			total[4]++;
-		}
-		List<ReviewReportModel.DepartmentRow> departments = byDepartment.entrySet()
-			.stream()
-			.map(entry -> departmentRow(entry.getKey(), entry.getValue()))
-			.toList();
-		boolean privileged = isPrivileged(task);
-		return new ReviewReportModel(draft, privileged, this.zone, task.getStartDate(), task.getDueDate(),
-				task.getDueDate(), task.getCompletedAt(), task.getCompletedBy(), this.clock.instant(), generatedBy,
-				new ReviewReportModel.Summary(total[AccountReviewOutcome.CONFIRMED.ordinal()],
-						total[AccountReviewOutcome.CONFIRMED_ROLES_EDITED.ordinal()],
-						total[AccountReviewOutcome.REMOVED.ordinal()], total[AccountReviewOutcome.PENDING.ordinal()],
-						total[4]),
-				departments, rows, section(task, ReviewPopulation.SUSPENDED), section(task, ReviewPopulation.REMOVED));
-	}
-
-	private ReviewReportModel.PopulationSection section(Task task, ReviewPopulation population) {
-		Optional<AccountReviewAttestation> attestation = this.attestations.findByTaskIdAndPopulation(task.getId(),
-				population);
-		return new ReviewReportModel.PopulationSection(attestation.isPresent(),
-				attestation.map(AccountReviewAttestation::getConfirmedBy).orElse(null),
-				attestation.map(AccountReviewAttestation::getConfirmedAt).orElse(null),
-				attestation.map(AccountReviewAttestation::getNote).orElse(null), populationRows(task, population));
-	}
-
-	private static ReviewReportModel.DepartmentRow departmentRow(String department, long[] counts) {
-		return new ReviewReportModel.DepartmentRow(department, counts[AccountReviewOutcome.CONFIRMED.ordinal()],
-				counts[AccountReviewOutcome.CONFIRMED_ROLES_EDITED.ordinal()],
-				counts[AccountReviewOutcome.REMOVED.ordinal()], counts[AccountReviewOutcome.PENDING.ordinal()],
-				counts[4]);
-	}
-
-	private static String displayName(AccountReviewItem item) {
-		return item.isPending() && item.getUser() != null ? item.getUser().getName() : item.getFullName();
-	}
-
-	private static String outcomeLabel(AccountReviewOutcome outcome) {
-		return switch (outcome) {
-			case PENDING -> "Pending";
-			case CONFIRMED -> "Confirmed";
-			case CONFIRMED_ROLES_EDITED -> "Confirmed (Roles Edited)";
-			case REMOVED -> "Removed";
-		};
-	}
-
-	private static boolean isPrivileged(Task task) {
-		return Task.PRIVILEGED_ACCOUNT_REVIEW.equals(task.getType());
+		return this.reports.download(task, this.reportModels.build(task, task.isOpen(), Auditor.current()), format);
 	}
 
 	private Task openTask(UUID taskId) {
@@ -596,18 +480,16 @@ public class AccountReviewService {
 
 	private static ReviewItemResponse row(AccountReviewItem item, String actor) {
 		boolean own = item.getUsername().equals(actor);
+		ReviewItemView view = ReviewItemView.of(item, null);
 		if (item.isPending()) {
 			AppUser user = item.getUser();
-			return new ReviewItemResponse(item.getPublicId(), item.getUserPublicId(), item.getUsername(),
-					user.getName(), user.getDepartment(), ReviewItems.roleNames(user), null,
-					item.getPrivilegedPermissions(), currentRoles(user), user.getLastLoginAt(), user.lastActivityAt(),
-					item.getOutcome().value(), null, own, null, null);
+			return new ReviewItemResponse(item.getPublicId(), item.getUserPublicId(), item.getUsername(), view.name(),
+					view.department(), view.roles(), null, item.getPrivilegedPermissions(), currentRoles(user),
+					user.getLastLoginAt(), user.lastActivityAt(), item.getOutcome().value(), null, own, null, null);
 		}
-		return new ReviewItemResponse(item.getPublicId(), item.getUserPublicId(), item.getUsername(),
-				item.getFullName(), item.getDepartment(), item.getRolesAfter(), item.getRolesBefore(),
-				item.getPrivilegedPermissions(), null, item.getLastLoginAt(), item.getLastActivityAt(),
-				item.getOutcome().value(),
-				ReviewRemarks.remark(item.getOutcome(), item.getRolesBefore(), item.getRolesAfter(), null), own,
+		return new ReviewItemResponse(item.getPublicId(), item.getUserPublicId(), item.getUsername(), view.name(),
+				view.department(), view.roles(), item.getRolesBefore(), item.getPrivilegedPermissions(), null,
+				item.getLastLoginAt(), item.getLastActivityAt(), item.getOutcome().value(), view.remark(), own,
 				item.getDecidedBy(), item.getDecidedAt());
 	}
 
@@ -642,101 +524,6 @@ public class AccountReviewService {
 		String needle = search.toLowerCase(Locale.ROOT);
 		return username.toLowerCase(Locale.ROOT).contains(needle)
 				|| (name != null && name.toLowerCase(Locale.ROOT).contains(needle));
-	}
-
-	/**
-	 * Returns a population as it is now, or as it was when confirmed.
-	 */
-	List<PopulationEntryResponse> populationRows(Task task, ReviewPopulation population) {
-		Optional<AccountReviewAttestation> attestation = this.attestations.findByTaskIdAndPopulation(task.getId(),
-				population);
-		if (attestation.isPresent()) {
-			return this.entries.findByAttestationId(attestation.get().getId())
-				.stream()
-				.map(entry -> new PopulationEntryResponse(entry.getUserPublicId(), entry.getUsername(),
-						entry.getFullName(), entry.getDepartment(), entry.getLastLoginAt(), entry.getLastActivityAt(),
-						entry.getOccurredAt(), entry.getActor(), entry.getReasonCode(), entry.getReasonNote()))
-				.toList();
-		}
-		return population == ReviewPopulation.SUSPENDED ? liveSuspended(task) : liveRemoved(task);
-	}
-
-	/**
-	 * Returns the suspended accounts of the task's class: those whose roles hold a
-	 * privileged permission for the privileged review, and the others for the
-	 * non-privileged one.
-	 */
-	private List<PopulationEntryResponse> liveSuspended(Task task) {
-		boolean privileged = isPrivileged(task);
-		List<AppUser> suspended = this.users.findByStatus(AccountStatus.SUSPENDED)
-			.stream()
-			.filter(user -> user.isPrivileged() == privileged)
-			.toList();
-		Map<String, AccountAuditEvent> latest = new HashMap<>();
-		if (!suspended.isEmpty()) {
-			for (AccountAuditEvent event : this.auditEvents.findByActionAndTargetIdIn("suspend_user",
-					suspended.stream().map(user -> user.getPublicId().toString()).toList())) {
-				latest.merge(event.getTargetId(), event,
-						(first, second) -> second.getOccurredAt().isAfter(first.getOccurredAt()) ? second : first);
-			}
-		}
-		return suspended.stream()
-			.map(user -> new PopulationEntryResponse(user.getPublicId(), user.getUsername(), user.getName(),
-					user.getDepartment(), user.getLastLoginAt(), user.lastActivityAt(), user.getSuspendedAt(),
-					Optional.ofNullable(latest.get(user.getPublicId().toString()))
-						.map(AccountAuditEvent::getActor)
-						.orElse(null),
-					user.getSuspensionReasonCode(), user.getSuspensionNote()))
-			.toList();
-	}
-
-	/**
-	 * Returns the removals since the previous task's removed population was confirmed, or
-	 * since that task started if it never was, or every recorded removal for the first
-	 * task, so no removal falls between two reviews, and only the removals of the task's
-	 * class: whether the account was privileged is recorded with the removal, and a
-	 * removal that records nothing counts as not privileged.
-	 */
-	private List<PopulationEntryResponse> liveRemoved(Task task) {
-		Instant since = this.tasks
-			.findFirstByTypeAndStartDateBeforeOrderByStartDateDesc(task.getType(), task.getStartDate())
-			.map(previous -> this.attestations.findByTaskIdAndPopulation(previous.getId(), ReviewPopulation.REMOVED)
-				.map(AccountReviewAttestation::getConfirmedAt)
-				.orElseGet(() -> previous.getStartDate().atStartOfDay(this.zone).toInstant()))
-			.orElse(null);
-		Specification<AccountAuditEvent> specification = (root, query, builder) -> builder
-			.and(builder.equal(root.get("action"), "delete_user"), builder.equal(root.get("targetType"), "USER"));
-		if (since != null) {
-			specification = specification
-				.and((root, query, builder) -> builder.greaterThanOrEqualTo(root.get("occurredAt"), since));
-		}
-		boolean privileged = isPrivileged(task);
-		return this.auditEvents.findAll(specification, Sort.by("occurredAt"))
-			.stream()
-			.filter(event -> Boolean.TRUE.equals(details(event).get("privileged")) == privileged)
-			.map(AccountReviewService::removedEntry)
-			.toList();
-	}
-
-	private static Map<String, Object> details(AccountAuditEvent event) {
-		return event.getDetails() == null ? Map.of() : JSON.readValue(event.getDetails(), DETAILS);
-	}
-
-	private static PopulationEntryResponse removedEntry(AccountAuditEvent event) {
-		Map<String, Object> details = details(event);
-		Object lastLogin = details.get("lastLoginAt");
-		Object lastActivity = details.get("lastActivityAt");
-		return new PopulationEntryResponse(UUID.fromString(event.getTargetId()), event.getTargetName(),
-				event.getTargetFullName(), (String) details.get("department"),
-				lastLogin == null ? null : Instant.parse(lastLogin.toString()),
-				lastActivity == null ? null : Instant.parse(lastActivity.toString()), event.getOccurredAt(),
-				event.getActor(), event.getReasonCode(), event.getReasonNote());
-	}
-
-	private static PopulationStatus status(AccountReviewAttestation attestation) {
-		return attestation == null ? new PopulationStatus(false, null, null, null, null)
-				: new PopulationStatus(true, attestation.getConfirmedBy(), attestation.getConfirmedAt(),
-						attestation.getNote(), attestation.getEntryCount());
 	}
 
 	private LocalDate today() {
