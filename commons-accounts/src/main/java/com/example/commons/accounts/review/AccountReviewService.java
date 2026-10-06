@@ -418,8 +418,8 @@ public class AccountReviewService {
 				new AccountReviewAttestation(task.getId(), population, actor, this.clock.instant(), note, rows.size()));
 		this.entries.saveAll(rows.stream()
 			.map(row -> new AccountReviewPopulationEntry(attestation.getId(), row.userId(), row.username(), row.name(),
-					row.department(), row.lastLoginAt(), row.occurredAt(), row.actor(), row.reasonCode(),
-					row.reasonNote()))
+					row.department(), row.lastLoginAt(), row.lastActivityAt(), row.occurredAt(), row.actor(),
+					row.reasonCode(), row.reasonNote()))
 			.toList());
 		this.auditLogger.record("confirm_review_population", "REVIEW", task.getPublicId().toString(),
 				population.value(), null, note,
@@ -600,12 +600,13 @@ public class AccountReviewService {
 			AppUser user = item.getUser();
 			return new ReviewItemResponse(item.getPublicId(), item.getUserPublicId(), item.getUsername(),
 					user.getName(), user.getDepartment(), ReviewItems.roleNames(user), null,
-					item.getPrivilegedPermissions(), currentRoles(user), user.getLastLoginAt(),
+					item.getPrivilegedPermissions(), currentRoles(user), user.getLastLoginAt(), user.lastActivityAt(),
 					item.getOutcome().value(), null, own, null, null);
 		}
 		return new ReviewItemResponse(item.getPublicId(), item.getUserPublicId(), item.getUsername(),
 				item.getFullName(), item.getDepartment(), item.getRolesAfter(), item.getRolesBefore(),
-				item.getPrivilegedPermissions(), null, item.getLastLoginAt(), item.getOutcome().value(),
+				item.getPrivilegedPermissions(), null, item.getLastLoginAt(), item.getLastActivityAt(),
+				item.getOutcome().value(),
 				ReviewRemarks.remark(item.getOutcome(), item.getRolesBefore(), item.getRolesAfter(), null), own,
 				item.getDecidedBy(), item.getDecidedAt());
 	}
@@ -653,8 +654,8 @@ public class AccountReviewService {
 			return this.entries.findByAttestationId(attestation.get().getId())
 				.stream()
 				.map(entry -> new PopulationEntryResponse(entry.getUserPublicId(), entry.getUsername(),
-						entry.getFullName(), entry.getDepartment(), entry.getLastLoginAt(), entry.getOccurredAt(),
-						entry.getActor(), entry.getReasonCode(), entry.getReasonNote()))
+						entry.getFullName(), entry.getDepartment(), entry.getLastLoginAt(), entry.getLastActivityAt(),
+						entry.getOccurredAt(), entry.getActor(), entry.getReasonCode(), entry.getReasonNote()))
 				.toList();
 		}
 		return population == ReviewPopulation.SUSPENDED ? liveSuspended(task) : liveRemoved(task);
@@ -681,7 +682,7 @@ public class AccountReviewService {
 		}
 		return suspended.stream()
 			.map(user -> new PopulationEntryResponse(user.getPublicId(), user.getUsername(), user.getName(),
-					user.getDepartment(), user.getLastLoginAt(), user.getSuspendedAt(),
+					user.getDepartment(), user.getLastLoginAt(), user.lastActivityAt(), user.getSuspendedAt(),
 					Optional.ofNullable(latest.get(user.getPublicId().toString()))
 						.map(AccountAuditEvent::getActor)
 						.orElse(null),
@@ -724,10 +725,12 @@ public class AccountReviewService {
 	private static PopulationEntryResponse removedEntry(AccountAuditEvent event) {
 		Map<String, Object> details = details(event);
 		Object lastLogin = details.get("lastLoginAt");
+		Object lastActivity = details.get("lastActivityAt");
 		return new PopulationEntryResponse(UUID.fromString(event.getTargetId()), event.getTargetName(),
 				event.getTargetFullName(), (String) details.get("department"),
-				lastLogin == null ? null : Instant.parse(lastLogin.toString()), event.getOccurredAt(), event.getActor(),
-				event.getReasonCode(), event.getReasonNote());
+				lastLogin == null ? null : Instant.parse(lastLogin.toString()),
+				lastActivity == null ? null : Instant.parse(lastActivity.toString()), event.getOccurredAt(),
+				event.getActor(), event.getReasonCode(), event.getReasonNote());
 	}
 
 	private static PopulationStatus status(AccountReviewAttestation attestation) {

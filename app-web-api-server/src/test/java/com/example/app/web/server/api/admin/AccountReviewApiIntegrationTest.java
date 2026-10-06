@@ -116,6 +116,7 @@ class AccountReviewApiIntegrationTest {
 			.andExpect(jsonPath("$.populations.removed.confirmed").value(false));
 		this.mockMvc.perform(get(items(task)).with(loginAs("account-reviewer-1")))
 			.andExpect(jsonPath("$.items[*].username").value(containsInAnyOrder("admin", "multi-group-user")))
+			.andExpect(jsonPath("$.items[0].lastActivityAt").exists())
 			.andExpect(jsonPath("$.items[?(@.username == 'admin')].privilegedPermissions[0]")
 				.value(hasItem("role:add-permission")));
 	}
@@ -248,6 +249,7 @@ class AccountReviewApiIntegrationTest {
 			.andExpect(jsonPath("$.items[0].roles[0]").value("Users"))
 			.andExpect(jsonPath("$.items[0].rolesBefore[0]").value("Administrators"))
 			.andExpect(jsonPath("$.items[0].currentRoles").value(nullValue()))
+			.andExpect(jsonPath("$.items[0].lastActivityAt").exists())
 			.andExpect(jsonPath("$.items[0].remark").value("Removed Administrators"));
 	}
 

@@ -159,8 +159,9 @@ public class UserAdminController {
 
 	private UserResponse response(AppUser user) {
 		return new UserResponse(user.getPublicId(), user.getUsername(), user.getName(), user.getEmail(),
-				user.getDepartment(), user.getLastLoginAt(), user.getStatus().name().toLowerCase(Locale.ROOT),
-				user.getSuspendedAt(), user.getSuspensionReasonCode(), user.getSuspensionNote(), user.isPrivileged(),
+				user.getDepartment(), user.getLastLoginAt(), user.lastActivityAt(), user.getCreatedAt(),
+				user.getStatus().name().toLowerCase(Locale.ROOT), user.getSuspendedAt(), user.getSuspensionReasonCode(),
+				user.getSuspensionNote(), user.isPrivileged(),
 				user.getRoles()
 					.stream()
 					.map(role -> new Summary(role.getPublicId(), role.getName()))

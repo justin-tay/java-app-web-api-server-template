@@ -57,6 +57,8 @@ public class AccountReviewItem extends AbstractIdentifiedEntity {
 
 	private Instant lastLoginAt;
 
+	private Instant lastActivityAt;
+
 	@Convert(converter = NamesConverter.class)
 	@JdbcTypeCode(SqlTypes.LONG32VARCHAR)
 	private List<String> rolesBefore;
@@ -139,6 +141,10 @@ public class AccountReviewItem extends AbstractIdentifiedEntity {
 		return this.department;
 	}
 
+	public Instant getLastActivityAt() {
+		return this.lastActivityAt;
+	}
+
 	public Instant getLastLoginAt() {
 		return this.lastLoginAt;
 	}
@@ -204,6 +210,7 @@ public class AccountReviewItem extends AbstractIdentifiedEntity {
 		this.decidedBy = by;
 		this.department = account.getDepartment();
 		this.lastLoginAt = account.getLastLoginAt();
+		this.lastActivityAt = account.lastActivityAt();
 		this.rolesBefore = List.copyOf(before);
 		this.rolesAfter = after == null ? null : List.copyOf(after);
 	}

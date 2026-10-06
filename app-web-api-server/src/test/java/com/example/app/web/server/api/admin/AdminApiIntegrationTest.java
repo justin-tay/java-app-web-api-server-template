@@ -261,7 +261,10 @@ class AdminApiIntegrationTest {
 	@Test
 	void userResponsesSayWhetherTheAccountIsPrivileged() throws Exception {
 		this.mockMvc.perform(get("/admin/users/" + ADMIN_USER_ID).with(as("user:read")))
-			.andExpect(jsonPath("$.privileged").value(true));
+			.andExpect(jsonPath("$.privileged").value(true))
+			.andExpect(jsonPath("$.createdAt").exists())
+			.andExpect(jsonPath("$.lastActivityAt").exists())
+			.andExpect(jsonPath("$.lastLoginAt").doesNotExist());
 		this.mockMvc.perform(get("/admin/users/" + TEST_USER_ID).with(as("user:read")))
 			.andExpect(jsonPath("$.privileged").value(false));
 	}

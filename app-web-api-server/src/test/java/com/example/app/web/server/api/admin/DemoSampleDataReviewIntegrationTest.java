@@ -77,6 +77,7 @@ class DemoSampleDataReviewIntegrationTest {
 		List<PopulationEntryResponse> suspended = population(nonPrivileged, ReviewPopulation.SUSPENDED);
 		assertThat(suspended).extracting(PopulationEntryResponse::username)
 			.containsExactlyInAnyOrder("farid.hassan", "alicia.wong", "benjamin.teo");
+		assertThat(suspended).extracting(PopulationEntryResponse::lastActivityAt).doesNotContainNull();
 		assertThat(suspended).filteredOn(row -> row.username().equals("alicia.wong")).singleElement().satisfies(row -> {
 			assertThat(row.reasonCode()).isEqualTo("left_organisation");
 			assertThat(row.reasonNote()).startsWith("Resigned");

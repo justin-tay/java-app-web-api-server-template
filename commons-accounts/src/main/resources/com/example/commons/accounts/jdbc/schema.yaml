@@ -218,6 +218,7 @@ databaseChangeLog:
               - column: { name: removal_audit_event_id, type: bigint }
               - column: { name: department, type: varchar(100) }
               - column: { name: last_login_at, type: "${instant.type}" }
+              - column: { name: last_activity_at, type: "${instant.type}" }
               - column: { name: roles_before, type: clob }
               - column: { name: roles_after, type: clob }
               # The privileged permissions the account held when the item was created, which is
@@ -252,6 +253,7 @@ databaseChangeLog:
               - column: { name: full_name, type: varchar(100), constraints: { nullable: false } }
               - column: { name: department, type: varchar(100) }
               - column: { name: last_login_at, type: "${instant.type}" }
+              - column: { name: last_activity_at, type: "${instant.type}" }
               - column: { name: occurred_at, type: "${instant.type}", constraints: { nullable: false } }
               - column: { name: actor, type: varchar(100) }
               - column: { name: reason_code, type: varchar(40) }

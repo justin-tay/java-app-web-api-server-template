@@ -93,17 +93,20 @@ public class AccountAuditLogger {
 	 * @param department the department, kept in a removal's audit details but never
 	 * logged
 	 * @param lastLoginAt the last sign-in time, kept in a removal's audit details
+	 * @param lastActivityAt when the account was last in use, kept in a removal's audit
+	 * details
 	 */
 	public record UserState(UUID id, String username, String status, SortedSet<String> roles,
 			SortedSet<String> permissions, boolean privileged, String email, String name, String department,
-			Instant lastLoginAt) {
+			Instant lastLoginAt, Instant lastActivityAt) {
 
 		public static UserState of(AppUser user) {
 			return new UserState(user.getPublicId(), user.getUsername(),
 					user.getStatus().name().toLowerCase(Locale.ROOT),
 					names(user.getRoles().stream().map(AppRole::getName).toList()),
 					names(user.permissions().stream().map(AppPermission::getName).toList()), user.isPrivileged(),
-					user.getEmail(), user.getName(), user.getDepartment(), user.getLastLoginAt());
+					user.getEmail(), user.getName(), user.getDepartment(), user.getLastLoginAt(),
+					user.lastActivityAt());
 		}
 
 	}
@@ -211,7 +214,8 @@ public class AccountAuditLogger {
 		AccountAuditEvent saved = record("delete_user", "USER", user, reason.value(), note,
 				details("status", user.status(), "roles", user.roles(), "permissions", user.permissions(), "privileged",
 						user.privileged(), "department", user.department(), "lastLoginAt",
-						user.lastLoginAt() == null ? null : user.lastLoginAt().toString()));
+						user.lastLoginAt() == null ? null : user.lastLoginAt().toString(), "lastActivityAt",
+						user.lastActivityAt().toString()));
 		afterCommit(() -> {
 			LoggingEventBuilder event = event("delete_user", "user", "deletion", user.username());
 			event.addKeyValue("event.reason", reason.value());

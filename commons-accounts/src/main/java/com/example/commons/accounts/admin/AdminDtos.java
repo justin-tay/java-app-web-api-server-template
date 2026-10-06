@@ -52,8 +52,8 @@ public final class AdminDtos {
 	 * A user. {@code privileged} is computed from the user's roles, not stored.
 	 */
 	public record UserResponse(UUID id, String username, String name, String email, String department,
-			Instant lastLoginAt, String status, Instant suspendedAt, String suspensionReasonCode, String suspensionNote,
-			boolean privileged, List<Summary> roles) {
+			Instant lastLoginAt, Instant lastActivityAt, Instant createdAt, String status, Instant suspendedAt,
+			String suspensionReasonCode, String suspensionNote, boolean privileged, List<Summary> roles) {
 	}
 
 	public record RoleResponse(UUID id, String name, List<PermissionSummary> permissions) {

@@ -78,8 +78,8 @@ public final class ReviewDtos {
 	 */
 	public record ReviewItemResponse(UUID id, UUID userId, String username, String name, String department,
 			List<String> roles, List<String> rolesBefore, List<String> privilegedPermissions,
-			List<Summary> currentRoles, Instant lastLoginAt, String outcome, String remark, boolean ownAccount,
-			String decidedBy, Instant decidedAt) {
+			List<Summary> currentRoles, Instant lastLoginAt, Instant lastActivityAt, String outcome, String remark,
+			boolean ownAccount, String decidedBy, Instant decidedAt) {
 	}
 
 	/**
@@ -89,7 +89,8 @@ public final class ReviewDtos {
 	 * @param actor who suspended or removed it, {@code system} or a username
 	 */
 	public record PopulationEntryResponse(UUID userId, String username, String name, String department,
-			Instant lastLoginAt, Instant occurredAt, String actor, String reasonCode, String reasonNote) {
+			Instant lastLoginAt, Instant lastActivityAt, Instant occurredAt, String actor, String reasonCode,
+			String reasonNote) {
 	}
 
 	public record DecisionRequest(@NotEmpty @Size(max = 100) List<UUID> itemIds,
