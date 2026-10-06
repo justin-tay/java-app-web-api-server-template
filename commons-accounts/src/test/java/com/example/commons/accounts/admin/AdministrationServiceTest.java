@@ -398,7 +398,9 @@ class AdministrationServiceTest {
 					null, Set.of(this.reviewers.getPublicId(), this.administrators.getPublicId()))));
 		assertThatExceptionOfType(ConflictException.class)
 			.isThrownBy(() -> this.service.createUser(new AdminDtos.UserCreateRequest("new-user", "New User", null,
-					null, Set.of(this.reviewers.getPublicId(), this.administrators.getPublicId()))));
+					null, Set.of(this.reviewers.getPublicId(), this.administrators.getPublicId()))))
+			.withMessageContaining("review:decide")
+			.withMessageContaining("user:create");
 
 		assertThat(output).contains("\"separation_of_duties\"");
 		assertThat(reload(this.testUser).getRoles()).extracting(AppRole::getName).containsExactly("Reviewers");

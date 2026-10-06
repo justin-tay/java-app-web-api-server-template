@@ -11,6 +11,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import com.example.commons.accounts.admin.AdminDtos.Summary;
+
 public final class ReviewDtos {
 
 	private ReviewDtos() {
@@ -67,14 +69,17 @@ public final class ReviewDtos {
 	 * @param rolesBefore the roles before the decision, null while pending
 	 * @param privilegedPermissions the privileged permissions the account held when the
 	 * task was created, null in a non-privileged review
+	 * @param currentRoles the roles the account holds now, with their IDs, for editing
+	 * them; null once the item is decided, when {@code roles} is what was frozen
 	 * @param remark derived text: no changes, the roles removed, or the removal with its
 	 * reason
 	 * @param ownAccount whether the row is the caller's own account, which they cannot
 	 * act on
 	 */
 	public record ReviewItemResponse(UUID id, UUID userId, String username, String name, String department,
-			List<String> roles, List<String> rolesBefore, List<String> privilegedPermissions, Instant lastLoginAt,
-			String outcome, String remark, boolean ownAccount, String decidedBy, Instant decidedAt) {
+			List<String> roles, List<String> rolesBefore, List<String> privilegedPermissions,
+			List<Summary> currentRoles, Instant lastLoginAt, String outcome, String remark, boolean ownAccount,
+			String decidedBy, Instant decidedAt) {
 	}
 
 	/**

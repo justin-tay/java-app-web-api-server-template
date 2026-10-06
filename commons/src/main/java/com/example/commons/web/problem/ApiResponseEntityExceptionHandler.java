@@ -156,7 +156,10 @@ public class ApiResponseEntityExceptionHandler extends ResponseEntityExceptionHa
 		ProblemDetail problemDetail = problemDetail(HttpStatus.BAD_REQUEST, ex.getMessage(),
 				ProblemTypes.VALIDATION_FAILED);
 		problemDetail.setTitle("Validation failed");
-		problemDetail.setProperty("errors", List.of(Map.of("code", "InvalidRequest", "message", ex.getMessage())));
+		problemDetail.setProperty("errors",
+				List.of(ex.getField() == null ? Map.of("code", "InvalidRequest", "message", ex.getMessage())
+						: Map.of("code", "InvalidRequest", "message", ex.getMessage(), "source",
+								Map.of("pointer", "/" + ex.getField()))));
 		return ResponseEntity.badRequest().body(problemDetail);
 	}
 

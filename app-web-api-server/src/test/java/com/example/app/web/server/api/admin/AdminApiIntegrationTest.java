@@ -335,10 +335,23 @@ class AdminApiIntegrationTest {
 			.andExpect(jsonPath("$.review.privilegedIntervalMonths").value(1))
 			.andExpect(jsonPath("$.review.nonPrivilegedIntervalMonths").value(12));
 
-		this.mockMvc.perform(updateSettings(90, 90, 1, 12)).andExpect(status().isBadRequest());
-		this.mockMvc.perform(updateSettings(60, 120, 1, 13)).andExpect(status().isBadRequest());
-		this.mockMvc.perform(updateSettings(60, 120, 5, 12)).andExpect(status().isBadRequest());
-		this.mockMvc.perform(updateSettings(60, 120, 6, 3)).andExpect(status().isBadRequest());
+		this.mockMvc.perform(updateSettings(90, 90, 1, 12))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].source.pointer").value("/inactivity.removeAfterDays"));
+		this.mockMvc.perform(updateSettings(60, 120, 1, 13))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].source.pointer").value("/review.nonPrivilegedIntervalMonths"));
+		this.mockMvc.perform(updateSettings(60, 120, 5, 12))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].source.pointer").value("/review.privilegedIntervalMonths"));
+		this.mockMvc.perform(updateSettings(60, 120, 6, 5))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].source.pointer").value("/review.nonPrivilegedIntervalMonths"));
+		this.mockMvc.perform(updateSettings(60, 120, 6, 3))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].source.pointer").value("/review.nonPrivilegedIntervalMonths"))
+			.andExpect(jsonPath("$.errors[0].message")
+				.value("The non-privileged review interval cannot be shorter than the privileged review interval."));
 		this.mockMvc.perform(updateSettings(60, 120, 3, 6))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.inactivity.suspendAfterDays").value(60));
@@ -566,7 +579,9 @@ class AdminApiIntegrationTest {
 				.content("{\"name\":\"Mixed\",\"permissionIds\":[\"" + REVIEW_DECIDE_PERMISSION_ID + "\",\""
 						+ USER_CREATE_PERMISSION_ID + "\"]}"))
 			.andExpect(status().isConflict())
-			.andExpect(jsonPath("$.type").value("urn:problem:resource-conflict"));
+			.andExpect(jsonPath("$.type").value("urn:problem:resource-conflict"))
+			.andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("review:decide")))
+			.andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("user:create")));
 	}
 
 	private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder updateSettings(int suspendAfter,

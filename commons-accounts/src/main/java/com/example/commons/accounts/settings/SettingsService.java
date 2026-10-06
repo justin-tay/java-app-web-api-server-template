@@ -51,14 +51,19 @@ public class SettingsService {
 
 	public Settings update(Settings requested) {
 		if (requested.inactivity().removeAfterDays() <= requested.inactivity().suspendAfterDays()) {
-			throw new BadRequestException("The removal threshold must be greater than the suspension threshold.");
+			throw new BadRequestException("inactivity.removeAfterDays",
+					"The removal threshold must be greater than the suspension threshold.");
 		}
-		if (!VALID_INTERVALS.contains(requested.review().privilegedIntervalMonths())
-				|| !VALID_INTERVALS.contains(requested.review().nonPrivilegedIntervalMonths())) {
-			throw new BadRequestException("A review interval must be 1, 3, 6 or 12 months.");
+		if (!VALID_INTERVALS.contains(requested.review().privilegedIntervalMonths())) {
+			throw new BadRequestException("review.privilegedIntervalMonths",
+					"A review interval must be 1, 3, 6 or 12 months.");
+		}
+		if (!VALID_INTERVALS.contains(requested.review().nonPrivilegedIntervalMonths())) {
+			throw new BadRequestException("review.nonPrivilegedIntervalMonths",
+					"A review interval must be 1, 3, 6 or 12 months.");
 		}
 		if (requested.review().nonPrivilegedIntervalMonths() < requested.review().privilegedIntervalMonths()) {
-			throw new BadRequestException(
+			throw new BadRequestException("review.nonPrivilegedIntervalMonths",
 					"The non-privileged review interval cannot be shorter than the privileged review interval.");
 		}
 		Map<String, String> before = values();

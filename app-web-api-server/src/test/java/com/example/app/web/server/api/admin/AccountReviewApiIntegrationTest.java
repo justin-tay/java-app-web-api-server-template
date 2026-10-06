@@ -53,6 +53,8 @@ import com.example.commons.accounts.review.ReviewPeriod;
 @Transactional
 class AccountReviewApiIntegrationTest {
 
+	private static final String ACCOUNT_REVIEWERS_ROLE_ID = "00000000-0000-0000-0000-000000000013";
+
 	@Autowired
 	private MockMvc mockMvc;
 
@@ -141,6 +143,8 @@ class AccountReviewApiIntegrationTest {
 				.value(containsInAnyOrder("account-reviewer-1", "account-reviewer-2")))
 			.andExpect(jsonPath("$.items[0].department").value("Compliance"))
 			.andExpect(jsonPath("$.items[0].roles[0]").value("Account Reviewers"))
+			.andExpect(jsonPath("$.items[0].currentRoles[0].name").value("Account Reviewers"))
+			.andExpect(jsonPath("$.items[0].currentRoles[0].id").value(ACCOUNT_REVIEWERS_ROLE_ID))
 			.andExpect(jsonPath("$.items[0].privilegedPermissions").value(nullValue()));
 		this.mockMvc.perform(get(items(task)).param("outcome", "removed").with(loginAs("account-reviewer-1")))
 			.andExpect(status().isBadRequest());
@@ -239,6 +243,7 @@ class AccountReviewApiIntegrationTest {
 			.andExpect(jsonPath("$.items[0].username").value("multi-group-user"))
 			.andExpect(jsonPath("$.items[0].roles[0]").value("Users"))
 			.andExpect(jsonPath("$.items[0].rolesBefore[0]").value("Administrators"))
+			.andExpect(jsonPath("$.items[0].currentRoles").value(nullValue()))
 			.andExpect(jsonPath("$.items[0].remark").value("Removed Administrators"));
 	}
 

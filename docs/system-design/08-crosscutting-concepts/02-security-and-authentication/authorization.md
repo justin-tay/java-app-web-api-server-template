@@ -132,7 +132,7 @@ together, through one role or several. It is seeded with `review:decide` against
 every privileged permission, so whoever reviews accounts cannot administer
 them. This is NIST RBAC's static separation of duty (SP 800-53 AC-5).
 It is checked when a role is given a permission and when a user is given a role,
-against the user's combined permissions, and a breach is rejected with 409 and
+against the user's combined permissions, and a breach is rejected with 409, naming the pair, and
 the audit reason `separation_of_duties`. Role hierarchy and dynamic separation
 of duty are not used.
 

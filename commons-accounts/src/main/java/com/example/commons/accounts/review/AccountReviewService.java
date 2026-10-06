@@ -32,6 +32,7 @@ import com.example.commons.accounts.admin.AccountAuditLogger;
 import com.example.commons.accounts.admin.AccountAuditLogger.UserState;
 import com.example.commons.accounts.admin.AccountLifecycleService;
 import com.example.commons.accounts.admin.Actor;
+import com.example.commons.accounts.admin.AdminDtos.Summary;
 import com.example.commons.accounts.domain.AccountAuditEvent;
 import com.example.commons.accounts.domain.AccountAuditEventRepository;
 import com.example.commons.accounts.domain.AccountReviewAttestation;
@@ -618,14 +619,26 @@ public class AccountReviewService {
 			AppUser user = item.getUser();
 			return new ReviewItemResponse(item.getPublicId(), item.getUserPublicId(), item.getUsername(),
 					user.getName(), user.getDepartment(), ReviewItems.roleNames(user), null,
-					item.getPrivilegedPermissions(), user.getLastLoginAt(), item.getOutcome().value(), null, own, null,
-					null);
+					item.getPrivilegedPermissions(), currentRoles(user), user.getLastLoginAt(),
+					item.getOutcome().value(), null, own, null, null);
 		}
 		return new ReviewItemResponse(item.getPublicId(), item.getUserPublicId(), item.getUsername(),
 				item.getFullName(), item.getDepartment(), item.getRolesAfter(), item.getRolesBefore(),
-				item.getPrivilegedPermissions(), item.getLastLoginAt(), item.getOutcome().value(),
+				item.getPrivilegedPermissions(), null, item.getLastLoginAt(), item.getOutcome().value(),
 				ReviewRemarks.remark(item.getOutcome(), item.getRolesBefore(), item.getRolesAfter(), null), own,
 				item.getDecidedBy(), item.getDecidedAt());
+	}
+
+	/**
+	 * Returns the roles an account holds now with their IDs, sorted by name, which is
+	 * what a client needs to send the roles that remain when it removes some.
+	 */
+	private static List<Summary> currentRoles(AppUser user) {
+		return user.getRoles()
+			.stream()
+			.map(role -> new Summary(role.getPublicId(), role.getName()))
+			.sorted(Comparator.comparing(Summary::name, String.CASE_INSENSITIVE_ORDER))
+			.toList();
 	}
 
 	private static boolean matches(ReviewItemResponse row, ItemQuery query) {

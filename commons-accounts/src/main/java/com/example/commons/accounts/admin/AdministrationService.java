@@ -85,9 +85,11 @@ public class AdministrationService {
 			this.auditLogger.userCreationRejected(request.username(), "exceeds_actor_privileges");
 			throw new AccessDeniedException("Cannot grant a privileged permission the actor does not hold.");
 		}
-		if (conflict(permissionsOf(requestedRoles)).isPresent()) {
+		Optional<String> clash = conflict(permissionsOf(requestedRoles));
+		if (clash.isPresent()) {
 			this.auditLogger.userCreationRejected(request.username(), "separation_of_duties");
-			throw new ConflictException("The roles give the user permissions that must not be held together.");
+			throw new ConflictException(
+					"The roles give the user permissions that must not be held together: " + clash.get() + ".");
 		}
 		AppUser user = new AppUser(request.username(), request.name(), request.email(),
 				blankToNull(request.department()));
@@ -124,9 +126,11 @@ public class AdministrationService {
 			this.auditLogger.userUpdateRejected(before, "exceeds_actor_privileges");
 			throw new AccessDeniedException("Cannot grant a privileged permission the actor does not hold.");
 		}
-		if (!addedRoles.isEmpty() && conflict(permissionsOf(requestedRoles)).isPresent()) {
+		Optional<String> clash = addedRoles.isEmpty() ? Optional.empty() : conflict(permissionsOf(requestedRoles));
+		if (clash.isPresent()) {
 			this.auditLogger.userUpdateRejected(before, "separation_of_duties");
-			throw new ConflictException("The roles give the user permissions that must not be held together.");
+			throw new ConflictException(
+					"The roles give the user permissions that must not be held together: " + clash.get() + ".");
 		}
 		user.update(request.name(), request.email(), blankToNull(request.department()));
 		user.getRoles().clear();
@@ -230,9 +234,10 @@ public class AdministrationService {
 			this.auditLogger.roleCreationRejected(request.name(), "exceeds_actor_privileges");
 			throw new AccessDeniedException("Cannot grant a privileged permission the actor does not hold.");
 		}
-		if (conflict(requested).isPresent()) {
+		Optional<String> clash = conflict(requested);
+		if (clash.isPresent()) {
 			this.auditLogger.roleCreationRejected(request.name(), "separation_of_duties");
-			throw new ConflictException("The permissions must not be held together.");
+			throw new ConflictException("The permissions must not be held together: " + clash.get() + ".");
 		}
 		AppRole role = new AppRole(request.name());
 		role.getPermissions().addAll(requested);
@@ -264,9 +269,11 @@ public class AdministrationService {
 			this.auditLogger.roleUpdateRejected(before, request.name(), "exceeds_actor_privileges");
 			throw new AccessDeniedException("Cannot grant a privileged permission the actor does not hold.");
 		}
-		if (!added.isEmpty() && conflictsForHolders(role, requested)) {
+		Optional<String> clash = added.isEmpty() ? Optional.empty() : conflictForHolders(role, requested);
+		if (clash.isPresent()) {
 			this.auditLogger.roleUpdateRejected(before, request.name(), "separation_of_duties");
-			throw new ConflictException("The permissions must not be held together by a user of the role.");
+			throw new ConflictException(
+					"The permissions must not be held together by a user of the role: " + clash.get() + ".");
 		}
 		role.setName(request.name());
 		role.getPermissions().clear();
@@ -374,12 +381,14 @@ public class AdministrationService {
 	}
 
 	/**
-	 * Returns whether giving the role the requested permissions would leave a user of the
-	 * role with two that must not be held together, counting the user's other roles.
+	 * Returns the pair that giving the role the requested permissions would leave a user
+	 * of the role holding together, though they must not be, counting the user's other
+	 * roles.
 	 */
-	private boolean conflictsForHolders(AppRole role, Set<AppPermission> requested) {
-		if (conflict(requested).isPresent()) {
-			return true;
+	private Optional<String> conflictForHolders(AppRole role, Set<AppPermission> requested) {
+		Optional<String> own = conflict(requested);
+		if (own.isPresent()) {
+			return own;
 		}
 		for (AppUser holder : this.users.findByRoles_PublicId(role.getPublicId())) {
 			Set<AppPermission> all = holder.getRoles()
@@ -388,11 +397,12 @@ public class AdministrationService {
 				.flatMap(held -> held.getPermissions().stream())
 				.collect(Collectors.toCollection(HashSet::new));
 			all.addAll(requested);
-			if (conflict(all).isPresent()) {
-				return true;
+			Optional<String> clash = conflict(all);
+			if (clash.isPresent()) {
+				return clash;
 			}
 		}
-		return false;
+		return Optional.empty();
 	}
 
 	private Set<AppRole> roles(Set<UUID> ids) {
