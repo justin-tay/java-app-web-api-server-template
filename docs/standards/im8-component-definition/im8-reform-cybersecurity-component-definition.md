@@ -47,7 +47,7 @@ For the underlying evidence, see [Authentication](../../system-design/08-crosscu
 | AC-11 | Single User Endpoints | Not applicable | Endpoint assignment policy is outside an application component's boundary. |
 | AC-12 | Single Sign-On (SSO) for Internal Services and Accounts | Implemented | All access is authenticated through Keycloak via the OIDC authorization-code flow; the template has no independent local login path. |
 | AC-13 | Static Credential Expiry and Rotation | Not applicable | The template issues no long-lived static credentials (API keys, access keys, personal access tokens) of its own; sessions and tokens are short-lived and managed by Spring Session and Keycloak. |
-| AC-14 | Inventory of Accounts | Implemented | The local `AppUser`/`AppGroup`/`AppRole` tables, queried and managed through `AdministrationService`, are the account and access-rights inventory for this template's authorisation model. |
+| AC-14 | Inventory of Accounts | Implemented | The local `AppUser`/`AppRole`/`AppPermission` tables, queried and managed through `AdministrationService`, are the account and access-rights inventory for this template's authorisation model. |
 | AC-15 | Validation Testing of Automated Account Lifecycle Management | Not applicable | No automated account lifecycle tool is integrated by the template for this control to validate. |
 | AC-16 | Separation of Duties | Partial | The RBAC model (groups, roles, authorities) supports defining separated administrative roles, but the template ships no predefined separation-of-duties policy; which roles are mutually exclusive is a product decision for the adopter. |
 
@@ -178,7 +178,7 @@ This template has no generative AI or large language model integration; the enti
 | LM-1 | Separate Log Storage | Not applicable | The template writes structured logs to stdout only; routing them to a separate storage system is a deployment/log-pipeline decision. |
 | LM-2 | Tamper-Resistant Log Storage | Not applicable | Log storage protection is a deployment/log-pipeline decision. |
 | LM-3 | Network Flow Logging | Not applicable | Network flow logging is an infrastructure responsibility. |
-| LM-4 | Audit Logging | Implemented | Authentication, authorisation, and session lifecycle events, and every change to local accounts and access (users, groups, roles, and their memberships), are logged as structured audit events (`SecurityAuditEventLogger`, `SessionLifecycleAuditLogger`, `AdministrationAuditLogger`). |
+| LM-4 | Audit Logging | Implemented | Authentication, authorisation, and session lifecycle events, and every change to local accounts and access (users, roles, permissions, and their memberships), are logged as structured audit events (`SecurityAuditEventLogger`, `SessionLifecycleAuditLogger`, `AdministrationAuditLogger`). |
 | LM-5 | Database Logging | Not applicable | Database audit logging is owned by the operator-supplied database/infrastructure. |
 | LM-6 | Access Logging | Implemented | Every request's lifecycle is logged via `RequestLoggingFilter`. |
 | LM-7 | Host Security Event Logging | Not applicable | Host-level security event logging is an infrastructure responsibility. |
