@@ -257,7 +257,7 @@ logout, timeout, privilege-change, and concurrent-session behavior actually
 match what is decided:
 
 1. The rationale for the 15-minute idle and 12-hour absolute timeouts.
-2. Whether redefining a group's role set, or deleting a role, should also revoke
+2. Whether redefining a role's permission set, or deleting a role, should also revoke
    the sessions of every member affected, and how any other privilege change not
    already covered by `SessionRevocationService` should revoke or refresh existing
    sessions.

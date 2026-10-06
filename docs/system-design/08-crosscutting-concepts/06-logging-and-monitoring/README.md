@@ -127,11 +127,11 @@ produced which event:
   [ADR 0017](../../../adr/0017-invalid-session-and-privilege-change-logging.md)).
 * `AccountAuditLogger` emits an ECS `iam` event for every create,
   update, suspension, unsuspension, and removal of a local user, and every create,
-  update, and delete of a group or role, and for each one
+  update, and delete of a role, and for each one
   rejected by a business rule, with the administrator, the object's state
-  before the change, only the values that changed, and the roles and groups
-  granted or withdrawn (`roles.added`, `roles.removed`, `groups.added`,
-  `groups.removed`, the same role fields `update_session` uses). It never
+  before the change, only the values that changed, and the roles and permissions
+  granted or withdrawn (`roles.added`, `roles.removed`, `permissions.added`,
+  `permissions.removed`, the same permission fields `update_session` uses). It never
   logs an email address or display name (see
   [ADR 0021](../../../adr/0021-authorisation-change-audit-log-events.md)).
 * `ApiResponseEntityExceptionHandler` and

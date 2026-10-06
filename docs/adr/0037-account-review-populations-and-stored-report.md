@@ -3,7 +3,10 @@
 ## Status
 
 Accepted. Partly supersedes [ADR 0032](0032-periodic-account-review.md): the window,
-items, decisions, categories and completion decisions.
+items, decisions, categories and completion decisions. Partly superseded by
+[ADR 0038](0038-role-permission-model-and-account-review-classes.md): the review is split into
+a privileged and a non-privileged review, only the privileged one has populations, and a
+reviewer edits roles by removing them.
 
 ## Context
 

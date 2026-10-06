@@ -2,8 +2,8 @@
 
 ## Status
 
-Proposed. It becomes accepted when the implementation lands. Once accepted it supersedes
-[ADR 0022](0022-administrators-cannot-grant-beyond-their-own-roles.md), and partly supersedes
+Accepted. Supersedes [ADR 0022](0022-administrators-cannot-grant-beyond-their-own-roles.md),
+and partly supersedes
 [ADR 0005](0005-keycloak-authentication-local-authorisation.md) (the user, group and role
 model), [ADR 0032](0032-periodic-account-review.md) and
 [ADR 0037](0037-account-review-populations-and-stored-report.md) (one review interval and one
@@ -161,8 +161,11 @@ policy that an adopter tunes in the settings. The glossary records the terms.
 
 ### Audit and schema
 
-The audit actions for groups and roles are renamed to role and permission events. New events
-record a privileged status change, a separation of duties rejection, and a review's class. The
+The audit actions for groups are renamed to role events, and roles became permissions, which
+the API cannot change, so there are no permission events. A privileged status change is
+recorded on the user events (`user.changes.privileged`, and `privileged` in the audit trail
+details), a separation of duties rejection as the reason `separation_of_duties` of the
+rejected change, and a review's class as the `type` of the `create_review_task` event. The
 schema is edited in place and development databases are recreated, as in
 [ADR 0037](0037-account-review-populations-and-stored-report.md); no data is migrated.
 

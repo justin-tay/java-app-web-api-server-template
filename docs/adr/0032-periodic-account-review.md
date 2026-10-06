@@ -3,7 +3,8 @@
 ## Status
 
 Accepted. The window, items, decisions, categories and completion are superseded by
-[ADR 0037](0037-account-review-populations-and-stored-report.md).
+[ADR 0037](0037-account-review-populations-and-stored-report.md), and the single review interval
+by the two reviews of [ADR 0038](0038-role-permission-model-and-account-review-classes.md).
 
 ## Context
 

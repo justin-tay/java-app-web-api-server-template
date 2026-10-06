@@ -4,7 +4,7 @@
 This template provides an opinionated Spring Boot Web API server that services
 browser clients, with authentication delegated to an OpenID Connect identity
 provider (Keycloak) and authorization resolved locally against a relational
-user/group/role model. Its purpose is to give a new service a secure,
+user/role/permission model. Its purpose is to give a new service a secure,
 observable baseline (session handling, structured logging, error responses,
 hardening) on day one, rather than each project re-deriving these concerns
 from scratch.
@@ -17,8 +17,8 @@ from scratch.
 | --- | --- | --- |
 | High | Browser-facing authentication | Authenticate browser users via OIDC authorization code flow against Keycloak, with `private_key_jwt` client authentication (`WebSecurityAutoConfiguration`, `PrivateKeyJwtAutoConfiguration`, `application.yaml`). |
 | High | Server-side session management | Maintain server-side sessions backed by JDBC (Spring Session), with absolute and idle timeouts, single concurrent session, and audited lifecycle events. |
-| High | Local authorization model | Resolve a user's roles from a locally owned user/group/role schema (`app_user`, `app_group`, `app_role`) rather than trusting identity-provider claims, refreshed on every request. |
-| High | Administration API | Expose REST endpoints for administering users, groups, and roles, each individually role-gated (`/admin/users`, `/admin/groups`, `/admin/roles`). |
+| High | Local authorization model | Resolve a user's permissions from a locally owned user/role/permission schema (`app_user`, `app_role`, `app_permission`) rather than trusting identity-provider claims, refreshed on every request. |
+| High | Administration API | Expose REST endpoints for administering users and roles and reading permissions, each gated by the permission it needs (`/admin/users`, `/admin/roles`, `/admin/permissions`). |
 | Medium | Standards-based error responses | Return RFC 9457 Problem Details (`application/problem+json`) for authentication, authorization, validation, and firewall-rejected requests instead of framework default error pages. |
 | Medium | Structured, trace-correlated logging | Emit Elastic Common Schema (ECS) JSON logs to stdout, correlated with OpenTelemetry trace/span identifiers. |
 | Medium | Operational health signal | Expose a minimal, unauthenticated health check on a separate management port for load balancer / monitoring probes, without exposing the rest of Actuator. |

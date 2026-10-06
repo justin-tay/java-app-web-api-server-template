@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Accepted. The local user, group and role model is superseded by the user, role and
+permission model of [ADR 0038](0038-role-permission-model-and-account-review-classes.md); authentication
+stays with Keycloak and authorisation stays local.
 
 ## Context
 

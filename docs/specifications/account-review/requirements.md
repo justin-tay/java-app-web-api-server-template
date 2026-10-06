@@ -1,5 +1,10 @@
 # Requirements: Account Lifecycle and Periodic Account Review
 
+> **Superseded in part.** The review is now two reviews, one for the privileged accounts and one
+> for the rest, each with its own interval setting, and a reviewer removes roles and never adds
+> them; see [ADR 0038](../../adr/0038-role-permission-model-and-account-review-classes.md). The
+> role names and the group editing below describe the earlier model.
+
 ## Overview
 
 Local user accounts that are no longer used must not stay usable indefinitely, and

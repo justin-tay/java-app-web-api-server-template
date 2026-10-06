@@ -3,7 +3,12 @@
 <!-- arc42-generated -->
 | Term | Definition |
 | --- | --- |
-| AppUser / AppGroup / AppRole | The three local authorization entities. A user belongs to groups; a group is granted roles; a user's effective authorities are the union of the roles of all their groups. There is no direct user-to-role assignment. |
+| AppUser / AppRole / AppPermission | The three local authorization entities, after NIST RBAC. A user holds roles; a role holds permissions; a user's effective authorities are the union of the permissions of all their roles, each named `domain:action`. See [ADR 0038](../adr/0038-role-permission-model-and-account-review-classes.md). |
+| Permission | Something a user may do, a `domain` and an `action` such as `user` and `create`, written `user:create`. It is seeded reference data, has a privileged flag, and is the only thing the code checks. |
+| Privileged permission | A permission that grants access or changes the settings the application runs under, such as `user:add-role`, so that holding it makes an account privileged. Granting access is privileged and withdrawing it is not. |
+| Privileged account | An active account whose roles include a privileged permission. It is computed, not stored, and is covered by the Privileged Account Review. |
+| Privileged Account Review / Non-privileged Account Review | The two periodic account reviews: the first covers the privileged accounts, monthly by default, and the second every other active account, yearly by default. Each interval is a setting. |
+| Separation of duties | A pair of permissions that no user may hold together, through one role or several. The schema seeds `review:decide` against every privileged permission, so whoever reviews accounts cannot administer them. NIST RBAC calls it static separation of duty. |
 | Control implementation | A document or section that maps an external standard's or catalog's requirements (OWASP ASVS, a cheat sheet, IM8 catalogs) to this template's actual implementation status, per requirement. Named after OSCAL's Component Definition model. See [ADR 0003](../adr/0003-control-implementation-terminology.md). |
 | Delegated to \<system\> | A capability the application never implements at all; a specific external system (currently only Keycloak) owns it entirely, and there is no decision left for the application or its deployer to make. |
 | Deployment decision required | A one-time infrastructure, topology, or configuration choice that the team deploying this application must actively make; the template deliberately leaves it unset (for example, the production database product or TLS termination point). |
@@ -18,5 +23,5 @@
 | OIDC back-channel logout | Server-to-server logout notification from Keycloak to this application, used when a session must be terminated without a browser round trip (for example, an administrator forcing logout in Keycloak). |
 <!-- /arc42-generated -->
 
-<!-- arc42-manual: Add domain terms specific to an adopting project's business domain once this template is extended beyond its current user/group/role scope. -->
+<!-- arc42-manual: Add domain terms specific to an adopting project's business domain once this template is extended beyond its current user/role/permission scope. -->
 <!-- /arc42-manual -->

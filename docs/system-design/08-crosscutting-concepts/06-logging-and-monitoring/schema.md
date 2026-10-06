@@ -75,9 +75,9 @@ fields where available and documents its intentional project extensions.
 | `user.name` | `keyword` | Authenticated actor when known. |
 | `user.target.name` | `keyword` | Target account of a failed authentication, or the user an administration change affects. |
 | `user.target.id` | `keyword` | ID of the user an administration change affects. |
-| `user.target.group.name`, `user.changes.group.name` | `keyword[]` | The affected user's group names before the change, and after it when they changed. |
-| `user.target.roles`, `user.changes.roles` | `keyword[]` | Stored names of the roles the affected user's groups grant, before the change and after it when they changed. |
-| `group.id`, `group.name` | `keyword` | The group an administration change affects, and its name before the change. |
+| `user.target.role.name`, `user.changes.role.name` | `keyword[]` | The names of the roles the affected user holds before the change, and after it when they changed. |
+| `user.target.permissions`, `user.changes.permissions` | `keyword[]` | The `domain:action` permissions the affected user's roles grant, before the change and after it when they changed. |
+| `user.target.privileged`, `user.changes.privileged` | `boolean` | Whether the affected user held a privileged permission before the change, and after it when that changed. |
 | `related.user` | `keyword[]` | Every user named in an administration event: the administrator and the affected user. |
 | `source.ip` | `ip` | Direct peer address from request-scoped MDC, established by `RequestCorrelationContextFilter`. It is not a unique correlation identifier or proxy-normalized client identity. |
 | `client.ip` | `ip` | Validated end-user client address from request-scoped MDC, established by `RequestCorrelationContextFilter`. Present only when the default `ClientIpResolver` bean is replaced with a trusted resolver. |
@@ -90,14 +90,14 @@ fields where available and documents its intentional project extensions.
 | `http.route` | `keyword` | Best-matching Spring MVC route, or `UNKNOWN` when unavailable. Useful for aggregation without raw identifier-bearing paths. |
 | `url.query_keys` | `keyword[]` | Query parameter names, including names whose values were redacted. Parameter names must not contain sensitive data. |
 | `validation.field` | `keyword` | Rejected request field or parameter path. It must never contain the rejected value. |
-| `roles.added`, `roles.removed` | `keyword[]` | Stored role names, without the `ROLE_` prefix, that an event grants or withdraws: to a user or group by an administration change, or to an active session by `update_session`. Top-level because the ECS `user.changes.roles` field is a keyword and cannot also hold `added` and `removed`. |
-| `groups.added`, `groups.removed` | `keyword[]` | Group names an administration change adds a user to or removes them from. |
+| `permissions.added`, `permissions.removed` | `keyword[]` | `domain:action` permissions that an event grants or withdraws: to a user or role by an administration change, or to an active session by `update_session`. Top-level because the `user.changes.permissions` field is a keyword and cannot also hold `added` and `removed`. |
+| `roles.added`, `roles.removed` | `keyword[]` | Role names an administration change gives a user or takes from them. |
 | `user.target.status`, `user.changes.status` | `keyword` | The affected account's status, `active` or `suspended`, before an account change, and the new status when it changed. |
 | `user.changes.fields` | `keyword[]` | ECS names (`email`, `full_name`) of the personal-data fields an administration change altered; never their values. |
-| `group.roles`, `group.changes.roles` | `keyword[]` | Stored names of the roles a group granted before an administration change, and after it when they changed. |
-| `group.changes.name` | `keyword` | A group's new name. |
-| `group.affected_user_count` | `long` | Number of users in a group whose roles changed. |
-| `role.id`, `role.name` | `keyword` | The role an administration change affects, and its stored name. ECS has no role field set. |
+| `role.permissions`, `role.changes.permissions` | `keyword[]` | The `domain:action` permissions a role held before an administration change, and after it when they changed. |
+| `role.changes.name` | `keyword` | A role's new name. |
+| `role.affected_user_count` | `long` | Number of users of a role whose permissions changed. |
+| `role.id`, `role.name` | `keyword` | The role an administration change affects, and its name before the change. ECS has no role field set. |
 | `authentication.method` | `keyword` | How a user authenticated or tried to: `oidc` or `passkey`. Present on `login` events when the method is known. |
 | `passkey.label` | `keyword` | The label a user gave a passkey, on the passkey registration, removal, and refused-login events. The credential itself is never logged. |
 | `session.revoked_count` | `long` | Number of sessions a `revoke_sessions` event ended. |

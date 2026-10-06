@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0038](0038-role-permission-model-and-account-review-classes.md),
+which keeps the rule for the privileged permissions only.
 
 ## Context
 

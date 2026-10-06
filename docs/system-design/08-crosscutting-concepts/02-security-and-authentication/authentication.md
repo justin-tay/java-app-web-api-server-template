@@ -60,7 +60,7 @@ all of them; choose it once. The remaining properties have defaults:
 | `POST /webauthn/register/options`, `POST /webauthn/register` | Register a passkey. |
 | `DELETE /webauthn/register/{id}` | Remove one of the caller's own passkeys. |
 | `GET /account/passkeys`, `PATCH /account/passkeys/{id}` | List and rename the caller's passkeys. |
-| `GET /admin/users/{id}/passkeys`, `DELETE /admin/users/{id}/passkeys/{credentialId}` | List and revoke a user's passkeys (`USER_MANAGE`). |
+| `GET /admin/users/{id}/passkeys`, `DELETE /admin/users/{id}/passkeys/{credentialId}` | List and revoke a user's passkeys (`user:read` and `user:remove-passkey`). |
 
 Every state-changing request carries a CSRF token like any other.
 
@@ -69,8 +69,8 @@ Every state-changing request carries a CSRF token like any other.
   as Keycloak uses the user's internal ID. Usernames cannot be renamed, so the
   username stored beside the handle never has to be synchronised. Deleting a
   user deletes their passkeys.
-* **Roles are local.** After a passkey login the session carries the same local
-  `ROLE_` authorities an OIDC login would, from the user, group, and role model.
+* **Permissions are local.** After a passkey login the session carries the same local
+  authorities an OIDC login would, the permissions of its roles.
   `LocalAuthorityRefreshFilter` reloads them on every request for a passkey
   session too, so disabling or deleting the user ends it on the next request,
   and no call to Keycloak is made. The passkey proves who the user is; it
@@ -117,7 +117,7 @@ OIDC login through Keycloak is always available. Passkey login is a second pathw
 | Entry | Redirect to Keycloak, then the OAuth2 redirect endpoint | `POST /webauthn/authenticate/options`, then `POST /login/webauthn` |
 | Authentication strength | Set by the Keycloak realm (password, and any multi-factor authentication the realm requires); the application checks no `acr` or `amr` | Possession of a discoverable passkey and user verification on the authenticator; attestation is `none` |
 | Local user | Must exist and be enabled | Must exist and be enabled |
-| Authorities | Local `ROLE_` authorities from the user, group, and role model | The same |
+| Authorities | Local permissions from the user, role, and permission model | The same |
 | Session | New session ID, concurrent-session limit, 15-minute idle timeout, 12-hour absolute timeout | New session ID, the same concurrent-session limit and idle timeout, absolute timeout 8 hours from the login |
 | Ended by | Logout, back-channel logout, the user being disabled or deleted locally | Logout, the user being disabled or deleted locally, its own absolute timeout |
 | Recentness for administration changes | `auth_time` no older than 15 minutes | Time of the passkey login no older than 15 minutes |
@@ -256,9 +256,9 @@ The application does not read Keycloak realm or client roles (such as the
 `realm_access.roles` claim) from the access token or ID token.
 `LocalAuthoritiesOidcUserService` resolves the OIDC user's username claim (the
 registration's `user-name-attribute`, see [Authorization](authorization.md#identity-resolution))
-to an enabled local user and derives authorities from the roles of that
-user's local groups, exposing each as a Spring authority with the `ROLE_`
-prefix; see [Authorization](authorization.md).
+to an enabled local user and derives authorities from the permissions of that
+user's local roles, exposing each permission as a Spring authority named
+`domain:action`; see [Authorization](authorization.md).
 
 ## Logout
 
@@ -431,7 +431,7 @@ since they carry no separate testable claim.
 | --- | --- | --- |
 | **Recommended Process If the User HAS Multifactor Authentication Enabled**<br>Confirm an email change with MFA, then notify the old address and require confirmation from the new one via single-use nonces. | Not applicable | There is no self-service email-change flow to apply this to; see Notes below. |
 | **Recommended Process If the User DOES NOT HAVE Multifactor Authentication Enabled**<br>Confirm an email change with the password, then require confirmation from both the old and new addresses via single-use nonces. | Not applicable | There is no self-service email-change flow to apply this to; see Notes below. |
-| Notes on the Above Processes | Not applicable | The local user's `email` field is maintained only through the administration API by an authorised holder of `ROLE_USER_MANAGE` (see [Authorization](authorization.md)), not through a user-initiated self-service flow, so the cheat sheet's confirmation/nonce process does not apply.<br><br>**Application code:** `UserAdminController`, `AdministrationService`. |
+| Notes on the Above Processes | Not applicable | The local user's `email` field is maintained only through the administration API by an authorised holder of `user:update` (see [Authorization](authorization.md)), not through a user-initiated self-service flow, so the cheat sheet's confirmation/nonce process does not apply.<br><br>**Application code:** `UserAdminController`, `AdministrationService`. |
 
 ### Adaptive or Risk Based Authentication
 

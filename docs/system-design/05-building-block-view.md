@@ -45,7 +45,7 @@ security filter chain baseline, the Tomcat hardening, the request logging
 filters, Problem Details error handling, and the configuration defaults
 without wiring any of it. It reaches a user model only through the
 `LocalAuthorityLookup` interface. `commons-accounts` is the optional user,
-group, and role model that implements it, with its administration API; a
+role, and permission model that implements it, with its administration API; a
 backend that reads a user store another backend owns can implement the
 interface itself instead. `commons-aws` is the optional AWS integration: it lets
 a resource location, such as a JWKS location, name an AWS Secrets Manager secret
@@ -71,14 +71,14 @@ rules, its Liquibase master changelog, and its configuration.
 | `commons` defaults | Configuration defaults ranked below every application configuration source | `CommonsDefaultsEnvironmentPostProcessor` | `commons/src/main/resources/META-INF/commons-defaults.yaml` |
 | `commons-aws` `secretsmanager` | Resolves `aws-secretsmanager:<secret name or ARN>` resource locations to the secret's `AWSCURRENT` value, read with the AWS SDK's `SecretsManagerClient` | `SecretsManagerResourceAutoConfiguration`, `SecretsManagerProtocolResolver`, `SecretsManagerResource`; the AWS SDK region and credentials chain | `commons-aws/src/main/java/com/example/commons/aws/secretsmanager/` |
 | `commons-accounts` | Local account management wiring: registers the model, the authority lookup, and the administration API | `AccountsAutoConfiguration`, `AppUserLocalAuthorityLookup`; `commons.accounts.enabled`, `commons.accounts.admin.enabled` | `commons-accounts/src/main/java/com/example/commons/accounts/` |
-| `commons-accounts` `admin` | Administration REST API for users, groups, and roles, and the read-only audit trail | `/admin/users/**`, `/admin/groups/**`, `/admin/roles/**` (each individually role-gated), `/audit-events` (`ROLE_ACCOUNT_REVIEWER` or `ROLE_USER_MANAGE`) | `commons-accounts/src/main/java/com/example/commons/accounts/admin/` |
+| `commons-accounts` `admin` | Administration REST API for users, roles, and the read-only permissions, and the read-only audit trail | `/admin/users/**`, `/admin/roles/**`, `/admin/permissions/**` (each endpoint gated by the permission it needs, such as `user:create`), `/audit-events` (`audit:read`) | `commons-accounts/src/main/java/com/example/commons/accounts/admin/` |
 | `commons-accounts` account lifecycle | Records each user's last sign-in (`LastLoginRecorder`); suspends, unsuspends, and removes accounts in one place (`AccountLifecycleService`); and suspends then removes inactive accounts according to the `inactivity.*` settings (`InactiveUserSuspender`, checked every `commons.accounts.inactivity.check-interval`) | `LastLoginRecorder`, `AccountLifecycleService`, `InactiveUserSuspender` | `commons-accounts/src/main/java/com/example/commons/accounts/` |
-| `commons-accounts` `settings` | The application settings, read from the `app_setting` table and edited through the API by a settings administrator | `SettingsService`, `/admin/settings` (`ROLE_SETTINGS_MANAGE`) | `commons-accounts/src/main/java/com/example/commons/accounts/settings/` |
-| `commons-accounts` `review` | The periodic account review: creates a review task in each review month and completes tasks finished by outside changes (`AccountReviewScheduler`, `commons.accounts.review.check-interval`, `commons.accounts.review.time-zone`); lets account reviewers confirm, re-group or remove active accounts and confirm the suspended and removed populations, completing the task by itself (`AccountReviewService`); and stores the completion report and serves the downloads (`AccountReviewReports`, `ReviewReportRenderer`, see [ADR 0037](../adr/0037-account-review-populations-and-stored-report.md)) | `/tasks/**`, `/account-reviews/**` (`ROLE_ACCOUNT_REVIEWER`) | `commons-accounts/src/main/java/com/example/commons/accounts/review/` |
+| `commons-accounts` `settings` | The application settings, read from the `app_setting` table and edited through the API by whoever holds the settings permissions | `SettingsService`, `/admin/settings` (`settings:read`, `settings:update`) | `commons-accounts/src/main/java/com/example/commons/accounts/settings/` |
+| `commons-accounts` `review` | The periodic account reviews: creates a privileged and a non-privileged review task in each one's review month and completes tasks finished by outside changes (`AccountReviewScheduler`, `commons.accounts.review.check-interval`, `commons.accounts.review.time-zone`); lets reviewers confirm, remove roles from or remove active accounts and, in the privileged review, confirm the suspended and removed populations, completing the task by itself (`AccountReviewService`); and stores the completion report and serves the downloads (`AccountReviewReports`, `ReviewReportRenderer`, see [ADR 0037](../adr/0037-account-review-populations-and-stored-report.md) and [ADR 0038](../adr/0038-role-permission-model-and-account-review-classes.md)) | `/tasks/**`, `/account-reviews/**` (`review:*`) | `commons-accounts/src/main/java/com/example/commons/accounts/review/` |
 | `commons-accounts` `report` | A reusable PDF base on OpenPDF (`ReportDocument`): title block, key-value metadata, summary tiles, tables and page footers | `ReportDocument` | `commons-accounts/src/main/java/com/example/commons/accounts/report/` |
-| `commons-accounts` `domain` | JPA entities (`AppUser`, `AppGroup`, `AppRole`, `AppSetting`, `AccountAuditEvent`, `Task`, `AccountReviewItem`, `AccountReviewAttestation`, `AccountReviewPopulationEntry`, `AccountReviewReport`) and Spring Data repositories | Repository interfaces consumed by `admin` and `AppUserLocalAuthorityLookup` | `commons-accounts/src/main/java/com/example/commons/accounts/domain/` |
+| `commons-accounts` `domain` | JPA entities (`AppUser`, `AppRole`, `AppPermission`, `AppSetting`, `AccountAuditEvent`, `Task`, `AccountReviewItem`, `AccountReviewAttestation`, `AccountReviewPopulationEntry`, `AccountReviewReport`) and Spring Data repositories | Repository interfaces consumed by `admin` and `AppUserLocalAuthorityLookup` | `commons-accounts/src/main/java/com/example/commons/accounts/domain/` |
 | `commons-accounts` `validation` | Reusable Bean Validation constraints for account input | `@Username`, `@ResourceName` | `commons-accounts/src/main/java/com/example/commons/accounts/validation/` |
-| `api` | Public, non-administrative REST endpoints: caller's local identity and `ROLE_` authorities, Keycloak account proxy | `GET /login-user`, `GET /account` | `app-web-api-server/src/main/java/com/example/app/web/server/api/` |
+| `api` | Public, non-administrative REST endpoints: caller's local identity and permissions, Keycloak account proxy | `GET /login-user`, `GET /account` | `app-web-api-server/src/main/java/com/example/app/web/server/api/` |
 | `config` | Spring `@Configuration` classes: the application's authorization rules, REST client | `WebSecurityConfiguration`; otherwise wiring only | `app-web-api-server/src/main/java/com/example/app/web/server/config/` |
 
 Full detail on the security and logging crosscutting behavior is documented
@@ -95,24 +95,24 @@ once, not duplicated here: see
 ```mermaid
 flowchart TB
     subgraph adminApi ["commons-accounts admin"]
-        UserAdmin["UserAdminController\n/admin/users/**\nROLE_USER_MANAGE"]
-        GroupAdmin["GroupAdminController\n/admin/groups/**\nROLE_GROUP_MANAGE"]
-        RoleAdmin["RoleAdminController\n/admin/roles/**\nROLE_ROLE_MANAGE"]
+        UserAdmin["UserAdminController\n/admin/users/**\nuser:*"]
+        RoleAdmin["RoleAdminController\n/admin/roles/**\nrole:*"]
+        PermissionAdmin["PermissionAdminController\n/admin/permissions/**\npermission:read"]
         Service["AdministrationService"]
     end
     UserAdmin --> Service
-    GroupAdmin --> Service
     RoleAdmin --> Service
-    Service --> Repos["AppUserRepository /\nAppGroupRepository /\nAppRoleRepository"]
+    PermissionAdmin --> Service
+    Service --> Repos["AppUserRepository /\nAppRoleRepository /\nAppPermissionRepository"]
 ```
 
 | Component | Responsibility |
 | --- | --- |
-| `UserAdminController` / `GroupAdminController` / `RoleAdminController` | Thin REST controllers; each is annotated `@PreAuthorize` (or matched in the security filter chain) with a distinct management authority, so a caller with only `USER_MANAGE` cannot administer groups or roles. Roles can be created and deleted but not renamed; `UserAdminController` also ends one user's or every user's sessions. |
+| `UserAdminController` / `RoleAdminController` / `PermissionAdminController` | Thin REST controllers; each method is annotated `@PreAuthorize` with the permission it needs, so a caller with only `user:read` cannot create a user or touch a role. Roles can be created, renamed and deleted, and permissions can only be read; `UserAdminController` also ends one user's or every user's sessions. |
 | `AdminReauthenticationInterceptor` | Rejects a change from a login older than 15 minutes with a `reauthentication-required` problem that names the session's login method and, for OpenID Connect, the URI to log in again at (`ReauthenticationChallenge`; see [ADR 0023](../adr/0023-recent-login-for-administration-changes.md)). |
-| `AccountLifecycleService` | Suspends, unsuspends, and removes accounts for the administration API, the account review, and the inactivity job, so each applies the same rules: a reason is required, sessions are ended, removal deletes the account with its group memberships and passkeys in one transaction, and an authenticated actor cannot change their own account (see [ADR 0031](../adr/0031-inactive-account-suspension-and-removal.md)). |
-| `AdministrationService` | Application-layer orchestration for create/update/list operations; translates domain conflicts (duplicate name) into `ConflictException`, missing resources into `ResourceNotFoundException`, and keeps an administrator from granting more than they hold (see [ADR 0022](../adr/0022-administrators-cannot-grant-beyond-their-own-roles.md)). |
-| `AccountAuditLogger` | Logs every change, after commit, and every rejected change as an ECS `iam` event with the prior state, the changes, and the roles and groups granted or withdrawn (see [ADR 0021](../adr/0021-authorisation-change-audit-log-events.md)), and appends each successful change to the business audit trail table in the same transaction (see [ADR 0030](../adr/0030-business-audit-trail-table.md)). |
+| `AccountLifecycleService` | Suspends, unsuspends, and removes accounts for the administration API, the account review, and the inactivity job, so each applies the same rules: a reason is required, sessions are ended, removal deletes the account with its role memberships and passkeys in one transaction, and an authenticated actor cannot change their own account (see [ADR 0031](../adr/0031-inactive-account-suspension-and-removal.md)). |
+| `AdministrationService` | Application-layer orchestration for create/update/list operations; translates domain conflicts (duplicate name) into `ConflictException`, missing resources into `ResourceNotFoundException`, checks the permission each change needs, keeps an actor from granting a privileged permission they do not hold, and keeps conflicting permissions apart (see [ADR 0038](../adr/0038-role-permission-model-and-account-review-classes.md)). |
+| `AccountAuditLogger` | Logs every change, after commit, and every rejected change as an ECS `iam` event with the prior state, the changes, and the roles and permissions granted or withdrawn (see [ADR 0021](../adr/0021-authorisation-change-audit-log-events.md)), and appends each successful change to the business audit trail table in the same transaction (see [ADR 0030](../adr/0030-business-audit-trail-table.md)). |
 | `AdminDtos` | Request/response DTOs, including `PageResponse` for paginated listings. |
 
 ### Passkeys (White Box)
@@ -129,7 +129,7 @@ credential storage; these components fit it to the local user model.
 | `DirectoryBackedUserEntityRepository` | Stores the passkey user entity of a directory user only, so Spring never creates a random handle. |
 | `AuditedUserCredentialRepository` | Limits passkeys per user, refuses a login whose signature counter did not increase, and records each registration and removal through `PasskeyAuditLogger`. |
 | `PasskeyRegistrationGuardFilter` | Requires authentication, a recent login, and room under the per-user limit before a passkey can be registered. |
-| `PasskeyLocalAuthorityRefresher` | Lets `LocalAuthorityRefreshFilter` reload the local roles of a passkey session, and end it when the local user is suspended or removed. |
+| `PasskeyLocalAuthorityRefresher` | Lets `LocalAuthorityRefreshFilter` reload the local authorities of a passkey session, and end it when the local user is suspended or removed. |
 | `PasskeySessionFilters` | Records the time of a passkey login for the recent-login checks, and ends a passkey session at its own absolute timeout. |
 | `PasskeyManager` (`PasskeyController`, `UserPasskeyAdminController`) | Lists, renames, and revokes passkeys for the user and for an administrator, and removes them when a user is deleted. |
 
@@ -137,10 +137,11 @@ credential storage; these components fit it to the local user model.
 
 ```mermaid
 erDiagram
-    APP_USER ||--o{ APP_USER_GROUP : "belongs to"
-    APP_GROUP ||--o{ APP_USER_GROUP : "has members"
-    APP_GROUP ||--o{ APP_GROUP_ROLE : "grants"
-    APP_ROLE ||--o{ APP_GROUP_ROLE : "granted via"
+    APP_USER ||--o{ APP_USER_ROLE : "holds"
+    APP_ROLE ||--o{ APP_USER_ROLE : "held by"
+    APP_ROLE ||--o{ APP_ROLE_PERMISSION : "grants"
+    APP_PERMISSION ||--o{ APP_ROLE_PERMISSION : "granted by"
+    APP_PERMISSION ||--o{ APP_PERMISSION_CONFLICT : "conflicts"
     TASK ||--o{ ACCOUNT_REVIEW_ITEM : "has"
     TASK ||--o{ ACCOUNT_REVIEW_ATTESTATION : "has"
     TASK ||--o| ACCOUNT_REVIEW_REPORT : "has"
@@ -157,13 +158,15 @@ erDiagram
         timestamp inactivity_clock_started_at
         timestamp last_login_at
     }
-    APP_GROUP {
-        char36 id PK
-        varchar name UK
-    }
     APP_ROLE {
         char36 id PK
         varchar name UK
+    }
+    APP_PERMISSION {
+        char36 id PK
+        varchar domain
+        varchar action
+        boolean privileged
     }
     TASK {
         char36 id PK
@@ -210,9 +213,13 @@ erDiagram
     }
 ```
 
-Users are assigned to groups, and groups are granted roles; a user's
-effective authorities are the union of the roles of all of their groups.
-There is no direct user-to-role assignment. All three entities extend
+Users hold roles, and roles hold permissions; a user's effective authorities are
+the union of the permissions of all of their roles, each named `domain:action`
+(see [ADR 0038](../adr/0038-role-permission-model-and-account-review-classes.md)). A
+permission is reference data that the schema seeds, with a `privileged` flag, and
+`app_permission_conflict` lists the pairs that no user may hold together. A user is
+privileged when any of their roles holds a privileged permission; that is computed,
+not stored. `AppUser` and `AppRole` extend
 `AbstractAuditableEntity` (`created_at`/`updated_at`, and `created_by`/`updated_by`
 holding the authenticated actor or `system`); the history of changes is the
 administration audit log, not these columns. The Keycloak
@@ -221,7 +228,7 @@ administration audit log, not these columns. The Keycloak
 is why usernames are treated as immutable once a user is provisioned (see
 `README.md`). Each module ships its tables as a Liquibase changelog and as plain SQL
 for H2, PostgreSQL and SQL Server ([ADR 0035](../adr/0035-module-schemas-as-changelog-and-sql.md)):
-`commons-accounts` in `com/example/commons/accounts/jdbc` (users, groups and roles, the
+`commons-accounts` in `com/example/commons/accounts/jdbc` (users, roles and permissions, the
 passkey tables Spring Security's WebAuthn support expects, the account status and
 inactivity clock, the audit table and the settings, and the task and review tables) and
 `commons` in `com/example/commons/session/jdbc` (Spring Session's tables) and `com/example/commons/session/oidc/jdbc` (the OIDC
@@ -232,9 +239,8 @@ public UUID's bytes, so deleting a user deletes their passkeys in code. `account
 so they outlive a removed account. A pending review item is read from the live account;
 the evidence columns of a decided item, a confirmed population's entries and the stored
 report are written once and never change ([ADR 0037](../adr/0037-account-review-populations-and-stored-report.md)). The application's own changelog, `db/changelog` in
-`app-web-api-server`, includes the two schemas and then seeds the roles and groups the
-administration API requires by name (`USER_MANAGE`, `GROUP_MANAGE`, `ROLE_MANAGE`), the
-`ACCOUNT_REVIEWER` and `SETTINGS_MANAGE` roles and the `Account Reviewers` group in
+`app-web-api-server`, includes the two schemas, which seed the permissions, and then seeds
+the `Administrators` and `Account Reviewers` roles and what they grant in
 `reference-data.sql`. The development and test users are in `development-seed.sql`,
 applied only when the `dev` Liquibase context is requested
 ([ADR 0018](../adr/0018-development-fixtures-kept-out-of-production.md)).
@@ -250,7 +256,7 @@ flowchart LR
         AuditInit --> AbsTimeout["AbsoluteSessionTimeoutFilter"]
         AbsTimeout --> ReqLogging["RequestLoggingFilter"]
         ReqLogging --> AuthorityRefresh["LocalAuthorityRefreshFilter"]
-        AuthorityRefresh --> AuthZ["Authorization rules\n(role/authority per path)"]
+        AuthorityRefresh --> AuthZ["Authorization rules\n(permission per endpoint)"]
     end
     SecurityChain --> Cleanup["LoggingContextCleanupFilter\n(outermost, HIGHEST_PRECEDENCE)"]
 ```

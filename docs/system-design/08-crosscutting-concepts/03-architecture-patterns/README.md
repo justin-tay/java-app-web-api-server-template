@@ -22,10 +22,10 @@ alternative pattern elsewhere in the codebase:
   entities (see [Domain concepts](../01-domain-model/README.md)); it holds no
   business rules.
 * `AdministrationService` is the single `@Transactional` service for the
-  whole admin domain, covering users, groups, and roles together rather than
+  whole admin domain, covering users and roles together rather than
   one service per entity. It owns invariants a repository cannot express
-  alone, such as rejecting a duplicate group name or refusing to delete a
-  role still assigned to a group, by throwing `ConflictException` or
+  alone, such as rejecting a duplicate role name or refusing to delete a
+  role still held by a user, by throwing `ConflictException` or
   `ResourceNotFoundException` before the repository is touched.
 * Repositories extend both `JpaRepository` and `JpaSpecificationExecutor`.
   Simple lookups are declared as derived query methods
@@ -58,20 +58,22 @@ status, created date range) that combine with logical AND only when supplied. Ra
 branching over every filter combination, `AdministrationService` builds a
 `Specification<T>` per non-null filter and combines them with
 `Specification.allOf(...)`, wrapping the result in a `distinct(...)` helper
-when a filter joins across a `ManyToMany` association (`groups`, `roles`) to
+when a filter joins across a `ManyToMany` association (`roles`, `permissions`) to
 avoid duplicate rows from the join. This is the only dynamic-query pattern in
 the codebase; there is no separate criteria-builder or QueryDSL layer.
 
 ## Authorization checks at the layer boundary
 
 Method-level authorization (`@PreAuthorize`) is declared on the controller,
-one role per admin resource (`GROUP_MANAGE` on `GroupAdminController`,
-`USER_MANAGE` on `UserAdminController`, `ROLE_MANAGE` on
-`RoleAdminController`, the last expressed as `hasAuthority('ROLE_ROLE_MANAGE')`
-rather than `hasRole('ROLE_MANAGE')` since the two are equivalent under
-Spring Security's `ROLE_` prefix convention), not on the service. The
-service trusts that a caller reaching it is already authorized; it enforces
-only domain invariants, not access control. This keeps the two concerns
+one permission per endpoint (`user:create` on creating a user,
+`role:add-permission` on giving a role a permission, expressed as
+`hasAuthority('user:create')`, since an authority is the permission's name with no
+prefix), not on the service. The service trusts that a caller reaching it holds the
+permission of the endpoint; it enforces domain invariants, and the rules that
+depend on what a request asks for, which an endpoint-level check cannot see: which
+of `user:add-role`, `user:remove-role` and `user:update` a user update needs, that
+a privileged permission is granted only by someone who holds it, and that
+conflicting permissions are kept apart. This keeps the two concerns
 (who may call this endpoint, and whether this operation is domain-valid)
 independently testable and independently visible at the point that matters
 for each: the HTTP boundary for authorization, the service for business

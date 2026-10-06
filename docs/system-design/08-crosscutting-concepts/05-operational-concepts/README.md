@@ -51,15 +51,14 @@ Two scheduled jobs run in every instance, and are safe to run on several at once
 | Job | Does | Controlled by |
 | --- | --- | --- |
 | `InactiveUserSuspender` | Suspends accounts not in use for `inactivity.suspendAfterDays` and removes those not in use for `inactivity.removeAfterDays` | The `inactivity.*` settings; the check interval is `commons.accounts.inactivity.check-interval` (one hour by default) |
-| `AccountReviewScheduler` | Creates the account review task on the first run in a review month (a month whose number minus one is a multiple of `review.intervalMonths`, so every three months gives January, April, July and October), and completes tasks that a change outside the review has finished | The `review.*` settings; the check interval is `commons.accounts.review.check-interval` (one hour by default) and the time zone that decides the month is `commons.accounts.review.time-zone` (the system time zone by default) |
+| `AccountReviewScheduler` | Creates the privileged and the non-privileged account review task on the first run in each one's review month (a month whose number minus one is a multiple of `review.privilegedIntervalMonths` or `review.nonPrivilegedIntervalMonths`, so every three months gives January, April, July and October), and completes tasks that a change outside the review has finished | The `review.*` settings; the check interval is `commons.accounts.review.check-interval` (one hour by default) and the time zone that decides the month is `commons.accounts.review.time-zone` (the system time zone by default) |
 
-The policy is not in configuration files. It is five rows of the `app_setting`
-table, read on every run and edited at `/admin/settings` by a settings
-administrator, so a change needs no deployment and is audited. The migration seeds
-them on: suspend after 90 days, remove after 180, review every 3 months (`review.intervalMonths` can be 1, 3, 6 or 12, always counted from January). The
+The policy is not in configuration files. It is six rows of the `app_setting`
+table, read on every run and edited at `/admin/settings` by whoever holds `settings:update`, so a change needs no deployment and is audited. The migration seeds
+them on: suspend after 90 days, remove after 180, review the privileged accounts every month and the others every 12 months (each interval can be 1, 3, 6 or 12, always counted from January, and the non-privileged one cannot be shorter than the privileged one). The
 sample application's `dev` data turns both jobs off so its fixtures are never
 suspended, removed, or put into a review ([ADR 0031](../../../adr/0031-inactive-account-suspension-and-removal.md),
-[ADR 0032](../../../adr/0032-periodic-account-review.md), [ADR 0037](../../../adr/0037-account-review-populations-and-stored-report.md)). Upgrading gives every
+[ADR 0032](../../../adr/0032-periodic-account-review.md), [ADR 0037](../../../adr/0037-account-review-populations-and-stored-report.md), [ADR 0038](../../../adr/0038-role-permission-model-and-account-review-classes.md)). Upgrading gives every
 existing account a fresh inactivity clock, so nobody is suspended or removed on the
 first run. Removal is permanent: the audit trail and the frozen review records are the only
 record afterwards, and nothing purges them. A completed review is a stored PDF report with its

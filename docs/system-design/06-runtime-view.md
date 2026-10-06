@@ -23,7 +23,7 @@ sequenceDiagram
     Browser->>App: GET /login/oauth2/code/keycloak?code=...
     App->>KC: Token request (private_key_jwt client auth)
     KC-->>App: ID token + access token
-    App->>App: LocalAuthoritiesOidcUserService loads groups/roles for preferred_username
+    App->>App: LocalAuthoritiesOidcUserService loads roles and permissions for preferred_username
     App->>DB: JDBC session write (Spring Session)
     App-->>Browser: 302 to original URL, Set-Cookie: id=...
     Browser->>App: GET /login-user (with session cookie)
@@ -45,7 +45,7 @@ sequenceDiagram
    `NimbusJwtClientAuthenticationParametersConverter`), not a client secret.
 4. `LocalAuthoritiesOidcUserService` resolves the user's local authorities
    through the application's `LocalAuthorityLookup` (here commons-accounts'
-   `AppUserLocalAuthorityLookup`, reading `app_user`/`app_group`/`app_role`) by
+   `AppUserLocalAuthorityLookup`, reading `app_user`/`app_role`/`app_permission`) by
    matching the claim named by the registration's `user-name-attribute`
    (`preferred_username` for Keycloak), per
    [ADR 0005](../adr/0005-keycloak-authentication-local-authorisation.md).
@@ -75,7 +75,7 @@ sequenceDiagram
 
     Browser->>App: GET /admin/users (session cookie)
     App->>Refresh: authenticated request
-    Refresh->>DB: reload AppUser + groups/roles by username
+    Refresh->>DB: reload AppUser + roles/permissions by username
     alt user disabled or deleted
         Refresh->>Refresh: SessionRevocationService invalidates session
         Refresh-->>Browser: 401/redirect (audited)
@@ -102,8 +102,8 @@ sequenceDiagram
    is updated in place for this request; a cache of the previous
    authority set is never consulted.
 4. The request proceeds to the matched controller, where
-   `authorizeHttpRequests` path rules (`/admin/users/**` requires
-   `USER_MANAGE`, etc.) and method-level `@PreAuthorize` are evaluated
+   `authorizeHttpRequests` rules and method-level `@PreAuthorize` (such as
+   `hasAuthority('user:create')` on creating a user) are evaluated
    against the just-refreshed authorities. See
    [ADR 0015](../adr/0015-per-request-local-authority-refresh.md).
 <!-- /arc42-generated -->

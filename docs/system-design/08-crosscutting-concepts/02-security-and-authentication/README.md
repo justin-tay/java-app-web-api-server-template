@@ -3,7 +3,7 @@
 
 The application delegates authentication to Keycloak as an OpenID Connect
 (OIDC) relying party and owns application-level authorization itself, on top
-of a local user/group/role model (see
+of a local user/role/permission model (see
 [Domain Model](../01-domain-model/README.md#entity-model)). Every security
 control below is recorded as a control-implementation mapping against a
 specific external standard, so the standard, not this page, is the source of
@@ -52,28 +52,27 @@ production identity-provider decision, is in
 ## From identity to permission
 
 Authorization is deliberately a separate model from authentication and is
-owned entirely by the application. A user never receives a role directly;
-roles are granted only through group membership
-(`AppUser -> AppGroup -> AppRole`, see
-[Domain Model](../01-domain-model/README.md)), and each effective role is
-exposed as a Spring Security authority by prepending `ROLE_` at login. The
-one irregular case, `ROLE_MANAGE` (whose stored name already begins with
-`ROLE`), is checked with `hasAuthority("ROLE_ROLE_MANAGE")` rather than
-`hasRole(...)`, to avoid Spring Security double-prefixing it.
+owned entirely by the application. A user holds roles and a role holds
+permissions (`AppUser -> AppRole -> AppPermission`, after NIST RBAC; see
+[Domain Model](../01-domain-model/README.md)), and each permission a user has
+is exposed as a Spring Security authority named `domain:action` at login, such as
+`user:create`, with no prefix and so checked with `hasAuthority(...)`. A
+permission has a privileged flag, and a user holding a privileged permission is a
+privileged account, reviewed more often (see [Authorization](authorization.md#account-review)).
 
 What makes this model different from a typical "authorities computed once at
-login" setup is that `LocalAuthorityRefreshFilter` reloads a user's `ROLE_`
-authorities from the local user/group/role tables on every request. A group's
-role set changing, or a role being deleted, therefore takes effect for every
+login" setup is that `LocalAuthorityRefreshFilter` reloads a user's local
+authorities from the local user/role/permission tables on every request. A role's
+permission set changing, or a role being deleted, therefore takes effect for every
 affected member's very next request rather than only at their next login.
 Two specific changes go further and terminate the session immediately rather
 than waiting for the next request: `SessionRevocationService` revokes a
 user's session as soon as an administrator disables their account, deletes
-it, or changes their group membership (see
+it, or changes their roles (see
 [ADR 0015](../../../adr/0015-per-request-local-authority-refresh.md)). The
-management API itself is gated per resource family, one authority per
-admin controller (`ROLE_USER_MANAGE`, `ROLE_GROUP_MANAGE`,
-`ROLE_ROLE_MANAGE`), enforced with `@PreAuthorize` at the controller layer
+management API itself is gated per endpoint, by the permission for what it does
+(`user:create`, `role:add-permission`, and so on), enforced with `@PreAuthorize`
+at the controller layer
 so the service layer can trust that a caller reaching it is already
 authorized (see [Architecture Patterns](../03-architecture-patterns/README.md#authorization-checks-at-the-layer-boundary)).
 The full control-by-control mapping against the OWASP Authorization Cheat

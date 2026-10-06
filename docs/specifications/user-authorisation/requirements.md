@@ -1,5 +1,11 @@
 # Requirements: Local User Authorisation
 
+> **Superseded in part.** Users now hold roles directly and a role holds permissions, named
+> `domain:action`, with no groups; see
+> [ADR 0038](../../adr/0038-role-permission-model-and-account-review-classes.md) and
+> [Authorization](../../system-design/08-crosscutting-concepts/02-security-and-authentication/authorization.md).
+> The text below describes the earlier user, group and role model.
+
 ## Overview
 
 The application needs a local authorisation model alongside existing Keycloak OIDC

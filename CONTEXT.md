@@ -51,7 +51,7 @@ auto-configuration when it is on the classpath and is secure by default. Its
 code lives under `com.example.commons`, with one subpackage and matching
 property prefix per concern, such as `com.example.commons.security` and
 `commons.security.*`. A commons module ships code and schema but no data;
-the application seeds its own roles, groups, and other reference data. See
+the application seeds its own roles and other reference data. See
 [ADR 0019](docs/adr/0019-shared-commons-auto-configuration.md).
 _Avoid_: "library" or "starter" (nothing is published), "core", "common",
 "shared module" as a proper name
@@ -61,3 +61,18 @@ A deployable Spring Boot backend named `app-<name>` (currently
 `app-web-api-server`), in a `com.example.app.<name>` package that is a sibling
 of, never a parent of, a commons module's package.
 _Avoid_: "service" or "example app" as a module name, "backend module"
+
+**Permission**:
+Something a user may do, named by a domain and an action and written
+`domain:action`, such as `user:create`. It is seeded reference data with a
+privileged flag, and the only thing the code checks. A user holds roles and a
+role holds permissions. See
+[ADR 0038](docs/adr/0038-role-permission-model-and-account-review-classes.md).
+_Avoid_: "role" or "authority" for a permission, "group" for a role
+
+**Privileged account**:
+An active account with a role that holds a privileged permission, one that
+grants access or changes the settings the application runs under. It is computed,
+not stored, and it is reviewed in the Privileged Account Review rather than the
+Non-privileged Account Review.
+_Avoid_: "admin account", "standard account"
