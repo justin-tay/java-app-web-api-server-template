@@ -12,6 +12,7 @@ The repository is a Maven multi-module build
 | Module | Purpose |
 | --- | --- |
 | `commons` | Shared, secure-by-default Spring Boot auto-configuration: the Spring Security baseline (OIDC login with local authorities, JDBC sessions, security headers, audit logging, `private_key_jwt`), CIS Tomcat hardening, request correlation and logging, RFC 9457 Problem Details, and configuration defaults for TLS, session cookies, Actuator, and ECS logging. It applies itself when it is on the classpath. |
+| `commons-audit` | Optional audit trail built on `commons`: records every audited event as a row of its `audit_event` table and an ECS log event with the same ID, keeps a refused change through the rollback of the request that attempted it, and reads the trail back. `commons-accounts` records every account, role, settings and review change in it, and an application can record its own features' changes ([ADR 0040](docs/adr/0040-generic-audit-trail-module.md)). |
 | `commons-accounts` | Optional local user, role, and permission management built on `commons`: the JPA model and its schema changelog, the `LocalAuthorityLookup` implementation, and the `/admin/*` administration API. It ships the permissions its controllers check, as `domain:action`, and no roles: the application seeds its own roles from them. Switch it off with `commons.accounts.enabled`, or keep the model without the API with `commons.accounts.admin.enabled=false`. |
 | `app-web-api-server` | The reference API backend, built on `commons` and `commons-accounts`. |
 

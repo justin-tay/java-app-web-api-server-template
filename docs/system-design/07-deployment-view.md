@@ -44,7 +44,7 @@ not something this template provisions.
 <!-- arc42-generated -->
 | Building Block | Infrastructure Element | Notes |
 | --- | --- | --- |
-| `app-web-api-server` with the `commons`, `commons-accounts`, and `commons-aws` modules it depends on | Application runtime (single JVM process or native binary) | No internal service split; the modules are packaged into one deployable unit. |
+| `app-web-api-server` with the `commons`, `commons-audit`, `commons-accounts`, and `commons-aws` modules it depends on | Application runtime (single JVM process or native binary) | No internal service split; the modules are packaged into one deployable unit. |
 | `commons-accounts` `domain` (JPA entities/repositories) | Relational database | Schema owned by Liquibase; runtime DB account must not have DDL privileges ([ADR 0004](../adr/0004-database-schema-management.md)). |
 | Spring Session JDBC tables | Same relational database | Shares the database with the application schema; no separate session store is provisioned. |
 | TLS termination | Load balancer/reverse proxy, or the application's own `server.ssl` (PEM bundle via `CERTIFICATE_PEM`/`PRIVATE_KEY_PEM`/`CA_BUNDLE_PEM`) | Production TLS 1.2/1.3 with a fixed strong cipher list is configured either way; which layer terminates TLS is a deployment decision required. |

@@ -125,15 +125,18 @@ produced which event:
   ID is not called expired or forged, and JDBC cleanup of a session never
   used again is not logged (see
   [ADR 0017](../../../adr/0017-invalid-session-and-privilege-change-logging.md)).
-* `AccountAuditLogger` emits an ECS `iam` event for every create,
-  update, suspension, unsuspension, and removal of a local user, and every create,
-  update, and delete of a role, and for each one
-  rejected by a business rule, with the administrator, the object's state
-  before the change, only the values that changed, and the roles and permissions
+* `AuditTrail`, in commons-audit, emits an ECS event for every event of the
+  audit trail: every create, update, suspension, unsuspension, and removal of a
+  local user, every create, update, and delete of a role, every account review
+  action, and every settings change, and each one refused by a business rule.
+  Account and role events carry the administrator, the object's state before
+  the change, only the values that changed, and the roles and permissions
   granted or withdrawn (`roles.added`, `roles.removed`, `permissions.added`,
-  `permissions.removed`, the same permission fields `update_session` uses). It never
-  logs an email address or display name (see
-  [ADR 0021](../../../adr/0021-authorisation-change-audit-log-events.md)).
+  `permissions.removed`, the same permission fields `update_session` uses). Each
+  event is also a row of the audit trail table with the same `event.id`. It never
+  logs an email address, display name, or note (see
+  [ADR 0021](../../../adr/0021-authorisation-change-audit-log-events.md) and
+  [ADR 0040](../../../adr/0040-generic-audit-trail-module.md)).
 * `ApiResponseEntityExceptionHandler` and
   `ProblemDetailRequestRejectedHandler` emit `validate_input` and
   `reject_request` for rejected input and firewall rejections respectively,

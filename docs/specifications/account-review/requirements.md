@@ -160,28 +160,32 @@ be questioned without access to the logs.
    unsuspended or removed, a user's groups change, a setting changes, or a review
    action in R6 to R12 happens, THEN the system SHALL append an audit event in the
    same transaction as the change. The only exception is a report download, which
-   changes nothing and is recorded in its own transaction.
+   changes nothing and is recorded in its own transaction. WHEN a business rule refuses
+   such a change, THEN the system SHALL append an event under the action it attempted,
+   with the outcome `failure` and the reason, in a transaction of its own that the
+   refused request's rollback does not undo (ADR 0040).
 2. WHEN an audit event is written, THEN it SHALL record the time, actor, action,
-   target type (`user`, `group`, `role`, `setting` or `review`), target ID, target
-   name, reason code and note where applicable, and a details object holding the
+   outcome (`success` or `failure`), target type (`user`, `role`, `setting` or
+   `review`), target ID, target name, reason code and note where applicable, and a details object holding the
    changed fields and the access added and removed. It SHALL NOT hold email
    addresses.
 3. WHEN an account is removed, THEN its event SHALL keep the username and name so a
    reviewer can recognise the account, and the application SHALL keep no foreign
    key from audit events to accounts.
-4. WHEN the existing ECS log events are written, THEN they SHALL continue unchanged.
-   The table is the in-application record and the logs stay the tamper-resistant
-   one (ADR 0021).
+4. WHEN an audit event is appended, THEN the system SHALL also write it as an ECS log
+   event carrying the event's ID. The table is the in-application record and the logs
+   stay the tamper-resistant one (ADR 0021, ADR 0040).
 5. WHEN an account reviewer or a `USER_MANAGE` holder lists audit events, THEN the
    system SHALL support filters for actor, target type, target name, action and a
    date range, sort by time (newest first by default), and paginate as in ADR 0027.
 6. WHEN a client attempts to change or delete an audit event, THEN the system SHALL
    offer no way to do so.
 7. WHEN the review actions are recorded, THEN their actions SHALL be
-   `create_review_task`, `review_rejected` for an attempt on the reviewer's own account,
-   `confirm_review_item`, `edit_review_item_groups`, `remove_review_item`,
-   `confirm_review_population`, `complete_review_task` and `export_review_report`,
-   each with target type `review`.
+   `create_review_task`, `confirm_review_item`, `edit_review_item_roles`,
+   `remove_review_item`, `confirm_review_population`, `complete_review_task` and
+   `export_review_report`, each with target type `review`. An attempt a review refuses,
+   such as one on the reviewer's own account, SHALL be recorded under the action it
+   attempted with the outcome `failure` (ADR 0040).
 
 ### R5: Review tasks
 

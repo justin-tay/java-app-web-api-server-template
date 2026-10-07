@@ -62,6 +62,22 @@ A deployable Spring Boot backend named `app-<name>` (currently
 of, never a parent of, a commons module's package.
 _Avoid_: "service" or "example app" as a module name, "backend module"
 
+**Audit trail**:
+The append-only record of every audited event: an actor doing or attempting an
+audit action on a target, when, with its outcome and reason. Each event is kept
+both in the application, where administrators and reviewers read it, and in the
+logs, which are the copy a breached application cannot rewrite. See
+[ADR 0040](docs/adr/0040-generic-audit-trail-module.md).
+_Avoid_: "audit log" for the in-application record, "history", "account audit"
+for the trail as a whole
+
+**Audit action**:
+What an audit trail event records being done, such as `update_user` or
+`update_setting`. A refused attempt is recorded under the action it attempted,
+with the outcome failure and the reason it was refused, never as an action of its
+own.
+_Avoid_: "rejected" actions such as `review_rejected`, "event type"
+
 **Permission**:
 Something a user may do, named by a domain and an action and written
 `domain:action`, such as `user:create`. It is seeded reference data with a

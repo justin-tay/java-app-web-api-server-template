@@ -29,11 +29,12 @@ fields where available and documents its intentional project extensions.
 | Session privileges changed | INFO | `authentication` | `info` | `update_session` | [Event reference](event-reference.md#session-privileges-changed-update_session) |
 | Session client IP anomaly | INFO | `authentication` | `info` | `update_session` | [Event reference](event-reference.md#session-client-ip-anomaly-update_session) |
 | Requested session not found | INFO | `authentication` | `info` | `resume_session` | [Event reference](event-reference.md#requested-session-not-found-resume_session) |
-| User changed | INFO | `iam` | `user`, plus `creation`, `change`, or `deletion` | `create_user`, `update_user`, `delete_user` | [Event reference](event-reference.md#user-changed-create_user-update_user-delete_user) |
-| Group changed | INFO | `iam` | `group`, plus `creation`, `change`, or `deletion` | `create_group`, `update_group`, `delete_group` | [Event reference](event-reference.md#group-changed-create_group-update_group-delete_group) |
-| Role changed | INFO | `iam` | `admin`, plus `creation` or `deletion` | `create_role`, `delete_role` | [Event reference](event-reference.md#role-changed-create_role-delete_role) |
+| User changed | INFO | `iam` | `user`, plus `creation`, `change`, or `deletion` | `create_user`, `update_user`, `suspend_user`, `unsuspend_user`, `delete_user` | [Event reference](event-reference.md#user-changed-create_user-update_user-suspend_user-unsuspend_user-delete_user) |
+| Role changed | INFO | `iam` | `group`, plus `creation`, `change`, or `deletion` | `create_role`, `update_role`, `delete_role` | [Event reference](event-reference.md#role-changed-create_role-update_role-delete_role) |
 | Sessions revoked | INFO | `iam` | `user`, `change` | `revoke_sessions` | [Event reference](event-reference.md#sessions-revoked-revoke_sessions) |
-| Administration change rejected | WARN | `iam` | As the rejected change | As the rejected change | [Event reference](event-reference.md#administration-change-rejected) |
+| Account review action | INFO | `iam` | `user` or `admin`, plus an activity | `create_review_task`, `confirm_review_item`, `edit_review_item_roles`, `remove_review_item`, `confirm_review_population`, `complete_review_task`, `export_review_report` | [Event reference](event-reference.md#account-review-action-create_review_task-confirm_review_item-edit_review_item_roles-remove_review_item-confirm_review_population-complete_review_task-export_review_report) |
+| Settings changed | INFO | `configuration` | `change` | `update_setting` | [Event reference](event-reference.md#settings-changed-update_setting) |
+| Change refused | WARN | As the refused change | As the refused change | As the refused change | [Event reference](event-reference.md#change-refused) |
 | Unexpected request failure | ERROR | `web` | `error` | `process_request` | [Event reference](event-reference.md#request-processing-failed-process_request) |
 | Application starting | INFO | `process` | `start` | `start_application` | [Event reference](event-reference.md#application-starting-start_application) |
 | Application started | INFO | `process` | `start` | `start_application` | [Event reference](event-reference.md#application-started-start_application) |
@@ -101,6 +102,7 @@ fields where available and documents its intentional project extensions.
 | `authentication.method` | `keyword` | How a user authenticated or tried to: `oidc` or `passkey`. Present on `login` events when the method is known. |
 | `passkey.label` | `keyword` | The label a user gave a passkey, on the passkey registration, removal, and refused-login events. The credential itself is never logged. |
 | `session.revoked_count` | `long` | Number of sessions a `revoke_sessions` event ended. |
+| `settings.changed` | `keyword[]` | Names of the settings an `update_setting` event changed. Their old and new values are kept in the audit trail row only. |
 | `session.bound_client_ip` | `keyword` | The client IP a session was previously bound to, on the `update_session` event logged for a client IP anomaly. A plain string field, unlike ECS's typed `client.ip`, since it is a project extension the ECS formatter does not recognize by name. See [ADR 0026](../../../adr/0026-session-bound-to-user-agent-and-client-ip.md). |
 
 ## Correlation and lifecycle semantics

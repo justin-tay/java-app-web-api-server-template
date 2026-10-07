@@ -22,10 +22,15 @@ flowchart TB
         problem["web.problem\nRFC 9457 Problem Details"]
         defaults["commons-defaults.yaml\nTLS, session cookie, Actuator, logging defaults"]
     end
+    subgraph audit ["commons-audit (com.example.commons.audit)"]
+        trail["AuditTrail\nAudit trail rows and their ECS log events"]
+    end
     subgraph aws ["commons-aws (com.example.commons.aws)"]
         secretsmanager["secretsmanager\naws-secretsmanager: resource locations"]
     end
     admin --> domain
+    admin --> trail
+    trail --> logging
     admin --> validation
     admin --> problem
     admin --> websecurity
@@ -47,7 +52,10 @@ without wiring any of it. It reaches a user model only through the
 `LocalAuthorityLookup` interface. `commons-accounts` is the optional user,
 role, and permission model that implements it, with its administration API; a
 backend that reads a user store another backend owns can implement the
-interface itself instead. `commons-aws` is the optional AWS integration: it lets
+interface itself instead. `commons-audit` is the optional audit trail that
+`commons-accounts` records every change in, as a table row and an ECS log event,
+and that an application's own features can record theirs in
+([ADR 0040](../adr/0040-generic-audit-trail-module.md)). `commons-aws` is the optional AWS integration: it lets
 a resource location, such as a JWKS location, name an AWS Secrets Manager secret
 ([ADR 0020](../adr/0020-jwks-rotation-from-aws-secrets-manager.md)); `commons`
 does not depend on it. `app-web-api-server` is the reference backend and
@@ -70,13 +78,15 @@ rules, its Liquibase master changelog, and its configuration.
 | `commons` `web.problem` | RFC 9457 error handling for every endpoint, and the exceptions applications throw to produce it | `ProblemDetailsAutoConfiguration`, `ApiResponseEntityExceptionHandler`, `ProblemDetailErrorController`, `ProblemTypes`, `BadRequestException`, `ConflictException`, `ResourceNotFoundException`; `commons.web.problem-details.enabled` | `commons/src/main/java/com/example/commons/web/problem/` |
 | `commons` defaults | Configuration defaults ranked below every application configuration source | `CommonsDefaultsEnvironmentPostProcessor` | `commons/src/main/resources/META-INF/commons-defaults.yaml` |
 | `commons-aws` `secretsmanager` | Resolves `aws-secretsmanager:<secret name or ARN>` resource locations to the secret's `AWSCURRENT` value, read with the AWS SDK's `SecretsManagerClient` | `SecretsManagerResourceAutoConfiguration`, `SecretsManagerProtocolResolver`, `SecretsManagerResource`; the AWS SDK region and credentials chain | `commons-aws/src/main/java/com/example/commons/aws/secretsmanager/` |
+| `commons-audit` | The audit trail: records every audited event as a row of `audit_event` and an ECS log event with the same `event.id`, keeps a refused change's row through the rollback of the request that attempted it, and reads the trail back | `AuditTrail` (`record`, `reject`, `find`, `search`), `AuditAction`, `AuditEvent`, `AuditRecord`, `Auditor`; `AuditAutoConfiguration` | `commons-audit/src/main/java/com/example/commons/audit/` |
 | `commons-accounts` | Local account management wiring: registers the model, the authority lookup, and the administration API | `AccountsAutoConfiguration`, `AppUserLocalAuthorityLookup`; `commons.accounts.enabled`, `commons.accounts.admin.enabled` | `commons-accounts/src/main/java/com/example/commons/accounts/` |
 | `commons-accounts` `admin` | Administration REST API for users, roles, and the read-only permissions, and the read-only audit trail | `/admin/users/**`, `/admin/roles/**`, `/admin/permissions/**` (each endpoint gated by the permission it needs, such as `user:create`), `/audit-events` (`audit:read`) | `commons-accounts/src/main/java/com/example/commons/accounts/admin/` |
 | `commons-accounts` account lifecycle | Records each user's last sign-in (`LastLoginRecorder`); suspends, unsuspends, and removes accounts in one place (`AccountLifecycleService`); and suspends then removes inactive accounts according to the `inactivity.*` settings (`InactiveUserSuspender`, checked every `commons.accounts.inactivity.check-interval`) | `LastLoginRecorder`, `AccountLifecycleService`, `InactiveUserSuspender` | `commons-accounts/src/main/java/com/example/commons/accounts/` |
 | `commons-accounts` `settings` | The application settings, read from the `app_setting` table and edited through the API by whoever holds the settings permissions | `SettingsService`, `/admin/settings` (`settings:read`, `settings:update`) | `commons-accounts/src/main/java/com/example/commons/accounts/settings/` |
 | `commons-accounts` `review` | The periodic account reviews: creates a privileged and a non-privileged review task in each one's review month and completes tasks finished by outside changes (`AccountReviewScheduler`, `commons.accounts.review.check-interval`, `commons.accounts.review.time-zone`); lets reviewers confirm, remove roles from or remove active accounts and confirm the suspended and removed populations of the review's class, completing the task by itself (`AccountReviewService`); and stores the completion report and serves the downloads (`AccountReviewReports`, `ReviewReportRenderer`, see [ADR 0037](../adr/0037-account-review-populations-and-stored-report.md) and [ADR 0038](../adr/0038-role-permission-model-and-account-review-classes.md)) | `/tasks/**`, `/account-reviews/**` (`review:*`) | `commons-accounts/src/main/java/com/example/commons/accounts/review/` |
+| `commons-accounts` `audit` | The account vocabulary of the audit trail: the user, role and session actions, the details each one keeps and its ECS fields, and the reads the account review needs (removals since a date, who suspended an account, removal reasons) | `AccountAudit` | `commons-accounts/src/main/java/com/example/commons/accounts/audit/` |
 | `commons-accounts` `report` | A reusable PDF base on OpenPDF (`ReportDocument`): title block, key-value metadata, summary tiles, tables and page footers | `ReportDocument` | `commons-accounts/src/main/java/com/example/commons/accounts/report/` |
-| `commons-accounts` `domain` | JPA entities (`AppUser`, `AppRole`, `AppPermission`, `AppSetting`, `AccountAuditEvent`, `Task`, `AccountReviewItem`, `AccountReviewAttestation`, `AccountReviewPopulationEntry`, `AccountReviewReport`) and Spring Data repositories | Repository interfaces consumed by `admin` and `AppUserLocalAuthorityLookup` | `commons-accounts/src/main/java/com/example/commons/accounts/domain/` |
+| `commons-accounts` `domain` | JPA entities (`AppUser`, `AppRole`, `AppPermission`, `AppSetting`, `Task`, `AccountReviewItem`, `AccountReviewAttestation`, `AccountReviewPopulationEntry`, `AccountReviewReport`) and Spring Data repositories | Repository interfaces consumed by `admin` and `AppUserLocalAuthorityLookup` | `commons-accounts/src/main/java/com/example/commons/accounts/domain/` |
 | `commons-accounts` `validation` | Reusable Bean Validation constraints for account input | `@Username`, `@ResourceName` | `commons-accounts/src/main/java/com/example/commons/accounts/validation/` |
 | `api` | Public, non-administrative REST endpoints: caller's local identity and permissions, Keycloak account proxy | `GET /login-user`, `GET /account` | `app-web-api-server/src/main/java/com/example/app/web/server/api/` |
 | `config` | Spring `@Configuration` classes: the application's authorization rules, REST client | `WebSecurityConfiguration`; otherwise wiring only | `app-web-api-server/src/main/java/com/example/app/web/server/config/` |
@@ -112,7 +122,7 @@ flowchart TB
 | `AdminReauthenticationInterceptor` | Rejects a change from a login older than 15 minutes with a `reauthentication-required` problem that names the session's login method and, for OpenID Connect, the URI to log in again at (`ReauthenticationChallenge`; see [ADR 0023](../adr/0023-recent-login-for-administration-changes.md)). |
 | `AccountLifecycleService` | Suspends, unsuspends, and removes accounts for the administration API, the account review, and the inactivity job, so each applies the same rules: a reason is required, sessions are ended, removal deletes the account with its role memberships and passkeys in one transaction, and an authenticated actor cannot change their own account (see [ADR 0031](../adr/0031-inactive-account-suspension-and-removal.md)). |
 | `AdministrationService` | Application-layer orchestration for create/update/list operations; translates domain conflicts (duplicate name) into `ConflictException`, missing resources into `ResourceNotFoundException`, checks the permission each change needs, keeps an actor from granting a privileged permission they do not hold, and keeps conflicting permissions apart (see [ADR 0038](../adr/0038-role-permission-model-and-account-review-classes.md)). |
-| `AccountAuditLogger` | Logs every change, after commit, and every rejected change as an ECS `iam` event with the prior state, the changes, and the roles and permissions granted or withdrawn (see [ADR 0021](../adr/0021-authorisation-change-audit-log-events.md)), and appends each successful change to the business audit trail table in the same transaction (see [ADR 0030](../adr/0030-business-audit-trail-table.md)). |
+| `AccountAudit` | Records every change, and every refused change under the action it attempted, in the audit trail, with the prior state, the changes, and the roles and permissions granted or withdrawn (see [ADR 0021](../adr/0021-authorisation-change-audit-log-events.md) and [ADR 0040](../adr/0040-generic-audit-trail-module.md)). |
 | `AdminDtos` | Request/response DTOs, including `PageResponse` for paginated listings. |
 
 ### Passkeys (White Box)
@@ -230,12 +240,13 @@ is why usernames are treated as immutable once a user is provisioned (see
 for H2, PostgreSQL and SQL Server ([ADR 0035](../adr/0035-module-schemas-as-changelog-and-sql.md)):
 `commons-accounts` in `com/example/commons/accounts/jdbc` (users, roles and permissions, the
 passkey tables Spring Security's WebAuthn support expects, the account status and
-inactivity clock, the audit table and the settings, and the task and review tables) and
+inactivity clock, the settings, and the task and review tables), `commons-audit` in
+`com/example/commons/audit/jdbc` (the audit trail table) and
 `commons` in `com/example/commons/session/jdbc` (Spring Session's tables) and `com/example/commons/session/oidc/jdbc` (the OIDC
 session registry's table). Modules ship schema, applications ship data. There is no
 foreign key from `user_entities` to `app_user` because the passkey user handle is the
 public UUID's bytes, so deleting a user deletes their passkeys in code. `account_review_item`, `account_review_population_entry` and
-`account_audit_event` hold the user's public ID and username with no foreign key to `app_user`,
+`audit_event` hold the user's public ID and username with no foreign key to `app_user`,
 so they outlive a removed account. A pending review item is read from the live account;
 the evidence columns of a decided item, a confirmed population's entries and the stored
 report are written once and never change ([ADR 0037](../adr/0037-account-review-populations-and-stored-report.md)). The application's own changelog, `db/changelog` in

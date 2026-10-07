@@ -42,6 +42,7 @@ whether a change warrants a new ADR.
 | [ADR 0036](../adr/0036-dual-identifiers-sequence-key-and-public-uuid.md) : Dual identifiers, a sequence key and a public UUID | Every entity has a `bigint` sequence primary key for joins and a random UUID `publicId` for the API, the audit trail and the logs, so the clustered key is narrow on SQL Server and no identifier discloses its creation time. |
 
 | [ADR 0038](../adr/0038-role-permission-model-and-account-review-classes.md) : Users hold roles, roles hold permissions, and the review follows the privilege | The model follows NIST RBAC: a user holds roles and a role holds permissions, each a seeded `domain:action` with a privileged flag. An account holding a privileged permission is reviewed monthly and the others yearly, both configurable, a reviewer can remove access but never grant it, and reviewing never combines with a privileged permission. |
+| [ADR 0040](../adr/0040-generic-audit-trail-module.md) : A generic audit trail in its own commons module | The audit trail moves to an optional `commons-audit` module with one entry point that writes every event as a table row and a log event, keeps refused actions under the attempted action with outcome `failure` so they survive the rollback, and reads details back as typed records. |
 
 <!-- arc42-manual: Add a row here when a new ADR is accepted. Do not restate an ADR's Context/Decision/Consequences in this table; link to it instead. -->
 <!-- /arc42-manual -->
