@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -14,6 +15,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,6 +29,9 @@ import com.example.commons.accounts.admin.AccountAuditLogger.UserState;
 import com.example.commons.accounts.admin.AccountLifecycleService;
 import com.example.commons.accounts.admin.Actor;
 import com.example.commons.accounts.admin.AdminDtos.Summary;
+import com.example.commons.accounts.domain.AccountAuditEvent;
+import com.example.commons.accounts.domain.AccountAuditEventRepository;
+import com.example.commons.accounts.domain.AccountReviewCategory;
 import com.example.commons.accounts.domain.AccountReviewItem;
 import com.example.commons.accounts.domain.AccountReviewItemRepository;
 import com.example.commons.accounts.domain.AccountReviewOutcome;
@@ -43,6 +48,7 @@ import com.example.commons.accounts.domain.TaskRepository;
 import com.example.commons.accounts.domain.TaskStatus;
 import com.example.commons.accounts.review.AccountReviewReports.Download;
 import com.example.commons.accounts.review.AccountReviewReports.Format;
+import com.example.commons.accounts.review.ReviewDtos.CategoryStatus;
 import com.example.commons.accounts.review.ReviewDtos.Counts;
 import com.example.commons.accounts.review.ReviewDtos.PopulationEntryResponse;
 import com.example.commons.accounts.review.ReviewDtos.Progress;
@@ -56,16 +62,16 @@ import com.example.commons.web.problem.ResourceNotFoundException;
 
 /**
  * Creates account review tasks and lets reviewers work through them: confirming, removing
- * roles from or removing the active accounts, and confirming the suspended and removed
- * populations, which cover the accounts of the review's class. A task completes by itself
- * when the work is done, and storing its report is part of that (see docs/adr/0037 and
- * docs/adr/0038).
+ * roles from or removing the active and the suspended accounts, and confirming the
+ * removed population, which covers the accounts of the review's class. A task completes
+ * by itself when the work is done, and storing its report is part of that (see
+ * docs/adr/0037, docs/adr/0038 and docs/adr/0039).
  *
  * <p>
- * The scope of a task is fixed when it is created. A pending item shows the live account;
- * a decision freezes what the reviewer saw, and a confirmed population freezes its list.
- * A reviewer cannot act on their own account, and a batch is applied entirely or not at
- * all.
+ * The scope of a task is fixed when it is created. A pending item shows the live account
+ * for as long as the account keeps the status it had then; a decision freezes what the
+ * reviewer saw, and a confirmed population freezes its list. A reviewer cannot act on
+ * their own account, and a batch is applied entirely or not at all.
  *
  * <p>
  * A reviewer removes access and never grants it. Removing an account needs
@@ -82,14 +88,17 @@ public class AccountReviewService {
 	}
 
 	/**
-	 * Criteria for the active accounts of a task. Every non-null value narrows the list.
+	 * Criteria for the accounts of one category of a task. Every non-null value narrows
+	 * the list.
 	 *
+	 * @param category the category of accounts to list
 	 * @param outcome one outcome
 	 * @param department the exact department
 	 * @param role the exact role name
 	 * @param search matches a username or name containing it
 	 */
-	public record ItemQuery(AccountReviewOutcome outcome, String department, String role, String search) {
+	public record ItemQuery(AccountReviewCategory category, AccountReviewOutcome outcome, String department,
+			String role, String search) {
 	}
 
 	/**
@@ -125,6 +134,8 @@ public class AccountReviewService {
 
 	private final AccountAuditLogger auditLogger;
 
+	private final AccountAuditEventRepository auditEvents;
+
 	private final AccountReviewReports reports;
 
 	private final ReviewPopulations populations;
@@ -138,8 +149,8 @@ public class AccountReviewService {
 	public AccountReviewService(TaskRepository tasks, AccountReviewItemRepository items, AppUserRepository users,
 			AppRoleRepository roles, AccountLifecycleService lifecycle,
 			SessionRevocationService sessionRevocationService, AccountAuditLogger auditLogger,
-			AccountReviewReports reports, ReviewPopulations populations, ReviewReportModels reportModels, Clock clock,
-			ZoneId zone) {
+			AccountAuditEventRepository auditEvents, AccountReviewReports reports, ReviewPopulations populations,
+			ReviewReportModels reportModels, Clock clock, ZoneId zone) {
 		this.tasks = tasks;
 		this.items = items;
 		this.users = users;
@@ -147,6 +158,7 @@ public class AccountReviewService {
 		this.lifecycle = lifecycle;
 		this.sessionRevocationService = sessionRevocationService;
 		this.auditLogger = auditLogger;
+		this.auditEvents = auditEvents;
 		this.reports = reports;
 		this.populations = populations;
 		this.reportModels = reportModels;
@@ -155,10 +167,10 @@ public class AccountReviewService {
 	}
 
 	/**
-	 * Creates the task for a review period, with one item for every active account of its
-	 * class: the privileged review takes the accounts that are privileged now and the
-	 * non-privileged review the others. A review with no active accounts is complete once
-	 * both populations are confirmed.
+	 * Creates the task for a review period, with one item for every active and every
+	 * suspended account of its class: the privileged review takes the accounts that are
+	 * privileged now and the non-privileged review the others. A review with no such
+	 * accounts is complete once the removed population is confirmed.
 	 * @param type {@link Task#PRIVILEGED_ACCOUNT_REVIEW} or
 	 * {@link Task#NON_PRIVILEGED_ACCOUNT_REVIEW}
 	 * @param period the review period
@@ -170,11 +182,15 @@ public class AccountReviewService {
 		}
 		Task task = this.tasks.saveAndFlush(new Task(type, period.start(), period.due(), this.clock.instant()));
 		boolean privilegedReview = task.isPrivilegedReview();
-		List<AccountReviewItem> created = this.users.findByStatus(AccountStatus.ACTIVE)
-			.stream()
+		List<AppUser> accounts = Stream.of(AccountReviewCategory.values())
+			.flatMap(category -> this.users.findByStatus(category.status()).stream())
 			.filter(user -> user.isPrivileged() == privilegedReview)
+			.toList();
+		Map<String, String> suspenders = suspenders(accounts);
+		List<AccountReviewItem> created = accounts.stream()
 			.map(user -> new AccountReviewItem(task.getId(), user,
-					privilegedReview ? user.privilegedPermissionNames() : null))
+					privilegedReview ? user.privilegedPermissionNames() : null,
+					suspenders.get(user.getPublicId().toString())))
 			.toList();
 		this.items.saveAll(created);
 		this.auditLogger.record("create_review_task", "REVIEW", task.getPublicId().toString(),
@@ -210,26 +226,61 @@ public class AccountReviewService {
 
 	@Transactional(readOnly = true)
 	public TaskResponse response(Task task) {
-		Map<AccountReviewOutcome, Long> byOutcome = new HashMap<>();
-		for (Object[] row : this.items.countByOutcome(task.getId())) {
-			byOutcome.put((AccountReviewOutcome) row[0], (Long) row[1]);
+		Map<AccountReviewCategory, Map<AccountReviewOutcome, Long>> byCategory = new EnumMap<>(
+				AccountReviewCategory.class);
+		for (Object[] row : this.items.countByCategoryAndOutcome(task.getId())) {
+			byCategory.computeIfAbsent((AccountReviewCategory) row[0], key -> new EnumMap<>(AccountReviewOutcome.class))
+				.put((AccountReviewOutcome) row[1], (Long) row[2]);
 		}
+		boolean overdue = task.isOpen() && task.getDueDate().isBefore(today());
+		return new TaskResponse(task.getPublicId(), task.getType(), task.getStatus().value(), task.getStartDate(),
+				task.getDueDate(), task.getCompletedAt(), task.getCompletedBy(), overdue,
+				categoryStatus(task, AccountReviewCategory.ACTIVE, byCategory),
+				categoryStatus(task, AccountReviewCategory.SUSPENDED, byCategory), this.populations.status(task),
+				this.reports.exists(task));
+	}
+
+	private CategoryStatus categoryStatus(Task task, AccountReviewCategory category,
+			Map<AccountReviewCategory, Map<AccountReviewOutcome, Long>> byCategory) {
+		Map<AccountReviewOutcome, Long> byOutcome = byCategory.getOrDefault(category, Map.of());
 		long confirmed = byOutcome.getOrDefault(AccountReviewOutcome.CONFIRMED, 0L);
 		long edited = byOutcome.getOrDefault(AccountReviewOutcome.CONFIRMED_ROLES_EDITED, 0L);
 		Counts counts = new Counts(byOutcome.getOrDefault(AccountReviewOutcome.PENDING, 0L), confirmed, edited,
 				byOutcome.getOrDefault(AccountReviewOutcome.REMOVED, 0L));
 		long decided = confirmed + edited;
-		Progress progress = new Progress(decided, decided + this.items.countPendingWithActiveAccount(task.getId()));
-		boolean overdue = task.isOpen() && task.getDueDate().isBefore(today());
-		return new TaskResponse(task.getPublicId(), task.getType(), task.getStatus().value(), task.getStartDate(),
-				task.getDueDate(), task.getCompletedAt(), task.getCompletedBy(), overdue, counts, progress,
-				this.populations.status(task), this.reports.exists(task));
+		return new CategoryStatus(counts, new Progress(decided, decided + pending(task, category)));
+	}
+
+	private long pending(Task task, AccountReviewCategory category) {
+		return this.items.countPending(task.getId(), category, category.status());
 	}
 
 	/**
-	 * Lists the active accounts of a task: the pending items whose account is active, and
-	 * every decided item that was not removed. Pending rows show the live account,
-	 * decided rows what was frozen.
+	 * Returns who last suspended each account, by public ID, for the accounts that have a
+	 * suspension in the audit trail.
+	 */
+	private Map<String, String> suspenders(List<AppUser> accounts) {
+		Map<String, AccountAuditEvent> latest = new HashMap<>();
+		List<String> suspended = accounts.stream()
+			.filter(user -> user.getStatus() == AccountStatus.SUSPENDED)
+			.map(user -> user.getPublicId().toString())
+			.toList();
+		if (!suspended.isEmpty()) {
+			for (AccountAuditEvent event : this.auditEvents.findByActionAndTargetIdIn("suspend_user", suspended)) {
+				latest.merge(event.getTargetId(), event,
+						(first, second) -> second.getOccurredAt().isAfter(first.getOccurredAt()) ? second : first);
+			}
+		}
+		return latest.entrySet()
+			.stream()
+			.filter(entry -> entry.getValue().getActor() != null)
+			.collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getActor()));
+	}
+
+	/**
+	 * Lists the accounts of one category of a task: the pending items whose account still
+	 * has the status of the category, and every decided item that was not removed.
+	 * Pending rows show the live account, decided rows what was frozen.
 	 * @param taskId the task
 	 * @param query the filters
 	 * @param pageable the page and sort, whose properties are the API's names
@@ -237,13 +288,14 @@ public class AccountReviewService {
 	 */
 	@Transactional(readOnly = true)
 	public Page<ReviewItemResponse> items(UUID taskId, ItemQuery query, Pageable pageable) {
-		return ListPaging.page(itemRows(task(taskId)).stream().filter(row -> matches(row, query)).toList(), pageable,
+		return ListPaging.page(
+				itemRows(task(taskId), query.category()).stream().filter(row -> matches(row, query)).toList(), pageable,
 				ITEM_ORDER);
 	}
 
 	/**
-	 * Lists one population of a task: live until it is confirmed, then the frozen list. A
-	 * review lists the accounts of its own class.
+	 * Lists the removed population of a task: live until it is confirmed, then the frozen
+	 * list. A review lists the accounts of its own class.
 	 */
 	@Transactional(readOnly = true)
 	public Page<PopulationEntryResponse> population(UUID taskId, ReviewPopulation population, PopulationQuery query,
@@ -262,10 +314,12 @@ public class AccountReviewService {
 	public List<String> departments(UUID taskId) {
 		Task task = task(taskId);
 		Set<String> departments = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-		itemRows(task).stream()
-			.map(ReviewItemResponse::department)
-			.filter(java.util.Objects::nonNull)
-			.forEach(departments::add);
+		for (AccountReviewCategory category : AccountReviewCategory.values()) {
+			itemRows(task, category).stream()
+				.map(ReviewItemResponse::department)
+				.filter(java.util.Objects::nonNull)
+				.forEach(departments::add);
+		}
 		for (ReviewPopulation population : ReviewPopulation.values()) {
 			this.populations.rows(task, population)
 				.stream()
@@ -300,8 +354,9 @@ public class AccountReviewService {
 		rejectOwnAccount(found.values(), actor, taskId);
 		List<UUID> rejected = ids.stream().filter(id -> !decidable(found.get(id))).toList();
 		if (!rejected.isEmpty()) {
-			throw new ConflictException("These items are not in this task, are not active accounts or are already "
-					+ "decided: " + rejected.stream().map(UUID::toString).collect(Collectors.joining(", ")));
+			throw new ConflictException("These items are not in this task, no longer have the status they were "
+					+ "reviewed with or are already decided: "
+					+ rejected.stream().map(UUID::toString).collect(Collectors.joining(", ")));
 		}
 		for (UUID id : ids) {
 			AccountReviewItem item = found.get(id);
@@ -325,10 +380,10 @@ public class AccountReviewService {
 	}
 
 	/**
-	 * Sets the roles of an active account in a task, which confirms it in the same step.
-	 * The reviewer can only remove roles: a role the account does not hold is refused,
-	 * because adding access is not the reviewer's to do (docs/adr/0038). Needs
-	 * {@code user:remove-role}.
+	 * Sets the roles of an active or suspended account in a task, which confirms it in
+	 * the same step. The reviewer can only remove roles: a role the account does not hold
+	 * is refused, because adding access is not the reviewer's to do (docs/adr/0038).
+	 * Needs {@code user:remove-role}.
 	 * @param taskId the task
 	 * @param itemId the item
 	 * @param roleIds the full set of roles the account should hold
@@ -346,7 +401,8 @@ public class AccountReviewService {
 		String actor = Auditor.current();
 		rejectOwnAccount(List.of(item), actor, taskId);
 		if (!decidable(item)) {
-			throw new ConflictException("The item is not an active account or is already decided.");
+			throw new ConflictException(
+					"The item no longer has the status it was reviewed with or is already decided.");
 		}
 		AppUser account = item.getUser();
 		Set<AppRole> requested = Set.copyOf(this.roles.findAllByPublicIdIn(roleIds));
@@ -376,8 +432,8 @@ public class AccountReviewService {
 	}
 
 	/**
-	 * Confirms the suspended or the removed population of a task, once. The list as it is
-	 * now is frozen and the population becomes read-only.
+	 * Confirms the removed population of a task, once. The list as it is now is frozen
+	 * and the population becomes read-only.
 	 * @param taskId the task
 	 * @param population the population
 	 * @param note the optional note
@@ -415,7 +471,8 @@ public class AccountReviewService {
 	}
 
 	private void completeIfFinished(Task task, String by) {
-		if (!task.isOpen() || this.items.countPendingWithActiveAccount(task.getId()) > 0
+		if (!task.isOpen()
+				|| Stream.of(AccountReviewCategory.values()).anyMatch(category -> pending(task, category) > 0)
 				|| !this.populations.allConfirmed(task)) {
 			return;
 		}
@@ -454,26 +511,26 @@ public class AccountReviewService {
 	}
 
 	/**
-	 * Returns whether the item is pending and its account exists and is active.
+	 * Returns whether the item is pending and its account exists and still has the status
+	 * of the item's category.
 	 */
 	private static boolean decidable(AccountReviewItem item) {
-		return item != null && item.isPending() && item.getUser() != null
-				&& item.getUser().getStatus() == AccountStatus.ACTIVE;
+		return item != null && item.isPending() && item.accountInCategory();
 	}
 
-	private List<ReviewItemResponse> itemRows(Task task) {
+	private List<ReviewItemResponse> itemRows(Task task, AccountReviewCategory category) {
 		String actor = Auditor.current();
 		return this.items.findAllWithAccount(task.getId())
 			.stream()
-			.filter(AccountReviewService::inActiveCategory)
+			.filter(item -> item.getCategory() == category && listed(item))
 			.map(item -> row(item, actor))
 			.toList();
 	}
 
-	private static boolean inActiveCategory(AccountReviewItem item) {
+	private static boolean listed(AccountReviewItem item) {
 		return switch (item.getOutcome()) {
 			case CONFIRMED, CONFIRMED_ROLES_EDITED -> true;
-			case PENDING -> item.getUser() != null && item.getUser().getStatus() == AccountStatus.ACTIVE;
+			case PENDING -> item.accountInCategory();
 			case REMOVED -> false;
 		};
 	}
@@ -484,13 +541,15 @@ public class AccountReviewService {
 		if (item.isPending()) {
 			AppUser user = item.getUser();
 			return new ReviewItemResponse(item.getPublicId(), item.getUserPublicId(), item.getUsername(), view.name(),
-					view.department(), view.roles(), null, item.getPrivilegedPermissions(), currentRoles(user),
-					user.getLastLoginAt(), user.lastActivityAt(), item.getOutcome().value(), null, own, null, null);
+					view.department(), view.createdAt(), view.roles(), null, item.getPrivilegedPermissions(),
+					currentRoles(user), user.getLastLoginAt(), user.lastActivityAt(), view.suspension(),
+					item.getOutcome().value(), null, own, null, null);
 		}
 		return new ReviewItemResponse(item.getPublicId(), item.getUserPublicId(), item.getUsername(), view.name(),
-				view.department(), view.roles(), item.getRolesBefore(), item.getPrivilegedPermissions(), null,
-				item.getLastLoginAt(), item.getLastActivityAt(), item.getOutcome().value(), view.remark(), own,
-				item.getDecidedBy(), item.getDecidedAt());
+				view.department(), view.createdAt(), view.roles(), item.getRolesBefore(),
+				item.getPrivilegedPermissions(), null, item.getLastLoginAt(), item.getLastActivityAt(),
+				view.suspension(), item.getOutcome().value(), view.remark(), own, item.getDecidedBy(),
+				item.getDecidedAt());
 	}
 
 	/**

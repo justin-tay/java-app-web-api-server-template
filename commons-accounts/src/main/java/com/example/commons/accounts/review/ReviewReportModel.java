@@ -19,8 +19,13 @@ import com.example.commons.accounts.review.ReviewDtos.PopulationEntryResponse;
  */
 public record ReviewReportModel(boolean draft, boolean privileged, ZoneId zone, LocalDate periodStart,
 		LocalDate periodEnd, LocalDate dueDate, Instant completedAt, String completedBy, Instant generatedAt,
-		String generatedBy, Summary summary, List<DepartmentRow> departments, List<ItemRow> items,
-		PopulationSection suspended, PopulationSection removed) {
+		String generatedBy, ItemSection active, ItemSection suspended, PopulationSection removed) {
+
+	/**
+	 * The accounts of one category with their outcomes, in all and by department.
+	 */
+	public record ItemSection(Summary summary, List<DepartmentRow> departments, List<ItemRow> items) {
+	}
 
 	/**
 	 * The number of accounts in each outcome.
@@ -36,10 +41,13 @@ public record ReviewReportModel(boolean draft, boolean privileged, ZoneId zone, 
 	}
 
 	/**
-	 * One account of the review, with the roles it holds after the review.
+	 * One account of the review, with the roles it holds after the review. The suspension
+	 * fields are null for an active account, and the remark of a suspended account
+	 * includes its suspension note.
 	 */
-	public record ItemRow(int number, String name, String username, String department, String roles, String outcome,
-			String remark, Instant decidedAt) {
+	public record ItemRow(int number, String name, String username, String department, Instant createdAt,
+			Instant lastLoginAt, String roles, Instant suspendedAt, String suspendedBy, String suspensionReason,
+			String outcome, String remark, Instant decidedAt) {
 	}
 
 	/**

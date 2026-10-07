@@ -44,13 +44,12 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 		this.service.decide(task.getPublicId(),
 				List.of(itemOf(task, "alice").getPublicId(), itemOf(task, "ravi").getPublicId()), Decision.CONFIRM,
 				null, null);
-		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.SUSPENDED, null);
 		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.REMOVED, null);
 		flushAndClear();
 
 		assertThat(this.service.response(reload(task)).status()).isEqualTo("open");
-		assertThat(this.service.response(reload(task)).progress().reviewed()).isEqualTo(2);
-		assertThat(this.service.response(reload(task)).progress().total()).isEqualTo(3);
+		assertThat(this.service.response(reload(task)).active().progress().reviewed()).isEqualTo(2);
+		assertThat(this.service.response(reload(task)).active().progress().total()).isEqualTo(3);
 
 		authenticateAsReviewer("ravi");
 		this.service.decide(task.getPublicId(), List.of(itemOf(task, "rachel").getPublicId()), Decision.CONFIRM, null,
@@ -72,7 +71,6 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 		flushAndClear();
 		this.service.decide(task.getPublicId(), List.of(itemOf(task, "rachel").getPublicId()), Decision.CONFIRM, null,
 				null);
-		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.SUSPENDED, null);
 		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.REMOVED, null);
 		flushAndClear();
 
@@ -80,7 +78,7 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 		flushAndClear();
 
 		assertThat(this.service.response(reload(task)).status()).isEqualTo("completed");
-		assertThat(this.service.response(reload(task)).counts().confirmedRolesEdited()).isEqualTo(1);
+		assertThat(this.service.response(reload(task)).active().counts().confirmedRolesEdited()).isEqualTo(1);
 	}
 
 	@Test
@@ -92,7 +90,6 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 		flushAndClear();
 		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), Decision.CONFIRM, null,
 				null);
-		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.SUSPENDED, null);
 		flushAndClear();
 
 		assertThat(this.service.response(reload(task)).status()).isEqualTo("open");
@@ -109,7 +106,6 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 		this.service.decide(task.getPublicId(),
 				List.of(itemOf(task, "alice").getPublicId(), itemOf(task, "rachel").getPublicId()), Decision.CONFIRM,
 				null, null);
-		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.SUSPENDED, null);
 		flushAndClear();
 		assertThat(this.tasks.findByPublicId(task.getPublicId()).orElseThrow().isOpen()).isTrue();
 
@@ -154,7 +150,6 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 		authenticateAsReviewer("ravi");
 		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 
-		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.SUSPENDED, null);
 		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.REMOVED, null);
 
 		assertThat(task.getStatus()).isEqualTo(TaskStatus.COMPLETED);
@@ -170,7 +165,6 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 		flushAndClear();
 		this.service.decide(task.getPublicId(), List.of(itemOf(task, "rachel").getPublicId()), Decision.CONFIRM, null,
 				null);
-		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.SUSPENDED, null);
 		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.REMOVED, null);
 		flushAndClear();
 		assertThat(this.tasks.findByPublicId(task.getPublicId()).orElseThrow().isOpen()).isTrue();
@@ -204,8 +198,8 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 
 		assertThat(draft.draft()).isTrue();
 		assertThat(pdf.draft()).isTrue();
-		assertThat(new String(draft.content(), StandardCharsets.UTF_8)).startsWith("﻿\"No.\",\"Name\"")
-			.contains("\"alice\"", "\"Pending\"");
+		assertThat(new String(draft.content(), StandardCharsets.UTF_8)).startsWith("﻿\"Category\",\"No.\"")
+			.contains("\"Active\"", "\"alice\"", "\"Pending\"");
 		assertThat(new String(pdf.content(), 0, 5, StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
 		assertThat(new String(xlsx.content(), 0, 2, StandardCharsets.US_ASCII)).isEqualTo("PK");
 		assertThat(this.storedReports.existsByTaskId(task.getId())).isFalse();
@@ -245,7 +239,6 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 		this.service.decide(task.getPublicId(),
 				java.util.Arrays.stream(usernames).map(username -> itemOf(task, username).getPublicId()).toList(),
 				Decision.CONFIRM, null, null);
-		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.SUSPENDED, null);
 		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.REMOVED, null);
 		flushAndClear();
 		assertThat(this.tasks.findByPublicId(task.getPublicId()).orElseThrow().getStatus())

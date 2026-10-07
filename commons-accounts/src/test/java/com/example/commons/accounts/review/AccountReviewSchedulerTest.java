@@ -171,7 +171,6 @@ class AccountReviewSchedulerTest extends AccountReviewTestSupport {
 		flushAndClear();
 		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), Decision.CONFIRM, null,
 				null);
-		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.SUSPENDED, null);
 		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.REMOVED, null);
 		flushAndClear();
 		this.jdbcTemplate.update("UPDATE app_setting SET setting_value = 'false' WHERE name = 'review.enabled'");

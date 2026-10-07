@@ -25,32 +25,38 @@ public final class ReviewDtos {
 	}
 
 	/**
-	 * How far the active accounts of a task are reviewed: the decided ones out of those
-	 * in the active category.
+	 * How far the accounts of one category of a task are reviewed: the decided ones out
+	 * of those still in the category.
 	 */
 	public record Progress(long reviewed, long total) {
 	}
 
 	/**
-	 * Whether a population is confirmed, and by whom.
+	 * The outcomes and the progress of one category of a task.
+	 */
+	public record CategoryStatus(Counts counts, Progress progress) {
+	}
+
+	/**
+	 * Whether the removed population is confirmed, and by whom.
 	 */
 	public record PopulationStatus(boolean confirmed, String confirmedBy, Instant confirmedAt, String note,
 			Integer count) {
-	}
-
-	public record Populations(PopulationStatus suspended, PopulationStatus removed) {
 	}
 
 	/**
 	 * A task in the dashboard.
 	 *
 	 * @param overdue whether the task is open and past its due date
+	 * @param active the active accounts
+	 * @param suspended the suspended accounts
+	 * @param removed whether the removed population is confirmed
 	 * @param reportAvailable whether the stored report exists, which it does once the
 	 * task is completed
 	 */
 	public record TaskResponse(UUID id, String type, String status, LocalDate startDate, LocalDate dueDate,
-			Instant completedAt, String completedBy, boolean overdue, Counts counts, Progress progress,
-			Populations populations, boolean reportAvailable) {
+			Instant completedAt, String completedBy, boolean overdue, CategoryStatus active, CategoryStatus suspended,
+			PopulationStatus removed, boolean reportAvailable) {
 	}
 
 	/**
@@ -61,10 +67,21 @@ public final class ReviewDtos {
 	}
 
 	/**
-	 * One active account of a review task. A pending row shows the live account; a
-	 * decided row shows what was frozen when it was decided.
+	 * Why and when a suspended account was suspended.
+	 *
+	 * @param at when it was suspended
+	 * @param by who suspended it, {@code system} or a username, null when not known
+	 */
+	public record Suspension(Instant at, String by, String reasonCode, String note) {
+	}
+
+	/**
+	 * One active or suspended account of a review task. A pending row shows the live
+	 * account; a decided row shows what was frozen when it was decided.
 	 *
 	 * @param id the item ID
+	 * @param createdAt when the account was created
+	 * @param suspension the suspension of a suspended account, null for an active one
 	 * @param roles the roles the account holds, after the decision for a decided row
 	 * @param rolesBefore the roles before the decision, null while pending
 	 * @param privilegedPermissions the privileged permissions the account held when the
@@ -77,20 +94,22 @@ public final class ReviewDtos {
 	 * act on
 	 */
 	public record ReviewItemResponse(UUID id, UUID userId, String username, String name, String department,
-			List<String> roles, List<String> rolesBefore, List<String> privilegedPermissions,
-			List<Summary> currentRoles, Instant lastLoginAt, Instant lastActivityAt, String outcome, String remark,
-			boolean ownAccount, String decidedBy, Instant decidedAt) {
+			Instant createdAt, List<String> roles, List<String> rolesBefore, List<String> privilegedPermissions,
+			List<Summary> currentRoles, Instant lastLoginAt, Instant lastActivityAt, Suspension suspension,
+			String outcome, String remark, boolean ownAccount, String decidedBy, Instant decidedAt) {
 	}
 
 	/**
-	 * One account of the suspended or removed population.
+	 * One account of the removed population.
 	 *
-	 * @param occurredAt when the account was suspended or removed
-	 * @param actor who suspended or removed it, {@code system} or a username
+	 * @param createdAt when the account was created, null for a removal recorded before
+	 * that was kept
+	 * @param occurredAt when the account was removed
+	 * @param actor who removed it, {@code system} or a username
 	 */
 	public record PopulationEntryResponse(UUID userId, String username, String name, String department,
-			Instant lastLoginAt, Instant lastActivityAt, Instant occurredAt, String actor, String reasonCode,
-			String reasonNote) {
+			Instant createdAt, Instant lastLoginAt, Instant lastActivityAt, Instant occurredAt, String actor,
+			String reasonCode, String reasonNote) {
 	}
 
 	public record DecisionRequest(@NotEmpty @Size(max = 100) List<UUID> itemIds,

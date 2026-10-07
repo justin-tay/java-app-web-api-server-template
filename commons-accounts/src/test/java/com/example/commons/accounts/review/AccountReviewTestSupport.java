@@ -106,13 +106,13 @@ abstract class AccountReviewTestSupport {
 				reviewItems, this.clock);
 		AccountReviewReports reports = new AccountReviewReports(this.storedReports, new DefaultReviewReportRenderer(),
 				auditLogger, this.clock);
-		this.populations = new ReviewPopulations(this.tasks, this.attestations, this.entries, this.users,
-				this.auditEvents, this.clock, ZoneOffset.UTC);
+		this.populations = new ReviewPopulations(this.tasks, this.attestations, this.entries, this.auditEvents,
+				this.clock, ZoneOffset.UTC);
 		this.reportModels = new ReviewReportModels(this.items, this.auditEvents, this.populations, this.clock,
 				ZoneOffset.UTC);
 		this.service = new AccountReviewService(this.tasks, this.items, this.users, this.roles, this.lifecycle,
-				this.sessionRevocationService, auditLogger, reports, this.populations, this.reportModels, this.clock,
-				ZoneOffset.UTC);
+				this.sessionRevocationService, auditLogger, this.auditEvents, reports, this.populations,
+				this.reportModels, this.clock, ZoneOffset.UTC);
 		AppRole privileged = new AppRole("users");
 		privileged.getPermissions().add(permission(Permissions.USER_CREATE));
 		this.role = this.entityManager.persist(privileged);

@@ -18,6 +18,7 @@ import com.example.commons.accounts.domain.ReviewPopulation;
 import com.example.commons.accounts.Permissions;
 import com.example.commons.accounts.AccountsJpaTest;
 import com.example.commons.accounts.domain.AccountAuditEvent;
+import com.example.commons.accounts.domain.AccountReviewCategory;
 import com.example.commons.accounts.domain.AccountReviewItem;
 import com.example.commons.accounts.domain.AccountReviewOutcome;
 import com.example.commons.accounts.domain.AppRole;
@@ -42,10 +43,10 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 
 	private static final UUID UNKNOWN = UUID.fromString("00000000-0000-0000-0000-00000000dead");
 
-	private static final ItemQuery ALL = new ItemQuery(null, null, null, null);
+	private static final ItemQuery ALL = new ItemQuery(AccountReviewCategory.ACTIVE, null, null, null, null);
 
 	@Test
-	void createsAPrivilegedTaskWithAnItemForEveryActivePrivilegedAccountOnly() {
+	void createsAPrivilegedTaskWithAnItemForEveryActiveAndSuspendedPrivilegedAccountOnly() {
 		user("rachel");
 		user("alice");
 		AppUser carol = user("carol");
@@ -58,10 +59,12 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 		assertThat(task.getStartDate()).isEqualTo(LocalDate.of(2026, 10, 1));
 		assertThat(task.getDueDate()).isEqualTo(LocalDate.of(2026, 10, 31));
 		assertThat(this.items.findAll()).extracting(AccountReviewItem::getUsername)
-			.containsExactlyInAnyOrder("rachel", "alice");
+			.containsExactlyInAnyOrder("rachel", "alice", "carol");
 		assertThat(this.items.findAll()).extracting(AccountReviewItem::getOutcome)
 			.containsOnly(AccountReviewOutcome.PENDING);
-		assertThat(this.service.response(task).counts().pending()).isEqualTo(2);
+		assertThat(this.service.response(task).active().counts().pending()).isEqualTo(2);
+		assertThat(this.service.response(task).suspended().counts().pending()).isEqualTo(1);
+		assertThat(itemOf(task, "carol").getCategory()).isEqualTo(AccountReviewCategory.SUSPENDED);
 		assertThat(this.auditEvents.findAll(Specification.unrestricted())).extracting(AccountAuditEvent::getAction)
 			.contains("create_review_task");
 	}
@@ -85,11 +88,11 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 			.extracting(AccountReviewItem::getUsername)
 			.containsExactly("alice");
 		assertThat(itemOf(nonPrivileged, "alice").getPrivilegedPermissions()).isNull();
-		assertThat(this.service.response(nonPrivileged).populations().suspended().confirmed()).isFalse();
+		assertThat(this.service.response(nonPrivileged).removed().confirmed()).isFalse();
 	}
 
 	@Test
-	void aNonPrivilegedTaskNeedsBothPopulationsConfirmedToComplete() {
+	void aNonPrivilegedTaskNeedsTheRemovedPopulationConfirmedToComplete() {
 		plainUser("alice");
 		authenticateAsReviewer("ravi");
 		Task task = this.service.createTask(Task.NON_PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
@@ -97,7 +100,6 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 
 		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), Decision.CONFIRM, null,
 				null);
-		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.SUSPENDED, null);
 		flushAndClear();
 		assertThat(this.service.response(reload(task)).status()).isEqualTo("open");
 
@@ -123,10 +125,109 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 		Task nonPrivileged = this.service.createTask(Task.NON_PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 		flushAndClear();
 
-		assertThat(names(population(privileged, ReviewPopulation.SUSPENDED))).containsExactly("rachel");
-		assertThat(names(population(nonPrivileged, ReviewPopulation.SUSPENDED))).containsExactly("alice");
+		assertThat(suspendedNames(privileged)).containsExactly("rachel");
+		assertThat(suspendedNames(nonPrivileged)).containsExactly("alice");
 		assertThat(names(population(privileged, ReviewPopulation.REMOVED))).containsExactly("gone");
 		assertThat(names(population(nonPrivileged, ReviewPopulation.REMOVED))).containsExactly("plain-gone");
+	}
+
+	@Test
+	void suspendedAccountsGetItemsThatShowTheSuspensionAndAreDecidedLikeActiveOnes() {
+		user("rachel");
+		AppUser alice = user("alice", "Finance");
+		AppUser bob = user("bob");
+		AppUser carol = user("carol");
+		AppRole viewers = this.entityManager.persist(new AppRole("viewers"));
+		carol.getRoles().add(viewers);
+		authenticateAs("admin", Permissions.USER_REMOVE);
+		this.lifecycle.suspend(alice.getPublicId(), ReasonCode.LEFT_ORGANISATION, "resigned");
+		this.lifecycle.suspend(carol.getPublicId(), ReasonCode.OTHER, null);
+		org.springframework.security.core.context.SecurityContextHolder.clearContext();
+		this.lifecycle.suspend(bob.getPublicId(), ReasonCode.INACTIVE_ACCOUNT, null);
+		authenticateAsReviewer("rachel");
+		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
+		flushAndClear();
+
+		List<ReviewItemResponse> suspended = suspendedRows(task);
+		assertThat(suspended).extracting(ReviewItemResponse::username).containsExactly("alice", "bob", "carol");
+		ReviewItemResponse row = suspended.get(0);
+		assertThat(row.department()).isEqualTo("Finance");
+		assertThat(row.createdAt()).isNotNull();
+		assertThat(row.suspension().by()).isEqualTo("admin");
+		assertThat(row.suspension().reasonCode()).isEqualTo("left_organisation");
+		assertThat(row.suspension().note()).isEqualTo("resigned");
+		assertThat(row.suspension().at()).isEqualTo(NOW);
+		assertThat(suspended.get(1).suspension().by()).isEqualTo("system");
+		assertThat(rows(task)).extracting(ReviewItemResponse::username).containsExactly("rachel");
+		assertThat(rows(task).get(0).suspension()).isNull();
+
+		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), Decision.CONFIRM, null,
+				null);
+		this.service.decide(task.getPublicId(), List.of(itemOf(task, "bob").getPublicId()), Decision.REMOVE,
+				ReasonCode.NO_LONGER_REQUIRED, null);
+		this.service.editRoles(task.getPublicId(), itemOf(task, "carol").getPublicId(), Set.of(viewers.getPublicId()));
+		flushAndClear();
+
+		assertThat(this.service.response(task).suspended().counts().confirmed()).isEqualTo(1);
+		assertThat(this.service.response(task).suspended().counts().removed()).isEqualTo(1);
+		assertThat(this.service.response(task).suspended().counts().confirmedRolesEdited()).isEqualTo(1);
+		assertThat(this.service.response(task).suspended().progress().reviewed()).isEqualTo(2);
+		assertThat(this.service.response(task).active().counts().confirmed()).isZero();
+		assertThat(suspendedRows(task)).extracting(ReviewItemResponse::username).containsExactly("alice", "carol");
+		assertThat(suspendedRows(task).get(0).suspension().by()).isEqualTo("admin");
+		assertThat(this.service.response(task).status()).isEqualTo("open");
+	}
+
+	@Test
+	void aTaskWaitsForPendingSuspendedItemsAndCompletesWhenTheyAreDecided() {
+		user("rachel");
+		AppUser alice = user("alice");
+		authenticateAs("admin", Permissions.USER_REMOVE);
+		this.lifecycle.suspend(alice.getPublicId(), ReasonCode.OTHER, null);
+		authenticateAsReviewer("ravi");
+		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
+		flushAndClear();
+		this.service.decide(task.getPublicId(), List.of(itemOf(task, "rachel").getPublicId()), Decision.CONFIRM, null,
+				null);
+		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.REMOVED, null);
+		flushAndClear();
+		assertThat(this.service.response(reload(task)).status()).isEqualTo("open");
+
+		this.service.decide(task.getPublicId(), List.of(itemOf(task, "alice").getPublicId()), Decision.CONFIRM, null,
+				null);
+		flushAndClear();
+
+		assertThat(this.service.response(reload(task)).status()).isEqualTo("completed");
+	}
+
+	@Test
+	void aSuspendedPendingItemLeavesItsListWhenTheAccountIsUnsuspendedAndStopsBlockingCompletion() {
+		user("rachel");
+		AppUser alice = user("alice");
+		authenticateAs("admin", Permissions.USER_REMOVE);
+		this.lifecycle.suspend(alice.getPublicId(), ReasonCode.OTHER, null);
+		authenticateAsReviewer("rachel");
+		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
+		flushAndClear();
+
+		authenticateAs("admin", Permissions.USER_REMOVE);
+		this.lifecycle.unsuspend(alice.getPublicId());
+		flushAndClear();
+
+		assertThat(suspendedRows(task)).isEmpty();
+		assertThat(rows(task)).extracting(ReviewItemResponse::username).containsExactly("rachel");
+		assertThat(this.service.response(task).suspended().progress().total()).isZero();
+		authenticateAsReviewer("rachel");
+		assertThatExceptionOfType(ConflictException.class).isThrownBy(() -> this.service.decide(task.getPublicId(),
+				List.of(itemOf(task, "alice").getPublicId()), Decision.CONFIRM, null, null));
+	}
+
+	private List<ReviewItemResponse> suspendedRows(Task task) {
+		return page(task, new ItemQuery(AccountReviewCategory.SUSPENDED, null, null, null, null), Sort.by("username"));
+	}
+
+	private List<String> suspendedNames(Task task) {
+		return suspendedRows(task).stream().map(ReviewItemResponse::username).toList();
 	}
 
 	private List<String> names(List<ReviewDtos.PopulationEntryResponse> rows) {
@@ -141,7 +242,7 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 	}
 
 	@Test
-	void aTaskWithNoActiveAccountsStaysOpenUntilBothPopulationsAreConfirmed() {
+	void aTaskWithNoAccountsStaysOpenUntilTheRemovedPopulationIsConfirmed() {
 		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 
 		assertThat(task.getStatus()).isEqualTo(TaskStatus.OPEN);
@@ -200,8 +301,8 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 			.findFirst()
 			.orElseThrow();
 		assertThat(row.remark()).isEqualTo("No changes");
-		assertThat(this.service.response(task).progress().reviewed()).isEqualTo(1);
-		assertThat(this.service.response(task).counts().confirmed()).isEqualTo(1);
+		assertThat(this.service.response(task).active().progress().reviewed()).isEqualTo(1);
+		assertThat(this.service.response(task).active().counts().confirmed()).isEqualTo(1);
 	}
 
 	@Test
@@ -229,7 +330,7 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 		assertThat(removal.getReasonNote()).isEqualTo("resigned");
 		assertThat(removal.getDetails()).contains("\"department\":\"HR\"");
 		assertThat(rows(task)).extracting(ReviewItemResponse::username).containsExactly("rachel");
-		assertThat(this.service.response(task).counts().removed()).isEqualTo(1);
+		assertThat(this.service.response(task).active().counts().removed()).isEqualTo(1);
 	}
 
 	@Test
@@ -258,7 +359,7 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 			.findFirst()
 			.orElseThrow();
 		assertThat(row.remark()).isEqualTo("Removed users");
-		assertThat(this.service.response(task).counts().confirmedRolesEdited()).isEqualTo(1);
+		assertThat(this.service.response(task).active().counts().confirmedRolesEdited()).isEqualTo(1);
 	}
 
 	@Test
@@ -339,7 +440,7 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 		assertThat(item.getDecidedBy()).isEqualTo("admin");
 		assertThat(item.getDepartment()).isEqualTo("IT");
 		assertThat(item.getRemovalAuditEventId()).isNotNull();
-		assertThat(this.service.response(task).progress().total()).isEqualTo(1);
+		assertThat(this.service.response(task).active().progress().total()).isEqualTo(1);
 	}
 
 	@Test
@@ -355,7 +456,7 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 		flushAndClear();
 
 		assertThat(rows(task)).extracting(ReviewItemResponse::username).containsExactly("rachel");
-		assertThat(this.service.response(task).progress().total()).isEqualTo(1);
+		assertThat(this.service.response(task).active().progress().total()).isEqualTo(1);
 		assertThat(itemOf(task, "alice").isPending()).isTrue();
 
 		this.lifecycle.unsuspend(alice.getPublicId());
@@ -396,13 +497,17 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 				null);
 		flushAndClear();
 
-		assertThat(page(task, new ItemQuery(null, "finance", null, null), Sort.by("username").descending()))
+		assertThat(page(task, new ItemQuery(AccountReviewCategory.ACTIVE, null, "finance", null, null),
+				Sort.by("username").descending()))
 			.extracting(ReviewItemResponse::username)
 			.containsExactly("bob", "alice");
-		assertThat(page(task, new ItemQuery(AccountReviewOutcome.CONFIRMED, null, null, null), Sort.by("username")))
+		assertThat(page(task,
+				new ItemQuery(AccountReviewCategory.ACTIVE, AccountReviewOutcome.CONFIRMED, null, null, null),
+				Sort.by("username")))
 			.extracting(ReviewItemResponse::username)
 			.containsExactly("bob");
-		assertThat(page(task, new ItemQuery(null, null, "USERS", "arol"), Sort.by("username")))
+		assertThat(page(task, new ItemQuery(AccountReviewCategory.ACTIVE, null, null, "USERS", "arol"),
+				Sort.by("username")))
 			.extracting(ReviewItemResponse::username)
 			.containsExactly("carol");
 		assertThat(page(task, ALL, Sort.by("department", "username"))).extracting(ReviewItemResponse::username)

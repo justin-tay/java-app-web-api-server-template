@@ -225,9 +225,9 @@ public class AccountsAutoConfiguration {
 		@Bean
 		@ConditionalOnMissingBean
 		ReviewPopulations reviewPopulations(TaskRepository tasks, AccountReviewAttestationRepository attestations,
-				AccountReviewPopulationEntryRepository entries, AppUserRepository users,
-				AccountAuditEventRepository auditEvents, Environment environment) {
-			return new ReviewPopulations(tasks, attestations, entries, users, auditEvents, Clock.systemUTC(),
+				AccountReviewPopulationEntryRepository entries, AccountAuditEventRepository auditEvents,
+				Environment environment) {
+			return new ReviewPopulations(tasks, attestations, entries, auditEvents, Clock.systemUTC(),
 					zone(environment));
 		}
 
@@ -243,10 +243,10 @@ public class AccountsAutoConfiguration {
 		AccountReviewService accountReviewService(TaskRepository tasks, AccountReviewItemRepository items,
 				AppUserRepository users, AppRoleRepository roles, AccountLifecycleService lifecycle,
 				SessionRevocationService sessionRevocationService, AccountAuditLogger auditLogger,
-				AccountReviewReports reports, ReviewPopulations populations, ReviewReportModels reportModels,
-				Environment environment) {
+				AccountAuditEventRepository auditEvents, AccountReviewReports reports, ReviewPopulations populations,
+				ReviewReportModels reportModels, Environment environment) {
 			return new AccountReviewService(tasks, items, users, roles, lifecycle, sessionRevocationService,
-					auditLogger, reports, populations, reportModels, Clock.systemUTC(), zone(environment));
+					auditLogger, auditEvents, reports, populations, reportModels, Clock.systemUTC(), zone(environment));
 		}
 
 		@Bean

@@ -30,6 +30,8 @@ public class AccountReviewPopulationEntry extends AbstractIdentifiedEntity {
 
 	private String department;
 
+	private Instant createdAt;
+
 	private Instant lastLoginAt;
 
 	private Instant lastActivityAt;
@@ -46,13 +48,14 @@ public class AccountReviewPopulationEntry extends AbstractIdentifiedEntity {
 	}
 
 	public AccountReviewPopulationEntry(Long attestationId, UUID userPublicId, String username, String fullName,
-			String department, Instant lastLoginAt, Instant lastActivityAt, Instant occurredAt, String actor,
-			String reasonCode, String reasonNote) {
+			String department, Instant createdAt, Instant lastLoginAt, Instant lastActivityAt, Instant occurredAt,
+			String actor, String reasonCode, String reasonNote) {
 		this.attestationId = attestationId;
 		this.userPublicId = userPublicId;
 		this.username = username;
 		this.fullName = fullName;
 		this.department = department;
+		this.createdAt = createdAt;
 		this.lastLoginAt = lastLoginAt;
 		this.lastActivityAt = lastActivityAt;
 		this.occurredAt = occurredAt;
@@ -79,6 +82,10 @@ public class AccountReviewPopulationEntry extends AbstractIdentifiedEntity {
 
 	public String getDepartment() {
 		return this.department;
+	}
+
+	public Instant getCreatedAt() {
+		return this.createdAt;
 	}
 
 	public Instant getLastLoginAt() {

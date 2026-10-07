@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.commons.accounts.admin.AdminDtos.PageResponse;
 import com.example.commons.accounts.admin.AdminPageable;
+import com.example.commons.accounts.domain.AccountReviewCategory;
 import com.example.commons.accounts.domain.AccountReviewOutcome;
 import com.example.commons.accounts.domain.ReasonCode;
 import com.example.commons.accounts.domain.ReviewPopulation;
@@ -73,6 +74,7 @@ public class AccountReviewController {
 	@GetMapping("/tasks/{taskId}/items")
 	@PreAuthorize("hasAuthority('review:read')")
 	public PageResponse<ReviewItemResponse> items(@PathVariable UUID taskId,
+			@RequestParam(defaultValue = "active") @Pattern(regexp = "active|suspended") String category,
 			@RequestParam(required = false) @Pattern(
 					regexp = "pending|confirmed|confirmed_roles_edited") String outcome,
 			@RequestParam(required = false) @Size(max = 100) String department,
@@ -81,8 +83,8 @@ public class AccountReviewController {
 			@RequestParam(defaultValue = "0") @Min(0) int page,
 			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size, HttpServletRequest request) {
 		Page<ReviewItemResponse> result = this.service.items(taskId,
-				new ItemQuery(outcome == null ? null : AccountReviewOutcome.fromValue(outcome), department, role,
-						search),
+				new ItemQuery(AccountReviewCategory.fromValue(category),
+						outcome == null ? null : AccountReviewOutcome.fromValue(outcome), department, role, search),
 				AdminPageable.create(page, size, request.getParameterValues("sort"),
 						Set.of("username", "name", "department", "lastLoginAt", "decidedAt"), "username"));
 		return new PageResponse<>(result.getContent(), result.getNumber(), result.getSize(), result.getTotalElements(),
@@ -132,7 +134,7 @@ public class AccountReviewController {
 	@GetMapping("/tasks/{taskId}/populations/{population}")
 	@PreAuthorize("hasAuthority('review:read')")
 	public PageResponse<PopulationEntryResponse> population(@PathVariable UUID taskId,
-			@PathVariable @Pattern(regexp = "suspended|removed") String population,
+			@PathVariable @Pattern(regexp = "removed") String population,
 			@RequestParam(required = false) @Size(max = 100) String department,
 			@RequestParam(required = false) @Size(max = 100) String search,
 			@RequestParam(defaultValue = "0") @Min(0) int page,
@@ -150,7 +152,7 @@ public class AccountReviewController {
 	@PostMapping("/tasks/{taskId}/populations/{population}/confirmation")
 	@PreAuthorize("hasAuthority('review:confirm-population')")
 	public ResponseEntity<Void> confirmPopulation(@PathVariable UUID taskId,
-			@PathVariable @Pattern(regexp = "suspended|removed") String population,
+			@PathVariable @Pattern(regexp = "removed") String population,
 			@Valid @RequestBody(required = false) PopulationConfirmationRequest request) {
 		this.service.confirmPopulation(taskId, ReviewPopulation.fromValue(population),
 				request == null ? null : request.note());

@@ -13,11 +13,13 @@ import java.util.stream.Collectors;
 
 import com.example.commons.accounts.domain.AccountAuditEvent;
 import com.example.commons.accounts.domain.AccountAuditEventRepository;
+import com.example.commons.accounts.domain.AccountReviewCategory;
 import com.example.commons.accounts.domain.AccountReviewItem;
 import com.example.commons.accounts.domain.AccountReviewItemRepository;
 import com.example.commons.accounts.domain.AccountReviewOutcome;
 import com.example.commons.accounts.domain.ReviewPopulation;
 import com.example.commons.accounts.domain.Task;
+import com.example.commons.accounts.review.ReviewDtos.Suspension;
 
 /**
  * Assembles the report of an account review task from its items and populations, which
@@ -58,19 +60,32 @@ public class ReviewReportModels {
 			.findAllById(all.stream().map(AccountReviewItem::getRemovalAuditEventId).filter(Objects::nonNull).toList())
 			.stream()
 			.collect(Collectors.toMap(AccountAuditEvent::getId, event -> event));
+		return new ReviewReportModel(draft, task.isPrivilegedReview(), this.zone, task.getStartDate(),
+				task.getDueDate(), task.getDueDate(), task.getCompletedAt(), task.getCompletedBy(),
+				this.clock.instant(), generatedBy, section(all, AccountReviewCategory.ACTIVE, removals),
+				section(all, AccountReviewCategory.SUSPENDED, removals),
+				this.populations.section(task, ReviewPopulation.REMOVED));
+	}
+
+	private static ReviewReportModel.ItemSection section(List<AccountReviewItem> all, AccountReviewCategory category,
+			Map<Long, AccountAuditEvent> removals) {
 		List<ReviewReportModel.ItemRow> rows = new ArrayList<>();
 		Map<String, Tally> byDepartment = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
 		Tally total = new Tally();
 		List<AccountReviewItem> ordered = all.stream()
+			.filter(item -> item.getCategory() == category)
 			.sorted(Comparator.comparing(item -> ReviewItemView.of(item, null).name(), String.CASE_INSENSITIVE_ORDER))
 			.toList();
 		for (AccountReviewItem item : ordered) {
 			AccountAuditEvent removal = item.getRemovalAuditEventId() == null ? null
 					: removals.get(item.getRemovalAuditEventId());
 			ReviewItemView view = ReviewItemView.of(item, removal == null ? null : removal.getReasonCode());
+			Suspension suspension = view.suspension();
 			rows.add(new ReviewReportModel.ItemRow(rows.size() + 1, view.name(), item.getUsername(), view.department(),
-					String.join(", ", view.roles()), outcomeLabel(item.getOutcome()), view.remark(),
-					item.getDecidedAt()));
+					view.createdAt(), view.lastLoginAt(), String.join(", ", view.roles()),
+					suspension == null ? null : suspension.at(), suspension == null ? null : suspension.by(),
+					suspension == null ? null : suspension.reasonCode(), outcomeLabel(item.getOutcome()),
+					remark(view.remark(), suspension), item.getDecidedAt()));
 			byDepartment.computeIfAbsent(view.department() == null ? "(none)" : view.department(), key -> new Tally())
 				.add(item.getOutcome());
 			total.add(item.getOutcome());
@@ -79,11 +94,18 @@ public class ReviewReportModels {
 			.stream()
 			.map(entry -> entry.getValue().departmentRow(entry.getKey()))
 			.toList();
-		return new ReviewReportModel(draft, task.isPrivilegedReview(), this.zone, task.getStartDate(),
-				task.getDueDate(), task.getDueDate(), task.getCompletedAt(), task.getCompletedBy(),
-				this.clock.instant(), generatedBy, total.summary(), departments, rows,
-				this.populations.section(task, ReviewPopulation.SUSPENDED),
-				this.populations.section(task, ReviewPopulation.REMOVED));
+		return new ReviewReportModel.ItemSection(total.summary(), departments, rows);
+	}
+
+	/**
+	 * Returns the remark with the suspension note, if the account has one.
+	 */
+	private static String remark(String remark, Suspension suspension) {
+		if (suspension == null || suspension.note() == null || suspension.note().isBlank()) {
+			return remark;
+		}
+		String note = "Suspension note: " + suspension.note();
+		return remark == null ? note : remark + "; " + note;
 	}
 
 	private static String outcomeLabel(AccountReviewOutcome outcome) {

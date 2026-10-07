@@ -32,13 +32,15 @@ public interface AccountReviewItemRepository
 	List<AccountReviewItem> findAllWithAccount(@Param("taskId") Long taskId);
 
 	/**
-	 * Returns the number of undecided items whose account is active, the ones a task
-	 * still waits for. An undecided item whose account is suspended is not counted.
+	 * Returns the number of undecided items of a category whose account still has the
+	 * status of that category, the ones a task still waits for. An undecided item whose
+	 * account has changed status is not counted.
 	 */
-	@Query("select count(i) from AccountReviewItem i join i.user u where i.taskId = :taskId and i.outcome = com.example.commons.accounts.domain.AccountReviewOutcome.PENDING and u.status = com.example.commons.accounts.domain.AccountStatus.ACTIVE")
-	long countPendingWithActiveAccount(@Param("taskId") Long taskId);
+	@Query("select count(i) from AccountReviewItem i join i.user u where i.taskId = :taskId and i.category = :category and i.outcome = com.example.commons.accounts.domain.AccountReviewOutcome.PENDING and u.status = :status")
+	long countPending(@Param("taskId") Long taskId, @Param("category") AccountReviewCategory category,
+			@Param("status") AccountStatus status);
 
-	@Query("select i.outcome, count(i) from AccountReviewItem i where i.taskId = :taskId group by i.outcome")
-	List<Object[]> countByOutcome(@Param("taskId") Long taskId);
+	@Query("select i.category, i.outcome, count(i) from AccountReviewItem i where i.taskId = :taskId group by i.category, i.outcome")
+	List<Object[]> countByCategoryAndOutcome(@Param("taskId") Long taskId);
 
 }

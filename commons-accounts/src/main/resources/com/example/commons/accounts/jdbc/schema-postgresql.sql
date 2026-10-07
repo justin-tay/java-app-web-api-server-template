@@ -81,7 +81,7 @@ CREATE TABLE task (id BIGINT NOT NULL, public_id UUID NOT NULL, type VARCHAR(40)
 
 ALTER TABLE task ADD CONSTRAINT uk_task_type_start UNIQUE (type, start_date);
 
-CREATE TABLE account_review_item (id BIGINT NOT NULL, public_id UUID NOT NULL, task_id BIGINT NOT NULL, user_public_id UUID NOT NULL, username VARCHAR(100) NOT NULL, full_name VARCHAR(100) NOT NULL, outcome VARCHAR(30) NOT NULL, decided_at TIMESTAMP WITH TIME ZONE, decided_by VARCHAR(100), removal_audit_event_id BIGINT, department VARCHAR(100), last_login_at TIMESTAMP WITH TIME ZONE, last_activity_at TIMESTAMP WITH TIME ZONE, roles_before TEXT, roles_after TEXT, privileged_permissions TEXT, CONSTRAINT pk_account_review_item PRIMARY KEY (id), CONSTRAINT uk_account_review_item_public_id UNIQUE (public_id));
+CREATE TABLE account_review_item (id BIGINT NOT NULL, public_id UUID NOT NULL, task_id BIGINT NOT NULL, user_public_id UUID NOT NULL, username VARCHAR(100) NOT NULL, full_name VARCHAR(100) NOT NULL, category VARCHAR(20) NOT NULL, outcome VARCHAR(30) NOT NULL, decided_at TIMESTAMP WITH TIME ZONE, decided_by VARCHAR(100), removal_audit_event_id BIGINT, department VARCHAR(100), account_created_at TIMESTAMP WITH TIME ZONE, last_login_at TIMESTAMP WITH TIME ZONE, last_activity_at TIMESTAMP WITH TIME ZONE, suspended_at TIMESTAMP WITH TIME ZONE, suspended_by VARCHAR(100), suspension_reason_code VARCHAR(40), suspension_note VARCHAR(200), roles_before TEXT, roles_after TEXT, privileged_permissions TEXT, CONSTRAINT pk_account_review_item PRIMARY KEY (id), CONSTRAINT uk_account_review_item_public_id UNIQUE (public_id));
 
 ALTER TABLE account_review_item ADD CONSTRAINT fk_account_review_item_task FOREIGN KEY (task_id) REFERENCES task (id);
 
@@ -95,7 +95,7 @@ ALTER TABLE account_review_attestation ADD CONSTRAINT fk_account_review_attestat
 
 ALTER TABLE account_review_attestation ADD CONSTRAINT uk_account_review_attestation_task_population UNIQUE (task_id, population);
 
-CREATE TABLE account_review_population_entry (id BIGINT NOT NULL, public_id UUID NOT NULL, attestation_id BIGINT NOT NULL, user_public_id UUID NOT NULL, username VARCHAR(100) NOT NULL, full_name VARCHAR(100) NOT NULL, department VARCHAR(100), last_login_at TIMESTAMP WITH TIME ZONE, last_activity_at TIMESTAMP WITH TIME ZONE, occurred_at TIMESTAMP WITH TIME ZONE NOT NULL, actor VARCHAR(100), reason_code VARCHAR(40), reason_note VARCHAR(200), CONSTRAINT pk_account_review_population_entry PRIMARY KEY (id), CONSTRAINT uk_account_review_population_entry_public_id UNIQUE (public_id));
+CREATE TABLE account_review_population_entry (id BIGINT NOT NULL, public_id UUID NOT NULL, attestation_id BIGINT NOT NULL, user_public_id UUID NOT NULL, username VARCHAR(100) NOT NULL, full_name VARCHAR(100) NOT NULL, department VARCHAR(100), created_at TIMESTAMP WITH TIME ZONE, last_login_at TIMESTAMP WITH TIME ZONE, last_activity_at TIMESTAMP WITH TIME ZONE, occurred_at TIMESTAMP WITH TIME ZONE NOT NULL, actor VARCHAR(100), reason_code VARCHAR(40), reason_note VARCHAR(200), CONSTRAINT pk_account_review_population_entry PRIMARY KEY (id), CONSTRAINT uk_account_review_population_entry_public_id UNIQUE (public_id));
 
 ALTER TABLE account_review_population_entry ADD CONSTRAINT fk_account_review_population_entry_attestation FOREIGN KEY (attestation_id) REFERENCES account_review_attestation (id);
 

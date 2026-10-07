@@ -13,6 +13,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.commons.accounts.domain.AccountReviewCategory;
 import com.example.commons.accounts.domain.ReviewPopulation;
 import com.example.commons.accounts.domain.Task;
 import com.example.commons.accounts.domain.TaskRepository;
@@ -29,9 +30,9 @@ import com.example.commons.accounts.review.ReviewDtos.ReviewItemResponse;
  * review month for each. The privileged review has an item for each of the 2
  * administrators and the non-privileged review one for each of the 12 other active sample
  * accounts. The sample data's suspended and removed accounts are all non-privileged, so
- * the non-privileged review's two populations list the 3 suspended accounts and the 2
- * accounts the sample data records as already removed, and the privileged review's are
- * empty.
+ * the non-privileged review lists the 3 suspended accounts as items and its removed
+ * population the 2 accounts the sample data records as already removed, and the
+ * privileged review's are empty.
  */
 @SpringBootTest(properties = "spring.liquibase.contexts=dev,demo")
 @ActiveProfiles("test")
@@ -57,8 +58,8 @@ class DemoSampleDataReviewIntegrationTest {
 		LocalDate today = LocalDate.now();
 		assertThat(privileged.getStartDate()).isEqualTo(today.withDayOfMonth(1));
 		assertThat(nonPrivileged.getDueDate()).isEqualTo(today.withDayOfMonth(today.lengthOfMonth()));
-		assertThat(this.service.response(privileged).counts().pending()).isEqualTo(2L);
-		assertThat(this.service.response(nonPrivileged).counts().pending()).isEqualTo(12L);
+		assertThat(this.service.response(privileged).active().counts().pending()).isEqualTo(2L);
+		assertThat(this.service.response(nonPrivileged).active().counts().pending()).isEqualTo(12L);
 
 		assertThat(active(privileged)).extracting(ReviewItemResponse::username)
 			.containsExactlyInAnyOrder("admin", "multi-group-user");
@@ -72,20 +73,21 @@ class DemoSampleDataReviewIntegrationTest {
 				assertThat(row.roles()).containsExactly("Users");
 			});
 
-		assertThat(population(privileged, ReviewPopulation.SUSPENDED)).isEmpty();
+		assertThat(suspended(privileged)).isEmpty();
 		assertThat(population(privileged, ReviewPopulation.REMOVED)).isEmpty();
-		List<PopulationEntryResponse> suspended = population(nonPrivileged, ReviewPopulation.SUSPENDED);
-		assertThat(suspended).extracting(PopulationEntryResponse::username)
+		List<ReviewItemResponse> suspended = suspended(nonPrivileged);
+		assertThat(suspended).extracting(ReviewItemResponse::username)
 			.containsExactlyInAnyOrder("farid.hassan", "alicia.wong", "benjamin.teo");
-		assertThat(suspended).extracting(PopulationEntryResponse::lastActivityAt).doesNotContainNull();
+		assertThat(suspended).extracting(ReviewItemResponse::lastActivityAt).doesNotContainNull();
+		assertThat(this.service.response(nonPrivileged).suspended().counts().pending()).isEqualTo(3L);
 		assertThat(suspended).filteredOn(row -> row.username().equals("alicia.wong")).singleElement().satisfies(row -> {
-			assertThat(row.reasonCode()).isEqualTo("left_organisation");
-			assertThat(row.reasonNote()).startsWith("Resigned");
-			assertThat(row.occurredAt()).isNotNull();
+			assertThat(row.suspension().reasonCode()).isEqualTo("left_organisation");
+			assertThat(row.suspension().note()).startsWith("Resigned");
+			assertThat(row.suspension().at()).isNotNull();
 			assertThat(row.department()).isEqualTo("Finance");
-			assertThat(row.actor()).isEqualTo("admin");
+			assertThat(row.suspension().by()).isEqualTo("admin");
 		});
-		assertThat(suspended).extracting(PopulationEntryResponse::actor)
+		assertThat(suspended).extracting(row -> row.suspension().by())
 			.containsExactlyInAnyOrder("system", "admin", "admin");
 
 		List<PopulationEntryResponse> removed = population(nonPrivileged, ReviewPopulation.REMOVED);
@@ -101,7 +103,14 @@ class DemoSampleDataReviewIntegrationTest {
 
 	private List<ReviewItemResponse> active(Task task) {
 		return this.service
-			.items(task.getPublicId(), new ItemQuery(null, null, null, null),
+			.items(task.getPublicId(), new ItemQuery(AccountReviewCategory.ACTIVE, null, null, null, null),
+					PageRequest.of(0, 50, Sort.by("username")))
+			.getContent();
+	}
+
+	private List<ReviewItemResponse> suspended(Task task) {
+		return this.service
+			.items(task.getPublicId(), new ItemQuery(AccountReviewCategory.SUSPENDED, null, null, null, null),
 					PageRequest.of(0, 50, Sort.by("username")))
 			.getContent();
 	}

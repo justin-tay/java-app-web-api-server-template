@@ -20,8 +20,8 @@ import com.example.commons.accounts.review.ReviewDtos.PopulationEntryResponse;
 import com.example.commons.web.problem.ConflictException;
 
 /**
- * Tests the suspended and removed populations: live until confirmed, frozen after, and
- * the range of the removed population so no removal falls between two reviews.
+ * Tests the removed population: live until confirmed, frozen after, and the range of the
+ * removed population so no removal falls between two reviews.
  */
 @AccountsJpaTest
 class ReviewPopulationsTest extends AccountReviewTestSupport {
@@ -29,56 +29,30 @@ class ReviewPopulationsTest extends AccountReviewTestSupport {
 	private static final Instant LATER = Instant.parse("2026-10-20T10:00:00Z");
 
 	@Test
-	void theSuspendedPopulationIsLiveAndNamesWhoSuspendedEachAccount() {
-		user("rachel");
-		AppUser alice = user("alice", "Finance");
-		AppUser bob = user("bob");
-		authenticateAs("admin", Permissions.USER_REMOVE);
-		this.lifecycle.suspend(alice.getPublicId(), ReasonCode.LEFT_ORGANISATION, "resigned");
-		authenticateAsSystem();
-		this.lifecycle.suspend(bob.getPublicId(), ReasonCode.INACTIVE_ACCOUNT, null);
-		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
-		flushAndClear();
-
-		List<PopulationEntryResponse> suspended = population(task, ReviewPopulation.SUSPENDED);
-
-		assertThat(suspended).extracting(PopulationEntryResponse::username).containsExactly("alice", "bob");
-		assertThat(suspended.get(0).department()).isEqualTo("Finance");
-		assertThat(suspended.get(0).actor()).isEqualTo("admin");
-		assertThat(suspended.get(0).reasonCode()).isEqualTo("left_organisation");
-		assertThat(suspended.get(0).reasonNote()).isEqualTo("resigned");
-		assertThat(suspended.get(0).occurredAt()).isEqualTo(NOW);
-		assertThat(suspended.get(1).actor()).isEqualTo("system");
-		assertThat(suspended.get(1).reasonCode()).isEqualTo("inactive_account");
-	}
-
-	@Test
 	void confirmingFreezesTheListAndLaterChangesDoNotAlterIt() {
 		user("rachel");
 		AppUser alice = user("alice");
 		AppUser bob = user("bob");
 		authenticateAs("admin", Permissions.USER_REMOVE);
-		this.lifecycle.suspend(alice.getPublicId(), ReasonCode.OTHER, null);
+		this.lifecycle.remove(alice.getPublicId(), ReasonCode.OTHER, null);
 		Task task = this.service.createTask(Task.PRIVILEGED_ACCOUNT_REVIEW, OCTOBER);
 		flushAndClear();
 
 		authenticateAsReviewer("rachel");
-		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.SUSPENDED, "spot checked two accounts");
+		this.service.confirmPopulation(task.getPublicId(), ReviewPopulation.REMOVED, "spot checked one account");
 		flushAndClear();
 
 		authenticateAs("admin", Permissions.USER_REMOVE);
-		this.lifecycle.suspend(bob.getPublicId(), ReasonCode.OTHER, null);
-		this.lifecycle.unsuspend(alice.getPublicId());
+		this.lifecycle.remove(bob.getPublicId(), ReasonCode.OTHER, null);
 		flushAndClear();
 
-		assertThat(population(task, ReviewPopulation.SUSPENDED)).extracting(PopulationEntryResponse::username)
+		assertThat(population(task, ReviewPopulation.REMOVED)).extracting(PopulationEntryResponse::username)
 			.containsExactly("alice");
-		var status = this.populations.status(task).suspended();
+		var status = this.populations.status(task);
 		assertThat(status.confirmed()).isTrue();
 		assertThat(status.confirmedBy()).isEqualTo("rachel");
-		assertThat(status.note()).isEqualTo("spot checked two accounts");
+		assertThat(status.note()).isEqualTo("spot checked one account");
 		assertThat(status.count()).isEqualTo(1);
-		assertThat(this.populations.status(task).removed().confirmed()).isFalse();
 	}
 
 	@Test
@@ -108,6 +82,7 @@ class ReviewPopulationsTest extends AccountReviewTestSupport {
 		assertThat(removed).hasSize(1);
 		assertThat(removed.get(0).username()).isEqualTo("alice");
 		assertThat(removed.get(0).department()).isEqualTo("HR");
+		assertThat(removed.get(0).createdAt()).isNotNull();
 		assertThat(removed.get(0).actor()).isEqualTo("admin");
 		assertThat(removed.get(0).reasonCode()).isEqualTo("left_organisation");
 		assertThat(removed.get(0).reasonNote()).isEqualTo("resigned");
@@ -190,10 +165,6 @@ class ReviewPopulationsTest extends AccountReviewTestSupport {
 			.stream()
 			.sorted(Comparator.comparing(PopulationEntryResponse::username))
 			.toList();
-	}
-
-	private static void authenticateAsSystem() {
-		org.springframework.security.core.context.SecurityContextHolder.clearContext();
 	}
 
 }

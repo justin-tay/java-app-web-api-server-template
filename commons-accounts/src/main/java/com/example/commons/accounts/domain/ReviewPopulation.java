@@ -4,11 +4,11 @@ import java.util.Locale;
 
 /**
  * A set of accounts that a reviewer confirms as a whole instead of one by one: the
- * suspended accounts, or the accounts removed since the previous review.
+ * accounts removed since the previous review, which no longer exist to be decided on.
  */
 public enum ReviewPopulation {
 
-	SUSPENDED, REMOVED;
+	REMOVED;
 
 	/**
 	 * Returns the lower case value used in the API.

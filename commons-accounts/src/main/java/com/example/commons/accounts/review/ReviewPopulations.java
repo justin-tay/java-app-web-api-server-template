@@ -3,7 +3,6 @@ package com.example.commons.accounts.review;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -20,21 +19,17 @@ import com.example.commons.accounts.domain.AccountReviewAttestation;
 import com.example.commons.accounts.domain.AccountReviewAttestationRepository;
 import com.example.commons.accounts.domain.AccountReviewPopulationEntry;
 import com.example.commons.accounts.domain.AccountReviewPopulationEntryRepository;
-import com.example.commons.accounts.domain.AccountStatus;
-import com.example.commons.accounts.domain.AppUser;
-import com.example.commons.accounts.domain.AppUserRepository;
 import com.example.commons.accounts.domain.ReviewPopulation;
 import com.example.commons.accounts.domain.Task;
 import com.example.commons.accounts.domain.TaskRepository;
 import com.example.commons.accounts.review.ReviewDtos.PopulationEntryResponse;
 import com.example.commons.accounts.review.ReviewDtos.PopulationStatus;
-import com.example.commons.accounts.review.ReviewDtos.Populations;
 import com.example.commons.web.problem.ConflictException;
 
 /**
- * The suspended and removed populations of an account review task: live until a reviewer
- * confirms one, then frozen as it was when confirmed (see docs/adr/0038). It owns the
- * live queries, the frozen entries and the stored confirmation, so nothing else reads the
+ * The removed population of an account review task: live until a reviewer confirms it,
+ * then frozen as it was when confirmed (see docs/adr/0038 and docs/adr/0039). It owns the
+ * live query, the frozen entries and the stored confirmation, so nothing else reads the
  * confirmation tables. It runs inside the caller's transaction.
  */
 public class ReviewPopulations {
@@ -50,8 +45,6 @@ public class ReviewPopulations {
 
 	private final AccountReviewPopulationEntryRepository entries;
 
-	private final AppUserRepository users;
-
 	private final AccountAuditEventRepository auditEvents;
 
 	private final Clock clock;
@@ -59,12 +52,11 @@ public class ReviewPopulations {
 	private final ZoneId zone;
 
 	public ReviewPopulations(TaskRepository tasks, AccountReviewAttestationRepository attestations,
-			AccountReviewPopulationEntryRepository entries, AppUserRepository users,
-			AccountAuditEventRepository auditEvents, Clock clock, ZoneId zone) {
+			AccountReviewPopulationEntryRepository entries, AccountAuditEventRepository auditEvents, Clock clock,
+			ZoneId zone) {
 		this.tasks = tasks;
 		this.attestations = attestations;
 		this.entries = entries;
-		this.users = users;
 		this.auditEvents = auditEvents;
 		this.clock = clock;
 		this.zone = zone;
@@ -84,25 +76,21 @@ public class ReviewPopulations {
 			return this.entries.findByAttestationId(attestation.get().getId())
 				.stream()
 				.map(entry -> new PopulationEntryResponse(entry.getUserPublicId(), entry.getUsername(),
-						entry.getFullName(), entry.getDepartment(), entry.getLastLoginAt(), entry.getLastActivityAt(),
-						entry.getOccurredAt(), entry.getActor(), entry.getReasonCode(), entry.getReasonNote()))
+						entry.getFullName(), entry.getDepartment(), entry.getCreatedAt(), entry.getLastLoginAt(),
+						entry.getLastActivityAt(), entry.getOccurredAt(), entry.getActor(), entry.getReasonCode(),
+						entry.getReasonNote()))
 				.toList();
 		}
-		return population == ReviewPopulation.SUSPENDED ? liveSuspended(task) : liveRemoved(task);
+		return liveRemoved(task);
 	}
 
 	/**
-	 * Returns whether each population of a task has been confirmed, and by whom.
+	 * Returns whether the removed population of a task has been confirmed, and by whom.
 	 * @param task the task
-	 * @return the status of both populations
+	 * @return the status of the population
 	 */
-	public Populations status(Task task) {
-		Map<ReviewPopulation, AccountReviewAttestation> attested = new HashMap<>();
-		for (AccountReviewAttestation attestation : this.attestations.findByTaskId(task.getId())) {
-			attested.put(attestation.getPopulation(), attestation);
-		}
-		return new Populations(status(attested.get(ReviewPopulation.SUSPENDED)),
-				status(attested.get(ReviewPopulation.REMOVED)));
+	public PopulationStatus status(Task task) {
+		return status(this.attestations.findByTaskIdAndPopulation(task.getId(), ReviewPopulation.REMOVED).orElse(null));
 	}
 
 	/**
@@ -147,39 +135,10 @@ public class ReviewPopulations {
 				new AccountReviewAttestation(task.getId(), population, actor, this.clock.instant(), note, rows.size()));
 		this.entries.saveAll(rows.stream()
 			.map(row -> new AccountReviewPopulationEntry(attestation.getId(), row.userId(), row.username(), row.name(),
-					row.department(), row.lastLoginAt(), row.lastActivityAt(), row.occurredAt(), row.actor(),
-					row.reasonCode(), row.reasonNote()))
+					row.department(), row.createdAt(), row.lastLoginAt(), row.lastActivityAt(), row.occurredAt(),
+					row.actor(), row.reasonCode(), row.reasonNote()))
 			.toList());
 		return rows.size();
-	}
-
-	/**
-	 * Returns the suspended accounts of the task's class: those whose roles hold a
-	 * privileged permission for the privileged review, and the others for the
-	 * non-privileged one.
-	 */
-	private List<PopulationEntryResponse> liveSuspended(Task task) {
-		boolean privileged = task.isPrivilegedReview();
-		List<AppUser> suspended = this.users.findByStatus(AccountStatus.SUSPENDED)
-			.stream()
-			.filter(user -> user.isPrivileged() == privileged)
-			.toList();
-		Map<String, AccountAuditEvent> latest = new HashMap<>();
-		if (!suspended.isEmpty()) {
-			for (AccountAuditEvent event : this.auditEvents.findByActionAndTargetIdIn("suspend_user",
-					suspended.stream().map(user -> user.getPublicId().toString()).toList())) {
-				latest.merge(event.getTargetId(), event,
-						(first, second) -> second.getOccurredAt().isAfter(first.getOccurredAt()) ? second : first);
-			}
-		}
-		return suspended.stream()
-			.map(user -> new PopulationEntryResponse(user.getPublicId(), user.getUsername(), user.getName(),
-					user.getDepartment(), user.getLastLoginAt(), user.lastActivityAt(), user.getSuspendedAt(),
-					Optional.ofNullable(latest.get(user.getPublicId().toString()))
-						.map(AccountAuditEvent::getActor)
-						.orElse(null),
-					user.getSuspensionReasonCode(), user.getSuspensionNote()))
-			.toList();
 	}
 
 	/**
@@ -216,13 +175,14 @@ public class ReviewPopulations {
 
 	private static PopulationEntryResponse removedEntry(AccountAuditEvent event) {
 		Map<String, Object> details = details(event);
-		Object lastLogin = details.get("lastLoginAt");
-		Object lastActivity = details.get("lastActivityAt");
 		return new PopulationEntryResponse(UUID.fromString(event.getTargetId()), event.getTargetName(),
-				event.getTargetFullName(), (String) details.get("department"),
-				lastLogin == null ? null : Instant.parse(lastLogin.toString()),
-				lastActivity == null ? null : Instant.parse(lastActivity.toString()), event.getOccurredAt(),
+				event.getTargetFullName(), (String) details.get("department"), instant(details.get("createdAt")),
+				instant(details.get("lastLoginAt")), instant(details.get("lastActivityAt")), event.getOccurredAt(),
 				event.getActor(), event.getReasonCode(), event.getReasonNote());
+	}
+
+	private static Instant instant(Object value) {
+		return value == null ? null : Instant.parse(value.toString());
 	}
 
 	private static PopulationStatus status(AccountReviewAttestation attestation) {

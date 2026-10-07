@@ -81,7 +81,7 @@ CREATE TABLE task (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, type
 
 ALTER TABLE task ADD CONSTRAINT uk_task_type_start UNIQUE (type, start_date);
 
-CREATE TABLE account_review_item (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, task_id bigint NOT NULL, user_public_id uniqueidentifier NOT NULL, username varchar(100) NOT NULL, full_name varchar(100) NOT NULL, outcome varchar(30) NOT NULL, decided_at DATETIMEOFFSET, decided_by varchar(100), removal_audit_event_id bigint, department varchar(100), last_login_at DATETIMEOFFSET, last_activity_at DATETIMEOFFSET, roles_before varchar(MAX), roles_after varchar(MAX), privileged_permissions varchar(MAX), CONSTRAINT pk_account_review_item PRIMARY KEY (id), CONSTRAINT uk_account_review_item_public_id UNIQUE (public_id));
+CREATE TABLE account_review_item (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, task_id bigint NOT NULL, user_public_id uniqueidentifier NOT NULL, username varchar(100) NOT NULL, full_name varchar(100) NOT NULL, category varchar(20) NOT NULL, outcome varchar(30) NOT NULL, decided_at DATETIMEOFFSET, decided_by varchar(100), removal_audit_event_id bigint, department varchar(100), account_created_at DATETIMEOFFSET, last_login_at DATETIMEOFFSET, last_activity_at DATETIMEOFFSET, suspended_at DATETIMEOFFSET, suspended_by varchar(100), suspension_reason_code varchar(40), suspension_note varchar(200), roles_before varchar(MAX), roles_after varchar(MAX), privileged_permissions varchar(MAX), CONSTRAINT pk_account_review_item PRIMARY KEY (id), CONSTRAINT uk_account_review_item_public_id UNIQUE (public_id));
 
 ALTER TABLE account_review_item ADD CONSTRAINT fk_account_review_item_task FOREIGN KEY (task_id) REFERENCES task (id);
 
@@ -95,7 +95,7 @@ ALTER TABLE account_review_attestation ADD CONSTRAINT fk_account_review_attestat
 
 ALTER TABLE account_review_attestation ADD CONSTRAINT uk_account_review_attestation_task_population UNIQUE (task_id, population);
 
-CREATE TABLE account_review_population_entry (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, attestation_id bigint NOT NULL, user_public_id uniqueidentifier NOT NULL, username varchar(100) NOT NULL, full_name varchar(100) NOT NULL, department varchar(100), last_login_at DATETIMEOFFSET, last_activity_at DATETIMEOFFSET, occurred_at DATETIMEOFFSET NOT NULL, actor varchar(100), reason_code varchar(40), reason_note varchar(200), CONSTRAINT pk_account_review_population_entry PRIMARY KEY (id), CONSTRAINT uk_account_review_population_entry_public_id UNIQUE (public_id));
+CREATE TABLE account_review_population_entry (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, attestation_id bigint NOT NULL, user_public_id uniqueidentifier NOT NULL, username varchar(100) NOT NULL, full_name varchar(100) NOT NULL, department varchar(100), created_at DATETIMEOFFSET, last_login_at DATETIMEOFFSET, last_activity_at DATETIMEOFFSET, occurred_at DATETIMEOFFSET NOT NULL, actor varchar(100), reason_code varchar(40), reason_note varchar(200), CONSTRAINT pk_account_review_population_entry PRIMARY KEY (id), CONSTRAINT uk_account_review_population_entry_public_id UNIQUE (public_id));
 
 ALTER TABLE account_review_population_entry ADD CONSTRAINT fk_account_review_population_entry_attestation FOREIGN KEY (attestation_id) REFERENCES account_review_attestation (id);
 
