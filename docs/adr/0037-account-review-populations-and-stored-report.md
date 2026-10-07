@@ -6,7 +6,8 @@ Accepted. Partly supersedes [ADR 0032](0032-periodic-account-review.md): the win
 items, decisions, categories and completion decisions. Partly superseded by
 [ADR 0038](0038-role-permission-model-and-account-review-classes.md): the review is split into
 a privileged and a non-privileged review, each covering the accounts of its own class
-in the same three parts, and a reviewer edits roles by removing them.
+in the same three parts, and a reviewer edits roles by removing them. Partly superseded by
+[ADR 0039](0039-review-suspended-accounts-one-by-one.md): the suspended accounts are items.
 
 ## Context
 

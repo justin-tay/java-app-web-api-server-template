@@ -48,9 +48,9 @@ for the front end, which is built separately; see [Screens](#screens).
 - **Review period:** The review month itself, from its first to its last day.
 - **Review task:** The obligation to review the account population in one review
   period. A task of type `account_review`.
-- **Review item:** One active account's entry in a review task.
+- **Review item:** One active or suspended account's entry in a review task, in its category.
 - **Review outcome:** `pending`, `confirmed`, `confirmed_groups_edited` or `removed`.
-- **Population:** The set of suspended accounts, or the set of removed accounts, that
+- **Population:** The set of removed accounts since the previous review, which
   a reviewer confirms as a whole.
 - **Population confirmation:** The record that a reviewer reviewed a population,
   with the list as it was at that moment.
@@ -197,10 +197,10 @@ month, so that the review happens regularly.
    January, April, July and October, N=6 gives January and July, and N=12 gives
    January.
 3. WHEN a task is created, THEN the system SHALL create one review item for every
-   account whose status is `active` at that moment, with outcome `pending`.
-4. WHEN an account is created after the task, or is suspended when the task is
-   created, THEN it SHALL NOT be given an item; a suspended account is reviewed
-   through the suspended population (R11).
+   account whose status is `active` or `suspended` at that moment, in the category of that status, with outcome `pending`.
+4. WHEN an account is created after the task, or changes status after the task is
+   created, THEN it SHALL NOT be given an item; it is reviewed in the next task that
+   finds it in that status.
 5. WHEN the next review month starts and the previous task is still open, THEN the
    system SHALL create the new task anyway. The previous task stays open, workable
    and overdue, and the two tasks SHALL NOT share any state.
@@ -223,7 +223,7 @@ department, groups and last login, so that I can judge whether it and its access
 are still correct.
 
 1. WHEN a reviewer opens a task, THEN the system SHALL show the active accounts, the
-   suspended population and the removed population as three categories. A pending
+   suspended accounts and the removed population as three categories. A pending
    item shows live account data, not data frozen when the task was created.
 2. WHEN the active category is shown, THEN each row SHALL show the username, name,
    department, groups, last login time, outcome, a remark and the `ownAccount` flag.
@@ -359,16 +359,18 @@ I want an upgrade that does not delete anyone.
 
 `test-user` is renamed `user`.
 
-### R11: Suspended and removed populations
+### R11: Removed population
 
-**User story:** As an account reviewer, I want to review the suspended and removed
-accounts and confirm them as a whole, so that there is evidence that suspension and
+**User story:** As an account reviewer, I want to review the removed accounts
+and confirm them as a whole, so that there is evidence that suspension and
 removal are working as intended.
 
-1. WHEN the suspended population is shown for an open task, THEN it SHALL list every
-   account that is `suspended` now, with the username, name, department, last login
-   time, suspension time, reason code and note, and the actor who suspended it
-   (`system` or a username), taken live until confirmed.
+1. WHEN the suspended category is shown for an open task, THEN each row SHALL show the
+   facts of an active row and the account's creation time, and also the suspension time,
+   reason code and note, and the actor who suspended it (`system` or a username), as
+   they were when the task was created. A reviewer SHALL decide a suspended account as
+   an active one: confirm it, remove some of its roles, or remove it. A reviewer SHALL
+   NOT unsuspend it (ADR 0039).
 2. WHEN the removed population is shown for an open task, THEN it SHALL list every
    account removed since the previous task's removed population was confirmed, or
    since the previous task's start date if it was not, or every recorded removal for
@@ -386,18 +388,18 @@ removal are working as intended.
 6. WHEN a population is listed after confirmation, THEN the system SHALL return the
    frozen entries, with the same filters, sorting and pagination as the live list,
    and later suspensions, unsuspensions and removals SHALL NOT change them.
-7. WHEN a task is completed, THEN both populations SHALL be confirmed.
+7. WHEN a task is completed, THEN the removed population SHALL be confirmed.
 
 ### R12: Completion and report
 
 **User story:** As an auditor, I want the review to complete when the work is done
 and a report kept that is not regenerated from changing data.
 
-1. WHEN no item in the active category is `pending` and both populations are
+1. WHEN no item in the active or suspended category is `pending` and the removed population is
    confirmed, THEN the system SHALL complete the task: set it `completed`, record the
    completion time and the user whose action made it true, generate the report,
-   store it, and append an audit event with its hash. A task with no active items is
-   complete once both populations are confirmed.
+   store it, and append an audit event with its hash. A task with no active or suspended items is
+   complete once the removed population is confirmed.
 2. WHEN a reviewer action can make the condition in R12.1 true, THEN the system SHALL
    evaluate it in the same transaction, so that completing and storing the report
    succeed or fail together with the action.
@@ -482,8 +484,9 @@ three tabs.
   Outcome chips are `Pending`, `Confirmed`, `Confirmed (Groups Edited)` and
   `Removed`. A decided row has no actions. A row with `ownAccount` has its actions
   disabled with an explanation. Filters: search, department, group, last login.
-- *Suspended accounts* and *Removed accounts.* A read-only list (R11) and a Confirm
-  button with an optional note. After confirmation the list is the frozen one and
+- *Suspended accounts.* The same table and actions as the active accounts, with the
+  suspension shown (R11.1).
+- *Removed accounts.* A read-only list (R11) and a Confirm button with an optional note. After confirmation the list is the frozen one and
   shows who confirmed it and when.
 
 When the task is completed, the screen is read-only and offers the report downloads

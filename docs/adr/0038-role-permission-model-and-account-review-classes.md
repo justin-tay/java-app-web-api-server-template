@@ -7,7 +7,9 @@ and partly supersedes
 [ADR 0005](0005-keycloak-authentication-local-authorisation.md) (the user, group and role
 model), [ADR 0032](0032-periodic-account-review.md) and
 [ADR 0037](0037-account-review-populations-and-stored-report.md) (one review interval and one
-population of items).
+population of items). Partly superseded by
+[ADR 0039](0039-review-suspended-accounts-one-by-one.md): the suspended accounts are items, not a
+population.
 
 ## Context
 
@@ -140,7 +142,7 @@ The review splits in two, each with its own tasks, items, populations, report an
 * **Non-privileged Account Review** covers the other accounts in the same three parts.
 
 The two reviews differ only in which accounts they cover. Each has the active accounts as
-items and the suspended and removed accounts as two populations, which a reviewer confirms
+items, the suspended accounts as items too (see ADR 0039), and the removed accounts as a population, which a reviewer confirms
 once each, even when a population is empty. The class of a suspended account is computed from
 the roles it holds now, and the class of a removed account is the `privileged` flag recorded
 with its removal, a removal that records none counting as not privileged. Each review's

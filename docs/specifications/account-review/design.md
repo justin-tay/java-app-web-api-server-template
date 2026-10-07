@@ -11,7 +11,7 @@
 The change adds a lifecycle status to `app_user`, an inactivity job that suspends
 and removes accounts, DB-backed settings, a business audit table, and a generic
 task table with an account review as its first type. The review confirms each active
-account and its groups, confirms the suspended and removed populations, completes by
+account and its groups, whether active or suspended, confirms the removed population, completes by
 itself, and stores a PDF report as audit evidence. Everything lives in
 `commons-accounts` so adopters get it with the accounts module; the sample
 application only seeds fixtures and turns the automation off for development.
@@ -90,14 +90,14 @@ data (the accounts as they were then), and an overdue task is itself a finding.
 
 ### Review shape
 
-An item exists for each account that is `active` when the task is created. A reviewer
+An item exists for each account that is `active` or `suspended` when the task is created, in the item's `category`. A reviewer
 confirms the account and its groups together, edits the groups, or removes it. The
-suspended and removed accounts are confirmed as two populations, not per row. The
-reviewer can neither suspend nor unsuspend from a task. See ADR 0037.
+removed accounts are confirmed as a population, not per row. The
+reviewer can neither suspend nor unsuspend from a task. See ADR 0037 and ADR 0039.
 
 ### Completion and report
 
-The task completes when no active item is pending and both populations are confirmed.
+The task completes when no active or suspended item is pending and the removed population is confirmed.
 There is no explicit complete call. Completing stores a PDF report once, and that
 stored file is the evidence; the other formats are regenerated from frozen records.
 
@@ -111,10 +111,10 @@ element.
 | Element | Frozen when | Source | Held in | After the account is changed or removed |
 |---|---|---|---|---|
 | Task type, start and due date | task creation | calendar and `review.intervalMonths` at that moment | `task` | unchanged; a later interval change does not alter it |
-| Item identity: user public ID, username, name | task creation | `app_user` | `account_review_item` | unchanged |
-| Item evidence: department, last login, groups before, groups after, outcome, decider and time | the item is decided, or removed outside the review | `app_user`, group memberships, the decision | `account_review_item` | unchanged; group names are text, so a rename or delete does not alter them |
+| Item identity: user public ID, username, name, category, and for a suspended account the suspension (time, actor, reason code, note) | task creation | `app_user`, the latest `suspend_user` audit event | `account_review_item` | unchanged |
+| Item evidence: department, creation time, last login, groups before, groups after, outcome, decider and time | the item is decided, or removed outside the review | `app_user`, group memberships, the decision | `account_review_item` | unchanged; group names are text, so a rename or delete does not alter them |
 | Removal reason, note and actor of an item | the removal | the removal's audit event | `account_review_item.removal_audit_event_id` points to it | the audit event is the single record, never copied |
-| Suspended and removed population entries | the population is confirmed | live suspended accounts, or removal audit events | `account_review_population_entry` | unchanged |
+| Removed population entries | the population is confirmed | removal audit events | `account_review_population_entry` | unchanged |
 | Population confirmation: reviewer, time, note, count | the population is confirmed | the request | `account_review_attestation` | unchanged |
 | Completion time and completer | the task completes | the completing action or the job | `task` | unchanged |
 | Report: PDF bytes, hash, size, time, generator | the task completes | frozen records above | `account_review_report` | never written again |
@@ -129,17 +129,20 @@ Rules that follow from the table:
    before the account is deleted. For a group edit, `groups_before` is read before the
    change and `groups_after` after it.
 3. **A decided item never changes.** Later account changes, including removal, do not
-   alter it (R13.7). A confirmed account that is later suspended or removed stays in the
-   active category of this task with its decided outcome, and appears in the next
-   suspended or removed population.
+   alter it (R13.7). A confirmed account that is later suspended or removed stays in its
+   category of this task with its decided outcome. A removed account appears in the next
+   removed population, and a suspended account is reviewed in the next task that finds it
+   suspended.
 4. **Removal outside the review.** When an administrator or the system removes an
    account with a pending item, the item is set `removed` in the removal's transaction
    with the remover as decider, the evidence frozen, and `removal_audit_event_id` set.
-   A pending item whose account is only suspended stays pending and is excluded from
-   the completion test while suspended (R6.9).
-5. **Populations are live until confirmed, then frozen.** Before confirmation the
-   suspended list is the live suspended accounts and the removed list comes from audit
-   events, so both can still change. Confirming copies the entries and makes the
+   A pending item whose account no longer has the status of the item's category (an
+   active account that is suspended, or a suspended account that is unsuspended) stays
+   pending and is excluded from its list and from the completion test while the status
+   differs (R6.9).
+5. **The removed population is live until confirmed, then frozen.** Before confirmation the
+   list comes from audit
+   events, so it can still change. Confirming copies the entries and makes the
    population read-only. A population confirmed once is never reconfirmed.
 6. **No gaps between tasks.** The removed population of a task starts at the
    confirmation time of the previous task's removed population, or the previous task's
@@ -271,7 +274,7 @@ same transaction.
 | `AccountAuditLogger` | Appends the row and writes the ECS event |
 | `AccountReviewScheduler` | `@Scheduled` job; decides whether this is a review month; creates the task and items; completes tasks that satisfy R12.1 because of outside changes |
 | `AccountReviewService` | Lists tasks and items, applies decisions and group edits, completes tasks |
-| `ReviewPopulations` | The suspended and removed populations: live until confirmed, then the frozen list; confirms a population once |
+| `ReviewPopulations` | The removed population: live until confirmed, then the frozen list; confirms it once |
 | `ReviewReportModels` | Assembles the report of a task from its items and populations, with the tally by outcome and department |
 | `ReviewReportRenderer` | Interface: renders the report model to PDF, xlsx or csv. The default, `DefaultReviewReportRenderer`, uses OpenPDF 2.0.x for PDF (the last line that runs on Java 17), Apache POI streaming workbooks for xlsx and plain writing for csv |
 | `ReportDocument` | In `com.example.commons.accounts.report`. Reusable PDF base on OpenPDF, using the built-in Helvetica font, so text outside Western European characters is not drawn and an application that needs it supplies its own renderer: page setup, fonts and colours, a title block with key-value metadata, a footer with page numbers and the draft marker, and helpers for summary tiles and tables. `AccountReviewReport` composes sections from it, and later reports can reuse it |
@@ -294,10 +297,11 @@ never recomputed.
 
 ### Category query
 
-- **Active:** the decided items that are not `REMOVED`, as frozen, and the pending items
-  whose account exists with status `ACTIVE`, as live.
-- **Suspended:** the live suspended accounts, or the frozen entries once confirmed.
-  The actor comes from the latest `suspend_user` audit event of the account.
+- **Active:** the items of category `ACTIVE` that are decided and not `REMOVED`, as
+  frozen, and the pending ones whose account exists with status `ACTIVE`, as live.
+- **Suspended:** the same for the items of category `SUSPENDED`, whose pending items
+  need an account with status `SUSPENDED`. The suspension is copied to the item at task
+  creation, and its actor comes from the latest `suspend_user` audit event of the account.
 - **Removed:** audit events with `action = delete_user` since the lower bound in
   Frozen data rule 6, or the frozen entries once confirmed.
 
@@ -334,10 +338,10 @@ and need none.
 | `/account-reviews/groups` | `ACCOUNT_REVIEWER` | `GET` the groups the caller may assign |
 | `/account-reviews/tasks/{taskId}/departments` | `ACCOUNT_REVIEWER` | `GET` the distinct departments shown in the task |
 | `/account-reviews/tasks/{taskId}` | `ACCOUNT_REVIEWER` | `GET` |
-| `/account-reviews/tasks/{taskId}/items` | `ACCOUNT_REVIEWER` | `GET` list |
+| `/account-reviews/tasks/{taskId}/items` | `ACCOUNT_REVIEWER` | `GET` list; `category` is `active` (default) or `suspended` |
 | `/account-reviews/tasks/{taskId}/decisions` | `ACCOUNT_REVIEWER` | `POST` confirm or remove, in a batch |
 | `/account-reviews/tasks/{taskId}/items/{itemId}/groups` | `ACCOUNT_REVIEWER` | `PUT` the full set of group IDs |
-| `/account-reviews/tasks/{taskId}/populations/{population}` | `ACCOUNT_REVIEWER` | `GET` list; `population` is `suspended` or `removed` |
+| `/account-reviews/tasks/{taskId}/populations/{population}` | `ACCOUNT_REVIEWER` | `GET` list; `population` is `removed` |
 | `/account-reviews/tasks/{taskId}/populations/{population}/confirmation` | `ACCOUNT_REVIEWER` | `POST` with an optional `note` |
 | `/account-reviews/tasks/{taskId}/report` | `ACCOUNT_REVIEWER` | `GET` with `format` of `pdf`, `xlsx` or `csv` |
 
@@ -350,10 +354,10 @@ offered.
 |---|---|
 | `SuspendRequest`, `RemoveRequest` | `reasonCode` (enum), optional `note` (max 200) |
 | `Settings` | `inactivity.enabled`, `inactivity.suspendAfterDays`, `inactivity.removeAfterDays`, `review.enabled`, `review.intervalMonths` |
-| `TaskSummaryItem` | `id`, `type`, `status`, `startDate`, `dueDate`, `completedAt`, `completedBy`, `overdue`, `counts{pending, confirmed, confirmedGroupsEdited, removed}`, `progress{reviewed, total}`, `populations{suspended, removed}` each `{confirmed, confirmedBy, confirmedAt, note, count}`, `reportAvailable` |
+| `TaskSummaryItem` | `id`, `type`, `status`, `startDate`, `dueDate`, `completedAt`, `completedBy`, `overdue`, `active` and `suspended` each `{counts{pending, confirmed, confirmedGroupsEdited, removed}, progress{reviewed, total}}`, `removed` as `{confirmed, confirmedBy, confirmedAt, note, count}`, `reportAvailable` |
 | `TaskSummary` | `openCount`, `earliestDueDate`, `overdueCount` |
-| `ReviewItem` | `id`, `userId`, `username`, `name`, `department`, `groups`, `groupsBefore`, `lastLoginAt`, `outcome`, `remark`, `ownAccount`, `decidedBy`, `decidedAt`; live while `pending`, frozen once decided |
-| `PopulationEntry` | `userId`, `username`, `name`, `department`, `lastLoginAt`, `occurredAt`, `actor`, `reasonCode`, `reasonNote` |
+| `ReviewItem` | `id`, `userId`, `username`, `name`, `department`, `createdAt`, `groups`, `groupsBefore`, `lastLoginAt`, `suspension{at, by, reasonCode, note}` (null for an active account), `outcome`, `remark`, `ownAccount`, `decidedBy`, `decidedAt`; live while `pending`, frozen once decided |
+| `PopulationEntry` | `userId`, `username`, `name`, `department`, `createdAt`, `lastLoginAt`, `occurredAt`, `actor`, `reasonCode`, `reasonNote` |
 | `PopulationConfirmation` | `population`, `confirmedBy`, `confirmedAt`, `note`, `count` |
 | `DecisionRequest` | `itemIds` (1 to 100), `decision` (`confirm` or `remove`), `reasonCode` and `note` required for `remove` only |
 | `GroupsRequest` | `groupIds`, the full set the account should hold |
