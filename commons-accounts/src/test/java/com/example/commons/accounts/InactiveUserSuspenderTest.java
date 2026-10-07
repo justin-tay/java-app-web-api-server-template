@@ -16,7 +16,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import com.example.commons.accounts.admin.AccountAuditLogger;
+import com.example.commons.accounts.audit.AccountAudit;
+import com.example.commons.audit.AuditTrail;
 import com.example.commons.accounts.admin.AccountLifecycleService;
 import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppSettingRepository;
@@ -34,6 +35,9 @@ import com.example.commons.security.session.SessionRevocationService;
 class InactiveUserSuspenderTest {
 
 	private static final Instant NOW = Instant.parse("2026-06-01T00:00:00Z");
+
+	@Autowired
+	private AuditTrail auditTrail;
 
 	@Autowired
 	private TestEntityManager entityManager;
@@ -123,11 +127,12 @@ class InactiveUserSuspenderTest {
 	}
 
 	private InactiveUserSuspender suspender() {
-		AccountAuditLogger auditLogger = new AccountAuditLogger();
+		AccountAudit audit = new AccountAudit(this.auditTrail);
 		Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
 		AccountLifecycleService lifecycle = new AccountLifecycleService(this.users, this.sessionRevocationService,
-				auditLogger, null, null, clock);
-		return new InactiveUserSuspender(this.users, lifecycle, new SettingsService(this.settings, auditLogger), clock);
+				audit, null, null, clock);
+		return new InactiveUserSuspender(this.users, lifecycle, new SettingsService(this.settings, this.auditTrail),
+				clock);
 	}
 
 	private static Instant days(int daysAgo) {

@@ -2,10 +2,11 @@ package com.example.commons.accounts.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.tuple;
 
 import java.time.Clock;
-import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.function.Supplier;
@@ -18,7 +19,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.TestingAuthenticationToken;
@@ -32,8 +32,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.example.commons.accounts.AccountsJpaTest;
 import com.example.commons.accounts.Permissions;
 import com.example.commons.accounts.admin.AdministrationServiceTest.InMemorySessionRepository;
-import com.example.commons.accounts.domain.AccountAuditEvent;
-import com.example.commons.accounts.domain.AccountAuditEventRepository;
+import com.example.commons.accounts.audit.AccountAudit;
 import com.example.commons.accounts.domain.AppPermission;
 import com.example.commons.accounts.domain.AppPermissionRepository;
 import com.example.commons.accounts.domain.AppRole;
@@ -41,15 +40,19 @@ import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
 import com.example.commons.accounts.domain.ReasonCode;
+import com.example.commons.audit.AuditOutcome;
+import com.example.commons.audit.AuditQuery;
+import com.example.commons.audit.AuditRecord;
+import com.example.commons.audit.AuditTrail;
 import com.example.commons.security.session.SessionLifecycleAuditLogger;
 import com.example.commons.security.session.SessionRevocationService;
 import com.example.commons.web.problem.ConflictException;
 
 /**
- * Tests the administration audit events and the created-by and updated-by actors against
- * the real schema. Each change runs in a transaction that really commits, because a
- * successful change is only logged after its commit; the test's own transaction is
- * therefore disabled and the tables are emptied after each test.
+ * Tests the account audit events, as audit trail rows and log events, and the created-by
+ * and updated-by actors against the real schema. Each change runs in a transaction that
+ * really commits, because a successful change is only logged after its commit; the test's
+ * own transaction is therefore disabled and the tables are emptied after each test.
  */
 @AccountsJpaTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -65,7 +68,7 @@ class AccountAuditLoggingTest {
 	private AppPermissionRepository permissions;
 
 	@Autowired
-	private AccountAuditEventRepository auditEvents;
+	private AuditTrail auditTrail;
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
@@ -73,7 +76,7 @@ class AccountAuditLoggingTest {
 	@Autowired
 	private PlatformTransactionManager transactionManager;
 
-	private final Logger logger = (Logger) LoggerFactory.getLogger(AccountAuditLogger.class);
+	private final Logger logger = (Logger) LoggerFactory.getLogger(AuditTrail.class);
 
 	private final ListAppender<ILoggingEvent> logEvents = new ListAppender<>();
 
@@ -96,10 +99,9 @@ class AccountAuditLoggingTest {
 		this.transaction = new TransactionTemplate(this.transactionManager);
 		SessionRevocationService revocation = new SessionRevocationService(new SessionRegistryImpl(),
 				new InMemorySessionRepository(), new SessionLifecycleAuditLogger());
-		AccountAuditLogger auditLogger = new AccountAuditLogger(this.auditEvents, Clock.systemUTC());
-		this.service = new AdministrationService(this.users, this.roles, this.permissions, revocation, auditLogger);
-		this.lifecycle = new AccountLifecycleService(this.users, revocation, auditLogger, null, null,
-				Clock.systemUTC());
+		AccountAudit audit = new AccountAudit(this.auditTrail);
+		this.service = new AdministrationService(this.users, this.roles, this.permissions, revocation, audit);
+		this.lifecycle = new AccountLifecycleService(this.users, revocation, audit, null, null, Clock.systemUTC());
 		inTransaction(() -> {
 			AppRole managers = new AppRole("Managers");
 			managers.getPermissions().add(permission(Permissions.USER_READ));
@@ -130,7 +132,7 @@ class AccountAuditLoggingTest {
 		this.logEvents.stop();
 		SecurityContextHolder.clearContext();
 		inTransaction(() -> {
-			this.jdbcTemplate.update("DELETE FROM account_audit_event");
+			this.jdbcTemplate.update("DELETE FROM audit_event");
 			this.users.deleteAll();
 			this.roles.deleteAll();
 			return null;
@@ -215,8 +217,8 @@ class AccountAuditLoggingTest {
 		assertThat(logged()).containsOnlyOnce("event.action=\"update_user\"")
 			.contains("user.target.privileged=\"false\"")
 			.contains("user.changes.privileged=\"true\"");
-		assertThat(this.auditEvents.findAll(Specification.unrestricted())).singleElement()
-			.satisfies(event -> assertThat(event.getDetails()).contains("\"privileged\":true"));
+		assertThat(events()).singleElement()
+			.satisfies(event -> assertThat(event.details(Map.class)).containsEntry("privileged", true));
 	}
 
 	@Test
@@ -273,20 +275,18 @@ class AccountAuditLoggingTest {
 			return null;
 		});
 
-		List<AccountAuditEvent> events = this.auditEvents.findAll(Specification.unrestricted())
-			.stream()
-			.sorted(Comparator.comparing(AccountAuditEvent::getOccurredAt))
-			.toList();
-		assertThat(events).extracting(AccountAuditEvent::getAction)
+		List<AuditRecord> events = events();
+		assertThat(events).extracting(AuditRecord::action)
 			.containsExactly("create_user", "suspend_user", "delete_user");
-		assertThat(events).extracting(AccountAuditEvent::getActor).containsOnly("admin");
-		assertThat(events).extracting(AccountAuditEvent::getTargetType).containsOnly("USER");
-		AccountAuditEvent removal = events.get(2);
-		assertThat(removal.getTargetName()).isEqualTo("test-user");
-		assertThat(removal.getTargetFullName()).isEqualTo("Test User");
-		assertThat(removal.getReasonCode()).isEqualTo("left_organisation");
-		assertThat(events.get(1).getReasonNote()).isEqualTo("see ticket");
-		assertThat(events).extracting(AccountAuditEvent::getDetails).noneMatch(details -> details.contains("@"));
+		assertThat(events).extracting(AuditRecord::actor).containsOnly("admin");
+		assertThat(events).extracting(event -> event.target().type()).containsOnly("USER");
+		AuditRecord removal = events.get(2);
+		assertThat(removal.target().name()).isEqualTo("test-user");
+		assertThat(removal.target().fullName()).isEqualTo("Test User");
+		assertThat(removal.reasonCode()).isEqualTo("left_organisation");
+		assertThat(events.get(1).reasonNote()).isEqualTo("see ticket");
+		assertThat(events).extracting(event -> String.valueOf(event.details(Object.class)))
+			.noneMatch(details -> details.contains("@"));
 	}
 
 	@Test
@@ -297,7 +297,7 @@ class AccountAuditLoggingTest {
 			status.setRollbackOnly();
 		});
 
-		assertThat(this.auditEvents.findAll(Specification.unrestricted())).isEmpty();
+		assertThat(events()).isEmpty();
 	}
 
 	@Test
@@ -345,6 +345,34 @@ class AccountAuditLoggingTest {
 			.contains("event.outcome=\"failure\"")
 			.doesNotContain("event.outcome=\"success\"")
 			.doesNotContain("INFO");
+		assertThat(events()).extracting(AuditRecord::action, AuditRecord::outcome, AuditRecord::reasonCode)
+			.containsExactly(tuple("create_user", AuditOutcome.FAILURE, "username_exists"),
+					tuple("update_role", AuditOutcome.FAILURE, "name_exists"),
+					tuple("delete_role", AuditOutcome.FAILURE, "role_has_users"),
+					tuple("update_role", AuditOutcome.FAILURE, "exceeds_actor_privileges"));
+	}
+
+	@Test
+	void recordsARefusalOfAChangeToTheActorsOwnAccount() {
+		SecurityContextHolder.getContext()
+			.setAuthentication(new TestingAuthenticationToken("test-user", null, Permissions.USER_SUSPEND));
+
+		assertThatExceptionOfType(AccessDeniedException.class).isThrownBy(() -> inTransaction(
+				() -> this.lifecycle.suspend(this.testUser.getPublicId(), ReasonCode.POLICY_VIOLATION, null)));
+
+		assertThat(events()).singleElement().satisfies(event -> {
+			assertThat(event.action()).isEqualTo("suspend_user");
+			assertThat(event.outcome()).isEqualTo(AuditOutcome.FAILURE);
+			assertThat(event.reasonCode()).isEqualTo("self_modification");
+		});
+		assertThat(logged()).contains("WARN").contains("event.action=\"suspend_user\"");
+	}
+
+	/**
+	 * Returns every audit trail event, refusals included, oldest first.
+	 */
+	private List<AuditRecord> events() {
+		return this.auditTrail.find(AuditQuery.where().anyOutcome());
 	}
 
 	private AppPermission permission(String name) {

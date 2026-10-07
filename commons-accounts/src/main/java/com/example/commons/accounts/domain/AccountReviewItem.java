@@ -29,8 +29,9 @@ import org.hibernate.type.SqlTypes;
  *
  * <p>
  * The item holds {@code userPublicId} and {@code username} as plain values with no
- * foreign key to the account, so it outlives it. {@code removalAuditEventId} points at
- * the removal's audit event, which is the one record of the reason, note and actor.
+ * foreign key to the account, so it outlives it. {@code removalAuditEventId} is the
+ * public ID of the removal's audit trail event, which is the one record of the reason,
+ * note and actor.
  */
 @Entity
 @Table(name = "account_review_item")
@@ -56,7 +57,8 @@ public class AccountReviewItem extends AbstractIdentifiedEntity {
 
 	private String decidedBy;
 
-	private Long removalAuditEventId;
+	@JdbcTypeCode(SqlTypes.UUID)
+	private UUID removalAuditEventId;
 
 	private String department;
 
@@ -163,7 +165,7 @@ public class AccountReviewItem extends AbstractIdentifiedEntity {
 		return this.decidedBy;
 	}
 
-	public Long getRemovalAuditEventId() {
+	public UUID getRemovalAuditEventId() {
 		return this.removalAuditEventId;
 	}
 
@@ -248,9 +250,9 @@ public class AccountReviewItem extends AbstractIdentifiedEntity {
 	 * Records that the account is being removed, whether by the reviewer or by anyone
 	 * else. The evidence is read from the account, so a caller must call this before the
 	 * account is deleted.
-	 * @param removalAuditEventId the removal's audit event
+	 * @param removalAuditEventId the public ID of the removal's audit trail event
 	 */
-	public void remove(AppUser account, List<String> roles, String by, Instant at, Long removalAuditEventId) {
+	public void remove(AppUser account, List<String> roles, String by, Instant at, UUID removalAuditEventId) {
 		decide(AccountReviewOutcome.REMOVED, account, roles, null, by, at);
 		this.removalAuditEventId = removalAuditEventId;
 		// The account is about to be deleted; letting go of it keeps the session

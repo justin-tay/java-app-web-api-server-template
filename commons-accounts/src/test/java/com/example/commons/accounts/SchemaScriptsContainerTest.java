@@ -23,7 +23,6 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import com.example.commons.accounts.domain.AccountAuditEvent;
 import com.example.commons.accounts.domain.AccountReviewAttestation;
 import com.example.commons.accounts.domain.AccountReviewItem;
 import com.example.commons.accounts.domain.AccountReviewPopulationEntry;
@@ -33,6 +32,7 @@ import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppSetting;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.Task;
+import com.example.commons.audit.AuditTrailEvent;
 
 /**
  * Runs the shipped SQL scripts on real PostgreSQL and SQL Server servers, which H2 cannot
@@ -107,7 +107,7 @@ class SchemaScriptsContainerTest {
 		try {
 			MetadataSources sources = new MetadataSources(registry);
 			for (Class<?> entity : List.of(AppUser.class, AppPermission.class, AppRole.class, AppSetting.class,
-					AccountAuditEvent.class, Task.class, AccountReviewItem.class, AccountReviewAttestation.class,
+					AuditTrailEvent.class, Task.class, AccountReviewItem.class, AccountReviewAttestation.class,
 					AccountReviewPopulationEntry.class, AccountReviewReport.class)) {
 				sources.addAnnotatedClass(entity);
 			}
@@ -124,6 +124,8 @@ class SchemaScriptsContainerTest {
 					new ClassPathResource("com/example/commons/session/jdbc/schema-" + platform + ".sql"));
 			ScriptUtils.executeSqlScript(connection,
 					new ClassPathResource("com/example/commons/session/oidc/jdbc/schema-" + platform + ".sql"));
+			ScriptUtils.executeSqlScript(connection,
+					new ClassPathResource("com/example/commons/audit/jdbc/schema-" + platform + ".sql"));
 			ScriptUtils.executeSqlScript(connection,
 					new ClassPathResource("com/example/commons/accounts/jdbc/schema-" + platform + ".sql"));
 			validateEntityMappings(url, user);
@@ -179,13 +181,13 @@ class SchemaScriptsContainerTest {
 			// The drop scripts remove everything in an order the foreign keys allow, and
 			// the schema
 			// can then be created again.
-			for (String folder : new String[] { "accounts/jdbc", "session/oidc/jdbc", "session/jdbc" }) {
+			for (String folder : new String[] { "accounts/jdbc", "audit/jdbc", "session/oidc/jdbc", "session/jdbc" }) {
 				ScriptUtils.executeSqlScript(connection,
 						new ClassPathResource("com/example/commons/" + folder + "/schema-drop-" + platform + ".sql"));
 			}
 			try (ResultSet rows = connection.createStatement()
 				.executeQuery(
-						"SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE LOWER(TABLE_NAME) IN ('app_user', 'spring_session', 'oidc_session')")) {
+						"SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE LOWER(TABLE_NAME) IN ('app_user', 'audit_event', 'spring_session', 'oidc_session')")) {
 				rows.next();
 				assertThat(rows.getInt(1)).as("tables left after the drop scripts").isZero();
 			}

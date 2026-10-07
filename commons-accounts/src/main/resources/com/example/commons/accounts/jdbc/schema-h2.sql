@@ -5,8 +5,6 @@ CREATE SEQUENCE app_role_seq START WITH 1000 INCREMENT BY 50;
 
 CREATE SEQUENCE app_permission_seq START WITH 1000 INCREMENT BY 50;
 
-CREATE SEQUENCE account_audit_event_seq START WITH 1000 INCREMENT BY 50;
-
 CREATE SEQUENCE app_setting_seq START WITH 1000 INCREMENT BY 50;
 
 CREATE SEQUENCE task_seq START WITH 1000 INCREMENT BY 50;
@@ -65,23 +63,13 @@ ALTER TABLE user_credentials ADD CONSTRAINT fk_user_credentials_user FOREIGN KEY
 
 CREATE INDEX ix_user_credentials_user ON user_credentials(user_entity_user_id);
 
-CREATE TABLE account_audit_event (id BIGINT NOT NULL, public_id UUID NOT NULL, occurred_at TIMESTAMP WITH TIME ZONE NOT NULL, actor VARCHAR(100) NOT NULL, action VARCHAR(50) NOT NULL, target_type VARCHAR(20) NOT NULL, target_id VARCHAR(100), target_name VARCHAR(100), target_full_name VARCHAR(100), reason_code VARCHAR(40), reason_note VARCHAR(200), details CLOB, CONSTRAINT pk_account_audit_event PRIMARY KEY (id), CONSTRAINT uk_account_audit_event_public_id UNIQUE (public_id));
-
-CREATE INDEX ix_account_audit_event_occurred ON account_audit_event(occurred_at);
-
-CREATE INDEX ix_account_audit_event_actor ON account_audit_event(actor);
-
-CREATE INDEX ix_account_audit_event_target ON account_audit_event(target_type, target_name);
-
-CREATE INDEX ix_account_audit_event_action ON account_audit_event(action);
-
 CREATE TABLE app_setting (id BIGINT NOT NULL, name VARCHAR(100) NOT NULL, setting_value VARCHAR(100) NOT NULL, updated_at TIMESTAMP WITH TIME ZONE NOT NULL, updated_by VARCHAR(100) NOT NULL, CONSTRAINT pk_app_setting PRIMARY KEY (id), CONSTRAINT uk_app_setting_name UNIQUE (name));
 
 CREATE TABLE task (id BIGINT NOT NULL, public_id UUID NOT NULL, type VARCHAR(40) NOT NULL, status VARCHAR(20) NOT NULL, start_date date NOT NULL, due_date date NOT NULL, created_at TIMESTAMP WITH TIME ZONE NOT NULL, completed_at TIMESTAMP WITH TIME ZONE, completed_by VARCHAR(100), CONSTRAINT pk_task PRIMARY KEY (id), CONSTRAINT uk_task_public_id UNIQUE (public_id));
 
 ALTER TABLE task ADD CONSTRAINT uk_task_type_start UNIQUE (type, start_date);
 
-CREATE TABLE account_review_item (id BIGINT NOT NULL, public_id UUID NOT NULL, task_id BIGINT NOT NULL, user_public_id UUID NOT NULL, username VARCHAR(100) NOT NULL, full_name VARCHAR(100) NOT NULL, category VARCHAR(20) NOT NULL, outcome VARCHAR(30) NOT NULL, decided_at TIMESTAMP WITH TIME ZONE, decided_by VARCHAR(100), removal_audit_event_id BIGINT, department VARCHAR(100), account_created_at TIMESTAMP WITH TIME ZONE, last_login_at TIMESTAMP WITH TIME ZONE, last_activity_at TIMESTAMP WITH TIME ZONE, suspended_at TIMESTAMP WITH TIME ZONE, suspended_by VARCHAR(100), suspension_reason_code VARCHAR(40), suspension_note VARCHAR(200), roles_before CLOB, roles_after CLOB, privileged_permissions CLOB, CONSTRAINT pk_account_review_item PRIMARY KEY (id), CONSTRAINT uk_account_review_item_public_id UNIQUE (public_id));
+CREATE TABLE account_review_item (id BIGINT NOT NULL, public_id UUID NOT NULL, task_id BIGINT NOT NULL, user_public_id UUID NOT NULL, username VARCHAR(100) NOT NULL, full_name VARCHAR(100) NOT NULL, category VARCHAR(20) NOT NULL, outcome VARCHAR(30) NOT NULL, decided_at TIMESTAMP WITH TIME ZONE, decided_by VARCHAR(100), removal_audit_event_id UUID, department VARCHAR(100), account_created_at TIMESTAMP WITH TIME ZONE, last_login_at TIMESTAMP WITH TIME ZONE, last_activity_at TIMESTAMP WITH TIME ZONE, suspended_at TIMESTAMP WITH TIME ZONE, suspended_by VARCHAR(100), suspension_reason_code VARCHAR(40), suspension_note VARCHAR(200), roles_before CLOB, roles_after CLOB, privileged_permissions CLOB, CONSTRAINT pk_account_review_item PRIMARY KEY (id), CONSTRAINT uk_account_review_item_public_id UNIQUE (public_id));
 
 ALTER TABLE account_review_item ADD CONSTRAINT fk_account_review_item_task FOREIGN KEY (task_id) REFERENCES task (id);
 

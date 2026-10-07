@@ -13,7 +13,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.example.commons.accounts.AccountsJpaTest;
-import com.example.commons.accounts.admin.AccountAuditLogger;
 import com.example.commons.accounts.domain.AppSettingRepository;
 import com.example.commons.accounts.domain.ReviewPopulation;
 import com.example.commons.accounts.domain.Task;
@@ -39,8 +38,7 @@ class AccountReviewSchedulerTest extends AccountReviewTestSupport {
 	@BeforeEach
 	void setUpScheduler() {
 		this.scheduler = new AccountReviewScheduler(this.tasks, this.service,
-				new SettingsService(this.settings, new AccountAuditLogger(this.auditEvents, this.clock)), this.clock,
-				java.time.ZoneOffset.UTC);
+				new SettingsService(this.settings, this.trail), this.clock, java.time.ZoneOffset.UTC);
 		user("alice");
 		setInterval("review.privilegedIntervalMonths", 3);
 	}

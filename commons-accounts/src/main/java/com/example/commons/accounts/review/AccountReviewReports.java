@@ -5,12 +5,11 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.util.HexFormat;
 import java.util.Locale;
-import java.util.Map;
 
-import com.example.commons.accounts.admin.AccountAuditLogger;
 import com.example.commons.accounts.domain.AccountReviewReport;
 import com.example.commons.accounts.domain.AccountReviewReportRepository;
 import com.example.commons.accounts.domain.Task;
+import com.example.commons.audit.AuditTrail;
 
 /**
  * Stores the PDF report when an account review task completes and serves report downloads
@@ -68,15 +67,15 @@ public class AccountReviewReports {
 
 	private final ReviewReportRenderer renderer;
 
-	private final AccountAuditLogger auditLogger;
+	private final AuditTrail trail;
 
 	private final Clock clock;
 
-	public AccountReviewReports(AccountReviewReportRepository stored, ReviewReportRenderer renderer,
-			AccountAuditLogger auditLogger, Clock clock) {
+	public AccountReviewReports(AccountReviewReportRepository stored, ReviewReportRenderer renderer, AuditTrail trail,
+			Clock clock) {
 		this.stored = stored;
 		this.renderer = renderer;
-		this.auditLogger = auditLogger;
+		this.trail = trail;
 		this.clock = clock;
 	}
 
@@ -95,9 +94,9 @@ public class AccountReviewReports {
 		byte[] pdf = this.renderer.pdf(model);
 		String hash = sha256(pdf);
 		this.stored.save(new AccountReviewReport(task.getId(), pdf, hash, this.clock.instant(), by));
-		this.auditLogger.record("complete_review_task", "REVIEW", task.getPublicId().toString(),
-				"account_review " + task.getStartDate(), null, null,
-				Map.of("taskId", task.getPublicId().toString(), "sha256", hash, "sizeBytes", pdf.length));
+		this.trail.record(ReviewAudit.task(ReviewAudit.COMPLETE_REVIEW_TASK, task, name(task))
+			.details(new ReviewAudit.TaskCompleted(task.getPublicId(), hash, pdf.length))
+			.build());
 	}
 
 	/**
@@ -115,10 +114,14 @@ public class AccountReviewReports {
 			case XLSX -> this.renderer.xlsx(model);
 			case CSV -> this.renderer.csv(model);
 		};
-		this.auditLogger.record("export_review_report", "REVIEW", task.getPublicId().toString(),
-				"account_review " + task.getStartDate(), null, null,
-				Map.of("taskId", task.getPublicId().toString(), "format", format.extension(), "draft", model.draft()));
+		this.trail.record(ReviewAudit.task(ReviewAudit.EXPORT_REVIEW_REPORT, task, name(task))
+			.details(new ReviewAudit.ReportExported(task.getPublicId(), format.extension(), model.draft()))
+			.build());
 		return new Download(content, format, model.draft());
+	}
+
+	private static String name(Task task) {
+		return task.getType() + " " + task.getStartDate();
 	}
 
 	private static String sha256(byte[] content) {

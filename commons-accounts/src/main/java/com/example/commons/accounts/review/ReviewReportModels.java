@@ -9,10 +9,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
+import java.util.UUID;
 
-import com.example.commons.accounts.domain.AccountAuditEvent;
-import com.example.commons.accounts.domain.AccountAuditEventRepository;
+import com.example.commons.accounts.audit.AccountAudit;
 import com.example.commons.accounts.domain.AccountReviewCategory;
 import com.example.commons.accounts.domain.AccountReviewItem;
 import com.example.commons.accounts.domain.AccountReviewItemRepository;
@@ -30,7 +29,7 @@ public class ReviewReportModels {
 
 	private final AccountReviewItemRepository items;
 
-	private final AccountAuditEventRepository auditEvents;
+	private final AccountAudit audit;
 
 	private final ReviewPopulations populations;
 
@@ -38,10 +37,10 @@ public class ReviewReportModels {
 
 	private final ZoneId zone;
 
-	public ReviewReportModels(AccountReviewItemRepository items, AccountAuditEventRepository auditEvents,
-			ReviewPopulations populations, Clock clock, ZoneId zone) {
+	public ReviewReportModels(AccountReviewItemRepository items, AccountAudit audit, ReviewPopulations populations,
+			Clock clock, ZoneId zone) {
 		this.items = items;
-		this.auditEvents = auditEvents;
+		this.audit = audit;
 		this.populations = populations;
 		this.clock = clock;
 		this.zone = zone;
@@ -56,10 +55,8 @@ public class ReviewReportModels {
 	 */
 	public ReviewReportModel build(Task task, boolean draft, String generatedBy) {
 		List<AccountReviewItem> all = this.items.findAllWithAccount(task.getId());
-		Map<Long, AccountAuditEvent> removals = this.auditEvents
-			.findAllById(all.stream().map(AccountReviewItem::getRemovalAuditEventId).filter(Objects::nonNull).toList())
-			.stream()
-			.collect(Collectors.toMap(AccountAuditEvent::getId, event -> event));
+		Map<UUID, String> removals = this.audit.removalReasons(
+				all.stream().map(AccountReviewItem::getRemovalAuditEventId).filter(Objects::nonNull).toList());
 		return new ReviewReportModel(draft, task.isPrivilegedReview(), this.zone, task.getStartDate(),
 				task.getDueDate(), task.getDueDate(), task.getCompletedAt(), task.getCompletedBy(),
 				this.clock.instant(), generatedBy, section(all, AccountReviewCategory.ACTIVE, removals),
@@ -68,7 +65,7 @@ public class ReviewReportModels {
 	}
 
 	private static ReviewReportModel.ItemSection section(List<AccountReviewItem> all, AccountReviewCategory category,
-			Map<Long, AccountAuditEvent> removals) {
+			Map<UUID, String> removals) {
 		List<ReviewReportModel.ItemRow> rows = new ArrayList<>();
 		Map<String, Tally> byDepartment = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
 		Tally total = new Tally();
@@ -77,9 +74,9 @@ public class ReviewReportModels {
 			.sorted(Comparator.comparing(item -> ReviewItemView.of(item, null).name(), String.CASE_INSENSITIVE_ORDER))
 			.toList();
 		for (AccountReviewItem item : ordered) {
-			AccountAuditEvent removal = item.getRemovalAuditEventId() == null ? null
-					: removals.get(item.getRemovalAuditEventId());
-			ReviewItemView view = ReviewItemView.of(item, removal == null ? null : removal.getReasonCode());
+			String removalReason = (item.getRemovalAuditEventId() != null) ? removals.get(item.getRemovalAuditEventId())
+					: null;
+			ReviewItemView view = ReviewItemView.of(item, removalReason);
 			Suspension suspension = view.suspension();
 			rows.add(new ReviewReportModel.ItemRow(rows.size() + 1, view.name(), item.getUsername(), view.department(),
 					view.createdAt(), view.lastLoginAt(), String.join(", ", view.roles()),

@@ -1,0 +1,44 @@
+# The commons-audit schema, written once in Liquibase change types so that each type is
+# translated for the target database (H2, PostgreSQL and SQL Server). An application's master
+# changelog includes this file; it ships no data.
+#
+# The audit trail (docs/adr/0040). A row has two identifiers (docs/adr/0036): id, a bigint
+# primary key from a sequence that steps by 50, as Hibernate's sequence generator expects, and
+# public_id, a random UUID that the API and the row's log event use. It has no foreign key to
+# what it records, so an event outlives a removed account. An instant is held in a time zone
+# aware column, which is what Hibernate expects of a Java Instant.
+databaseChangeLog:
+  # The type of an instant per database: Liquibase turns a time zone aware timestamp into a
+  # plain datetime2 on SQL Server, where datetimeoffset is wanted.
+  - property: { name: instant.type, value: "TIMESTAMP WITH TIME ZONE", dbms: "h2,postgresql" }
+  - property: { name: instant.type, value: "DATETIMEOFFSET(7)", dbms: mssql }
+  - changeSet:
+      id: audit-schema
+      author: commons-audit
+      changes:
+        - createSequence: { sequenceName: audit_event_seq, startValue: 1000, incrementBy: 50 }
+        - createTable:
+            tableName: audit_event
+            columns:
+              - column: { name: id, type: bigint, constraints: { nullable: false, primaryKey: true, primaryKeyName: pk_audit_event } }
+              - column: { name: public_id, type: uuid, constraints: { nullable: false, unique: true, uniqueConstraintName: uk_audit_event_public_id } }
+              - column: { name: occurred_at, type: "${instant.type}", constraints: { nullable: false } }
+              - column: { name: actor, type: varchar(100), constraints: { nullable: false } }
+              - column: { name: action, type: varchar(50), constraints: { nullable: false } }
+              # SUCCESS for a change that was made, FAILURE for one a business rule refused.
+              - column: { name: outcome, type: varchar(10), constraints: { nullable: false } }
+              - column: { name: target_type, type: varchar(50), constraints: { nullable: false } }
+              - column: { name: target_id, type: varchar(100) }
+              - column: { name: target_name, type: varchar(100) }
+              - column: { name: target_full_name, type: varchar(100) }
+              - column: { name: reason_code, type: varchar(40) }
+              - column: { name: reason_note, type: varchar(200) }
+              - column: { name: details, type: clob }
+        - createIndex: { tableName: audit_event, indexName: ix_audit_event_occurred, columns: [ { column: { name: occurred_at } } ] }
+        - createIndex: { tableName: audit_event, indexName: ix_audit_event_actor, columns: [ { column: { name: actor } } ] }
+        - createIndex: { tableName: audit_event, indexName: ix_audit_event_target, columns: [ { column: { name: target_type } }, { column: { name: target_name } } ] }
+        - createIndex: { tableName: audit_event, indexName: ix_audit_event_action, columns: [ { column: { name: action } } ] }
+      # This is what schema-drop-<platform>.sql is generated from.
+      rollback:
+        - dropTable: { tableName: audit_event }
+        - dropSequence: { sequenceName: audit_event_seq }

@@ -9,6 +9,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import com.example.commons.audit.Auditor;
+
 /**
  * One application setting, identified by its unique name, such as
  * {@code inactivity.suspendAfterDays}. The settings and their allowed values are defined

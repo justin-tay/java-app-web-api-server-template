@@ -6,7 +6,7 @@ import java.util.Set;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import com.example.commons.accounts.domain.Auditor;
+import com.example.commons.audit.Auditor;
 import com.example.commons.security.authorization.LocalAuthorities;
 
 /**

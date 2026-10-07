@@ -1,3 +1,5 @@
 databaseChangeLog:
   - include:
+      file: com/example/commons/audit/jdbc/schema.yaml
+  - include:
       file: com/example/commons/accounts/jdbc/schema.yaml

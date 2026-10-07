@@ -29,6 +29,9 @@ import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.session.MapSession;
 
+import com.example.commons.accounts.audit.AccountAudit;
+import com.example.commons.audit.AuditQuery;
+import com.example.commons.audit.AuditTrail;
 import com.example.commons.accounts.AccountsJpaTest;
 import com.example.commons.accounts.Permissions;
 import com.example.commons.accounts.domain.AppPermission;
@@ -56,6 +59,9 @@ import com.example.commons.web.problem.ResourceNotFoundException;
 class AdministrationServiceTest {
 
 	private static final UUID MISSING = UUID.fromString("00000000-0000-0000-0000-00000000dead");
+
+	@Autowired
+	private AuditTrail auditTrail;
 
 	@Autowired
 	private TestEntityManager entityManager;
@@ -91,10 +97,9 @@ class AdministrationServiceTest {
 	void setUp() {
 		SessionRevocationService revocation = new SessionRevocationService(this.sessionRegistry, this.sessionRepository,
 				this.sessionLifecycleAuditLogger);
-		AccountAuditLogger auditLogger = new AccountAuditLogger();
-		this.service = new AdministrationService(this.users, this.roles, this.permissions, revocation, auditLogger);
-		this.lifecycle = new AccountLifecycleService(this.users, revocation, auditLogger, null, null,
-				Clock.systemUTC());
+		AccountAudit audit = new AccountAudit(this.auditTrail);
+		this.service = new AdministrationService(this.users, this.roles, this.permissions, revocation, audit);
+		this.lifecycle = new AccountLifecycleService(this.users, revocation, audit, null, null, Clock.systemUTC());
 		this.managers = this.entityManager.persist(new AppRole("Managers"));
 		this.managers.getPermissions().add(permission(Permissions.USER_READ));
 		this.administrators = this.entityManager.persist(new AppRole("Administrators"));
@@ -508,7 +513,9 @@ class AdministrationServiceTest {
 
 		assertThat(sessionOf("test-user").isExpired()).isTrue();
 		assertThat(reload(this.testUser).isSuspended()).isFalse();
-		assertThat(output).contains("\"administrative_revocation\"").contains("revoke_sessions");
+		assertThat(output).contains("\"administrative_revocation\"");
+		assertThat(this.auditTrail.find(AuditQuery.where().action("revoke_sessions"))).singleElement()
+			.satisfies(event -> assertThat(event.target().name()).isEqualTo("test-user"));
 	}
 
 	@Test

@@ -7,6 +7,8 @@ databaseChangeLog:
   - include:
       file: com/example/commons/session/oidc/jdbc/schema.yaml
   - include:
+      file: com/example/commons/audit/jdbc/schema.yaml
+  - include:
       file: com/example/commons/accounts/jdbc/schema.yaml
   - include:
       file: db/changelog/reference-data.sql

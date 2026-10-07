@@ -7,13 +7,14 @@ import java.time.Clock;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.commons.accounts.admin.AccountAuditLogger.UserState;
+import com.example.commons.accounts.audit.AccountAudit;
+import com.example.commons.accounts.audit.AccountAudit.UserState;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
-import com.example.commons.accounts.domain.Auditor;
 import com.example.commons.accounts.domain.ReasonCode;
-import com.example.commons.accounts.domain.AccountAuditEvent;
 import com.example.commons.accounts.review.ReviewItems;
+import com.example.commons.audit.AuditRecord;
+import com.example.commons.audit.Auditor;
 import com.example.commons.security.authentication.passkey.PasskeyManager;
 import com.example.commons.security.session.SessionRevocationService;
 import com.example.commons.web.problem.ConflictException;
@@ -38,7 +39,7 @@ public class AccountLifecycleService {
 
 	private final SessionRevocationService sessionRevocationService;
 
-	private final AccountAuditLogger auditLogger;
+	private final AccountAudit audit;
 
 	private final PasskeyManager passkeyManager;
 
@@ -54,10 +55,10 @@ public class AccountLifecycleService {
 	 * there is no account review
 	 */
 	public AccountLifecycleService(AppUserRepository users, SessionRevocationService sessionRevocationService,
-			AccountAuditLogger auditLogger, PasskeyManager passkeyManager, ReviewItems reviewItems, Clock clock) {
+			AccountAudit audit, PasskeyManager passkeyManager, ReviewItems reviewItems, Clock clock) {
 		this.users = users;
 		this.sessionRevocationService = sessionRevocationService;
-		this.auditLogger = auditLogger;
+		this.audit = audit;
 		this.passkeyManager = passkeyManager;
 		this.reviewItems = reviewItems;
 		this.clock = clock;
@@ -69,27 +70,33 @@ public class AccountLifecycleService {
 
 	public AppUser suspend(AppUser user, ReasonCode reason, String note) {
 		UserState before = UserState.of(user);
-		rejectSelfModification(user, before, false);
+		if (isActor(user)) {
+			throw this.audit.userSuspensionRejected(before, "self_modification",
+					AccountLifecycleService::selfModification);
+		}
 		if (user.isSuspended()) {
-			this.auditLogger.userUpdateRejected(before, "already_suspended");
-			throw new ConflictException("Account is already suspended.");
+			throw this.audit.userSuspensionRejected(before, "already_suspended",
+					() -> new ConflictException("Account is already suspended."));
 		}
 		user.suspend(this.clock.instant(), reason, note);
 		this.sessionRevocationService.revoke(user.getUsername(), "account_suspended");
-		this.auditLogger.userSuspended(before, UserState.of(user), reason, note);
+		this.audit.userSuspended(before, UserState.of(user), reason, note);
 		return user;
 	}
 
 	public AppUser unsuspend(UUID id) {
 		AppUser user = user(id);
 		UserState before = UserState.of(user);
-		rejectSelfModification(user, before, false);
+		if (isActor(user)) {
+			throw this.audit.userUnsuspensionRejected(before, "self_modification",
+					AccountLifecycleService::selfModification);
+		}
 		if (!user.isSuspended()) {
-			this.auditLogger.userUpdateRejected(before, "not_suspended");
-			throw new ConflictException("Account is not suspended.");
+			throw this.audit.userUnsuspensionRejected(before, "not_suspended",
+					() -> new ConflictException("Account is not suspended."));
 		}
 		user.unsuspend(this.clock.instant());
-		this.auditLogger.userUnsuspended(before, UserState.of(user));
+		this.audit.userUnsuspended(before, UserState.of(user));
 		return user;
 	}
 
@@ -99,12 +106,15 @@ public class AccountLifecycleService {
 
 	public void remove(AppUser user, ReasonCode reason, String note) {
 		UserState before = UserState.of(user);
-		rejectSelfModification(user, before, true);
+		if (isActor(user)) {
+			throw this.audit.userDeletionRejected(before, "self_modification",
+					AccountLifecycleService::selfModification);
+		}
 		this.sessionRevocationService.revoke(user.getUsername(), "account_deleted");
 		if (this.passkeyManager != null) {
 			this.passkeyManager.removeAll(user.getPublicId().toString());
 		}
-		AccountAuditEvent event = this.auditLogger.userDeleted(before, reason, note);
+		AuditRecord event = this.audit.userDeleted(before, reason, note);
 		if (this.reviewItems != null) {
 			this.reviewItems.accountRemoved(user, Auditor.current(), event);
 		}
@@ -115,17 +125,12 @@ public class AccountLifecycleService {
 		return this.users.findByPublicId(id).orElseThrow(() -> new ResourceNotFoundException("User"));
 	}
 
-	private void rejectSelfModification(AppUser user, UserState state, boolean deletion) {
-		boolean self = Actor.current().map(actor -> actor.name().equals(user.getUsername())).orElse(false);
-		if (self) {
-			if (deletion) {
-				this.auditLogger.userDeletionRejected(state, "self_modification");
-			}
-			else {
-				this.auditLogger.userUpdateRejected(state, "self_modification");
-			}
-			throw new AccessDeniedException("Users cannot change their own account.");
-		}
+	private static boolean isActor(AppUser user) {
+		return Actor.current().map(actor -> actor.name().equals(user.getUsername())).orElse(false);
+	}
+
+	private static AccessDeniedException selfModification() {
+		return new AccessDeniedException("Users cannot change their own account.");
 	}
 
 }

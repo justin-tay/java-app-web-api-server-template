@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,10 +15,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.PlatformTransactionManager;
 
-import com.example.commons.accounts.admin.AccountAuditLogger;
 import com.example.commons.accounts.admin.AccountLifecycleService;
-import com.example.commons.accounts.domain.AccountAuditEventRepository;
+import com.example.commons.accounts.audit.AccountAudit;
 import com.example.commons.accounts.domain.AccountReviewAttestationRepository;
 import com.example.commons.accounts.domain.AccountReviewItem;
 import com.example.commons.accounts.domain.AccountReviewItemRepository;
@@ -32,6 +33,10 @@ import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
 import com.example.commons.accounts.domain.Task;
 import com.example.commons.accounts.domain.TaskRepository;
+import com.example.commons.audit.AuditQuery;
+import com.example.commons.audit.AuditRecord;
+import com.example.commons.audit.AuditTrail;
+import com.example.commons.audit.AuditTrailEventRepository;
 import com.example.commons.security.session.SessionRevocationService;
 
 /**
@@ -72,13 +77,21 @@ abstract class AccountReviewTestSupport {
 	protected AccountReviewReportRepository storedReports;
 
 	@Autowired
-	protected AccountAuditEventRepository auditEvents;
+	private AuditTrailEventRepository auditEvents;
+
+	@Autowired
+	private PlatformTransactionManager transactionManager;
 
 	protected final SessionRevocationService sessionRevocationService = mock(SessionRevocationService.class);
 
 	protected final SettableClock clock = new SettableClock(NOW);
 
 	protected AccountReviewService service;
+
+	/**
+	 * The audit trail, on the clock a test can move.
+	 */
+	protected AuditTrail trail;
 
 	protected ReviewPopulations populations;
 
@@ -100,25 +113,32 @@ abstract class AccountReviewTestSupport {
 
 	@BeforeEach
 	void setUpService() {
-		AccountAuditLogger auditLogger = new AccountAuditLogger(this.auditEvents, this.clock);
+		this.trail = new AuditTrail(this.auditEvents, this.transactionManager, this.clock);
+		AccountAudit audit = new AccountAudit(this.trail);
 		ReviewItems reviewItems = new ReviewItems(this.items, this.clock);
-		this.lifecycle = new AccountLifecycleService(this.users, this.sessionRevocationService, auditLogger, null,
+		this.lifecycle = new AccountLifecycleService(this.users, this.sessionRevocationService, audit, null,
 				reviewItems, this.clock);
 		AccountReviewReports reports = new AccountReviewReports(this.storedReports, new DefaultReviewReportRenderer(),
-				auditLogger, this.clock);
-		this.populations = new ReviewPopulations(this.tasks, this.attestations, this.entries, this.auditEvents,
-				this.clock, ZoneOffset.UTC);
-		this.reportModels = new ReviewReportModels(this.items, this.auditEvents, this.populations, this.clock,
+				this.trail, this.clock);
+		this.populations = new ReviewPopulations(this.tasks, this.attestations, this.entries, audit, this.clock,
 				ZoneOffset.UTC);
+		this.reportModels = new ReviewReportModels(this.items, audit, this.populations, this.clock, ZoneOffset.UTC);
 		this.service = new AccountReviewService(this.tasks, this.items, this.users, this.roles, this.lifecycle,
-				this.sessionRevocationService, auditLogger, this.auditEvents, reports, this.populations,
-				this.reportModels, this.clock, ZoneOffset.UTC);
+				this.sessionRevocationService, audit, this.trail, reports, this.populations, this.reportModels,
+				this.clock, ZoneOffset.UTC);
 		AppRole privileged = new AppRole("users");
 		privileged.getPermissions().add(permission(Permissions.USER_CREATE));
 		this.role = this.entityManager.persist(privileged);
 		AppRole plain = new AppRole("readers");
 		plain.getPermissions().add(permission(Permissions.APPLICATION_ACCESS));
 		this.plainRole = this.entityManager.persist(plain);
+	}
+
+	/**
+	 * Returns every event in the audit trail, refusals included, oldest first.
+	 */
+	protected List<AuditRecord> auditEvents() {
+		return this.trail.find(AuditQuery.where().anyOutcome());
 	}
 
 	protected AppPermission permission(String name) {

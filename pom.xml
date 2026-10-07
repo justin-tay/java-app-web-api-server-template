@@ -17,6 +17,7 @@
 	<description>Parent of the commons modules, the secure-by-default baseline shared by Spring Boot web API servers</description>
 	<modules>
 		<module>commons</module>
+		<module>commons-audit</module>
 		<module>commons-accounts</module>
 		<module>commons-aws</module>
 		<module>app-web-api-server</module>
@@ -38,6 +39,11 @@
 			<dependency>
 				<groupId>com.example</groupId>
 				<artifactId>commons</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.example</groupId>
+				<artifactId>commons-audit</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 			<dependency>

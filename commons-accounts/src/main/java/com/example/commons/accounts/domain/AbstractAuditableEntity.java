@@ -6,6 +6,8 @@ import jakarta.persistence.MappedSuperclass;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 
+import com.example.commons.audit.Auditor;
+
 /**
  * Base entity providing the identifiers of {@link AbstractIdentifiedEntity} and
  * creation/update audit timestamps and actors, shared by every administration entity. The

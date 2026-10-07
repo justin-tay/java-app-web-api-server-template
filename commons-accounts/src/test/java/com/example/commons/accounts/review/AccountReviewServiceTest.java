@@ -2,22 +2,25 @@ package com.example.commons.accounts.review;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.tuple;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 
+import com.example.commons.audit.AuditOutcome;
+import com.example.commons.audit.AuditQuery;
+import com.example.commons.audit.AuditRecord;
 import com.example.commons.accounts.domain.ReviewPopulation;
 import com.example.commons.accounts.Permissions;
 import com.example.commons.accounts.AccountsJpaTest;
-import com.example.commons.accounts.domain.AccountAuditEvent;
 import com.example.commons.accounts.domain.AccountReviewCategory;
 import com.example.commons.accounts.domain.AccountReviewItem;
 import com.example.commons.accounts.domain.AccountReviewOutcome;
@@ -65,8 +68,7 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 		assertThat(this.service.response(task).active().counts().pending()).isEqualTo(2);
 		assertThat(this.service.response(task).suspended().counts().pending()).isEqualTo(1);
 		assertThat(itemOf(task, "carol").getCategory()).isEqualTo(AccountReviewCategory.SUSPENDED);
-		assertThat(this.auditEvents.findAll(Specification.unrestricted())).extracting(AccountAuditEvent::getAction)
-			.contains("create_review_task");
+		assertThat(auditEvents()).extracting(AuditRecord::action).contains("create_review_task");
 	}
 
 	@Test
@@ -294,8 +296,7 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 		assertThat(item.getDepartment()).isEqualTo("Finance");
 		assertThat(item.getRolesBefore()).containsExactly("users", "viewers");
 		assertThat(item.getRolesAfter()).containsExactly("users", "viewers");
-		assertThat(this.auditEvents.findAll(Specification.unrestricted())).extracting(AccountAuditEvent::getAction)
-			.contains("confirm_review_item");
+		assertThat(auditEvents()).extracting(AuditRecord::action).contains("confirm_review_item");
 		ReviewItemResponse row = rows(task).stream()
 			.filter(candidate -> candidate.username().equals("alice"))
 			.findFirst()
@@ -324,11 +325,11 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 		assertThat(item.getDepartment()).isEqualTo("HR");
 		assertThat(item.getRolesBefore()).containsExactly("users");
 		assertThat(item.getRolesAfter()).isNull();
-		AccountAuditEvent removal = this.auditEvents.findAllById(List.of(item.getRemovalAuditEventId())).get(0);
-		assertThat(removal.getAction()).isEqualTo("delete_user");
-		assertThat(removal.getReasonCode()).isEqualTo("left_organisation");
-		assertThat(removal.getReasonNote()).isEqualTo("resigned");
-		assertThat(removal.getDetails()).contains("\"department\":\"HR\"");
+		AuditRecord removal = this.trail.find(AuditQuery.where().ids(List.of(item.getRemovalAuditEventId()))).get(0);
+		assertThat(removal.action()).isEqualTo("delete_user");
+		assertThat(removal.reasonCode()).isEqualTo("left_organisation");
+		assertThat(removal.reasonNote()).isEqualTo("resigned");
+		assertThat(removal.details(Map.class)).containsEntry("department", "HR");
 		assertThat(rows(task)).extracting(ReviewItemResponse::username).containsExactly("rachel");
 		assertThat(this.service.response(task).active().counts().removed()).isEqualTo(1);
 	}
@@ -352,8 +353,7 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 		assertThat(item.getRolesAfter()).containsExactly("viewers");
 		AppUser reloaded = this.users.findByPublicId(alice.getPublicId()).orElseThrow();
 		assertThat(reloaded.getRoles()).extracting(AppRole::getName).containsExactly("viewers");
-		assertThat(this.auditEvents.findAll(Specification.unrestricted())).extracting(AccountAuditEvent::getAction)
-			.contains("update_user", "edit_review_item_roles");
+		assertThat(auditEvents()).extracting(AuditRecord::action).contains("update_user", "edit_review_item_roles");
 		ReviewItemResponse row = rows(task).stream()
 			.filter(candidate -> candidate.username().equals("alice"))
 			.findFirst()
@@ -396,8 +396,10 @@ class AccountReviewServiceTest extends AccountReviewTestSupport {
 		assertThatExceptionOfType(AccessDeniedException.class)
 			.isThrownBy(() -> this.service.editRoles(task.getPublicId(), own, Set.of(this.role.getPublicId())));
 		assertThat(itemOf(task, "rachel").isPending()).isTrue();
-		assertThat(this.auditEvents.findAll(Specification.unrestricted())).extracting(AccountAuditEvent::getAction)
-			.contains("review_rejected");
+		assertThat(this.trail.find(AuditQuery.where().anyOutcome().targetIds(List.of(own.toString()))))
+			.extracting(AuditRecord::action, AuditRecord::outcome, AuditRecord::reasonCode)
+			.containsExactly(tuple("confirm_review_item", AuditOutcome.FAILURE, "own_account"),
+					tuple("edit_review_item_roles", AuditOutcome.FAILURE, "own_account"));
 	}
 
 	@Test

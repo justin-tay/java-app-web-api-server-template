@@ -5,8 +5,6 @@ CREATE SEQUENCE app_role_seq START WITH 1000 INCREMENT BY 50;
 
 CREATE SEQUENCE app_permission_seq START WITH 1000 INCREMENT BY 50;
 
-CREATE SEQUENCE account_audit_event_seq START WITH 1000 INCREMENT BY 50;
-
 CREATE SEQUENCE app_setting_seq START WITH 1000 INCREMENT BY 50;
 
 CREATE SEQUENCE task_seq START WITH 1000 INCREMENT BY 50;
@@ -65,23 +63,13 @@ ALTER TABLE user_credentials ADD CONSTRAINT fk_user_credentials_user FOREIGN KEY
 
 CREATE NONCLUSTERED INDEX ix_user_credentials_user ON user_credentials(user_entity_user_id);
 
-CREATE TABLE account_audit_event (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, occurred_at DATETIMEOFFSET NOT NULL, actor varchar(100) NOT NULL, action varchar(50) NOT NULL, target_type varchar(20) NOT NULL, target_id varchar(100), target_name varchar(100), target_full_name varchar(100), reason_code varchar(40), reason_note varchar(200), details varchar(MAX), CONSTRAINT pk_account_audit_event PRIMARY KEY (id), CONSTRAINT uk_account_audit_event_public_id UNIQUE (public_id));
-
-CREATE NONCLUSTERED INDEX ix_account_audit_event_occurred ON account_audit_event(occurred_at);
-
-CREATE NONCLUSTERED INDEX ix_account_audit_event_actor ON account_audit_event(actor);
-
-CREATE NONCLUSTERED INDEX ix_account_audit_event_target ON account_audit_event(target_type, target_name);
-
-CREATE NONCLUSTERED INDEX ix_account_audit_event_action ON account_audit_event(action);
-
 CREATE TABLE app_setting (id bigint NOT NULL, name varchar(100) NOT NULL, setting_value varchar(100) NOT NULL, updated_at DATETIMEOFFSET NOT NULL, updated_by varchar(100) NOT NULL, CONSTRAINT pk_app_setting PRIMARY KEY (id), CONSTRAINT uk_app_setting_name UNIQUE (name));
 
 CREATE TABLE task (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, type varchar(40) NOT NULL, status varchar(20) NOT NULL, start_date date NOT NULL, due_date date NOT NULL, created_at DATETIMEOFFSET NOT NULL, completed_at DATETIMEOFFSET, completed_by varchar(100), CONSTRAINT pk_task PRIMARY KEY (id), CONSTRAINT uk_task_public_id UNIQUE (public_id));
 
 ALTER TABLE task ADD CONSTRAINT uk_task_type_start UNIQUE (type, start_date);
 
-CREATE TABLE account_review_item (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, task_id bigint NOT NULL, user_public_id uniqueidentifier NOT NULL, username varchar(100) NOT NULL, full_name varchar(100) NOT NULL, category varchar(20) NOT NULL, outcome varchar(30) NOT NULL, decided_at DATETIMEOFFSET, decided_by varchar(100), removal_audit_event_id bigint, department varchar(100), account_created_at DATETIMEOFFSET, last_login_at DATETIMEOFFSET, last_activity_at DATETIMEOFFSET, suspended_at DATETIMEOFFSET, suspended_by varchar(100), suspension_reason_code varchar(40), suspension_note varchar(200), roles_before varchar(MAX), roles_after varchar(MAX), privileged_permissions varchar(MAX), CONSTRAINT pk_account_review_item PRIMARY KEY (id), CONSTRAINT uk_account_review_item_public_id UNIQUE (public_id));
+CREATE TABLE account_review_item (id bigint NOT NULL, public_id uniqueidentifier NOT NULL, task_id bigint NOT NULL, user_public_id uniqueidentifier NOT NULL, username varchar(100) NOT NULL, full_name varchar(100) NOT NULL, category varchar(20) NOT NULL, outcome varchar(30) NOT NULL, decided_at DATETIMEOFFSET, decided_by varchar(100), removal_audit_event_id uniqueidentifier, department varchar(100), account_created_at DATETIMEOFFSET, last_login_at DATETIMEOFFSET, last_activity_at DATETIMEOFFSET, suspended_at DATETIMEOFFSET, suspended_by varchar(100), suspension_reason_code varchar(40), suspension_note varchar(200), roles_before varchar(MAX), roles_after varchar(MAX), privileged_permissions varchar(MAX), CONSTRAINT pk_account_review_item PRIMARY KEY (id), CONSTRAINT uk_account_review_item_public_id UNIQUE (public_id));
 
 ALTER TABLE account_review_item ADD CONSTRAINT fk_account_review_item_task FOREIGN KEY (task_id) REFERENCES task (id);
 

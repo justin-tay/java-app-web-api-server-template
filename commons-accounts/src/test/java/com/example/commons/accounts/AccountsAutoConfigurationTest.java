@@ -17,7 +17,6 @@ import com.example.commons.accounts.admin.AdministrationService;
 import com.example.commons.accounts.admin.PermissionAdminController;
 import com.example.commons.accounts.admin.RoleAdminController;
 import com.example.commons.accounts.admin.UserAdminController;
-import com.example.commons.accounts.domain.AccountAuditEventRepository;
 import com.example.commons.accounts.domain.AccountReviewAttestationRepository;
 import com.example.commons.accounts.domain.AccountReviewItemRepository;
 import com.example.commons.accounts.domain.AccountReviewPopulationEntryRepository;
@@ -32,6 +31,7 @@ import com.example.commons.accounts.review.AccountReviewScheduler;
 import com.example.commons.accounts.review.TaskController;
 import com.example.commons.accounts.settings.SettingsController;
 import com.example.commons.accounts.settings.SettingsService;
+import com.example.commons.audit.AuditTrail;
 import com.example.commons.security.authorization.LocalAuthorityLookup;
 import com.example.commons.security.session.SessionRevocationService;
 
@@ -112,8 +112,8 @@ class AccountsAutoConfigurationTest {
 		}
 
 		@Bean
-		AccountAuditEventRepository accountAuditEventRepository() {
-			return mock(AccountAuditEventRepository.class);
+		AuditTrail auditTrail() {
+			return mock(AuditTrail.class);
 		}
 
 		@Bean

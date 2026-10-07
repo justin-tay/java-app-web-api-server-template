@@ -32,7 +32,6 @@ databaseChangeLog:
         - createSequence: { sequenceName: app_user_seq, startValue: 1000, incrementBy: 50 }
         - createSequence: { sequenceName: app_role_seq, startValue: 1000, incrementBy: 50 }
         - createSequence: { sequenceName: app_permission_seq, startValue: 1000, incrementBy: 50 }
-        - createSequence: { sequenceName: account_audit_event_seq, startValue: 1000, incrementBy: 50 }
         - createSequence: { sequenceName: app_setting_seq, startValue: 1000, incrementBy: 50 }
         - createSequence: { sequenceName: task_seq, startValue: 1000, incrementBy: 50 }
         - createSequence: { sequenceName: account_review_item_seq, startValue: 1000, incrementBy: 50 }
@@ -151,28 +150,6 @@ databaseChangeLog:
         - addForeignKeyConstraint: { baseTableName: user_credentials, baseColumnNames: user_entity_user_id, constraintName: fk_user_credentials_user, referencedTableName: user_entities, referencedColumnNames: id, onDelete: CASCADE }
         - createIndex: { tableName: user_credentials, indexName: ix_user_credentials_user, columns: [ { column: { name: user_entity_user_id } } ] }
 
-        # The business audit trail. It has no foreign key to app_user, so an event outlives the
-        # account it records. See docs/adr/0030.
-        - createTable:
-            tableName: account_audit_event
-            columns:
-              - column: { name: id, type: bigint, constraints: { nullable: false, primaryKey: true, primaryKeyName: pk_account_audit_event } }
-              - column: { name: public_id, type: uuid, constraints: { nullable: false, unique: true, uniqueConstraintName: uk_account_audit_event_public_id } }
-              - column: { name: occurred_at, type: "${instant.type}", constraints: { nullable: false } }
-              - column: { name: actor, type: varchar(100), constraints: { nullable: false } }
-              - column: { name: action, type: varchar(50), constraints: { nullable: false } }
-              - column: { name: target_type, type: varchar(20), constraints: { nullable: false } }
-              - column: { name: target_id, type: varchar(100) }
-              - column: { name: target_name, type: varchar(100) }
-              - column: { name: target_full_name, type: varchar(100) }
-              - column: { name: reason_code, type: varchar(40) }
-              - column: { name: reason_note, type: varchar(200) }
-              - column: { name: details, type: clob }
-        - createIndex: { tableName: account_audit_event, indexName: ix_account_audit_event_occurred, columns: [ { column: { name: occurred_at } } ] }
-        - createIndex: { tableName: account_audit_event, indexName: ix_account_audit_event_actor, columns: [ { column: { name: actor } } ] }
-        - createIndex: { tableName: account_audit_event, indexName: ix_account_audit_event_target, columns: [ { column: { name: target_type } }, { column: { name: target_name } } ] }
-        - createIndex: { tableName: account_audit_event, indexName: ix_account_audit_event_action, columns: [ { column: { name: action } } ] }
-
         # Application settings, edited by a settings administrator.
         - createTable:
             tableName: app_setting
@@ -218,7 +195,8 @@ databaseChangeLog:
               - column: { name: outcome, type: varchar(30), constraints: { nullable: false } }
               - column: { name: decided_at, type: "${instant.type}" }
               - column: { name: decided_by, type: varchar(100) }
-              - column: { name: removal_audit_event_id, type: bigint }
+              # The public ID of the removal's event in the audit trail (docs/adr/0040).
+              - column: { name: removal_audit_event_id, type: uuid }
               - column: { name: department, type: varchar(100) }
               - column: { name: account_created_at, type: "${instant.type}" }
               - column: { name: last_login_at, type: "${instant.type}" }
@@ -333,7 +311,6 @@ databaseChangeLog:
         - dropTable: { tableName: account_review_item }
         - dropTable: { tableName: task }
         - dropTable: { tableName: app_setting }
-        - dropTable: { tableName: account_audit_event }
         - dropTable: { tableName: user_credentials }
         - dropTable: { tableName: user_entities }
         - dropTable: { tableName: app_permission_conflict }
@@ -348,7 +325,6 @@ databaseChangeLog:
         - dropSequence: { sequenceName: account_review_item_seq }
         - dropSequence: { sequenceName: app_setting_seq }
         - dropSequence: { sequenceName: task_seq }
-        - dropSequence: { sequenceName: account_audit_event_seq }
         - dropSequence: { sequenceName: app_permission_seq }
         - dropSequence: { sequenceName: app_role_seq }
         - dropSequence: { sequenceName: app_user_seq }

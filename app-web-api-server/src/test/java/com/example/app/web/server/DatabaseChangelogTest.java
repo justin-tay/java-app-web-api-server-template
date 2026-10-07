@@ -123,8 +123,8 @@ class DatabaseChangelogTest {
 		assertThat(this.jdbcTemplate.queryForObject("SELECT COUNT(*) FROM app_user WHERE last_login_at IS NULL "
 				+ "AND status = 'ACTIVE' AND username IN ('kumar.raj', 'mei.ling.tan')", Integer.class))
 			.isEqualTo(2);
-		assertThat(this.jdbcTemplate
-			.queryForObject("SELECT COUNT(*) FROM account_audit_event WHERE action = 'delete_user'", Integer.class))
+		assertThat(this.jdbcTemplate.queryForObject("SELECT COUNT(*) FROM audit_event WHERE action = 'delete_user'",
+				Integer.class))
 			.isEqualTo(2);
 		assertThat(settings()).containsEntry("review.enabled", "true")
 			.containsEntry("review.privilegedIntervalMonths", "1")
@@ -140,7 +140,7 @@ class DatabaseChangelogTest {
 		migrate(this.database, "dev");
 
 		assertThat(count("app_user")).isEqualTo(5);
-		assertThat(count("account_audit_event")).isZero();
+		assertThat(count("audit_event")).isZero();
 		assertThat(count("task")).isZero();
 		assertThat(count("account_review_item")).isZero();
 		assertThat(count("account_review_attestation")).isZero();

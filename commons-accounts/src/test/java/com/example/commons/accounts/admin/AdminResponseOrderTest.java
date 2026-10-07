@@ -12,6 +12,8 @@ import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.core.session.SessionRegistryImpl;
 
+import com.example.commons.accounts.audit.AccountAudit;
+import com.example.commons.audit.AuditTrail;
 import com.example.commons.accounts.AccountsJpaTest;
 import com.example.commons.accounts.Permissions;
 import com.example.commons.accounts.admin.AdminDtos.PermissionSummary;
@@ -38,6 +40,9 @@ import com.example.commons.security.session.SessionRevocationService;
 class AdminResponseOrderTest {
 
 	@Autowired
+	private AuditTrail auditTrail;
+
+	@Autowired
 	private TestEntityManager entityManager;
 
 	@Autowired
@@ -57,12 +62,12 @@ class AdminResponseOrderTest {
 	void setUp() {
 		SessionRevocationService revocation = new SessionRevocationService(new SessionRegistryImpl(), null,
 				new SessionLifecycleAuditLogger());
-		AccountAuditLogger auditLogger = new AccountAuditLogger();
+		AccountAudit audit = new AccountAudit(this.auditTrail);
 		AdministrationService service = new AdministrationService(this.users, this.roles, this.permissions, revocation,
-				auditLogger);
+				audit);
 		this.roleController = new RoleAdminController(service);
 		this.userController = new UserAdminController(service,
-				new AccountLifecycleService(this.users, revocation, auditLogger, null, null, Clock.systemUTC()));
+				new AccountLifecycleService(this.users, revocation, audit, null, null, Clock.systemUTC()));
 	}
 
 	@Test

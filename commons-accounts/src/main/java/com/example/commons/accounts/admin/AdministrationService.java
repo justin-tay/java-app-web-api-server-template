@@ -21,8 +21,9 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.commons.accounts.Permissions;
-import com.example.commons.accounts.admin.AccountAuditLogger.RoleState;
-import com.example.commons.accounts.admin.AccountAuditLogger.UserState;
+import com.example.commons.accounts.audit.AccountAudit;
+import com.example.commons.accounts.audit.AccountAudit.RoleState;
+import com.example.commons.accounts.audit.AccountAudit.UserState;
 import com.example.commons.accounts.domain.AccountStatus;
 import com.example.commons.accounts.domain.AppPermission;
 import com.example.commons.accounts.domain.AppPermissionRepository;
@@ -36,7 +37,7 @@ import com.example.commons.web.problem.ResourceNotFoundException;
 
 /**
  * Changes the local user, role, and permission model, logging every change and rejection
- * through {@link AccountAuditLogger}.
+ * through {@link AccountAudit}.
  *
  * <p>
  * A change needs the permission for what it does: {@code user:add-role} to give a user a
@@ -60,42 +61,42 @@ public class AdministrationService {
 
 	private final SessionRevocationService sessionRevocationService;
 
-	private final AccountAuditLogger auditLogger;
+	private final AccountAudit audit;
 
 	public AdministrationService(AppUserRepository users, AppRoleRepository roles, AppPermissionRepository permissions,
-			SessionRevocationService sessionRevocationService, AccountAuditLogger auditLogger) {
+			SessionRevocationService sessionRevocationService, AccountAudit audit) {
 		this.users = users;
 		this.roles = roles;
 		this.permissions = permissions;
 		this.sessionRevocationService = sessionRevocationService;
-		this.auditLogger = auditLogger;
+		this.audit = audit;
 	}
 
 	public AppUser createUser(AdminDtos.UserCreateRequest request) {
 		if (this.users.existsByUsername(request.username())) {
-			this.auditLogger.userCreationRejected(request.username(), "username_exists");
-			throw new ConflictException("Username already exists.");
+			throw this.audit.userCreationRejected(request.username(), "username_exists",
+					() -> new ConflictException("Username already exists."));
 		}
 		Set<AppRole> requestedRoles = roles(request.roleIds());
 		if (!Actor.currentHolds(Permissions.USER_ADD_ROLE)) {
-			this.auditLogger.userCreationRejected(request.username(), "missing_permission");
-			throw new AccessDeniedException("Giving a user a role needs " + Permissions.USER_ADD_ROLE + ".");
+			throw this.audit.userCreationRejected(request.username(), "missing_permission",
+					() -> new AccessDeniedException("Giving a user a role needs " + Permissions.USER_ADD_ROLE + "."));
 		}
 		if (!mayGrantRoles(requestedRoles)) {
-			this.auditLogger.userCreationRejected(request.username(), "exceeds_actor_privileges");
-			throw new AccessDeniedException("Cannot grant a privileged permission the actor does not hold.");
+			throw this.audit.userCreationRejected(request.username(), "exceeds_actor_privileges",
+					() -> new AccessDeniedException("Cannot grant a privileged permission the actor does not hold."));
 		}
 		Optional<String> clash = conflict(permissionsOf(requestedRoles));
 		if (clash.isPresent()) {
-			this.auditLogger.userCreationRejected(request.username(), "separation_of_duties");
-			throw new ConflictException(
-					"The roles give the user permissions that must not be held together: " + clash.get() + ".");
+			throw this.audit
+				.userCreationRejected(request.username(), "separation_of_duties", () -> new ConflictException(
+						"The roles give the user permissions that must not be held together: " + clash.get() + "."));
 		}
 		AppUser user = new AppUser(request.username(), request.name(), request.email(),
 				blankToNull(request.department()));
 		user.getRoles().addAll(requestedRoles);
 		AppUser saved = this.users.save(user);
-		this.auditLogger.userCreated(UserState.of(saved));
+		this.audit.userCreated(UserState.of(saved));
 		return saved;
 	}
 
@@ -106,8 +107,8 @@ public class AdministrationService {
 		Set<AppRole> requestedRoles = roles(request.roleIds());
 		boolean accessChanged = !previousRoleIds.equals(request.roleIds());
 		if (accessChanged && isActor(user)) {
-			this.auditLogger.userUpdateRejected(before, "self_modification");
-			throw new AccessDeniedException("Users cannot change their own access.");
+			throw this.audit.userUpdateRejected(before, "self_modification",
+					() -> new AccessDeniedException("Users cannot change their own access."));
 		}
 		Set<AppRole> addedRoles = new HashSet<>(requestedRoles);
 		addedRoles.removeAll(user.getRoles());
@@ -119,18 +120,17 @@ public class AdministrationService {
 		if ((!addedRoles.isEmpty() && !Actor.currentHolds(Permissions.USER_ADD_ROLE))
 				|| (!removedRoles.isEmpty() && !Actor.currentHolds(Permissions.USER_REMOVE_ROLE))
 				|| (detailsChanged && !Actor.currentHolds(Permissions.USER_UPDATE))) {
-			this.auditLogger.userUpdateRejected(before, "missing_permission");
-			throw new AccessDeniedException("The change needs permissions the actor does not hold.");
+			throw this.audit.userUpdateRejected(before, "missing_permission",
+					() -> new AccessDeniedException("The change needs permissions the actor does not hold."));
 		}
 		if (!mayGrantRoles(addedRoles)) {
-			this.auditLogger.userUpdateRejected(before, "exceeds_actor_privileges");
-			throw new AccessDeniedException("Cannot grant a privileged permission the actor does not hold.");
+			throw this.audit.userUpdateRejected(before, "exceeds_actor_privileges",
+					() -> new AccessDeniedException("Cannot grant a privileged permission the actor does not hold."));
 		}
 		Optional<String> clash = addedRoles.isEmpty() ? Optional.empty() : conflict(permissionsOf(requestedRoles));
 		if (clash.isPresent()) {
-			this.auditLogger.userUpdateRejected(before, "separation_of_duties");
-			throw new ConflictException(
-					"The roles give the user permissions that must not be held together: " + clash.get() + ".");
+			throw this.audit.userUpdateRejected(before, "separation_of_duties", () -> new ConflictException(
+					"The roles give the user permissions that must not be held together: " + clash.get() + "."));
 		}
 		user.update(request.name(), request.email(), blankToNull(request.department()));
 		user.getRoles().clear();
@@ -138,7 +138,7 @@ public class AdministrationService {
 		if (accessChanged) {
 			this.sessionRevocationService.revoke(user.getUsername(), "privilege_change");
 		}
-		this.auditLogger.userUpdated(before, UserState.of(user));
+		this.audit.userUpdated(before, UserState.of(user));
 		return user;
 	}
 
@@ -150,7 +150,7 @@ public class AdministrationService {
 	public void revokeSessions(UUID id) {
 		AppUser user = user(id);
 		int revoked = this.sessionRevocationService.revoke(user.getUsername(), "administrative_revocation");
-		this.auditLogger.sessionsRevoked(user.getUsername(), revoked);
+		this.audit.sessionsRevoked(user.getUsername(), revoked);
 	}
 
 	/**
@@ -165,7 +165,7 @@ public class AdministrationService {
 				revoked += this.sessionRevocationService.revoke(username, "administrative_revocation");
 			}
 		}
-		this.auditLogger.sessionsRevoked(null, revoked);
+		this.audit.sessionsRevoked(null, revoked);
 	}
 
 	/**
@@ -221,28 +221,27 @@ public class AdministrationService {
 
 	public AppRole createRole(AdminDtos.RoleRequest request) {
 		if (this.roles.existsByName(request.name())) {
-			this.auditLogger.roleCreationRejected(request.name(), "name_exists");
-			throw new ConflictException("Role name already exists.");
+			throw this.audit.roleCreationRejected(request.name(), "name_exists",
+					() -> new ConflictException("Role name already exists."));
 		}
 		Set<AppPermission> requested = permissions(request.permissionIds());
 		if (!requested.isEmpty() && !Actor.currentHolds(Permissions.ROLE_ADD_PERMISSION)) {
-			this.auditLogger.roleCreationRejected(request.name(), "missing_permission");
-			throw new AccessDeniedException(
-					"Giving a role a permission needs " + Permissions.ROLE_ADD_PERMISSION + ".");
+			throw this.audit.roleCreationRejected(request.name(), "missing_permission", () -> new AccessDeniedException(
+					"Giving a role a permission needs " + Permissions.ROLE_ADD_PERMISSION + "."));
 		}
 		if (!mayGrant(requested)) {
-			this.auditLogger.roleCreationRejected(request.name(), "exceeds_actor_privileges");
-			throw new AccessDeniedException("Cannot grant a privileged permission the actor does not hold.");
+			throw this.audit.roleCreationRejected(request.name(), "exceeds_actor_privileges",
+					() -> new AccessDeniedException("Cannot grant a privileged permission the actor does not hold."));
 		}
 		Optional<String> clash = conflict(requested);
 		if (clash.isPresent()) {
-			this.auditLogger.roleCreationRejected(request.name(), "separation_of_duties");
-			throw new ConflictException("The permissions must not be held together: " + clash.get() + ".");
+			throw this.audit.roleCreationRejected(request.name(), "separation_of_duties",
+					() -> new ConflictException("The permissions must not be held together: " + clash.get() + "."));
 		}
 		AppRole role = new AppRole(request.name());
 		role.getPermissions().addAll(requested);
 		AppRole saved = this.roles.save(role);
-		this.auditLogger.roleCreated(RoleState.of(saved));
+		this.audit.roleCreated(RoleState.of(saved));
 		return saved;
 	}
 
@@ -251,8 +250,8 @@ public class AdministrationService {
 		RoleState before = RoleState.of(role);
 		boolean renamed = !role.getName().equals(request.name());
 		if (renamed && this.roles.existsByName(request.name())) {
-			this.auditLogger.roleUpdateRejected(before, request.name(), "name_exists");
-			throw new ConflictException("Role name already exists.");
+			throw this.audit.roleUpdateRejected(before, request.name(), "name_exists",
+					() -> new ConflictException("Role name already exists."));
 		}
 		Set<AppPermission> requested = permissions(request.permissionIds());
 		Set<AppPermission> added = new HashSet<>(requested);
@@ -262,24 +261,24 @@ public class AdministrationService {
 		if ((renamed && !Actor.currentHolds(Permissions.ROLE_UPDATE))
 				|| (!added.isEmpty() && !Actor.currentHolds(Permissions.ROLE_ADD_PERMISSION))
 				|| (!removed.isEmpty() && !Actor.currentHolds(Permissions.ROLE_REMOVE_PERMISSION))) {
-			this.auditLogger.roleUpdateRejected(before, request.name(), "missing_permission");
-			throw new AccessDeniedException("The change needs permissions the actor does not hold.");
+			throw this.audit.roleUpdateRejected(before, request.name(), "missing_permission",
+					() -> new AccessDeniedException("The change needs permissions the actor does not hold."));
 		}
 		if (!mayGrant(added)) {
-			this.auditLogger.roleUpdateRejected(before, request.name(), "exceeds_actor_privileges");
-			throw new AccessDeniedException("Cannot grant a privileged permission the actor does not hold.");
+			throw this.audit.roleUpdateRejected(before, request.name(), "exceeds_actor_privileges",
+					() -> new AccessDeniedException("Cannot grant a privileged permission the actor does not hold."));
 		}
 		Optional<String> clash = added.isEmpty() ? Optional.empty() : conflictForHolders(role, requested);
 		if (clash.isPresent()) {
-			this.auditLogger.roleUpdateRejected(before, request.name(), "separation_of_duties");
-			throw new ConflictException(
-					"The permissions must not be held together by a user of the role: " + clash.get() + ".");
+			throw this.audit.roleUpdateRejected(before, request.name(), "separation_of_duties",
+					() -> new ConflictException(
+							"The permissions must not be held together by a user of the role: " + clash.get() + "."));
 		}
 		role.setName(request.name());
 		role.getPermissions().clear();
 		role.getPermissions().addAll(requested);
 		role.touch();
-		this.auditLogger.roleUpdated(before, RoleState.of(role), this.users.countByRoles_PublicId(id));
+		this.audit.roleUpdated(before, RoleState.of(role), this.users.countByRoles_PublicId(id));
 		return role;
 	}
 
@@ -287,11 +286,11 @@ public class AdministrationService {
 		AppRole role = role(id);
 		RoleState before = RoleState.of(role);
 		if (this.users.existsByRoles_PublicId(id)) {
-			this.auditLogger.roleDeletionRejected(before, "role_has_users");
-			throw new ConflictException("Role has users.");
+			throw this.audit.roleDeletionRejected(before, "role_has_users",
+					() -> new ConflictException("Role has users."));
 		}
 		this.roles.delete(role);
-		this.auditLogger.roleDeleted(before);
+		this.audit.roleDeleted(before);
 	}
 
 	public AppRole role(UUID id) {

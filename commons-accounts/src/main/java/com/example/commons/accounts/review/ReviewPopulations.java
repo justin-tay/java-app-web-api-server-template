@@ -4,17 +4,10 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.json.JsonMapper;
-
-import com.example.commons.accounts.domain.AccountAuditEvent;
-import com.example.commons.accounts.domain.AccountAuditEventRepository;
+import com.example.commons.accounts.audit.AccountAudit;
+import com.example.commons.accounts.audit.AccountAudit.Removal;
 import com.example.commons.accounts.domain.AccountReviewAttestation;
 import com.example.commons.accounts.domain.AccountReviewAttestationRepository;
 import com.example.commons.accounts.domain.AccountReviewPopulationEntry;
@@ -34,30 +27,24 @@ import com.example.commons.web.problem.ConflictException;
  */
 public class ReviewPopulations {
 
-	private static final JsonMapper JSON = JsonMapper.builder().build();
-
-	private static final TypeReference<Map<String, Object>> DETAILS = new TypeReference<>() {
-	};
-
 	private final TaskRepository tasks;
 
 	private final AccountReviewAttestationRepository attestations;
 
 	private final AccountReviewPopulationEntryRepository entries;
 
-	private final AccountAuditEventRepository auditEvents;
+	private final AccountAudit audit;
 
 	private final Clock clock;
 
 	private final ZoneId zone;
 
 	public ReviewPopulations(TaskRepository tasks, AccountReviewAttestationRepository attestations,
-			AccountReviewPopulationEntryRepository entries, AccountAuditEventRepository auditEvents, Clock clock,
-			ZoneId zone) {
+			AccountReviewPopulationEntryRepository entries, AccountAudit audit, Clock clock, ZoneId zone) {
 		this.tasks = tasks;
 		this.attestations = attestations;
 		this.entries = entries;
-		this.auditEvents = auditEvents;
+		this.audit = audit;
 		this.clock = clock;
 		this.zone = zone;
 	}
@@ -145,8 +132,7 @@ public class ReviewPopulations {
 	 * Returns the removals since the previous task's removed population was confirmed, or
 	 * since that task started if it never was, or every recorded removal for the first
 	 * task, so no removal falls between two reviews, and only the removals of the task's
-	 * class: whether the account was privileged is recorded with the removal, and a
-	 * removal that records nothing counts as not privileged.
+	 * class.
 	 */
 	private List<PopulationEntryResponse> liveRemoved(Task task) {
 		Instant since = this.tasks
@@ -155,34 +141,16 @@ public class ReviewPopulations {
 				.map(AccountReviewAttestation::getConfirmedAt)
 				.orElseGet(() -> previous.getStartDate().atStartOfDay(this.zone).toInstant()))
 			.orElse(null);
-		Specification<AccountAuditEvent> specification = (root, query, builder) -> builder
-			.and(builder.equal(root.get("action"), "delete_user"), builder.equal(root.get("targetType"), "USER"));
-		if (since != null) {
-			specification = specification
-				.and((root, query, builder) -> builder.greaterThanOrEqualTo(root.get("occurredAt"), since));
-		}
-		boolean privileged = task.isPrivilegedReview();
-		return this.auditEvents.findAll(specification, Sort.by("occurredAt"))
+		return this.audit.removalsSince(since, task.isPrivilegedReview())
 			.stream()
-			.filter(event -> Boolean.TRUE.equals(details(event).get("privileged")) == privileged)
 			.map(ReviewPopulations::removedEntry)
 			.toList();
 	}
 
-	private static Map<String, Object> details(AccountAuditEvent event) {
-		return event.getDetails() == null ? Map.of() : JSON.readValue(event.getDetails(), DETAILS);
-	}
-
-	private static PopulationEntryResponse removedEntry(AccountAuditEvent event) {
-		Map<String, Object> details = details(event);
-		return new PopulationEntryResponse(UUID.fromString(event.getTargetId()), event.getTargetName(),
-				event.getTargetFullName(), (String) details.get("department"), instant(details.get("createdAt")),
-				instant(details.get("lastLoginAt")), instant(details.get("lastActivityAt")), event.getOccurredAt(),
-				event.getActor(), event.getReasonCode(), event.getReasonNote());
-	}
-
-	private static Instant instant(Object value) {
-		return value == null ? null : Instant.parse(value.toString());
+	private static PopulationEntryResponse removedEntry(Removal removal) {
+		return new PopulationEntryResponse(removal.userId(), removal.username(), removal.name(), removal.department(),
+				removal.createdAt(), removal.lastLoginAt(), removal.lastActivityAt(), removal.occurredAt(),
+				removal.actor(), removal.reasonCode(), removal.reasonNote());
 	}
 
 	private static PopulationStatus status(AccountReviewAttestation attestation) {

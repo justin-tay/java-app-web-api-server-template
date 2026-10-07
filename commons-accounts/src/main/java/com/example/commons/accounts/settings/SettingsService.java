@@ -1,6 +1,7 @@
 package com.example.commons.accounts.settings;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -8,9 +9,12 @@ import java.util.stream.Collectors;
 
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.commons.accounts.admin.AccountAuditLogger;
 import com.example.commons.accounts.domain.AppSetting;
 import com.example.commons.accounts.domain.AppSettingRepository;
+import com.example.commons.audit.AuditAction;
+import com.example.commons.audit.AuditEvent;
+import com.example.commons.audit.AuditTarget;
+import com.example.commons.audit.AuditTrail;
 import com.example.commons.web.problem.BadRequestException;
 
 /**
@@ -35,13 +39,21 @@ public class SettingsService {
 
 	private static final Set<Integer> VALID_INTERVALS = Set.of(1, 3, 6, 12);
 
+	private static final AuditAction UPDATE_SETTING = AuditAction.configuration("update_setting", "Settings update");
+
+	/**
+	 * The details of {@code update_setting}: each changed setting's old and new value.
+	 */
+	record SettingsChanged(Map<String, Object> changes) {
+	}
+
 	private final AppSettingRepository settings;
 
-	private final AccountAuditLogger auditLogger;
+	private final AuditTrail trail;
 
-	public SettingsService(AppSettingRepository settings, AccountAuditLogger auditLogger) {
+	public SettingsService(AppSettingRepository settings, AuditTrail trail) {
 		this.settings = settings;
-		this.auditLogger = auditLogger;
+		this.trail = trail;
 	}
 
 	@Transactional(readOnly = true)
@@ -80,8 +92,10 @@ public class SettingsService {
 			}
 		}
 		if (!changes.isEmpty()) {
-			this.auditLogger.record("update_setting", "SETTING", "settings", "settings", null, null,
-					Map.of("changes", changes));
+			this.trail.record(AuditEvent.of(UPDATE_SETTING, AuditTarget.of("SETTING", "settings", "settings"))
+				.details(new SettingsChanged(changes))
+				.log("settings.changed", List.copyOf(changes.keySet()))
+				.build());
 		}
 		return requested;
 	}

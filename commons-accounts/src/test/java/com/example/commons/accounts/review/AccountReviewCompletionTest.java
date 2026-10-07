@@ -7,13 +7,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.data.jpa.domain.Specification;
 
+import com.example.commons.audit.AuditRecord;
 import com.example.commons.accounts.AccountsJpaTest;
-import com.example.commons.accounts.domain.AccountAuditEvent;
 import com.example.commons.accounts.domain.AccountReviewReport;
 import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppUser;
@@ -123,10 +123,9 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 		assertThat(report.getSizeBytes()).isEqualTo(report.getContent().length);
 		assertThat(report.getSha256())
 			.isEqualTo(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(report.getContent())));
-		assertThat(this.auditEvents.findAll(Specification.unrestricted()))
-			.filteredOn(event -> event.getAction().equals("complete_review_task"))
+		assertThat(auditEvents()).filteredOn(event -> event.action().equals("complete_review_task"))
 			.singleElement()
-			.satisfies(event -> assertThat(event.getDetails()).contains(report.getSha256()));
+			.satisfies(event -> assertThat(event.details(Map.class)).containsEntry("sha256", report.getSha256()));
 		assertThat(this.service.response(reload(task)).reportAvailable()).isTrue();
 	}
 
@@ -203,11 +202,9 @@ class AccountReviewCompletionTest extends AccountReviewTestSupport {
 		assertThat(new String(pdf.content(), 0, 5, StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
 		assertThat(new String(xlsx.content(), 0, 2, StandardCharsets.US_ASCII)).isEqualTo("PK");
 		assertThat(this.storedReports.existsByTaskId(task.getId())).isFalse();
-		assertThat(this.auditEvents.findAll(Specification.unrestricted()))
-			.filteredOn(event -> event.getAction().equals("export_review_report"))
-			.extracting(AccountAuditEvent::getDetails)
-			.allSatisfy(details -> assertThat(details).contains("\"draft\":true"))
-			.hasSize(3);
+		assertThat(auditEvents()).filteredOn(event -> event.action().equals("export_review_report"))
+			.extracting(event -> event.details(Map.class).get("draft"))
+			.containsExactly(true, true, true);
 	}
 
 	@Test

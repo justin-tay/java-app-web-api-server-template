@@ -3,10 +3,10 @@ package com.example.commons.accounts.review;
 import java.time.Clock;
 import java.time.Instant;
 
-import com.example.commons.accounts.domain.AccountAuditEvent;
 import com.example.commons.accounts.domain.AccountReviewItem;
 import com.example.commons.accounts.domain.AccountReviewItemRepository;
 import com.example.commons.accounts.domain.AppUser;
+import com.example.commons.audit.AuditRecord;
 
 /**
  * Keeps review items consistent when an account is removed, whoever removes it (see
@@ -30,12 +30,12 @@ public class ReviewItems {
 	 * deleted.
 	 * @param account the account about to be removed
 	 * @param actor who is removing it, or {@code system}
-	 * @param removalEvent the removal's audit event, or null when no audit trail is kept
+	 * @param removalEvent the removal's audit trail event
 	 */
-	public void accountRemoved(AppUser account, String actor, AccountAuditEvent removalEvent) {
+	public void accountRemoved(AppUser account, String actor, AuditRecord removalEvent) {
 		Instant now = this.clock.instant();
 		for (AccountReviewItem item : this.items.findPendingInOpenTasks(account.getPublicId())) {
-			item.remove(account, account.roleNames(), actor, now, removalEvent == null ? null : removalEvent.getId());
+			item.remove(account, account.roleNames(), actor, now, removalEvent.id());
 			this.items.saveAndFlush(item);
 		}
 	}

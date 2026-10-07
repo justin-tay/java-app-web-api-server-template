@@ -6,7 +6,6 @@ import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -24,13 +23,11 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.commons.accounts.Permissions;
-import com.example.commons.accounts.admin.AccountAuditLogger;
-import com.example.commons.accounts.admin.AccountAuditLogger.UserState;
 import com.example.commons.accounts.admin.AccountLifecycleService;
 import com.example.commons.accounts.admin.Actor;
 import com.example.commons.accounts.admin.AdminDtos.Summary;
-import com.example.commons.accounts.domain.AccountAuditEvent;
-import com.example.commons.accounts.domain.AccountAuditEventRepository;
+import com.example.commons.accounts.audit.AccountAudit;
+import com.example.commons.accounts.audit.AccountAudit.UserState;
 import com.example.commons.accounts.domain.AccountReviewCategory;
 import com.example.commons.accounts.domain.AccountReviewItem;
 import com.example.commons.accounts.domain.AccountReviewItemRepository;
@@ -40,7 +37,6 @@ import com.example.commons.accounts.domain.AppRole;
 import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AppUser;
 import com.example.commons.accounts.domain.AppUserRepository;
-import com.example.commons.accounts.domain.Auditor;
 import com.example.commons.accounts.domain.ReasonCode;
 import com.example.commons.accounts.domain.ReviewPopulation;
 import com.example.commons.accounts.domain.Task;
@@ -55,6 +51,9 @@ import com.example.commons.accounts.review.ReviewDtos.Progress;
 import com.example.commons.accounts.review.ReviewDtos.ReviewItemResponse;
 import com.example.commons.accounts.review.ReviewDtos.TaskResponse;
 import com.example.commons.accounts.review.ReviewDtos.TaskSummary;
+import com.example.commons.audit.AuditAction;
+import com.example.commons.audit.AuditTrail;
+import com.example.commons.audit.Auditor;
 import com.example.commons.security.session.SessionRevocationService;
 import com.example.commons.web.problem.BadRequestException;
 import com.example.commons.web.problem.ConflictException;
@@ -132,9 +131,9 @@ public class AccountReviewService {
 
 	private final SessionRevocationService sessionRevocationService;
 
-	private final AccountAuditLogger auditLogger;
+	private final AccountAudit audit;
 
-	private final AccountAuditEventRepository auditEvents;
+	private final AuditTrail trail;
 
 	private final AccountReviewReports reports;
 
@@ -148,17 +147,17 @@ public class AccountReviewService {
 
 	public AccountReviewService(TaskRepository tasks, AccountReviewItemRepository items, AppUserRepository users,
 			AppRoleRepository roles, AccountLifecycleService lifecycle,
-			SessionRevocationService sessionRevocationService, AccountAuditLogger auditLogger,
-			AccountAuditEventRepository auditEvents, AccountReviewReports reports, ReviewPopulations populations,
-			ReviewReportModels reportModels, Clock clock, ZoneId zone) {
+			SessionRevocationService sessionRevocationService, AccountAudit audit, AuditTrail trail,
+			AccountReviewReports reports, ReviewPopulations populations, ReviewReportModels reportModels, Clock clock,
+			ZoneId zone) {
 		this.tasks = tasks;
 		this.items = items;
 		this.users = users;
 		this.roles = roles;
 		this.lifecycle = lifecycle;
 		this.sessionRevocationService = sessionRevocationService;
-		this.auditLogger = auditLogger;
-		this.auditEvents = auditEvents;
+		this.audit = audit;
+		this.trail = trail;
 		this.reports = reports;
 		this.populations = populations;
 		this.reportModels = reportModels;
@@ -186,16 +185,19 @@ public class AccountReviewService {
 			.flatMap(category -> this.users.findByStatus(category.status()).stream())
 			.filter(user -> user.isPrivileged() == privilegedReview)
 			.toList();
-		Map<String, String> suspenders = suspenders(accounts);
+		Map<UUID, String> suspenders = this.audit.lastSuspenders(accounts.stream()
+			.filter(user -> user.getStatus() == AccountStatus.SUSPENDED)
+			.map(AppUser::getPublicId)
+			.toList());
 		List<AccountReviewItem> created = accounts.stream()
 			.map(user -> new AccountReviewItem(task.getId(), user,
-					privilegedReview ? user.privilegedPermissionNames() : null,
-					suspenders.get(user.getPublicId().toString())))
+					privilegedReview ? user.privilegedPermissionNames() : null, suspenders.get(user.getPublicId())))
 			.toList();
 		this.items.saveAll(created);
-		this.auditLogger.record("create_review_task", "REVIEW", task.getPublicId().toString(),
-				type + " " + period.start(), null, null, Map.of("type", type, "startDate", period.start().toString(),
-						"dueDate", period.due().toString(), "itemCount", created.size()));
+		this.trail.record(ReviewAudit.task(ReviewAudit.CREATE_REVIEW_TASK, task, type + " " + period.start())
+			.details(new ReviewAudit.TaskCreated(type, period.start().toString(), period.due().toString(),
+					created.size()))
+			.build());
 		return task;
 	}
 
@@ -253,28 +255,6 @@ public class AccountReviewService {
 
 	private long pending(Task task, AccountReviewCategory category) {
 		return this.items.countPending(task.getId(), category, category.status());
-	}
-
-	/**
-	 * Returns who last suspended each account, by public ID, for the accounts that have a
-	 * suspension in the audit trail.
-	 */
-	private Map<String, String> suspenders(List<AppUser> accounts) {
-		Map<String, AccountAuditEvent> latest = new HashMap<>();
-		List<String> suspended = accounts.stream()
-			.filter(user -> user.getStatus() == AccountStatus.SUSPENDED)
-			.map(user -> user.getPublicId().toString())
-			.toList();
-		if (!suspended.isEmpty()) {
-			for (AccountAuditEvent event : this.auditEvents.findByActionAndTargetIdIn("suspend_user", suspended)) {
-				latest.merge(event.getTargetId(), event,
-						(first, second) -> second.getOccurredAt().isAfter(first.getOccurredAt()) ? second : first);
-			}
-		}
-		return latest.entrySet()
-			.stream()
-			.filter(entry -> entry.getValue().getActor() != null)
-			.collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getActor()));
 	}
 
 	/**
@@ -341,17 +321,18 @@ public class AccountReviewService {
 	 */
 	public void decide(UUID taskId, List<UUID> itemIds, Decision decision, ReasonCode reason, String note) {
 		Task task = openTask(taskId);
+		AuditAction action = (decision == Decision.CONFIRM) ? ReviewAudit.CONFIRM_REVIEW_ITEM
+				: ReviewAudit.REMOVE_REVIEW_ITEM;
 		if (decision == Decision.REMOVE && !Actor.currentHolds(Permissions.USER_REMOVE)) {
-			this.auditLogger.record("review_rejected", "REVIEW", taskId.toString(), "decide", "missing_permission",
-					null, Map.of("taskId", taskId));
-			throw new AccessDeniedException("Removing an account needs " + Permissions.USER_REMOVE + ".");
+			throw this.trail.reject(ReviewAudit.refusal(action, taskId).reason("missing_permission").build(),
+					() -> new AccessDeniedException("Removing an account needs " + Permissions.USER_REMOVE + "."));
 		}
 		Set<UUID> ids = new LinkedHashSet<>(itemIds);
 		Map<UUID, AccountReviewItem> found = this.items.findByTaskIdAndPublicIdIn(task.getId(), ids)
 			.stream()
 			.collect(Collectors.toMap(AccountReviewItem::getPublicId, item -> item));
 		String actor = Auditor.current();
-		rejectOwnAccount(found.values(), actor, taskId);
+		rejectOwnAccount(found.values(), actor, taskId, action);
 		List<UUID> rejected = ids.stream().filter(id -> !decidable(found.get(id))).toList();
 		if (!rejected.isEmpty()) {
 			throw new ConflictException("These items are not in this task, no longer have the status they were "
@@ -364,15 +345,13 @@ public class AccountReviewService {
 			if (decision == Decision.CONFIRM) {
 				item.confirm(account, account.roleNames(), actor, this.clock.instant());
 				this.items.save(item);
-				this.auditLogger.record("confirm_review_item", "REVIEW", item.getPublicId().toString(),
-						item.getUsername(), null, null, Map.of("taskId", taskId));
+				this.trail.record(ReviewAudit.item(action, item, taskId).build());
 			}
 			else {
 				// The lifecycle service marks the item removed, with this actor as the
 				// decider.
 				this.lifecycle.remove(account, reason, note);
-				this.auditLogger.record("remove_review_item", "REVIEW", item.getPublicId().toString(),
-						item.getUsername(), reason.value(), note, Map.of("taskId", taskId));
+				this.trail.record(ReviewAudit.item(action, item, taskId).reason(reason.value(), note).build());
 			}
 		}
 		this.items.flush();
@@ -391,15 +370,17 @@ public class AccountReviewService {
 	public void editRoles(UUID taskId, UUID itemId, Set<UUID> roleIds) {
 		Task task = openTask(taskId);
 		if (!Actor.currentHolds(Permissions.USER_REMOVE_ROLE)) {
-			this.auditLogger.record("review_rejected", "REVIEW", itemId.toString(), "edit_roles", "missing_permission",
-					null, Map.of("taskId", taskId));
-			throw new AccessDeniedException("Removing a role needs " + Permissions.USER_REMOVE_ROLE + ".");
+			throw this.trail.reject(
+					ReviewAudit.refusal(ReviewAudit.EDIT_REVIEW_ITEM_ROLES, taskId)
+						.reason("missing_permission")
+						.build(),
+					() -> new AccessDeniedException("Removing a role needs " + Permissions.USER_REMOVE_ROLE + "."));
 		}
 		AccountReviewItem item = this.items.findByPublicId(itemId)
 			.filter(candidate -> candidate.getTaskId().equals(task.getId()))
 			.orElseThrow(() -> new ResourceNotFoundException("Review item"));
 		String actor = Auditor.current();
-		rejectOwnAccount(List.of(item), actor, taskId);
+		rejectOwnAccount(List.of(item), actor, taskId, ReviewAudit.EDIT_REVIEW_ITEM_ROLES);
 		if (!decidable(item)) {
 			throw new ConflictException(
 					"The item no longer has the status it was reviewed with or is already decided.");
@@ -415,19 +396,20 @@ public class AccountReviewService {
 			throw new BadRequestException("The roles are unchanged.");
 		}
 		if (!account.getRoles().containsAll(requested)) {
-			this.auditLogger.userUpdateRejected(state, "role_added_in_review");
-			throw new AccessDeniedException("A reviewer cannot add a role.");
+			throw this.audit.userUpdateRejected(state, "role_added_in_review",
+					() -> new AccessDeniedException("A reviewer cannot add a role."));
 		}
 		account.getRoles().clear();
 		account.getRoles().addAll(requested);
 		this.sessionRevocationService.revoke(account.getUsername(), "privilege_change");
-		this.auditLogger.userUpdated(state, UserState.of(account));
+		this.audit.userUpdated(state, UserState.of(account));
 		List<String> after = account.roleNames();
 		item.confirmWithRolesEdited(account, before, after, actor, this.clock.instant());
 		this.items.saveAndFlush(item);
-		this.auditLogger.record("edit_review_item_roles", "REVIEW", item.getPublicId().toString(), item.getUsername(),
-				null, null, Map.of("taskId", taskId, "rolesRemoved",
-						before.stream().filter(name -> !after.contains(name)).toList()));
+		this.trail.record(ReviewAudit.item(ReviewAudit.EDIT_REVIEW_ITEM_ROLES, item, taskId)
+			.details(
+					new ReviewAudit.ItemDecided(taskId, before.stream().filter(name -> !after.contains(name)).toList()))
+			.build());
 		completeIfFinished(task, actor);
 	}
 
@@ -442,9 +424,10 @@ public class AccountReviewService {
 		Task task = openTask(taskId);
 		String actor = Auditor.current();
 		int count = this.populations.confirm(task, population, actor, note);
-		this.auditLogger.record("confirm_review_population", "REVIEW", task.getPublicId().toString(),
-				population.value(), null, note,
-				Map.of("taskId", taskId, "population", population.value(), "count", count));
+		this.trail.record(ReviewAudit.task(ReviewAudit.CONFIRM_REVIEW_POPULATION, task, population.value())
+			.reason(null, note)
+			.details(new ReviewAudit.PopulationConfirmed(taskId, population.value(), count))
+			.build());
 		completeIfFinished(task, actor);
 	}
 
@@ -500,12 +483,11 @@ public class AccountReviewService {
 		return task;
 	}
 
-	private void rejectOwnAccount(Collection<AccountReviewItem> found, String actor, UUID taskId) {
+	private void rejectOwnAccount(Collection<AccountReviewItem> found, String actor, UUID taskId, AuditAction action) {
 		for (AccountReviewItem item : found) {
 			if (item.getUsername().equals(actor)) {
-				this.auditLogger.record("review_rejected", "REVIEW", item.getPublicId().toString(), item.getUsername(),
-						"own_account", null, Map.of("taskId", taskId));
-				throw new AccessDeniedException("Reviewers cannot review their own account.");
+				throw this.trail.reject(ReviewAudit.item(action, item, taskId).reason("own_account").build(),
+						() -> new AccessDeniedException("Reviewers cannot review their own account."));
 			}
 		}
 	}

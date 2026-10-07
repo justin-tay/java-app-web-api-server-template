@@ -10,8 +10,6 @@ DROP TABLE task;
 
 DROP TABLE app_setting;
 
-DROP TABLE account_audit_event;
-
 DROP TABLE user_credentials;
 
 DROP TABLE user_entities;
@@ -39,8 +37,6 @@ DROP SEQUENCE account_review_item_seq;
 DROP SEQUENCE app_setting_seq;
 
 DROP SEQUENCE task_seq;
-
-DROP SEQUENCE account_audit_event_seq;
 
 DROP SEQUENCE app_permission_seq;
 

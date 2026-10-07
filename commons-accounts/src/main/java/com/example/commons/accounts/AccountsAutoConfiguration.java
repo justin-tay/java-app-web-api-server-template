@@ -21,7 +21,6 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import com.example.commons.accounts.admin.AdminReauthenticationInterceptor;
-import com.example.commons.accounts.admin.AccountAuditLogger;
 import com.example.commons.accounts.admin.AccountLifecycleService;
 import com.example.commons.accounts.admin.AuditEventController;
 import com.example.commons.accounts.admin.AdministrationService;
@@ -29,7 +28,7 @@ import com.example.commons.accounts.admin.PermissionAdminController;
 import com.example.commons.accounts.admin.RoleAdminController;
 import com.example.commons.accounts.admin.UserAdminController;
 import com.example.commons.accounts.admin.UserPasskeyAdminController;
-import com.example.commons.accounts.domain.AccountAuditEventRepository;
+import com.example.commons.accounts.audit.AccountAudit;
 import com.example.commons.accounts.domain.AppPermissionRepository;
 import com.example.commons.accounts.domain.AppRoleRepository;
 import com.example.commons.accounts.domain.AccountReviewAttestationRepository;
@@ -51,6 +50,8 @@ import com.example.commons.accounts.review.ReviewReportRenderer;
 import com.example.commons.accounts.review.TaskController;
 import com.example.commons.accounts.settings.SettingsController;
 import com.example.commons.accounts.settings.SettingsService;
+import com.example.commons.audit.AuditAutoConfiguration;
+import com.example.commons.audit.AuditTrail;
 import com.example.commons.security.WebSecurityAutoConfiguration;
 import com.example.commons.security.authentication.passkey.PasskeyManager;
 import com.example.commons.security.authentication.passkey.PasskeyUserDirectory;
@@ -88,7 +89,7 @@ import com.example.commons.security.session.SessionRevocationService;
  * application's filter chain has.
  */
 @AutoConfiguration(before = { HibernateJpaAutoConfiguration.class, DataJpaRepositoriesAutoConfiguration.class },
-		after = WebSecurityAutoConfiguration.class,
+		after = { WebSecurityAutoConfiguration.class, AuditAutoConfiguration.class },
 		afterName = "com.example.commons.security.authentication.passkey.PasskeySecurityAutoConfiguration")
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnBooleanProperty(name = "commons.accounts.enabled", matchIfMissing = true)
@@ -102,15 +103,15 @@ public class AccountsAutoConfiguration {
 	}
 
 	/**
-	 * Audit logging of changes to accounts, roles, settings, and reviews, as log events
-	 * and as rows of the business audit trail (see docs/adr/0030).
-	 * @param events the audit event repository
-	 * @return the audit logger
+	 * Records the changes to accounts and roles in the audit trail, and reads back what
+	 * the account review needs (see docs/adr/0040).
+	 * @param trail the audit trail
+	 * @return the account audit
 	 */
 	@Bean
 	@ConditionalOnMissingBean
-	AccountAuditLogger accountAuditLogger(AccountAuditEventRepository events) {
-		return new AccountAuditLogger(events, Clock.systemUTC());
+	AccountAudit accountAudit(AuditTrail trail) {
+		return new AccountAudit(trail);
 	}
 
 	/**
@@ -118,17 +119,17 @@ public class AccountsAutoConfiguration {
 	 * review, and the inactivity job (see docs/adr/0031).
 	 * @param users the user repository
 	 * @param sessionRevocationService the session revocation service
-	 * @param auditLogger the audit logger
+	 * @param audit the account audit
 	 * @param passkeyManager the passkey manager, when passkeys are enabled
 	 * @return the service
 	 */
 	@Bean
 	@ConditionalOnMissingBean
 	AccountLifecycleService accountLifecycleService(AppUserRepository users,
-			SessionRevocationService sessionRevocationService, AccountAuditLogger auditLogger,
+			SessionRevocationService sessionRevocationService, AccountAudit audit,
 			ObjectProvider<PasskeyManager> passkeyManager, ReviewItems reviewItems) {
-		return new AccountLifecycleService(users, sessionRevocationService, auditLogger,
-				passkeyManager.getIfAvailable(), reviewItems, Clock.systemUTC());
+		return new AccountLifecycleService(users, sessionRevocationService, audit, passkeyManager.getIfAvailable(),
+				reviewItems, Clock.systemUTC());
 	}
 
 	/**
@@ -145,13 +146,13 @@ public class AccountsAutoConfiguration {
 	/**
 	 * The application settings (see docs/adr/0031).
 	 * @param settings the setting repository
-	 * @param auditLogger the audit logger
+	 * @param trail the audit trail
 	 * @return the service
 	 */
 	@Bean
 	@ConditionalOnMissingBean
-	SettingsService settingsService(AppSettingRepository settings, AccountAuditLogger auditLogger) {
-		return new SettingsService(settings, auditLogger);
+	SettingsService settingsService(AppSettingRepository settings, AuditTrail trail) {
+		return new SettingsService(settings, trail);
 	}
 
 	/**
@@ -218,35 +219,33 @@ public class AccountsAutoConfiguration {
 		@Bean
 		@ConditionalOnMissingBean
 		AccountReviewReports accountReviewReports(AccountReviewReportRepository stored, ReviewReportRenderer renderer,
-				AccountAuditLogger auditLogger) {
-			return new AccountReviewReports(stored, renderer, auditLogger, Clock.systemUTC());
+				AuditTrail trail) {
+			return new AccountReviewReports(stored, renderer, trail, Clock.systemUTC());
 		}
 
 		@Bean
 		@ConditionalOnMissingBean
 		ReviewPopulations reviewPopulations(TaskRepository tasks, AccountReviewAttestationRepository attestations,
-				AccountReviewPopulationEntryRepository entries, AccountAuditEventRepository auditEvents,
-				Environment environment) {
-			return new ReviewPopulations(tasks, attestations, entries, auditEvents, Clock.systemUTC(),
-					zone(environment));
+				AccountReviewPopulationEntryRepository entries, AccountAudit audit, Environment environment) {
+			return new ReviewPopulations(tasks, attestations, entries, audit, Clock.systemUTC(), zone(environment));
 		}
 
 		@Bean
 		@ConditionalOnMissingBean
-		ReviewReportModels reviewReportModels(AccountReviewItemRepository items,
-				AccountAuditEventRepository auditEvents, ReviewPopulations populations, Environment environment) {
-			return new ReviewReportModels(items, auditEvents, populations, Clock.systemUTC(), zone(environment));
+		ReviewReportModels reviewReportModels(AccountReviewItemRepository items, AccountAudit audit,
+				ReviewPopulations populations, Environment environment) {
+			return new ReviewReportModels(items, audit, populations, Clock.systemUTC(), zone(environment));
 		}
 
 		@Bean
 		@ConditionalOnMissingBean
 		AccountReviewService accountReviewService(TaskRepository tasks, AccountReviewItemRepository items,
 				AppUserRepository users, AppRoleRepository roles, AccountLifecycleService lifecycle,
-				SessionRevocationService sessionRevocationService, AccountAuditLogger auditLogger,
-				AccountAuditEventRepository auditEvents, AccountReviewReports reports, ReviewPopulations populations,
-				ReviewReportModels reportModels, Environment environment) {
-			return new AccountReviewService(tasks, items, users, roles, lifecycle, sessionRevocationService,
-					auditLogger, auditEvents, reports, populations, reportModels, Clock.systemUTC(), zone(environment));
+				SessionRevocationService sessionRevocationService, AccountAudit audit, AuditTrail trail,
+				AccountReviewReports reports, ReviewPopulations populations, ReviewReportModels reportModels,
+				Environment environment) {
+			return new AccountReviewService(tasks, items, users, roles, lifecycle, sessionRevocationService, audit,
+					trail, reports, populations, reportModels, Clock.systemUTC(), zone(environment));
 		}
 
 		@Bean
@@ -272,8 +271,8 @@ public class AccountsAutoConfiguration {
 		@Bean
 		AdministrationService administrationService(AppUserRepository users, AppRoleRepository roles,
 				AppPermissionRepository permissions, SessionRevocationService sessionRevocationService,
-				AccountAuditLogger accountAuditLogger) {
-			return new AdministrationService(users, roles, permissions, sessionRevocationService, accountAuditLogger);
+				AccountAudit accountAudit) {
+			return new AdministrationService(users, roles, permissions, sessionRevocationService, accountAudit);
 		}
 
 		@Bean
@@ -282,8 +281,8 @@ public class AccountsAutoConfiguration {
 		}
 
 		@Bean
-		AuditEventController auditEventController(AccountAuditEventRepository events) {
-			return new AuditEventController(events);
+		AuditEventController auditEventController(AuditTrail trail) {
+			return new AuditEventController(trail);
 		}
 
 		@Bean
