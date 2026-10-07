@@ -28,7 +28,7 @@ public class PasskeyAuditLogger {
 	 * @param label the label the user gave the passkey
 	 */
 	public void registered(String owner, String label) {
-		event(LOGGER.atInfo(), "register_passkey", "creation", owner).addKeyValue("event.outcome", "success")
+		event(LOGGER.atInfo(), "register_passkey", owner).addKeyValue("event.outcome", "success")
 			.addKeyValue("passkey.label", label)
 			.log("Passkey registered");
 	}
@@ -39,7 +39,7 @@ public class PasskeyAuditLogger {
 	 * @param label the label the user had given the passkey
 	 */
 	public void removed(String owner, String label) {
-		event(LOGGER.atInfo(), "remove_passkey", "deletion", owner).addKeyValue("event.outcome", "success")
+		event(LOGGER.atInfo(), "remove_passkey", owner).addKeyValue("event.outcome", "success")
 			.addKeyValue("passkey.label", label)
 			.log("Passkey removed");
 	}
@@ -62,9 +62,14 @@ public class PasskeyAuditLogger {
 			.log("Passkey signature counter regression");
 	}
 
-	private static LoggingEventBuilder event(LoggingEventBuilder event, String action, String type, String owner) {
+	/**
+	 * Starts a registration or removal event. Adding or removing a passkey changes the
+	 * owner's credentials, so the ECS type is {@code [user, change]}; the action says
+	 * which it was.
+	 */
+	private static LoggingEventBuilder event(LoggingEventBuilder event, String action, String owner) {
 		event.addKeyValue("event.category", List.of("iam"))
-			.addKeyValue("event.type", List.of("passkey", type))
+			.addKeyValue("event.type", List.of("user", "change"))
 			.addKeyValue("event.action", action)
 			.addKeyValue("user.target.name", owner);
 		String actor = MDC.get(LoggingContextKeys.USER_NAME);

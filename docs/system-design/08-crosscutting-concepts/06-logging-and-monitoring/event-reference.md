@@ -570,7 +570,7 @@ owner, by an administrator, or when its user is deleted. Level: `INFO`.
 | Field | Value or presence | Meaning | ECS alignment |
 | --- | --- | --- | --- |
 | `event.category` | `["iam"]` | Identity and access management change. | `iam` is an allowed ECS category |
-| `event.type` | `["passkey", "creation"]` or `["passkey", "deletion"]` | Object and activity. | `creation` and `deletion` are expected ECS types for `iam` |
+| `event.type` | `["user", "change"]` | Adding or removing a passkey changes its owner's credentials; `event.action` says which. | `user` and `change` are expected ECS types for `iam` |
 | `event.action` | `register_passkey` or `remove_passkey` | Passkey operation. | ECS field; project-defined action |
 | `event.outcome` | `success` | The change was stored. | ECS Event field |
 | `user.target.name` | Every event | The username the passkey belongs to. | ECS User field |
