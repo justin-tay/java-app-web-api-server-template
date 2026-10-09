@@ -269,27 +269,28 @@ public class WebSecurityAutoConfiguration {
 	 * {@code server.servlet.session.cookie.secure} says when that is set, and otherwise
 	 * whenever the request is HTTPS. When the session cookie carries the {@code __Host-}
 	 * prefix, so does this one, and it is always {@code Secure}, so no other host can set
-	 * or shadow it. Spring Security's {@code spa()} support reads the header value as the
-	 * plain token.
+	 * or shadow it. Its path is always {@code /}. Spring Security's {@code spa()} support
+	 * reads the header value as the plain token.
 	 */
 	private static void applyCookieCsrf(HttpSecurity http, Environment environment) {
 		boolean hostPrefixed = environment.getProperty("server.servlet.session.cookie.name", "")
 			.startsWith(HOST_COOKIE_PREFIX);
+		// Null keeps the repository default: Secure when the request is HTTPS.
+		Boolean secure = hostPrefixed ? Boolean.TRUE
+				: environment.getProperty("server.servlet.session.cookie.secure", Boolean.class);
 		CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
 		if (hostPrefixed) {
 			repository.setCookieName(HOST_COOKIE_PREFIX + "XSRF-TOKEN");
 		}
-		Boolean configuredSecure = environment.getProperty("server.servlet.session.cookie.secure", Boolean.class);
-		// __Host- needs Path=/, but the repository defaults to the context path, which
-		// behind a gateway that strips a prefix is the X-Forwarded-Prefix.
+		// The repository defaults to the context path, which behind a gateway that
+		// strips a prefix is the X-Forwarded-Prefix. A frontend outside that prefix
+		// could not read the cookie, and __Host- needs Path=/, so pin it like the
+		// session cookie.
 		repository.setCookiePath("/");
 		repository.setCookieCustomizer(cookie -> {
 			cookie.sameSite("Lax");
-			if (hostPrefixed) {
-				cookie.secure(true);
-			}
-			else if (configuredSecure != null) {
-				cookie.secure(configuredSecure);
+			if (secure != null) {
+				cookie.secure(secure);
 			}
 		});
 		http.csrf(csrf -> csrf.spa().csrfTokenRepository(repository));
