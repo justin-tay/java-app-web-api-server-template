@@ -109,6 +109,7 @@ deployer's responsibility. By default commons resolves none.
 | An edge proxy that replaces `X-Forwarded-For` with the address it received the request from | `XForwardedForClientIpResolver.leftmost()` | For example nginx with `proxy_set_header X-Forwarded-For $remote_addr`. |
 | Several proxies of your own, with changing hop counts | `new XForwardedForClientIpResolver(proxyCidrs)` | Every proxy that appends to the header must be in `proxyCidrs`. |
 | A proxy that sets a single-address header and replaces any value a client sent | `new TrustedHeaderClientIpResolver("True-Client-IP")` | Any header name the proxy sets. |
+| An API Gateway REST API with the `X-Forwarded-For` mapping below | `XForwardedForClientIpResolver.leftmost()` | The mapping replaces any value a client sends with `context.identity.sourceIp`. |
 
 Choose the leftmost entry only behind an edge that replaces the header.
 CloudFront and Application Load Balancers do not: both append to an
@@ -174,6 +175,39 @@ Two behaviours are pinned so the prefix does not break anything:
 `ForwardedHeadersIntegrationTest` covers the redirect URI, the cookie paths and
 the client IP behind a stripped `/api` prefix. Trying it against the real proxy is
 the deployer's responsibility.
+
+### Behind an API Gateway REST API
+
+An API Gateway REST API with an HTTP proxy integration overwrites `Host` with the
+integration endpoint, so the external host and prefix must come from headers the
+integration request sets. This setup was checked against a REST API (v1) forwarding
+to the application over HTTP:
+
+1. Create a `/{proxy+}` resource (or one under a prefix such as `/api/{proxy+}`)
+   with an `ANY` method and an HTTP Proxy integration.
+2. Set the integration endpoint URL to end in `{proxy}`, for example
+   `https://app.example.com/{proxy}`. Without it the application only ever sees `/`.
+3. Under Integration request, URL request headers, add these mappings. A quoted value is a constant; the last is a context variable.
+
+   | Name | Mapped from | Notes |
+   | --- | --- | --- |
+   | `X-Forwarded-Prefix` | `'/prod/api'` | The whole external path before `{proxy}`, including the stage name on the default `execute-api` URL. |
+   | `X-Forwarded-Host` | `'api.example.com'` | The external host the browser uses. |
+   | `X-Forwarded-Proto` | `'https'` | |
+   | `X-Forwarded-For` | `context.identity.sourceIp` | Replaces any value the client sent. |
+
+4. Redeploy the stage after every change.
+
+With these set and `server.forward-headers-strategy: framework`, a request to
+`/prod/api/account` is redirected to
+`https://<external host>/prod/api/oauth2/authorization/keycloak`, the cookies keep
+`Path=/` and `Secure` follows `X-Forwarded-Proto`, and `client.ip` is the caller's
+address even when the client sends its own `X-Forwarded-For`. Without the mappings the
+redirect points at the integration host over `http`.
+
+Not checked: using `context.domainName` for `X-Forwarded-Host`, a VPC link or NLB
+integration, and HTTP APIs (v2), which rewrite `X-Forwarded-*` into a `Forwarded`
+header. The application trusts these headers, so accept traffic only from the gateway.
 
 ## Scaling and statelessness posture
 
