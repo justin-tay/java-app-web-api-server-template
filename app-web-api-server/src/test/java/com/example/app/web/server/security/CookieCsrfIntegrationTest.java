@@ -43,6 +43,20 @@ class CookieCsrfIntegrationTest {
 	}
 
 	@Test
+	void theTokenCookieFollowsTheRequestSchemeWhenTheSessionCookieSecureSettingIsUnset() throws Exception {
+		Cookie overHttp = this.mockMvc.perform(get("/oauth2/jwks")).andReturn().getResponse().getCookie("XSRF-TOKEN");
+		Cookie overHttps = this.mockMvc.perform(get("/oauth2/jwks").secure(true))
+			.andReturn()
+			.getResponse()
+			.getCookie("XSRF-TOKEN");
+
+		assertThat(overHttp).isNotNull();
+		assertThat(overHttp.getSecure()).isFalse();
+		assertThat(overHttps).isNotNull();
+		assertThat(overHttps.getSecure()).isTrue();
+	}
+
+	@Test
 	void aRequestEchoingTheCookieInTheHeaderIsAccepted() throws Exception {
 		String token = token();
 

@@ -269,10 +269,12 @@ public class WebSecurityAutoConfiguration {
 	 * Lets a frontend echo the CSRF token from a cookie into a header: the token is sent
 	 * in the {@code XSRF-TOKEN} cookie, which JavaScript may read (so it is not
 	 * {@code HttpOnly}), and a request presents it in the {@code X-XSRF-TOKEN} header.
-	 * The cookie is {@code SameSite=Lax}, and {@code Secure} whenever the request is
-	 * HTTPS. When the session cookie carries the {@code __Host-} prefix, so does this
-	 * one, and it is always {@code Secure}, so no other host can set or shadow it. Spring
-	 * Security's {@code spa()} support reads the header value as the plain token.
+	 * The cookie is {@code SameSite=Lax}. It is {@code Secure} as the session cookie's
+	 * {@code server.servlet.session.cookie.secure} says when that is set, and otherwise
+	 * whenever the request is HTTPS. When the session cookie carries the {@code __Host-}
+	 * prefix, so does this one, and it is always {@code Secure}, so no other host can set
+	 * or shadow it. Spring Security's {@code spa()} support reads the header value as the
+	 * plain token.
 	 */
 	private static void applyCookieCsrf(HttpSecurity http, Environment environment) {
 		boolean hostPrefixed = environment.getProperty("server.servlet.session.cookie.name", "")
@@ -281,10 +283,14 @@ public class WebSecurityAutoConfiguration {
 		if (hostPrefixed) {
 			repository.setCookieName(HOST_COOKIE_PREFIX + "XSRF-TOKEN");
 		}
+		Boolean configuredSecure = environment.getProperty("server.servlet.session.cookie.secure", Boolean.class);
 		repository.setCookieCustomizer(cookie -> {
 			cookie.sameSite("Lax");
 			if (hostPrefixed) {
 				cookie.secure(true);
+			}
+			else if (configuredSecure != null) {
+				cookie.secure(configuredSecure);
 			}
 		});
 		http.csrf(csrf -> csrf.spa().csrfTokenRepository(repository));

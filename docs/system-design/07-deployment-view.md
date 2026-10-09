@@ -58,7 +58,7 @@ not something this template provisions.
 <!-- arc42-generated -->
 | Environment | Purpose | URL | Notes |
 | --- | --- | --- | --- |
-| Local (HTTP) | Local development without TLS | `http://localhost:8081` | `mvn -Plocal spring-boot:run -Dspring-boot.run.profiles=local`: the Maven profile adds H2 and the Spring profile (`application-local.yaml`) disables TLS, marks the session cookie non-secure, loads the development JWKS, and requests the Liquibase `dev` context for the development users. Uses the `java-app-web-api-server` Keycloak client. |
+| Local (HTTP) | Local development without TLS | `http://localhost:8081` | `mvn -Plocal spring-boot:run -Dspring-boot.run.profiles=local`: the Maven profile adds H2 and the Spring profile (`application-local.yaml`) disables TLS, names the session cookie `id`, loads the development JWKS, and requests the Liquibase `dev` context for the development users. Uses the `java-app-web-api-server` Keycloak client. |
 | Local (TLS) | Local development with TLS, matching production cookie/header behavior | `https://localhost:8081` | `./bin/start-api-server-tls.sh` generates development-only certificates under `.local/certs` and starts Keycloak's `java-app-web-api-server-secure` client. Trust `.local/certs/local-ca.pem` before use. |
 | Test | Automated test execution | N/A | `application-test.yaml` + H2 (`com.h2database:h2`, test scope only). |
 | Production | Adopter-operated deployment | (deployment-specific) | Concrete infrastructure, database product, Keycloak realm, and TLS termination point are deployment decisions required; not fixed by this template. |

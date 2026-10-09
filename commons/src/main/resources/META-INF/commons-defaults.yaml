@@ -70,12 +70,15 @@ server:
       cookie:
         # The __Host- prefix makes the browser refuse the cookie unless it is Secure,
         # has Path=/, and has no Domain, so no other host or path can set or shadow it.
-        # It requires the application at the root context path. A profile that sets
-        # secure: false must also drop the prefix; see application-local.yaml.
+        # It requires the application at the root context path, and a request the
+        # application sees as HTTPS (TLS in the application, or
+        # server.forward-headers-strategy behind a proxy that terminates TLS), because the
+        # Secure attribute follows the request scheme and a browser refuses the cookie
+        # without it. A plain-HTTP profile must also drop the prefix; see
+        # application-local.yaml.
         name: __Host-id
         http-only: true
         same-site: lax
-        secure: true
       tracking-modes:
       - COOKIE
       timeout: 15m

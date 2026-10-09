@@ -89,7 +89,7 @@ Both local runs use two separate profiles that share the name `local`:
 - The `local` **Maven** profile (`-Plocal`) adds the H2 driver, so the application
   runs against an in-memory H2 database that Liquibase creates on every start.
 - The `local` **Spring** profile (`app-web-api-server/src/main/resources/application-local.yaml`)
-  disables TLS, marks the session cookie as non-secure, loads the development-only
+  disables TLS, names the session cookie `id`, loads the development-only
   JWKS from `app-web-api-server/src/test/resources/jwks.json`, and requests the Liquibase `dev` context
   that creates the development users. Outside the `local` and `test` profiles
   `commons.security.oauth2.jwks` has no default and must be set to the deployment's own private JWKS,

@@ -25,9 +25,8 @@ server:
   servlet:
     session:
       cookie:
-        # Plain HTTP: a __Host- cookie must be Secure, so the prefix is dropped too.
+        # Plain HTTP: the cookie is not Secure, so the __Host- prefix is dropped too.
         name: id
-        secure: false
 logging:
   structured:
     ecs:
