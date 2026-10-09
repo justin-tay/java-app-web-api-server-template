@@ -2,7 +2,6 @@ package com.example.commons.security.session;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -10,10 +9,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
+import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import com.example.commons.logging.client.ClientIpResolver;
+import com.example.commons.logging.LoggingContextKeys;
 
 /**
  * Binds a session to the User-Agent and client IP first observed on it, implementing the
@@ -34,15 +34,12 @@ public class SessionBindingFilter extends OncePerRequestFilter {
 
 	private final boolean anomalyDetection;
 
-	private final ClientIpResolver clientIpResolver;
-
 	private final SessionLifecycleAuditLogger sessionLifecycleAuditLogger;
 
 	public SessionBindingFilter(boolean hijackingProtection, boolean anomalyDetection,
-			ClientIpResolver clientIpResolver, SessionLifecycleAuditLogger sessionLifecycleAuditLogger) {
+			SessionLifecycleAuditLogger sessionLifecycleAuditLogger) {
 		this.hijackingProtection = hijackingProtection;
 		this.anomalyDetection = anomalyDetection;
-		this.clientIpResolver = clientIpResolver;
 		this.sessionLifecycleAuditLogger = sessionLifecycleAuditLogger;
 	}
 
@@ -74,18 +71,18 @@ public class SessionBindingFilter extends OncePerRequestFilter {
 	}
 
 	private void checkClientIpAnomaly(HttpServletRequest request, HttpSession session) {
-		Optional<String> current = this.clientIpResolver.resolve(request);
-		if (current.isEmpty()) {
+		String current = MDC.get(LoggingContextKeys.CLIENT_IP);
+		if (current == null) {
 			return;
 		}
 		Object bound = session.getAttribute(CLIENT_IP_ATTRIBUTE);
 		if (bound == null) {
-			session.setAttribute(CLIENT_IP_ATTRIBUTE, current.get());
+			session.setAttribute(CLIENT_IP_ATTRIBUTE, current);
 			return;
 		}
-		if (!bound.equals(current.get())) {
+		if (!bound.equals(current)) {
 			this.sessionLifecycleAuditLogger.logClientIpAnomaly(session, (String) bound);
-			session.setAttribute(CLIENT_IP_ATTRIBUTE, current.get());
+			session.setAttribute(CLIENT_IP_ATTRIBUTE, current);
 		}
 	}
 

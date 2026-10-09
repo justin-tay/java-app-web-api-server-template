@@ -77,6 +77,9 @@ server:
         # without it. A plain-HTTP profile must also drop the prefix; see
         # application-local.yaml.
         name: __Host-id
+        # Explicit, so a forwarded prefix (server.forward-headers-strategy: framework with
+        # X-Forwarded-Prefix) does not move the cookie to the prefix path.
+        path: /
         http-only: true
         same-site: lax
       tracking-modes:

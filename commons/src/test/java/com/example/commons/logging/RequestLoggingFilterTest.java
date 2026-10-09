@@ -106,11 +106,11 @@ class RequestLoggingFilterTest {
 		try {
 			MockHttpServletRequest request = new MockHttpServletRequest("GET", "/reports/42");
 			request.setAsyncSupported(true);
-			request.setRemoteAddr("192.0.2.10");
 			MockHttpServletResponse response = new MockHttpServletResponse();
 			SecurityContextHolder.getContext()
 				.setAuthentication(UsernamePasswordAuthenticationToken.authenticated("alice", "N/A", null));
 			MDC.put("http.request.id", "request-1");
+			MDC.put("source.ip", "192.0.2.10");
 			MDC.put("client.ip", "198.51.100.7");
 
 			new RequestLoggingFilter(List.of()).doFilter(request, response,

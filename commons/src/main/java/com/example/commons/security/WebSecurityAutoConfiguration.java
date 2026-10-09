@@ -42,7 +42,6 @@ import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
 import org.springframework.session.security.SpringSessionBackedSessionRegistry;
 
 import com.example.commons.logging.LoggingAutoConfiguration;
-import com.example.commons.logging.client.ClientIpResolver;
 import com.example.commons.security.authentication.ProblemDetailAuthenticationEntryPoint;
 import com.example.commons.security.authorization.ProblemDetailAccessDeniedHandler;
 import com.example.commons.security.firewall.ProblemDetailRequestRejectedHandler;
@@ -221,15 +220,13 @@ public class WebSecurityAutoConfiguration {
 			ObjectProvider<Clock> clock, ProblemDetailAuthenticationEntryPoint authenticationEntryPoint,
 			AuthenticationEventPublisher authenticationEventPublisher, SessionRegistry sessionRegistry,
 			SessionInformationExpiredStrategy sessionExpiredStrategy,
-			SessionLifecycleAuditLogger sessionLifecycleAuditLogger, ObjectProvider<ClientIpResolver> clientIpResolver,
-			Environment environment) {
+			SessionLifecycleAuditLogger sessionLifecycleAuditLogger, Environment environment) {
 		String healthPath = environment.getProperty("management.endpoints.web.base-path", "/actuator") + "/health";
 		return http -> {
 			http.getSharedObject(AuthenticationManagerBuilder.class)
 				.authenticationEventPublisher(authenticationEventPublisher);
 			ProblemDetailAccessDeniedHandler accessDeniedHandler = new ProblemDetailAccessDeniedHandler();
-			applySessionFilters(http, properties, clock, sessionLifecycleAuditLogger,
-					clientIpResolver.getIfAvailable(ClientIpResolver::none));
+			applySessionFilters(http, properties, clock, sessionLifecycleAuditLogger);
 			applyHeaders(http);
 			applyCookieCsrf(http, environment);
 			applyExceptionHandling(http, authenticationEntryPoint, accessDeniedHandler);
@@ -241,8 +238,7 @@ public class WebSecurityAutoConfiguration {
 	}
 
 	private static void applySessionFilters(HttpSecurity http, WebSecurityProperties properties,
-			ObjectProvider<Clock> clock, SessionLifecycleAuditLogger sessionLifecycleAuditLogger,
-			ClientIpResolver clientIpResolver) {
+			ObjectProvider<Clock> clock, SessionLifecycleAuditLogger sessionLifecycleAuditLogger) {
 		WebSecurityProperties.Session sessionProperties = properties.getSession();
 		http.addFilterBefore(new SessionLifecycleAuditInitializationFilter(sessionLifecycleAuditLogger),
 				SecurityContextHolderFilter.class)
@@ -252,7 +248,7 @@ public class WebSecurityAutoConfiguration {
 					SecurityContextHolderFilter.class)
 			.addFilterAfter(
 					new SessionBindingFilter(sessionProperties.isHijackingProtection(),
-							sessionProperties.isAnomalyDetection(), clientIpResolver, sessionLifecycleAuditLogger),
+							sessionProperties.isAnomalyDetection(), sessionLifecycleAuditLogger),
 					AbsoluteSessionTimeoutFilter.class);
 	}
 
@@ -284,6 +280,9 @@ public class WebSecurityAutoConfiguration {
 			repository.setCookieName(HOST_COOKIE_PREFIX + "XSRF-TOKEN");
 		}
 		Boolean configuredSecure = environment.getProperty("server.servlet.session.cookie.secure", Boolean.class);
+		// __Host- needs Path=/, but the repository defaults to the context path, which
+		// behind a gateway that strips a prefix is the X-Forwarded-Prefix.
+		repository.setCookiePath("/");
 		repository.setCookieCustomizer(cookie -> {
 			cookie.sameSite("Lax");
 			if (hostPrefixed) {

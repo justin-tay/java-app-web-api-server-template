@@ -108,7 +108,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 		addQueryParameters(event, request);
 		addRequestId(event, context.requestId());
 		addUser(event, context.username());
-		addSourceIp(event, request.getRemoteAddr());
+		addSourceIp(event, context.sourceIp());
 		addClientIp(event, context.clientIp());
 		event.log("HTTP request completed");
 	}
@@ -187,10 +187,10 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
 	private RequestLogContext requestLogContext() {
 		return new RequestLogContext(MDC.get(LoggingContextKeys.HTTP_REQUEST_ID), username(),
-				MDC.get(LoggingContextKeys.CLIENT_IP));
+				MDC.get(LoggingContextKeys.SOURCE_IP), MDC.get(LoggingContextKeys.CLIENT_IP));
 	}
 
-	private record RequestLogContext(String requestId, String username, String clientIp) {
+	private record RequestLogContext(String requestId, String username, String sourceIp, String clientIp) {
 	}
 
 	private final class RequestLoggingAsyncListener implements AsyncListener {

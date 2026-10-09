@@ -146,6 +146,35 @@ Balancer adds when client port preservation is enabled. An `X-Forwarded-For`
 resolver parses only the entries from the right up to the one it selects, so a
 malformed value a client prepends cannot suppress `client.ip`.
 
+## Forwarded headers and a stripped path prefix
+
+The sample sets `server.forward-headers-strategy: framework`, which applies
+`X-Forwarded-Proto`, `X-Forwarded-Host` and `X-Forwarded-Prefix` to the URLs the
+application builds: redirect `Location` headers and the OAuth2 login redirect URI.
+It is not a safe default, because any client could then spoof those headers, so
+commons leaves it unset and an application that clients reach directly removes it.
+
+| Deployment | Setting | Notes |
+| --- | --- | --- |
+| A gateway or proxy that strips a prefix such as `/api` (clients call `https://example.com/api/xyz`, the application serves `/xyz`) | `framework` | The gateway must send `X-Forwarded-Prefix: /api`, as nginx and Spring Cloud Gateway can. Without it the generated URLs lack `/api`. |
+| A proxy that keeps the prefix and the application serves `/api/xyz` | `framework` for the scheme and host | No prefix header is needed; map the controllers under `/api`. |
+| No proxy | unset | |
+
+Two behaviours are pinned so the prefix does not break anything:
+
+* Both cookies keep `Path=/`. The `__Host-` prefix requires it, and the session
+  and CSRF cookies would otherwise follow the forwarded prefix to `Path=/api`,
+  which a browser refuses.
+* The forwarded header filter runs after `RequestCorrelationContextFilter`,
+  not first as Spring Boot registers it. Spring's filter hides `X-Forwarded-For`
+  and replaces `getRemoteAddr()` with the forwarded address, so the correlation
+  filter, which resolves `client.ip` and records `source.ip`, must see the request
+  before it. Later code reads both from the logging context.
+
+`ForwardedHeadersIntegrationTest` covers the redirect URI, the cookie paths and
+the client IP behind a stripped `/api` prefix. Trying it against the real proxy is
+the deployer's responsibility.
+
 ## Scaling and statelessness posture
 
 The application is not a stateless service in the strict sense: user

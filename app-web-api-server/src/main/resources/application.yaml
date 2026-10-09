@@ -12,6 +12,11 @@
 # docs/adr/0020.
 server:
   port: 8081
+  # Assumes a gateway or proxy in front that sets X-Forwarded-Proto, -Host, -For and,
+  # when it strips a path prefix such as /api, -Prefix. Remove it when clients reach
+  # this server directly, because it lets any client spoof them. See
+  # docs/system-design/08-crosscutting-concepts/05-operational-concepts/README.md.
+  forward-headers-strategy: framework
   ssl:
     bundle: server
 spring:

@@ -1,9 +1,9 @@
 package com.example.commons.security.session;
 
-import java.util.Optional;
-
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.slf4j.MDC;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mock.web.MockFilterChain;
@@ -24,6 +24,11 @@ class SessionBindingFilterTest {
 	private final MockHttpSession session = new MockHttpSession();
 
 	private final SessionLifecycleAuditLogger sessionLifecycleAuditLogger = new SessionLifecycleAuditLogger();
+
+	@AfterEach
+	void clearMdc() {
+		MDC.clear();
+	}
 
 	@Test
 	void capturesTheUserAgentAndClientIpOnTheFirstRequest() throws Exception {
@@ -98,8 +103,8 @@ class SessionBindingFilterTest {
 	}
 
 	private SessionBindingFilter filter(boolean hijackingProtection, boolean anomalyDetection, String clientIp) {
-		return new SessionBindingFilter(hijackingProtection, anomalyDetection, request -> Optional.of(clientIp),
-				this.sessionLifecycleAuditLogger);
+		MDC.put("client.ip", clientIp);
+		return new SessionBindingFilter(hijackingProtection, anomalyDetection, this.sessionLifecycleAuditLogger);
 	}
 
 }

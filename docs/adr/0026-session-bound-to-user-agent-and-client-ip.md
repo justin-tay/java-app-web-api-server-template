@@ -37,7 +37,8 @@ whether pre-login or already authenticated, and regardless of whether the
 login went through OIDC or a passkey, since it only reads and writes
 `HttpSession` attributes rather than anything OIDC-specific — it stores the
 request's `User-Agent` header and the client IP resolved by the application's
-`ClientIpResolver` bean as session attributes. On every later request it
+`ClientIpResolver` bean (read from the `client.ip` logging context field that
+`RequestCorrelationContextFilter` sets) as session attributes. On every later request it
 compares the current value against the stored one:
 
 * A **User-Agent mismatch invalidates the session**, logged as
@@ -49,8 +50,9 @@ compares the current value against the stored one:
   address keeps moving. Never invalidates the session. Gated by
   `commons.security.session.anomaly-detection` (default `true`).
 
-Client IP detection reuses the application's existing `ClientIpResolver` bean,
-including its `none()` default when no deployment has configured a trusted
+Client IP detection reuses the application's existing `ClientIpResolver` bean
+through that field, so it is also inactive when `commons.logging.enabled` is
+false, and includes its `none()` default when no deployment has configured a trusted
 resolver. When it resolves nothing, detection is silently inactive for that
 request, the same way `client.ip` is already absent from request logs by
 default; this feature does not require a resolver to be configured on its own.
