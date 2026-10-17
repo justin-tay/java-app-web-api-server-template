@@ -12,6 +12,21 @@ through PKCS#11. It is built on Bouncy Castle and does not depend on Spring.
 
 Add the one you need. The two format modules do not depend on each other.
 
+## Add it to your build
+
+It needs Java 17 or later. The format modules bring in `commons-crypto` and the Bouncy Castle
+artifact they need (1.86), so one dependency is enough:
+
+```xml
+<dependency>
+    <groupId>com.example</groupId>
+    <artifactId>commons-crypto-openpgp</artifactId> <!-- or commons-crypto-cms -->
+    <version>${commons-crypto.version}</version>   <!-- the version of this repository's build -->
+</dependency>
+```
+
+Keep every Bouncy Castle artifact on the same version if you add your own.
+
 The design, requirements and the results of the hardware and interoperability checks are in
 [the specification](../docs/specifications/commons-crypto/design.md).
 
@@ -51,6 +66,28 @@ PgpSigner.create().sign(
 ```
 
 Streams are never closed by the library.
+
+## Caveats
+
+Read these before relying on it.
+
+- **Trust is yours.** Verification checks that a signature matches the data and a key you
+  supplied. It does not build a certificate chain, check revocation, or look at the expiry or
+  revocation of the signing key. A `VALID` result is not "trusted".
+- **Streaming means unchecked output.** Decrypted or signed content is written before the final
+  integrity check. If a call throws, discard what was written. Write to a temporary file or buffer if
+  you need all-or-nothing.
+- **Old formats are refused.** Messages without integrity protection, weak ciphers, SHA-1
+  signatures and RSA PKCS#1 v1.5 key transport are rejected unless you set `legacyCompatibility(true)`
+  on the decrypt or verify request. Anything the library writes is modern.
+- **Hardware keys are narrower than software keys.** RSA and EC P-256 only. SunPKCS11 has no RSA
+  OAEP, so CMS messages for an RSA token key need a provider that has it, or
+  `allowPkcs1v15KeyTransport()` on the handle. A key is visible only if the token also holds a
+  certificate for it. It was tested on SoftHSM2, not on a real HSM.
+- **Not included.** Key generation, key ring management, timestamps, certificate chain validation,
+  passphrase-only (symmetric) OpenPGP encryption, and messages addressed to no particular key
+  (wildcard recipients).
+- **Memory.** Cleartext OpenPGP signatures read the whole text into memory. Everything else streams.
 
 ## Keys on a token
 
