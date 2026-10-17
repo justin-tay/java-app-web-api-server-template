@@ -94,8 +94,9 @@ so that the library does not hide how the format works.
    A CMS decrypt request SHALL choose it by the recipient identifier in the message.
 4. WHEN no supplied key matches, THEN decrypt SHALL throw `NoMatchingKeyException`.
 5. WHEN a private key is on a token for OpenPGP, THEN the caller SHALL supply the
-   public key and the library SHALL check at construction that it matches the token key,
-   and fail if not.
+   public keys and the library SHALL find the one that matches the token key by having the
+   token sign a test value and verifying it with each candidate, at construction, and fail
+   if none matches. The token key must therefore be allowed to sign.
 
 ### R5: Hardware keys through PKCS#11
 
@@ -124,8 +125,8 @@ they cannot be copied.
 9. The library SHALL build the token provider configuration itself, including the derived
    secret key attributes the agreement needs, and SHALL NOT require the caller to supply a
    provider configuration file.
-10. WHEN a token holds a private key without a certificate, THEN the library SHALL document
-    and support writing a placeholder certificate so the key is listed, because SunPKCS11
+10. WHEN a token holds a private key without a certificate, THEN the documentation SHALL
+    describe how to write a placeholder certificate so the key is listed, because SunPKCS11
     lists only keys that have a certificate.
 11. WHEN an RSA token key is used through a provider that has no OAEP cipher (SunPKCS11),
     THEN decrypt of a CMS OAEP recipient SHALL fail with a `CryptoException` that names the

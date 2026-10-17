@@ -255,6 +255,47 @@ The library registers the adapter and builds the token provider configuration, s
 sees only a key handle. The error for an unsupported combination names the key type, the
 format and the way out.
 
+### Token keys in the formats
+
+How the formats use a token key, as built:
+
+- **Provider selection.** The key handle carries the token's provider. Signing and RSA
+  decryption use it directly. Elliptic curve decryption does not force a provider: the library
+  registers the `TokenEcdhProvider` once, when a token is first opened, and Bouncy Castle finds
+  its agreements and key factories by name. The adapter keeps a list of the open tokens'
+  providers and does the plain ECDH through whichever one accepts the key, so the token
+  providers themselves are never added to the JDK's provider list.
+- **Key factories.** Bouncy Castle looks up the EC key factory by the OID `1.2.840.10045.2.1`
+  (CMS) and by `ECDH` (OpenPGP). The JDK has neither name, so the adapter provider offers both
+  and hands them to the JDK's EC key factory.
+- **CMS.** For an EC token key the decryptor tells Bouncy Castle the key algorithm (taken from
+  the certificate's public key), because the key has no encoding. An RSA OAEP recipient on a
+  token key fails with an error that names the missing OAEP; a PKCS#1 v1.5 recipient is accepted
+  only after `allowPkcs1v15KeyTransport()` on that key handle.
+- **OpenPGP.** `PgpSecretKeys.token(handle, publicKeys)` pairs the key with the matching public
+  key and uses `JcaPGPPrivateKey` as the carrier. The key flags of the public key decide whether
+  it can sign. Bouncy Castle's builder resets its content provider when a provider is set, so
+  the content provider is set after it.
+- **Test token.** The container script puts an RSA key (alias `k`) and an EC P-256 key (alias
+  `ec`) on the token. The EC key must be imported with the sign and derive usages.
+
+### Token keys without a certificate
+
+SunPKCS11 lists a private key only if the token also holds a certificate for it, so a key pair
+that was generated on a token without one (an OpenPGP-only key, for example) is not visible to
+the library, and a Java helper cannot add the certificate because it cannot address the key.
+Give the key a placeholder certificate with the same public key and the same `CKA_ID`. Nothing
+checks the certificate's signature, so any signer will do. With OpenSC's `pkcs11-tool` and
+OpenSSL, for a key with ID `01`:
+
+```bash
+pkcs11-tool --module "$MODULE" --login --read-object --type pubkey --id 01 -o public.der
+# Build cert.der around public.der, signed by any throwaway key, then store it:
+pkcs11-tool --module "$MODULE" --login --write-object cert.der --type cert --id 01 --label alias
+```
+
+The container script in the test directory stores a certificate next to each key it imports.
+
 ## Streaming and integrity
 
 All operations stream. Signatures and integrity tags come at the end of the data, so a
@@ -288,7 +329,8 @@ CryptoException (unchecked)
 - The PKCS#11 tests need a native module in the JVM's process, so they run inside a container
   that holds both the JVM and SoftHSM2. They skip themselves unless `SOFTHSM2_LIBRARY` is set.
   `commons-crypto/commons-crypto/src/test/docker/pkcs11/` has the Dockerfile and
-  `run-tests.sh`, which sets up a token with a key under the alias `k` and the PIN `1234`:
+  `run-tests.sh`, which sets up a token with an RSA key under the alias `k`, an EC key under the
+  alias `ec` and the PIN `1234`, and builds all three modules in a copy of the repository:
 
   ```bash
   docker build -t commons-crypto-pkcs11-test commons-crypto/commons-crypto/src/test/docker/pkcs11
