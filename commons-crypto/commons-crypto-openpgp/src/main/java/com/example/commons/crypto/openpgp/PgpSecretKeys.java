@@ -11,8 +11,10 @@ import java.security.SecureRandom;
 import java.security.Signature;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Optional;
 
 import com.example.commons.crypto.TokenUnavailableException;
@@ -86,14 +88,13 @@ public final class PgpSecretKeys implements AutoCloseable {
 	 */
 	public static PgpSecretKeys read(InputStream in, char[] passphrase) {
 		try {
-			PGPSecretKeyRingCollection rings = new PGPSecretKeyRingCollection(PGPUtil.getDecoderStream(in),
-					new JcaKeyFingerprintCalculator());
+			PGPSecretKeyRingCollection rings = new PGPSecretKeyRingCollection(PgpKeyBlocks.secretRings(in));
 			if (rings.size() == 0) {
 				throw new CryptoException("No OpenPGP secret key found");
 			}
 			return new PgpSecretKeys(rings, passphrase);
 		}
-		catch (IOException | PGPException | RuntimeException ex) {
+		catch (IOException | RuntimeException ex) {
 			if (ex instanceof CryptoException cryptoException) {
 				throw cryptoException;
 			}
@@ -208,6 +209,31 @@ public final class PgpSecretKeys implements AutoCloseable {
 	 * that must perform the signing if the key is on a token.
 	 */
 	record SigningKey(PGPPublicKey publicKey, PGPPrivateKey privateKey, Optional<java.security.Provider> provider) {
+	}
+
+	/**
+	 * Unlocks every key that can decrypt, for messages that do not say which key they are
+	 * for.
+	 * @throws PinRequiredException if the passphrase is wrong
+	 */
+	List<PGPPrivateKey> encryptionKeys() {
+		ensureOpen();
+		List<PGPPrivateKey> keys = new ArrayList<>();
+		if (this.tokenKey != null) {
+			if (this.tokenPublicKey.isEncryptionKey()) {
+				keys.add(new JcaPGPPrivateKey(this.tokenPublicKey, this.tokenKey.key()));
+			}
+			return keys;
+		}
+		for (Iterator<PGPSecretKeyRing> rings = this.rings.getKeyRings(); rings.hasNext();) {
+			for (Iterator<PGPSecretKey> secretKeys = rings.next().getSecretKeys(); secretKeys.hasNext();) {
+				PGPSecretKey key = secretKeys.next();
+				if (key.getPublicKey().isEncryptionKey()) {
+					keys.add(privateKey(key.getKeyID()));
+				}
+			}
+		}
+		return keys;
 	}
 
 	/**

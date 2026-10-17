@@ -12,9 +12,12 @@ public final class EncryptRequest {
 
 	private final boolean armored;
 
+	private final char[] passphrase;
+
 	private EncryptRequest(Builder builder) {
 		this.recipients = List.copyOf(builder.recipients);
 		this.armored = builder.armored;
+		this.passphrase = (builder.passphrase != null) ? builder.passphrase.clone() : null;
 	}
 
 	public static Builder builder() {
@@ -23,6 +26,14 @@ public final class EncryptRequest {
 
 	public List<PgpPublicKeys> recipients() {
 		return this.recipients;
+	}
+
+	/**
+	 * The passphrase the message can also be opened with, or null.
+	 * @return a copy of the passphrase
+	 */
+	public char[] passphrase() {
+		return (this.passphrase != null) ? this.passphrase.clone() : null;
 	}
 
 	/**
@@ -39,11 +50,24 @@ public final class EncryptRequest {
 
 		private boolean armored;
 
+		private char[] passphrase;
+
 		private Builder() {
 		}
 
 		public Builder recipients(PgpPublicKeys... recipients) {
 			this.recipients.addAll(List.of(recipients));
+			return this;
+		}
+
+		/**
+		 * Also lets anyone with the passphrase open the message. Without recipients the
+		 * message is for the passphrase alone.
+		 * @param passphrase the passphrase, which is copied
+		 * @return this builder
+		 */
+		public Builder passphrase(char[] passphrase) {
+			this.passphrase = passphrase.clone();
 			return this;
 		}
 
@@ -55,11 +79,11 @@ public final class EncryptRequest {
 		/**
 		 * Builds the request.
 		 * @return the request
-		 * @throws IllegalStateException if there is no recipient
+		 * @throws IllegalStateException if there is neither a recipient nor a passphrase
 		 */
 		public EncryptRequest build() {
-			if (this.recipients.isEmpty()) {
-				throw new IllegalStateException("At least one recipient is required");
+			if (this.recipients.isEmpty() && this.passphrase == null) {
+				throw new IllegalStateException("At least one recipient or a passphrase is required");
 			}
 			return new EncryptRequest(this);
 		}

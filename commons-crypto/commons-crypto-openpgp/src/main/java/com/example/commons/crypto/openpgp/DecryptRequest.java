@@ -7,12 +7,15 @@ public final class DecryptRequest {
 
 	private final PgpSecretKeys keys;
 
+	private final char[] passphrase;
+
 	private final boolean legacyCompatibility;
 
 	private final long maxOutputBytes;
 
 	private DecryptRequest(Builder builder) {
 		this.keys = builder.keys;
+		this.passphrase = (builder.passphrase != null) ? builder.passphrase.clone() : null;
 		this.legacyCompatibility = builder.legacyCompatibility;
 		this.maxOutputBytes = builder.maxOutputBytes;
 	}
@@ -21,8 +24,20 @@ public final class DecryptRequest {
 		return new Builder();
 	}
 
+	/**
+	 * The secret keys, or null if the request has only a passphrase.
+	 * @return the keys
+	 */
 	public PgpSecretKeys keys() {
 		return this.keys;
+	}
+
+	/**
+	 * The passphrase for messages that were encrypted to a passphrase, or null.
+	 * @return a copy of the passphrase
+	 */
+	public char[] passphrase() {
+		return (this.passphrase != null) ? this.passphrase.clone() : null;
 	}
 
 	/**
@@ -48,6 +63,8 @@ public final class DecryptRequest {
 
 		private PgpSecretKeys keys;
 
+		private char[] passphrase;
+
 		private boolean legacyCompatibility;
 
 		private long maxOutputBytes = Long.MAX_VALUE;
@@ -57,6 +74,17 @@ public final class DecryptRequest {
 
 		public Builder keys(PgpSecretKeys keys) {
 			this.keys = keys;
+			return this;
+		}
+
+		/**
+		 * Lets the request open messages that were encrypted to a passphrase. It may be
+		 * used with or without keys.
+		 * @param passphrase the passphrase, which is copied
+		 * @return this builder
+		 */
+		public Builder passphrase(char[] passphrase) {
+			this.passphrase = passphrase.clone();
 			return this;
 		}
 
@@ -81,11 +109,11 @@ public final class DecryptRequest {
 		/**
 		 * Builds the request.
 		 * @return the request
-		 * @throws IllegalStateException if no keys were given
+		 * @throws IllegalStateException if neither keys nor a passphrase were given
 		 */
 		public DecryptRequest build() {
-			if (this.keys == null) {
-				throw new IllegalStateException("Secret keys are required");
+			if (this.keys == null && this.passphrase == null) {
+				throw new IllegalStateException("Secret keys or a passphrase are required");
 			}
 			return new DecryptRequest(this);
 		}

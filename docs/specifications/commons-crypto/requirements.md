@@ -94,7 +94,12 @@ so that the library does not hide how the format works.
 2. A CMS encrypt request SHALL take X.509 certificates as recipients.
 3. An OpenPGP decrypt request SHALL choose the secret key by the key ID in the message.
    A CMS decrypt request SHALL choose it by the recipient identifier in the message.
+   WHEN the message hides its recipient (a wildcard key ID), THEN the OpenPGP decrypt request
+   SHALL try every supplied key that can decrypt.
 4. WHEN no supplied key matches, THEN decrypt SHALL throw `NoMatchingKeyException`.
+   An OpenPGP encrypt request SHALL also accept a passphrase, alone or with recipients, and an
+   OpenPGP decrypt request SHALL accept a passphrase for such messages. A wrong passphrase SHALL
+   throw `PinRequiredException`.
 5. WHEN a private key is on a token for OpenPGP, THEN the caller SHALL supply the
    public keys and the library SHALL find the one that matches the token key by having the
    token sign a test value and verifying it with each candidate, at construction, and fail

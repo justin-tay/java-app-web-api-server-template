@@ -129,6 +129,20 @@ class PgpTokenIntegrationTest {
 			.isEqualTo(DATA);
 	}
 
+	/**
+	 * The encrypted session key is a number in the message, so it loses a leading zero
+	 * byte about once in 256 messages, and a token may refuse input shorter than its key.
+	 */
+	@Test
+	void decryptsOnTheTokenWithAnRsaKeyWhateverTheEncryptedSessionKeyLooksLike() throws Exception {
+		PgpPublicKeys publicKeys = ring(TestToken.RSA_ALIAS, ENCRYPT);
+		PgpSecretKeys keys = PgpSecretKeys.token(token.privateKey(TestToken.RSA_ALIAS), publicKeys);
+
+		for (int i = 0; i < 1500; i++) {
+			assertThat(decrypt(encrypt(publicKeys), keys)).isEqualTo(DATA);
+		}
+	}
+
 	@Test
 	void decryptsOnTheTokenWithAnEcdhKey() throws Exception {
 		PgpPublicKeys publicKeys = ring(TestToken.EC_ALIAS, ENCRYPT);

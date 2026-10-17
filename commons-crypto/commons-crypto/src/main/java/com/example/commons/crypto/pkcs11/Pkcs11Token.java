@@ -39,14 +39,14 @@ public final class Pkcs11Token implements AutoCloseable {
 
 	private final KeyStore keyStore;
 
-	private final Provider keyAgreementProvider;
+	private final Provider adapterProvider;
 
 	private volatile boolean closed;
 
 	private Pkcs11Token(Provider provider, KeyStore keyStore) {
 		this.provider = provider;
 		this.keyStore = keyStore;
-		this.keyAgreementProvider = new TokenEcdhProvider(provider);
+		this.adapterProvider = new TokenAdapterProvider(provider);
 	}
 
 	/**
@@ -185,8 +185,8 @@ public final class Pkcs11Token implements AutoCloseable {
 		return this.provider;
 	}
 
-	Provider keyAgreementProvider() {
-		return this.keyAgreementProvider;
+	Provider adapterProvider() {
+		return this.adapterProvider;
 	}
 
 	boolean isClosed() {

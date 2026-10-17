@@ -3,6 +3,7 @@ package com.example.commons.crypto.openpgp;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.Set;
@@ -14,21 +15,27 @@ import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.IntegrityException;
 import com.example.commons.crypto.NoMatchingKeyException;
+import com.example.commons.crypto.PinRequiredException;
 import com.example.commons.crypto.PrivateKeyHandle;
 import com.example.commons.crypto.pkcs11.Pkcs11PrivateKeyHandle;
 import com.example.commons.crypto.VerifyResult;
 import org.bouncycastle.bcpg.PublicKeyAlgorithmTags;
 import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags;
 import org.bouncycastle.openpgp.PGPCompressedData;
+import org.bouncycastle.openpgp.PGPEncryptedData;
 import org.bouncycastle.openpgp.PGPEncryptedDataList;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPLiteralData;
 import org.bouncycastle.openpgp.PGPMarker;
 import org.bouncycastle.openpgp.PGPPrivateKey;
+import org.bouncycastle.openpgp.PGPPBEEncryptedData;
 import org.bouncycastle.openpgp.PGPPublicKeyEncryptedData;
 import org.bouncycastle.openpgp.PGPUtil;
 import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
+import org.bouncycastle.openpgp.operator.PBEDataDecryptorFactory;
 import org.bouncycastle.openpgp.operator.PublicKeyDataDecryptorFactory;
+import org.bouncycastle.openpgp.operator.jcajce.JcaPGPDigestCalculatorProviderBuilder;
+import org.bouncycastle.openpgp.operator.jcajce.JcePBEDataDecryptorFactoryBuilder;
 import org.bouncycastle.openpgp.operator.jcajce.JcePublicKeyDataDecryptorFactoryBuilder;
 
 /**
@@ -53,8 +60,8 @@ public final class PgpDecryptor {
 
 	/**
 	 * Decrypts the message read from {@code in} and writes the plain data to {@code out}.
-	 * Neither stream is closed. Messages addressed to no particular key (wildcard
-	 * recipients) are not supported.
+	 * Neither stream is closed. A message that hides its recipient is tried with every
+	 * key that can decrypt.
 	 * @param request the keys and policy
 	 * @param in the message
 	 * @param out where the plain data is written
@@ -111,29 +118,29 @@ public final class PgpDecryptor {
 	 * An encrypted message whose session key has been recovered, and its decrypted
 	 * packets.
 	 */
-	private record Opened(PGPPublicKeyEncryptedData encrypted, InputStream clear) {
+	private record Opened(PGPEncryptedData encrypted, InputStream clear) {
 	}
 
 	private static Opened open(DecryptRequest request, InputStream in) {
-		request.keys().ensureOpen();
+		if (request.keys() != null) {
+			request.keys().ensureOpen();
+		}
+		char[] passphrase = request.passphrase();
 		try {
 			PGPEncryptedDataList list = encryptedDataList(new JcaPGPObjectFactory(PGPUtil.getDecoderStream(in)));
-			PGPPublicKeyEncryptedData encrypted = null;
-			PublicKeyDataDecryptorFactory factory = null;
-			for (Iterator<?> it = list.getEncryptedDataObjects(); it.hasNext() && encrypted == null;) {
-				if (it.next() instanceof PGPPublicKeyEncryptedData candidate) {
-					PGPPrivateKey privateKey = request.keys().privateKey(candidate.getKeyID());
-					if (privateKey != null) {
-						encrypted = candidate;
-						factory = decryptorFactory(request, candidate, privateKey);
+			for (Iterator<?> it = list.getEncryptedDataObjects(); it.hasNext();) {
+				Object candidate = it.next();
+				if (candidate instanceof PGPPublicKeyEncryptedData encrypted && request.keys() != null) {
+					Opened opened = openWithKeys(request, encrypted);
+					if (opened != null) {
+						return opened;
 					}
 				}
+				else if (candidate instanceof PGPPBEEncryptedData encrypted && passphrase != null) {
+					return openWithPassphrase(request, encrypted, passphrase);
+				}
 			}
-			if (encrypted == null) {
-				throw new NoMatchingKeyException("The message is not encrypted for the supplied keys");
-			}
-			enforcePolicy(request, encrypted, factory);
-			return new Opened(encrypted, encrypted.getDataStream(factory));
+			throw new NoMatchingKeyException("The message is not encrypted for the supplied keys or passphrase");
 		}
 		catch (IOException | PGPException | RuntimeException ex) {
 			Optional<TokenUnavailableException> gone = TokenFailures.unavailable(ex);
@@ -145,9 +152,61 @@ public final class PgpDecryptor {
 			}
 			throw new CryptoException("Cannot read the OpenPGP message", ex);
 		}
+		finally {
+			if (passphrase != null) {
+				Arrays.fill(passphrase, '\0');
+			}
+		}
 	}
 
-	private static void checkIntegrity(PGPPublicKeyEncryptedData encrypted) throws IOException, PGPException {
+	/**
+	 * Opens the part of the message that is for a key, or returns null if none of the
+	 * keys is for it. A message that hides its recipient (key ID 0) is tried with every
+	 * key that can decrypt.
+	 */
+	private static Opened openWithKeys(DecryptRequest request, PGPPublicKeyEncryptedData encrypted)
+			throws IOException, PGPException {
+		if (!encrypted.getKeyIdentifier().isWildcard()) {
+			PGPPrivateKey privateKey = request.keys().privateKey(encrypted.getKeyID());
+			return (privateKey != null) ? openWith(request, encrypted, privateKey) : null;
+		}
+		for (PGPPrivateKey privateKey : request.keys().encryptionKeys()) {
+			try {
+				return openWith(request, encrypted, privateKey);
+			}
+			catch (PGPException ex) {
+				// Not this key: the session key does not unwrap with it.
+			}
+		}
+		return null;
+	}
+
+	private static Opened openWith(DecryptRequest request, PGPPublicKeyEncryptedData encrypted,
+			PGPPrivateKey privateKey) throws PGPException {
+		PublicKeyDataDecryptorFactory factory = decryptorFactory(request, encrypted, privateKey);
+		enforcePolicy(request, encrypted, encrypted.getSymmetricAlgorithm(factory));
+		return new Opened(encrypted, encrypted.getDataStream(factory));
+	}
+
+	private static Opened openWithPassphrase(DecryptRequest request, PGPPBEEncryptedData encrypted, char[] passphrase)
+			throws PGPException {
+		try {
+			PBEDataDecryptorFactory factory = new JcePBEDataDecryptorFactoryBuilder(
+					new JcaPGPDigestCalculatorProviderBuilder().setProvider(BouncyCastle.provider()).build())
+				.setProvider(BouncyCastle.provider())
+				.build(passphrase);
+			// The cipher of the passphrase packet: Bouncy Castle's own lookup of the data
+			// cipher takes the first byte of the key for it when the packet has no
+			// encrypted session key, which is what the usual passphrase message has.
+			enforcePolicy(request, encrypted, encrypted.getAlgorithm());
+			return new Opened(encrypted, encrypted.getDataStream(factory));
+		}
+		catch (PGPException ex) {
+			throw new PinRequiredException("The passphrase is wrong", ex);
+		}
+	}
+
+	private static void checkIntegrity(PGPEncryptedData encrypted) throws IOException, PGPException {
 		if (encrypted.isIntegrityProtected() && !encrypted.verify()) {
 			throw new IntegrityException("The message failed its integrity check");
 		}
@@ -183,16 +242,13 @@ public final class PgpDecryptor {
 			builder.setProvider(BouncyCastle.provider());
 		}
 		else if (handle instanceof Pkcs11PrivateKeyHandle) {
-			// An RSA token key is used through the token's provider. An elliptic curve
-			// one is
-			// used through the token's adapter provider, which adds the key derivation
-			// function.
-			if (encrypted.getAlgorithm() == PublicKeyAlgorithmTags.ECDH) {
-				builder.setProvider(((Pkcs11PrivateKeyHandle) handle).keyAgreementProvider());
-			}
-			else {
-				handle.provider().ifPresent(builder::setProvider);
-			}
+			// A token key is used through the token's adapter provider: for an elliptic
+			// curve key
+			// it adds the key derivation function that Bouncy Castle asks for, and for an
+			// RSA key
+			// it pads the encrypted session key, which OpenPGP stores without leading
+			// zeros.
+			builder.setProvider(((Pkcs11PrivateKeyHandle) handle).adapterProvider());
 		}
 		else {
 			// Any other handle: its own provider does everything, or Bouncy Castle if it
@@ -213,8 +269,7 @@ public final class PgpDecryptor {
 		throw new CryptoException("The input is not an encrypted OpenPGP message");
 	}
 
-	private static void enforcePolicy(DecryptRequest request, PGPPublicKeyEncryptedData encrypted,
-			PublicKeyDataDecryptorFactory factory) throws PGPException {
+	private static void enforcePolicy(DecryptRequest request, PGPEncryptedData encrypted, int cipher) {
 		if (request.legacyCompatibility()) {
 			return;
 		}
@@ -222,7 +277,7 @@ public final class PgpDecryptor {
 			throw new CryptoException(
 					"The message is not integrity protected; " + "enable legacy compatibility to accept it");
 		}
-		if (!STRONG_CIPHERS.contains(encrypted.getSymmetricAlgorithm(factory))) {
+		if (!STRONG_CIPHERS.contains(cipher)) {
 			throw new CryptoException("The message uses a weak cipher; enable legacy compatibility to accept it");
 		}
 	}

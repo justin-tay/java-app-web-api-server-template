@@ -222,4 +222,47 @@ class PgpGnupgInteropTest {
 		assertThat(content.toByteArray()).isEqualTo(DATA);
 	}
 
+	@Test
+	void gnuPgDecryptsAPassphraseMessageWeEncrypt() {
+		ByteArrayOutputStream message = new ByteArrayOutputStream();
+		PgpEncryptor.create()
+			.encrypt(EncryptRequest.builder().passphrase("correct horse".toCharArray()).build(),
+					new ByteArrayInputStream(DATA), message);
+
+		ExternalTool.Result result = gpg(message.toByteArray(), "--pinentry-mode", "loopback", "--passphrase",
+				"correct horse", "--decrypt");
+
+		assertThat(result.exitCode()).as(result.errors()).isZero();
+		assertThat(result.output()).isEqualTo(DATA);
+	}
+
+	@Test
+	void weDecryptAPassphraseMessageGnuPgEncrypts() {
+		ExternalTool.Result encrypted = gpg(DATA, "--pinentry-mode", "loopback", "--passphrase", "correct horse",
+				"--symmetric");
+		assertThat(encrypted.exitCode()).as(encrypted.errors()).isZero();
+
+		ByteArrayOutputStream plain = new ByteArrayOutputStream();
+		PgpDecryptor.create()
+			.decrypt(DecryptRequest.builder().passphrase("correct horse".toCharArray()).build(),
+					new ByteArrayInputStream(encrypted.output()), plain);
+
+		assertThat(plain.toByteArray()).isEqualTo(DATA);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = { "rsa", "ec" })
+	void weDecryptAMessageGnuPgEncryptsToAHiddenRecipient(String name) {
+		ExternalTool.Result encrypted = gpg(DATA, "--throw-keyids", "--trust-model", "always", "--recipient",
+				email(name), "--encrypt");
+		assertThat(encrypted.exitCode()).as(encrypted.errors()).isZero();
+
+		ByteArrayOutputStream plain = new ByteArrayOutputStream();
+		PgpDecryptor.create()
+			.decrypt(DecryptRequest.builder().keys(secret(name)).build(), new ByteArrayInputStream(encrypted.output()),
+					plain);
+
+		assertThat(plain.toByteArray()).isEqualTo(DATA);
+	}
+
 }

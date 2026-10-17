@@ -62,8 +62,8 @@ public final class Pkcs11PrivateKeyHandle implements PrivateKeyHandle {
 	 * elliptic curve keys, to hand to Bouncy Castle. It is not registered with the JVM.
 	 * @return the provider
 	 */
-	public Provider keyAgreementProvider() {
-		return this.token.keyAgreementProvider();
+	public Provider adapterProvider() {
+		return this.token.adapterProvider();
 	}
 
 	@Override

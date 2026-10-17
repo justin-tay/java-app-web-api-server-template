@@ -51,14 +51,13 @@ public final class PgpPublicKeys {
 	 */
 	public static PgpPublicKeys read(InputStream in) {
 		try {
-			PGPPublicKeyRingCollection rings = new PGPPublicKeyRingCollection(PGPUtil.getDecoderStream(in),
-					new JcaKeyFingerprintCalculator());
+			PGPPublicKeyRingCollection rings = new PGPPublicKeyRingCollection(PgpKeyBlocks.publicRings(in));
 			if (rings.size() == 0) {
 				throw new CryptoException("No OpenPGP public key found");
 			}
 			return new PgpPublicKeys(rings);
 		}
-		catch (IOException | PGPException | RuntimeException ex) {
+		catch (IOException | RuntimeException ex) {
 			if (ex instanceof CryptoException cryptoException) {
 				throw cryptoException;
 			}

@@ -127,3 +127,8 @@ is independently testable and ordered by its dependencies.
   - One ECDH adapter per open token handed to Bouncy Castle by the key handle, `decryptToBytes`,
     and the key validity, certificate validity and trust check options.
   - _Requirements: R5.3, R6.4, R6.5, R6.6, R7.2_
+
+- [x] 21. OpenPGP recipient forms and a token RSA fix
+  - Passphrase messages, hidden (wildcard) recipients, keys in several armored blocks, and the
+    padded RSA cipher in the token adapter for encrypted session keys that lost a leading zero.
+  - _Requirements: R4.3, R4.4, R5.1_

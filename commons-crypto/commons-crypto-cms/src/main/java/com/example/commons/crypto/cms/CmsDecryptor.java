@@ -174,7 +174,7 @@ public final class CmsDecryptor {
 					SubjectPublicKeyInfo.getInstance(publicKey.getEncoded()).getAlgorithm());
 		}
 		if (request.key() instanceof Pkcs11PrivateKeyHandle token) {
-			recipient.setProvider(token.keyAgreementProvider());
+			recipient.setProvider(token.adapterProvider());
 		}
 		else {
 			// The handle's own provider does the key agreement, or Bouncy Castle if it

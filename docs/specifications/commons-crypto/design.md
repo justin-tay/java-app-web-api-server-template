@@ -33,7 +33,7 @@ flowchart TB
 
 | Module | Packages | Depends on |
 | --- | --- | --- |
-| `commons-crypto` | `com.example.commons.crypto` (PrivateKeyHandle, KeyStores, PinSupplier, SignatureMode, CryptoException and subtypes, shared option types), `...crypto.pkcs11` (token loading, login, provider configuration, ECDH adapter provider) | `bcprov` |
+| `commons-crypto` | `com.example.commons.crypto` (PrivateKeyHandle, KeyStores, PinSupplier, SignatureMode, CryptoException and subtypes, shared option types), `...crypto.pkcs11` (token loading, login, provider configuration, the per-token adapter provider) | `bcprov` |
 | `commons-crypto-cms` | `com.example.commons.crypto.cms` (CmsEncryptor, CmsDecryptor, CmsSigner, CmsVerifier, Cms) | `commons-crypto`, `bcpkix` |
 | `commons-crypto-openpgp` | `com.example.commons.crypto.openpgp` (PgpEncryptor, PgpDecryptor, PgpSigner, PgpVerifier, Pgp) | `commons-crypto`, `bcpg` |
 
@@ -281,11 +281,17 @@ How the formats use a token key, as built:
 
 - **Provider selection.** The key handle carries the token's provider. Signing and RSA
   decryption use it directly. Elliptic curve decryption is handed the token's own
-  `TokenEcdhProvider` instance (`keyAgreementProvider()` on the handle), which does the plain ECDH
+  `TokenAdapterProvider` instance (`adapterProvider()` on the handle), which does the plain ECDH
   through that token's provider. Nothing is registered with the JDK, and the token providers
   are never added to the JDK's provider list either. Because Bouncy Castle uses the one provider
   it is given for everything in the recipient, the adapter also offers the AES key wrap and the EC
   algorithm parameters, both as Bouncy Castle's own classes.
+- **RSA session keys in OpenPGP.** OpenPGP stores the RSA-encrypted session key as a number,
+  so about one message in 256 loses a leading zero byte, and NSS refuses RSA input shorter than
+  the key (`CKR_ARGUMENTS_BAD`; SoftHSM2 does not). The adapter therefore offers
+  `RSA/ECB/PKCS1Padding` too, which pads a decryption's input with leading zeros to the key
+  length and hands it to the token. The OpenPGP decryptor uses the adapter for every token key.
+  It was found by decrypting 1500 messages in a row on NSS, which is now a test.
 - **Key factories.** Bouncy Castle looks up the EC key factory by the OID `1.2.840.10045.2.1`
   (CMS) and by `ECDH` (OpenPGP). The JDK has neither name, so the adapter provider offers both
   and hands them to the JDK's EC key factory.

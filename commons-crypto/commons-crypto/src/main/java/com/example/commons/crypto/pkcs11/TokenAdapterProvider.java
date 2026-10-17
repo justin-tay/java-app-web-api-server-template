@@ -1,5 +1,7 @@
 package com.example.commons.crypto.pkcs11;
 
+import java.io.ByteArrayOutputStream;
+import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -17,8 +19,13 @@ import java.security.spec.KeySpec;
 import java.util.Arrays;
 import java.util.List;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.CipherSpi;
+import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyAgreement;
 import javax.crypto.KeyAgreementSpi;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.ShortBufferException;
 import javax.crypto.spec.SecretKeySpec;
@@ -31,24 +38,25 @@ import org.bouncycastle.crypto.util.DigestFactory;
 import org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec;
 
 /**
- * Lets Bouncy Castle use an elliptic curve key on a token for ECDH. Bouncy Castle asks
- * for a key agreement that includes the key derivation function by name (for example
- * {@code ECDHwithSHA256KDF} for CMS and {@code ECCDHwithSHA256CKDF} for OpenPGP), which
- * SunPKCS11 does not offer. This provider offers those names for keys that cannot be
- * extracted: the plain ECDH runs on the token and the key derivation runs in software.
- * Software keys are left to Bouncy Castle. There is one per open token, handed to Bouncy
- * Castle by the key handle; it is never registered with the JVM.
+ * Lets Bouncy Castle use a key on a token where SunPKCS11 falls short. For an elliptic
+ * curve key it does ECDH. Bouncy Castle asks for a key agreement that includes the key
+ * derivation function by name (for example {@code ECDHwithSHA256KDF} for CMS and
+ * {@code ECCDHwithSHA256CKDF} for OpenPGP), which SunPKCS11 does not offer. This provider
+ * offers those names for keys that cannot be extracted: the plain ECDH runs on the token
+ * and the key derivation runs in software. Software keys are left to Bouncy Castle. There
+ * is one per open token, handed to Bouncy Castle by the key handle; it is never
+ * registered with the JVM.
  */
-final class TokenEcdhProvider extends Provider {
+final class TokenAdapterProvider extends Provider {
 
-	static final String NAME = "CommonsCryptoTokenEcdh";
+	static final String NAME = "CommonsCryptoTokenAdapter";
 
 	private static final long serialVersionUID = 1L;
 
 	/** The provider of the token, which does the plain ECDH for its own keys. */
 	private final transient Provider token;
 
-	TokenEcdhProvider(Provider token) {
+	TokenAdapterProvider(Provider token) {
 		super(NAME, "1", "ECDH on a token with the key derivation in software");
 		this.token = token;
 		// OpenPGP (RFC 6637): the concatenation KDF.
@@ -67,6 +75,15 @@ final class TokenEcdhProvider extends Provider {
 		// wrap is offered too, as Bouncy Castle's own.
 		putService(new Service(this, "Cipher", "AESWrap", "org.bouncycastle.jcajce.provider.symmetric.AES$Wrap",
 				List.of("2.16.840.1.101.3.4.1.5", "2.16.840.1.101.3.4.1.25", "2.16.840.1.101.3.4.1.45"), null));
+		// OpenPGP stores the encrypted session key as a number, which loses leading zero
+		// bytes,
+		// and a token may refuse RSA input that is shorter than its key.
+		putService(new Service(this, "Cipher", "RSA/ECB/PKCS1Padding", PaddedRsaCipher.class.getName(), null, null) {
+			@Override
+			public Object newInstance(Object constructorParameter) throws NoSuchAlgorithmException {
+				return new PaddedRsaCipher(TokenAdapterProvider.this.token);
+			}
+		});
 		// OpenPGP reads the curve of a public key through the same provider.
 		putService(new Service(this, "AlgorithmParameters", "EC",
 				"org.bouncycastle.jcajce.provider.asymmetric.ec.AlgorithmParametersSpi", null, null));
@@ -87,10 +104,137 @@ final class TokenEcdhProvider extends Provider {
 				(aliases.length == 0) ? null : List.of(aliases), null) {
 			@Override
 			public Object newInstance(Object constructorParameter) {
-				return new Agreement(TokenEcdhProvider.this.token, cms, digest);
+				return new Agreement(TokenAdapterProvider.this.token, cms, digest);
 			}
 
 		});
+	}
+
+	/**
+	 * RSA with PKCS#1 v1.5 padding on the token, with the input to a decryption padded
+	 * with leading zeros to the length of the key's modulus.
+	 */
+	static final class PaddedRsaCipher extends CipherSpi {
+
+		private final Cipher delegate;
+
+		private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+
+		private int modulusBytes;
+
+		private boolean decrypting;
+
+		PaddedRsaCipher(Provider token) throws NoSuchAlgorithmException {
+			try {
+				this.delegate = Cipher.getInstance("RSA/ECB/PKCS1Padding", token);
+			}
+			catch (NoSuchPaddingException ex) {
+				throw new NoSuchAlgorithmException(ex);
+			}
+		}
+
+		@Override
+		protected void engineSetMode(String mode) throws NoSuchAlgorithmException {
+			if (!"ECB".equalsIgnoreCase(mode)) {
+				throw new NoSuchAlgorithmException("Unsupported mode " + mode);
+			}
+		}
+
+		@Override
+		protected void engineSetPadding(String padding) throws NoSuchPaddingException {
+			if (!"PKCS1Padding".equalsIgnoreCase(padding)) {
+				throw new NoSuchPaddingException("Unsupported padding " + padding);
+			}
+		}
+
+		@Override
+		protected int engineGetBlockSize() {
+			return this.delegate.getBlockSize();
+		}
+
+		@Override
+		protected int engineGetOutputSize(int inputLen) {
+			return this.delegate.getOutputSize(inputLen);
+		}
+
+		@Override
+		protected byte[] engineGetIV() {
+			return null;
+		}
+
+		@Override
+		protected AlgorithmParameters engineGetParameters() {
+			return null;
+		}
+
+		@Override
+		protected void engineInit(int opmode, Key key, SecureRandom random) throws InvalidKeyException {
+			this.delegate.init(opmode, key, random);
+			started(opmode);
+		}
+
+		@Override
+		protected void engineInit(int opmode, Key key, AlgorithmParameterSpec params, SecureRandom random)
+				throws InvalidKeyException, InvalidAlgorithmParameterException {
+			this.delegate.init(opmode, key, params, random);
+			started(opmode);
+		}
+
+		@Override
+		protected void engineInit(int opmode, Key key, AlgorithmParameters params, SecureRandom random)
+				throws InvalidKeyException, InvalidAlgorithmParameterException {
+			this.delegate.init(opmode, key, params, random);
+			started(opmode);
+		}
+
+		private void started(int opmode) {
+			this.buffer.reset();
+			this.decrypting = opmode == Cipher.DECRYPT_MODE;
+			// A token key does not reveal its modulus, but the cipher knows its output
+			// size,
+			// which for RSA is the length of the modulus.
+			this.modulusBytes = this.delegate.getOutputSize(0);
+		}
+
+		@Override
+		protected byte[] engineUpdate(byte[] input, int inputOffset, int inputLen) {
+			this.buffer.write(input, inputOffset, inputLen);
+			return new byte[0];
+		}
+
+		@Override
+		protected int engineUpdate(byte[] input, int inputOffset, int inputLen, byte[] output, int outputOffset) {
+			this.buffer.write(input, inputOffset, inputLen);
+			return 0;
+		}
+
+		@Override
+		protected byte[] engineDoFinal(byte[] input, int inputOffset, int inputLen)
+				throws IllegalBlockSizeException, BadPaddingException {
+			if (input != null) {
+				this.buffer.write(input, inputOffset, inputLen);
+			}
+			byte[] data = this.buffer.toByteArray();
+			this.buffer.reset();
+			if (this.decrypting && data.length < this.modulusBytes) {
+				byte[] padded = new byte[this.modulusBytes];
+				System.arraycopy(data, 0, padded, this.modulusBytes - data.length, data.length);
+				data = padded;
+			}
+			return this.delegate.doFinal(data);
+		}
+
+		@Override
+		protected int engineDoFinal(byte[] input, int inputOffset, int inputLen, byte[] output, int outputOffset)
+				throws ShortBufferException, IllegalBlockSizeException, BadPaddingException {
+			byte[] result = engineDoFinal(input, inputOffset, inputLen);
+			if (output.length - outputOffset < result.length) {
+				throw new ShortBufferException();
+			}
+			System.arraycopy(result, 0, output, outputOffset, result.length);
+			return result.length;
+		}
+
 	}
 
 	/** A key factory that is the JDK's EC key factory under other names. */

@@ -47,6 +47,11 @@ VerifyResult result = Pgp.verifyDetached(data, signatureIn, signerPublicKeys);
 
 `PgpSecretKeys` is closeable: closing it overwrites the passphrase copy it holds.
 
+OpenPGP messages can also be encrypted to a passphrase, alone or together with recipients:
+`EncryptRequest.builder().passphrase(chars)` and `DecryptRequest.builder().passphrase(chars)`.
+A message that hides its recipient (a wildcard key ID, from `gpg --throw-keyids`) is tried with
+every key that can decrypt.
+
 ```java
 try (PrivateKeyHandle key = KeyStores.pkcs12(path, password, "alias")) {
     Cms.sign(in, out, key, certificate);
@@ -90,10 +95,9 @@ Read these before relying on it.
 - **Hardware keys are narrower than software keys.** RSA and EC P-256 only. SunPKCS11 has no RSA
   OAEP, so CMS messages for an RSA token key need a provider that has it, or
   `allowPkcs1v15KeyTransport()` on the handle. A key is visible only if the token also holds a
-  certificate for it. It was tested on SoftHSM2, not on a real HSM.
-- **Not included.** Key generation, key ring management, timestamps, certificate chain validation,
-  passphrase-only (symmetric) OpenPGP encryption, and messages addressed to no particular key
-  (wildcard recipients).
+  certificate for it. It was tested on SoftHSM2 and NSS, not on a real HSM.
+- **Not included.** Key generation, key ring management, timestamps, certificate chain validation.
+  For OpenPGP, messages that use the newer AEAD packets (RFC 9580) and legacy PGP 2.x formats.
 - **Memory.** Cleartext OpenPGP signatures read the whole text into memory. Everything else streams.
 
 ## Keys on a token
@@ -152,7 +156,7 @@ try (Pkcs11Token token = Pkcs11Token.open(config, (info) -> pin())) {
   and that provider is used for signing, for RSA decryption and for EC key agreement. There is no
   option to choose the provider for ciphers, hashes or verification.
 - Nothing is registered with the JVM. For an elliptic curve key on a token, the key handle gives
-  Bouncy Castle a small per-token provider (`Pkcs11PrivateKeyHandle.keyAgreementProvider()`) that
+  Bouncy Castle a small per-token provider (`Pkcs11PrivateKeyHandle.adapterProvider()`) that
   offers the key agreement with a key derivation function that SunPKCS11 lacks: the plain ECDH runs
   on the token and the key derivation in software.
 

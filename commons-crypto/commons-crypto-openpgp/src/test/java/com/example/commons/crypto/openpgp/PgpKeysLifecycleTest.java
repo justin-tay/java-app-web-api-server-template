@@ -43,4 +43,19 @@ class PgpKeysLifecycleTest {
 			.isInstanceOf(IllegalStateException.class);
 	}
 
+	@Test
+	void keysInSeveralArmoredBlocksAreAllRead() {
+		ByteArrayOutputStream encrypted = new ByteArrayOutputStream();
+		Pgp.encrypt(new ByteArrayInputStream(DATA), encrypted, TestPgpKeys.EC.publicKeys());
+		PgpPublicKeys both = PgpPublicKeys
+			.fromArmored(TestPgpKeys.RSA.publicArmored() + "\n" + TestPgpKeys.EC.publicArmored());
+		PgpSecretKeys secrets = PgpSecretKeys.fromArmored(
+				TestPgpKeys.RSA.secretArmored() + "\n" + TestPgpKeys.EC.secretArmored(), TestPgpKeys.PASSPHRASE);
+
+		assertThat(both.encryptionKeys()).hasSize(2);
+		ByteArrayOutputStream plain = new ByteArrayOutputStream();
+		Pgp.decrypt(new ByteArrayInputStream(encrypted.toByteArray()), plain, secrets);
+		assertThat(plain.toByteArray()).isEqualTo(DATA);
+	}
+
 }
