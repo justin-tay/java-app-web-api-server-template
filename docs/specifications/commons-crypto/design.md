@@ -252,9 +252,10 @@ Requirements the adapter puts on the surrounding code:
 2. The OpenPGP decryptor takes the key as `JcaPGPPrivateKey`, not a bare `PrivateKey`.
 3. The token provider configuration must set derived secret keys to non-sensitive and
    extractable, so the library builds that configuration itself.
-4. Neither `setProvider` nor `setContentProvider` may force the token provider for the
-   recipient; the late-binding lookup selects the adapter by key. Bouncy Castle stays
-   registered for the key factory and content cipher.
+4. The adapter is handed to the recipient with `setProvider`, and `setContentProvider` names
+   Bouncy Castle for the content cipher. The adapter must then offer everything Bouncy Castle
+   asks the recipient provider for: the key agreements, the key factories, the AES key wrap and
+   the EC algorithm parameters.
 5. A JCE provider must be acceptable to the JDK in use. OpenJDK builds accept unsigned
    providers; an Oracle JDK build may need this checked.
 6. Not covered: curves other than P-256, cofactor-multiplied agreement (`ECDHC`) on curves
@@ -279,11 +280,12 @@ format and the way out.
 How the formats use a token key, as built:
 
 - **Provider selection.** The key handle carries the token's provider. Signing and RSA
-  decryption use it directly. Elliptic curve decryption does not force a provider: the library
-  registers the `TokenEcdhProvider` once, when a token is first opened, and Bouncy Castle finds
-  its agreements and key factories by name. The adapter keeps a list of the open tokens'
-  providers and does the plain ECDH through whichever one accepts the key, so the token
-  providers themselves are never added to the JDK's provider list.
+  decryption use it directly. Elliptic curve decryption is handed the token's own
+  `TokenEcdhProvider` instance (`keyAgreementProvider()` on the handle), which does the plain ECDH
+  through that token's provider. Nothing is registered with the JDK, and the token providers
+  are never added to the JDK's provider list either. Because Bouncy Castle uses the one provider
+  it is given for everything in the recipient, the adapter also offers the AES key wrap and the EC
+  algorithm parameters, both as Bouncy Castle's own classes.
 - **Key factories.** Bouncy Castle looks up the EC key factory by the OID `1.2.840.10045.2.1`
   (CMS) and by `ECDH` (OpenPGP). The JDK has neither name, so the adapter provider offers both
   and hands them to the JDK's EC key factory.

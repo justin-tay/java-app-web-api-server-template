@@ -122,7 +122,7 @@ they cannot be copied.
    for token keys. Software keys SHALL support ECC from the first release.
 8. WHEN an EC token key decrypts (CMS key agreement or OpenPGP ECDH), THEN the library
    SHALL run the raw key agreement on the token and the key derivation in software, through
-   an adapter provider that the library registers, and the private key SHALL NOT leave the
+   an adapter provider that the library hands to Bouncy Castle, and the private key SHALL NOT leave the
    token.
 9. The library SHALL build the token provider configuration itself, including the derived
    secret key attributes the agreement needs, and SHALL NOT require the caller to supply a
@@ -146,11 +146,12 @@ does not disturb mine and I can put a key behind my own.
 2. A key handle SHALL be able to name the provider that performs the operations with its key. WHEN
    a handle is not one of the library's own token handles, THEN its provider SHALL be used for
    signing, RSA decryption and EC key agreement.
-3. The only provider the library registers JVM-wide SHALL be the ECDH adapter, once, when a token
-   is first opened. Its key agreements SHALL act only for EC private keys that cannot be extracted.
-   Its two key factory names (`ECDH` and `1.2.840.10045.2.1`), which Bouncy Castle looks up and the
-   JDK lacks, SHALL hand every key to the JDK's EC key factory, so they change nothing for a key
-   that is not on a token.
+3. The library SHALL NOT register any provider with the JVM. The ECDH adapter SHALL be one instance
+   per open token, handed to Bouncy Castle by the token's key handle, and it SHALL do the plain
+   ECDH only through that token's provider. Its two key factory names (`ECDH` and
+   `1.2.840.10045.2.1`), which Bouncy Castle looks up and the JDK lacks, SHALL hand every key to
+   the JDK's EC key factory. It SHALL also offer the AES key wrap and the EC algorithm parameters
+   that Bouncy Castle asks the same provider for.
 4. WHEN a token goes away while a key on it is used, THEN the operation SHALL throw a
    `TokenUnavailableException`, whichever operation it was.
 

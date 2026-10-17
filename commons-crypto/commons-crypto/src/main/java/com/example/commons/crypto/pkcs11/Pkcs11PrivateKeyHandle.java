@@ -57,6 +57,15 @@ public final class Pkcs11PrivateKeyHandle implements PrivateKeyHandle {
 		return Optional.of(this.token.provider());
 	}
 
+	/**
+	 * The provider that does ECDH with the key derivation function for this token's
+	 * elliptic curve keys, to hand to Bouncy Castle. It is not registered with the JVM.
+	 * @return the provider
+	 */
+	public Provider keyAgreementProvider() {
+		return this.token.keyAgreementProvider();
+	}
+
 	@Override
 	public void close() {
 		this.closed = true;

@@ -144,11 +144,10 @@ try (Pkcs11Token token = Pkcs11Token.open(config, (info) -> pin())) {
   `PrivateKeyHandle` yourself to put a key behind any JCA provider, such as a vendor's HSM provider,
   and that provider is used for signing, for RSA decryption and for EC key agreement. There is no
   option to choose the provider for ciphers, hashes or verification.
-- The one JVM-wide change: the first time a token is opened through `Pkcs11Token`, the library
-  registers a provider (`CommonsCryptoTokenEcdh`) at the front of the provider list. It offers the
-  key agreement names Bouncy Castle asks for with a key derivation function, which SunPKCS11 lacks,
-  and the EC key factory names Bouncy Castle looks up, handing them to the JDK's. It acts only for EC
-  private keys that cannot be extracted, and only keys on a token you opened.
+- Nothing is registered with the JVM. For an elliptic curve key on a token, the key handle gives
+  Bouncy Castle a small per-token provider (`Pkcs11PrivateKeyHandle.keyAgreementProvider()`) that
+  offers the key agreement with a key derivation function that SunPKCS11 lacks: the plain ECDH runs
+  on the token and the key derivation in software.
 
 ## Limits
 

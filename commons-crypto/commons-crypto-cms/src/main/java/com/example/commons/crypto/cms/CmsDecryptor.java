@@ -149,7 +149,8 @@ public final class CmsDecryptor {
 	 * The recipient that unwraps the content key with the request's key. A token key is
 	 * used through the token's provider for RSA. For an EC token key no provider is
 	 * forced: the key has no encoding, so Bouncy Castle is told its algorithm, and the
-	 * agreement is found by key through the library's adapter provider.
+	 * agreement is done by the token's adapter provider, which is handed to Bouncy
+	 * Castle.
 	 */
 	private static Recipient keyRecipient(DecryptRequest request, boolean authenticated) {
 		PrivateKey key = request.key().key();
@@ -172,13 +173,12 @@ public final class CmsDecryptor {
 			recipient.setPrivateKeyAlgorithmIdentifier(
 					SubjectPublicKeyInfo.getInstance(publicKey.getEncoded()).getAlgorithm());
 		}
-		if (!libraryToken) {
+		if (request.key() instanceof Pkcs11PrivateKeyHandle token) {
+			recipient.setProvider(token.keyAgreementProvider());
+		}
+		else {
 			// The handle's own provider does the key agreement, or Bouncy Castle if it
-			// has none. A
-			// key on one of the library's tokens is used with no provider forced:
-			// SunPKCS11 has no
-			// key agreement with the key derivation built in, which the library's adapter
-			// offers.
+			// has none.
 			recipient.setProvider(provider.orElse(BouncyCastle.provider()));
 		}
 		recipient.setContentProvider(BouncyCastle.provider());

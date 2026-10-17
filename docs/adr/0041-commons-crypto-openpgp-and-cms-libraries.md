@@ -31,9 +31,9 @@ Where SunPKCS11 falls short:
 
 - RSA OAEP on a token is not available. CMS decryption with an RSA token key fails with an error that
   says so, unless the caller allows PKCS#1 v1.5 on that key handle.
-- Key agreement with a key derivation function is provided by a small adapter provider, registered
-  once when a token is first opened. It does the plain ECDH on the token and the key derivation in
-  software, and only acts for EC keys that cannot be extracted.
+- Key agreement with a key derivation function is provided by a small adapter provider, one per open
+  token and handed to Bouncy Castle by the key handle. It does the plain ECDH on the token and the
+  key derivation in software.
 - Ed25519 and X25519 on a token are not supported.
 
 Verification checks signatures and leaves trust to the caller. Old formats and weak algorithms are
@@ -44,7 +44,7 @@ decrypted data is written before the final integrity check; the caller discards 
 
 An application chooses a format and a key location by choosing a dependency and a key handle. Token
 keys work for signing and for RSA and P-256 decryption, and were tested on SoftHSM2 and NSS, not on
-hardware. One provider is added to the JVM's provider list the first time a token is opened.
+hardware. Nothing is added to the JVM's provider list.
 
 Callers carry two duties: deciding whether a valid signer is trusted, and discarding output when a
 call fails. The library will need attention when Bouncy Castle or the JDK change: the adapter and the

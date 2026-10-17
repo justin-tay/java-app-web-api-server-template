@@ -170,9 +170,8 @@ public final class PgpDecryptor {
 	/**
 	 * The factory that unwraps the session key. A software key is used through Bouncy
 	 * Castle. An RSA token key is used through the token's provider. An elliptic curve
-	 * token key is used with no provider forced, because Bouncy Castle asks for a key
-	 * agreement with the key derivation built in, which the library's adapter provider
-	 * offers for token keys.
+	 * token key is used through the token's adapter provider, because Bouncy Castle asks
+	 * for a key agreement with the key derivation built in, which SunPKCS11 lacks.
 	 */
 	private static PublicKeyDataDecryptorFactory decryptorFactory(DecryptRequest request,
 			PGPPublicKeyEncryptedData encrypted, PGPPrivateKey privateKey) {
@@ -185,12 +184,13 @@ public final class PgpDecryptor {
 		}
 		else if (handle instanceof Pkcs11PrivateKeyHandle) {
 			// An RSA token key is used through the token's provider. An elliptic curve
-			// one is used
-			// with no provider forced, because Bouncy Castle asks for a key agreement
-			// with the key
-			// derivation built in, which the library's adapter provider offers for token
-			// keys.
-			if (encrypted.getAlgorithm() != PublicKeyAlgorithmTags.ECDH) {
+			// one is
+			// used through the token's adapter provider, which adds the key derivation
+			// function.
+			if (encrypted.getAlgorithm() == PublicKeyAlgorithmTags.ECDH) {
+				builder.setProvider(((Pkcs11PrivateKeyHandle) handle).keyAgreementProvider());
+			}
+			else {
 				handle.provider().ifPresent(builder::setProvider);
 			}
 		}

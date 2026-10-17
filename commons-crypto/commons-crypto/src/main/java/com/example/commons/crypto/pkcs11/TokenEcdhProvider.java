@@ -11,13 +11,11 @@ import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
 import java.security.SecureRandom;
-import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.crypto.KeyAgreement;
 import javax.crypto.KeyAgreementSpi;
@@ -38,8 +36,8 @@ import org.bouncycastle.jcajce.spec.UserKeyingMaterialSpec;
  * {@code ECDHwithSHA256KDF} for CMS and {@code ECCDHwithSHA256CKDF} for OpenPGP), which
  * SunPKCS11 does not offer. This provider offers those names for keys that cannot be
  * extracted: the plain ECDH runs on the token and the key derivation runs in software.
- * Software keys are left to Bouncy Castle. It is registered once, when a token is first
- * opened.
+ * Software keys are left to Bouncy Castle. There is one per open token, handed to Bouncy
+ * Castle by the key handle; it is never registered with the JVM.
  */
 final class TokenEcdhProvider extends Provider {
 
@@ -47,14 +45,12 @@ final class TokenEcdhProvider extends Provider {
 
 	private static final long serialVersionUID = 1L;
 
-	/**
-	 * The providers of the tokens that are open, which do the plain ECDH for their own
-	 * keys.
-	 */
-	private static final List<Provider> TOKENS = new CopyOnWriteArrayList<>();
+	/** The provider of the token, which does the plain ECDH for its own keys. */
+	private final transient Provider token;
 
-	private TokenEcdhProvider() {
+	TokenEcdhProvider(Provider token) {
 		super(NAME, "1", "ECDH on a token with the key derivation in software");
+		this.token = token;
 		// OpenPGP (RFC 6637): the concatenation KDF.
 		register("ECCDHwithSHA256CKDF", false, "SHA-256");
 		register("ECCDHwithSHA384CKDF", false, "SHA-384");
@@ -66,6 +62,14 @@ final class TokenEcdhProvider extends Provider {
 		register("ECDHwithSHA256KDF", true, "SHA-256", "1.3.132.1.11.1");
 		register("ECDHwithSHA384KDF", true, "SHA-384", "1.3.132.1.11.2");
 		register("ECDHwithSHA512KDF", true, "SHA-512", "1.3.132.1.11.3");
+		// Bouncy Castle unwraps the content key with the provider it was given, so the
+		// AES key
+		// wrap is offered too, as Bouncy Castle's own.
+		putService(new Service(this, "Cipher", "AESWrap", "org.bouncycastle.jcajce.provider.symmetric.AES$Wrap",
+				List.of("2.16.840.1.101.3.4.1.5", "2.16.840.1.101.3.4.1.25", "2.16.840.1.101.3.4.1.45"), null));
+		// OpenPGP reads the curve of a public key through the same provider.
+		putService(new Service(this, "AlgorithmParameters", "EC",
+				"org.bouncycastle.jcajce.provider.asymmetric.ec.AlgorithmParametersSpi", null, null));
 		// Bouncy Castle looks the key factory up by these names, and the JDK's EC key
 		// factory has
 		// neither, so they are offered here and handed to the JDK's.
@@ -78,40 +82,14 @@ final class TokenEcdhProvider extends Provider {
 		});
 	}
 
-	static void tokenOpened(Provider token) {
-		TOKENS.add(token);
-	}
-
-	static void tokenClosed(Provider token) {
-		TOKENS.remove(token);
-	}
-
-	/**
-	 * Registers the provider ahead of the others, once.
-	 */
-	static void register() {
-		if (Security.getProvider(NAME) == null) {
-			synchronized (TokenEcdhProvider.class) {
-				if (Security.getProvider(NAME) == null) {
-					Security.insertProviderAt(new TokenEcdhProvider(), 1);
-				}
-			}
-		}
-	}
-
 	private void register(String name, boolean cms, String digest, String... aliases) {
 		putService(new Service(this, "KeyAgreement", name, Agreement.class.getName(),
 				(aliases.length == 0) ? null : List.of(aliases), null) {
 			@Override
 			public Object newInstance(Object constructorParameter) {
-				return new Agreement(cms, digest);
+				return new Agreement(TokenEcdhProvider.this.token, cms, digest);
 			}
 
-			@Override
-			public boolean supportsParameter(Object key) {
-				return key instanceof PrivateKey privateKey && "EC".equals(privateKey.getAlgorithm())
-						&& privateKey.getEncoded() == null;
-			}
 		});
 	}
 
@@ -149,6 +127,8 @@ final class TokenEcdhProvider extends Provider {
 	/** The agreement: ECDH on the token, then the key derivation function. */
 	static final class Agreement extends KeyAgreementSpi {
 
+		private final Provider token;
+
 		private final boolean cms;
 
 		private final String digest;
@@ -159,7 +139,8 @@ final class TokenEcdhProvider extends Provider {
 
 		private byte[] keyingMaterial;
 
-		Agreement(boolean cms, String digest) {
+		Agreement(Provider token, boolean cms, String digest) {
+			this.token = token;
 			this.cms = cms;
 			this.digest = digest;
 		}
@@ -195,23 +176,15 @@ final class TokenEcdhProvider extends Provider {
 		}
 
 		private byte[] sharedSecret() {
-			// The plain ECDH is done by the provider of the open token that holds the
-			// key.
-			for (Provider token : TOKENS) {
-				try {
-					KeyAgreement agreement = KeyAgreement.getInstance("ECDH", token);
-					agreement.init(this.key);
-					agreement.doPhase(this.peer, true);
-					return agreement.generateSecret();
-				}
-				catch (InvalidKeyException ex) {
-					// The key is on another token.
-				}
-				catch (GeneralSecurityException ex) {
-					throw new IllegalStateException("The token could not do the key agreement", ex);
-				}
+			try {
+				KeyAgreement agreement = KeyAgreement.getInstance("ECDH", this.token);
+				agreement.init(this.key);
+				agreement.doPhase(this.peer, true);
+				return agreement.generateSecret();
 			}
-			throw new IllegalStateException("The key is not on a token that is open");
+			catch (GeneralSecurityException ex) {
+				throw new IllegalStateException("The token could not do the key agreement", ex);
+			}
 		}
 
 		@Override

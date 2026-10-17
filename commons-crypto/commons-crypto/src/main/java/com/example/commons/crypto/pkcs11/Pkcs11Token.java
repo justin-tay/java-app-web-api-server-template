@@ -39,11 +39,14 @@ public final class Pkcs11Token implements AutoCloseable {
 
 	private final KeyStore keyStore;
 
+	private final Provider keyAgreementProvider;
+
 	private volatile boolean closed;
 
 	private Pkcs11Token(Provider provider, KeyStore keyStore) {
 		this.provider = provider;
 		this.keyStore = keyStore;
+		this.keyAgreementProvider = new TokenEcdhProvider(provider);
 	}
 
 	/**
@@ -57,7 +60,6 @@ public final class Pkcs11Token implements AutoCloseable {
 	 * locked
 	 */
 	public static Pkcs11Token open(Pkcs11Config config, PinSupplier pins) {
-		TokenEcdhProvider.register();
 		String name = "commons-crypto-" + COUNTER.incrementAndGet();
 		Provider provider = provider(config, name);
 		char[] pin = pins.pin(new TokenInfo(name, config.library()));
@@ -67,7 +69,6 @@ public final class Pkcs11Token implements AutoCloseable {
 		try {
 			KeyStore keyStore = KeyStore.getInstance("PKCS11", provider);
 			keyStore.load(null, pin);
-			TokenEcdhProvider.tokenOpened(provider);
 			return new Pkcs11Token(provider, keyStore);
 		}
 		catch (IOException | GeneralSecurityException | RuntimeException ex) {
@@ -184,6 +185,10 @@ public final class Pkcs11Token implements AutoCloseable {
 		return this.provider;
 	}
 
+	Provider keyAgreementProvider() {
+		return this.keyAgreementProvider;
+	}
+
 	boolean isClosed() {
 		return this.closed;
 	}
@@ -203,7 +208,6 @@ public final class Pkcs11Token implements AutoCloseable {
 			return;
 		}
 		this.closed = true;
-		TokenEcdhProvider.tokenClosed(this.provider);
 		if (this.provider instanceof AuthProvider authProvider) {
 			try {
 				authProvider.logout();
