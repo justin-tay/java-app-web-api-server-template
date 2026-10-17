@@ -1,13 +1,13 @@
-# Design: io-crypto
+# Design: commons-crypto
 
 ## Overview
 
-`io-crypto` wraps Bouncy Castle behind a small stream API and routes private-key
+`commons-crypto` wraps Bouncy Castle behind a small stream API and routes private-key
 operations through JCA providers, so a hardware token works like any other key. It is
-one artifact with a shared root package and two format packages, because that keeps the
-build simple and the optional Bouncy Castle dependencies let a consumer pay only for the
-format it uses. If the optional-dependency contract proves fragile, the package layout
-lets it split into modules without moving code.
+three modules: a core with the shared key and token code, and one module per format. The
+split follows how Bouncy Castle itself ships (`bcprov`, `bcpkix` for CMS, `bcpg` for
+OpenPGP), lets the build enforce what a consumer pulls in, and keeps the two formats from
+depending on each other.
 
 ## Architecture
 
@@ -29,20 +29,22 @@ flowchart TB
 | Key sources | Tokens, PINs, JCA | public, no format knowledge |
 | Engines | Algorithms | third party |
 
-## Packages
+## Modules and packages
 
-```
-com.example.io.crypto            PrivateKeyHandle, KeyStores, PinSupplier, SignatureMode,
-                                 CryptoException and subtypes, shared option types
-com.example.io.crypto.pkcs11     token loading, login, session lifecycle
-com.example.io.crypto.openpgp    PgpEncryptor, PgpDecryptor, PgpSigner, PgpVerifier, Pgp
-com.example.io.crypto.cms        CmsEncryptor, CmsDecryptor, CmsSigner, CmsVerifier, Cms
-```
+| Module | Packages | Depends on |
+| --- | --- | --- |
+| `commons-crypto-core` | `com.example.commons.crypto` (PrivateKeyHandle, KeyStores, PinSupplier, SignatureMode, CryptoException and subtypes, shared option types), `...crypto.pkcs11` (token loading, login, provider configuration, ECDH adapter provider) | `bcprov` |
+| `commons-crypto-cms` | `com.example.commons.crypto.cms` (CmsEncryptor, CmsDecryptor, CmsSigner, CmsVerifier, Cms) | core, `bcpkix` |
+| `commons-crypto-openpgp` | `com.example.commons.crypto.openpgp` (PgpEncryptor, PgpDecryptor, PgpSigner, PgpVerifier, Pgp) | core, `bcpg` |
+
+The root package exists only in the core module, so no package is split across jars. The
+sibling modules `commons`, `commons-audit`, `commons-accounts` and `commons-aws` live in the
+same repository under `commons-parent`.
 
 There is no common `Encryptor` interface across formats. The formats differ in how
 recipients are named, how keys are chosen on decrypt and how trust works, so a shared
 type would hide real differences. Only the private operation and token access are
-shared, and they live in the root package.
+shared, and they live in the core module.
 
 ## Key handles
 
@@ -133,7 +135,7 @@ Constraints:
 
 ### Spike findings
 
-The spike ran Bouncy Castle 1.80 against SoftHSM2 2.6.1 through SunPKCS11, in containers
+The spike ran Bouncy Castle 1.80, and was repeated on 1.86 with identical results, against SoftHSM2 2.6.1 through SunPKCS11, in containers
 with Temurin 17, 21 and 25. The token key was generated on the token and reported as not
 extractable.
 
@@ -177,8 +179,8 @@ The same setup, with a P-256 key generated on the token, on JDK 17 and 25.
 | CMS sign with ECDSA-SHA256, token signs, software verifies | Works |
 | OpenPGP ECDSA sign on token, software verifies | Works with the same custom signer builder as RSA |
 | Raw ECDH on the token through `KeyAgreement` | Works only after configuring the provider so derived secret keys are `CKA_SENSITIVE=false` and `CKA_EXTRACTABLE=true`; the default fails with `CKR_ATTRIBUTE_SENSITIVE`. Only the shared secret leaves the token, never the private key |
-| CMS key agreement (ECDH) decrypt with Bouncy Castle 1.80 | **Fails, in layers.** The recipient needs `setPrivateKeyAlgorithmIdentifier` because the token key has no encoding. Then it needs a provider that offers a key factory by OID, and finally a key agreement with the key derivation built in (`ECDHwithSHA256KDF`), which only the Bouncy Castle provider has. SunPKCS11 offers plain `ECDH` only |
-| OpenPGP ECDH decrypt with Bouncy Castle 1.80 | **Fails, in layers.** `JcaPGPPrivateKey` is the supported carrier for a token key and gets past the "requires PGPPrivateKey" check. Then Bouncy Castle asks for a key agreement named by `RFC6637Utils.getAgreementAlgorithm` (key derivation built in), which SunPKCS11 does not provide |
+| CMS key agreement (ECDH) decrypt with Bouncy Castle 1.80 and 1.86 | **Fails, in layers.** The recipient needs `setPrivateKeyAlgorithmIdentifier` because the token key has no encoding. Then it needs a provider that offers a key factory by OID, and finally a key agreement with the key derivation built in (`ECDHwithSHA256KDF`), which only the Bouncy Castle provider has. SunPKCS11 offers plain `ECDH` only |
+| OpenPGP ECDH decrypt with Bouncy Castle 1.80 and 1.86 | **Fails, in layers.** `JcaPGPPrivateKey` is the supported carrier for a token key and gets past the "requires PGPPrivateKey" check. Then Bouncy Castle asks for a key agreement named by `RFC6637Utils.getAgreementAlgorithm` (key derivation built in), which SunPKCS11 does not provide |
 | Ed25519 and X25519 through SunPKCS11 | **Not available.** The provider has no EdDSA or XDH services on JDK 17 or 25, although SoftHSM2 generated an Ed25519 key |
 
 Consequences:
@@ -273,12 +275,12 @@ CryptoException (unchecked)
 - Unit tests use software keys and run in `mvn test`.
 - A profile runs SoftHSM2 in a container for PKCS#11 and GnuPG and OpenSSL for
   interoperability in both directions, for every signature mode.
-- Two build variants prove the optional dependencies: CMS tests without `bcpg` and
-  OpenPGP tests without `bcpkix`.
+- Each format module's tests run with only its own Bouncy Castle artifacts on the
+  classpath, which the module dependencies enforce without a separate variant.
 
 ## Open risks
 
 1. `CKM_RSA_PKCS` availability on the target HSMs for OpenPGP.
-2. The optional-dependency contract in one artifact.
+2. Bouncy Castle moves quickly (1.86 at the time of writing); the spike should be rerun on upgrades.
 3. The ECDH adapter is only proven on P-256 with SoftHSM2; other curves and real HSMs are untested.
 4. The adapter is a JCE provider; its acceptance on non-OpenJDK builds is unchecked.

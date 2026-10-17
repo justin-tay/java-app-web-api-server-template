@@ -1,4 +1,4 @@
-# Implementation Plan: io-crypto
+# Implementation Plan: commons-crypto
 
 ## Sequence
 
@@ -15,12 +15,16 @@ is independently testable and ordered by its dependencies.
     not work through SunPKCS11; see the design's spike findings and the open decision.
   - _Requirements: R5_
 
-- [ ] 2. Repo and build
-  - Multi-module Maven project with `io-crypto`, Java 17, `Automatic-Module-Name`,
-    `bcprov` required and `bcpg` and `bcpkix` optional, and the integration-test profile.
+- [ ] 2. Modules and build
+  - Add `commons-crypto-core`, `commons-crypto-cms` and `commons-crypto-openpgp` to the root
+    `pom.xml` and `commons-parent` dependency management, with Java 17, the
+    `Automatic-Module-Name` values, Bouncy Castle 1.86 on one version, and the
+    integration-test profile.
+  - Completion: the modules build under the repository's format, coverage and
+    dependency-check checks.
   - _Requirements: R1, R10_
 
-- [ ] 3. Shared root package
+- [ ] 3. Core API (`commons-crypto-core`)
   - `PrivateKeyHandle`, `KeyStores` for PKCS#12 and Java key stores, `SignatureMode`,
     `CryptoException` and its subtypes, and the result types.
   - _Requirements: R5, R6, R9_
@@ -62,7 +66,9 @@ is independently testable and ordered by its dependencies.
   - _Requirements: R10_
 
 - [ ] 11. Dependency isolation checks
-  - CI variants running CMS tests without `bcpg` and OpenPGP tests without `bcpkix`.
+  - A test or enforcer rule that `commons-crypto-cms` has no `bcpg` and
+    `commons-crypto-openpgp` has no `bcpkix` on its classpath, and that neither depends on
+    the other.
   - _Requirements: R1_
 
 - [ ] 12. Documentation
