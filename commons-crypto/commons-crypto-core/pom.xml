@@ -5,20 +5,16 @@
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>com.example</groupId>
-		<artifactId>commons-parent</artifactId>
+		<artifactId>commons-crypto</artifactId>
 		<version>0.0.1-SNAPSHOT</version>
 	</parent>
-	<artifactId>commons-crypto-openpgp</artifactId>
-	<name>commons-crypto-openpgp</name>
-	<description>Signs, verifies, encrypts and decrypts OpenPGP messages with software or PKCS#11 hardware keys</description>
+	<artifactId>commons-crypto-core</artifactId>
+	<name>commons-crypto-core</name>
+	<description>Shared key, token and result API for the commons-crypto modules, including PKCS#11 hardware key support</description>
 	<dependencies>
 		<dependency>
-			<groupId>com.example</groupId>
-			<artifactId>commons-crypto-core</artifactId>
-		</dependency>
-		<dependency>
 			<groupId>org.bouncycastle</groupId>
-			<artifactId>bcpg-jdk18on</artifactId>
+			<artifactId>bcprov-jdk18on</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
@@ -39,7 +35,7 @@
 				<configuration>
 					<archive>
 						<manifestEntries>
-							<Automatic-Module-Name>com.example.commons.crypto.openpgp</Automatic-Module-Name>
+							<Automatic-Module-Name>com.example.commons.crypto.core</Automatic-Module-Name>
 						</manifestEntries>
 					</archive>
 				</configuration>
