@@ -52,10 +52,7 @@ public final class PgpSigner {
 		try {
 			int signatureType = (request.form() == SignRequest.Form.CLEARTEXT) ? PGPSignature.CANONICAL_TEXT_DOCUMENT
 					: PGPSignature.BINARY_DOCUMENT;
-			List<Signing> signings = new ArrayList<>();
-			for (PgpSecretKeys signer : request.signers()) {
-				signings.add(new Signing(signer.signingKey(), signatureType));
-			}
+			List<Signing> signings = signings(request, signatureType);
 			OutputStream unclosable = new UnclosableOutputStream(out);
 			OutputStream target = request.armored() ? new ArmoredOutputStream(unclosable) : unclosable;
 			switch (request.form()) {
@@ -68,6 +65,31 @@ public final class PgpSigner {
 		catch (IOException | PGPException ex) {
 			throw new CryptoException("Cannot sign the data", ex);
 		}
+	}
+
+	/**
+	 * Writes an embedded signature of everything read from {@code in}, with the data, to
+	 * a stream that is inside something else (an encryption). The request's output format
+	 * does not apply. The stream is not closed.
+	 */
+	void signInto(SignRequest request, InputStream in, OutputStream target) {
+		if (request.form() != SignRequest.Form.EMBEDDED) {
+			throw new IllegalArgumentException("Signing and encrypting needs an embedded signature");
+		}
+		try {
+			signEmbedded(signings(request, PGPSignature.BINARY_DOCUMENT), in, target);
+		}
+		catch (IOException | PGPException ex) {
+			throw new CryptoException("Cannot sign the data", ex);
+		}
+	}
+
+	private static List<Signing> signings(SignRequest request, int signatureType) throws PGPException {
+		List<Signing> signings = new ArrayList<>();
+		for (PgpSecretKeys signer : request.signers()) {
+			signings.add(new Signing(signer.signingKey(), signatureType));
+		}
+		return signings;
 	}
 
 	private static void signEmbedded(List<Signing> signings, InputStream in, OutputStream target)

@@ -56,7 +56,7 @@ is independently testable and ordered by its dependencies.
     result.
   - _Requirements: R2, R3, R6_
 
-- [ ] 9. Combined operations and shortcuts
+- [x] 9. Combined operations and shortcuts
   - Sign-and-encrypt, decrypt-and-verify and the `Pgp` and `Cms` static shortcuts for
     both formats.
   - _Requirements: R2_

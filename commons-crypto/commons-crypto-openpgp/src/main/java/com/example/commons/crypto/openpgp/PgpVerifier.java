@@ -66,7 +66,7 @@ public final class PgpVerifier {
 			if (decoded instanceof ArmoredInputStream armored && armored.isClearText()) {
 				return verifyCleartext(request, armored, content);
 			}
-			return verifyEmbedded(request, new JcaPGPObjectFactory(decoded), content);
+			return verifyPackets(request, new JcaPGPObjectFactory(decoded), content);
 		}
 		catch (IOException | PGPException | RuntimeException ex) {
 			if (ex instanceof CryptoException cryptoException) {
@@ -122,7 +122,7 @@ public final class PgpVerifier {
 		}
 	}
 
-	private static VerifyResult verifyEmbedded(VerifyRequest request, JcaPGPObjectFactory factory, OutputStream content)
+	static VerifyResult verifyPackets(VerifyRequest request, JcaPGPObjectFactory factory, OutputStream content)
 			throws IOException, PGPException {
 		List<PGPOnePassSignature> onePass = new ArrayList<>();
 		List<PGPPublicKey> keys = new ArrayList<>();

@@ -72,29 +72,36 @@ counter on the token could lock it.
 
 ## API sketch
 
+The API as built. Streams are never closed by the library.
+
 OpenPGP:
 
 ```java
+// Encrypt, with every encryption subkey of each recipient; armored output
 PgpEncryptor.create().encrypt(
     EncryptRequest.builder()
         .recipients(PgpPublicKeys.fromArmored(recipientAsc))
-        .signWith(signerKey)               // optional, sign then encrypt
         .armored(true)
         .build(),
     in, out);
 
+// Decrypt with software keys, or with a key on a token paired with its public keys
 PgpDecryptor.create().decrypt(
     DecryptRequest.builder()
-        .keys(PgpSecretKeys.token(handle, publicCert))
+        .keys(PgpSecretKeys.token(handle, publicKeys))
         .build(),
+    in, out);
+
+// Sign first, then encrypt; the signature is inside the encryption
+PgpEncryptor.create().signAndEncrypt(
+    SignRequest.builder().signer(signerKeys).build(),
+    EncryptRequest.builder().recipients(recipientKeys).build(),
     in, out);
 
 // Decrypting and verifying in one call reports every signature, unknown signers included
 VerifyResult r = PgpDecryptor.create().decryptAndVerify(
-    DecryptAndVerifyRequest.builder()
-        .keys(PgpSecretKeys.token(handle, publicCert))
-        .verifyWith(senderPublicKeys)
-        .build(),
+    DecryptRequest.builder().keys(recipientSecretKeys).build(),
+    VerifyRequest.builder().keys(senderPublicKeys).build(),
     in, out);
 ```
 
@@ -102,30 +109,42 @@ CMS:
 
 ```java
 CmsEncryptor.create().encrypt(
-    EncryptRequest.builder()
-        .recipients(CmsRecipient.certificate(cert))
-        .build(),
+    EncryptRequest.builder().recipients(CmsRecipient.certificate(cert)).build(),
     in, out);
 
 CmsDecryptor.create().decrypt(
     DecryptRequest.builder().key(handle, ownCert).build(), in, out);
+
+CmsEncryptor.create().signAndEncrypt(signRequest, encryptRequest, in, out);
+
+VerifyResult r = CmsDecryptor.create().decryptAndVerify(decryptRequest, verifyRequest, in, out);
 ```
 
-Signing:
+Signing and verifying:
 
 ```java
+// Embedded: the output holds the data and the signature
 PgpSigner.create().sign(
-    SignRequest.builder().signer(handle, publicCert)
-        .mode(SignatureMode.DETACHED).armored(true).build(),
-    data, signatureOut);
+    SignRequest.builder().signer(signerKeys).mode(SignatureMode.EMBEDDED).build(), in, out);
 
-VerifyResult v = PgpVerifier.create().verify(
-    VerifyRequest.builder().keys(senderPublicKeys).build(),
-    data, signatureIn);
+// Detached: the output is the signature only; verify against the data
+PgpSigner.create().sign(
+    SignRequest.builder().signer(signerKeys).mode(SignatureMode.DETACHED).armored(true).build(),
+    data, signatureOut);
+VerifyResult v = PgpVerifier.create().verifyDetached(
+    VerifyRequest.builder().keys(senderPublicKeys).build(), data, signatureIn);
+
+// OpenPGP only: a cleartext signature keeps the text readable
+PgpSigner.create().sign(SignRequest.builder().signer(signerKeys).cleartext().build(), text, out);
+
+// CMS takes a key handle and its certificate for each signer
+CmsSigner.create().sign(
+    SignRequest.builder().signer(handle, cert).mode(SignatureMode.DETACHED).build(), data, signatureOut);
 ```
 
-Shortcuts: `Pgp.encrypt(in, out, recipientAsc)`, `Cms.decrypt(in, out, handle, cert)`.
-`CLEARTEXT` is a method on the PGP `SignRequest` builder only.
+Shortcuts for the defaults: `Pgp.encrypt(in, out, recipientKeys)`, `Pgp.sign(in, out, signerKeys)`,
+`Pgp.verifyDetached(data, signature, senderKeys)`, `Cms.decrypt(in, out, handle, cert)`, and the
+matching `decrypt`, `signDetached` and `verify` forms in both classes.
 
 ## Hardware keys
 

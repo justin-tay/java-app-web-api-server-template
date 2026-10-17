@@ -12,6 +12,7 @@ import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.IntegrityException;
 import com.example.commons.crypto.NoMatchingKeyException;
 import com.example.commons.crypto.PrivateKeyHandle;
+import com.example.commons.crypto.VerifyResult;
 import org.bouncycastle.bcpg.PublicKeyAlgorithmTags;
 import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags;
 import org.bouncycastle.openpgp.PGPCompressedData;
@@ -60,13 +61,59 @@ public final class PgpDecryptor {
 	 * the policy
 	 */
 	public void decrypt(DecryptRequest request, InputStream in, OutputStream out) {
-		PGPPublicKeyEncryptedData encrypted;
-		PublicKeyDataDecryptorFactory factory;
-		InputStream clear;
+		Opened opened = open(request, in);
+		try {
+			copyLiteralData(new JcaPGPObjectFactory(opened.clear()), out);
+			checkIntegrity(opened.encrypted());
+		}
+		catch (IOException | PGPException | RuntimeException ex) {
+			throw corrupt(ex);
+		}
+	}
+
+	/**
+	 * Decrypts a message that was signed and then encrypted, writes the signed content to
+	 * {@code out}, and checks the signatures inside it. The data is streamed, so the
+	 * content is written before the integrity check and the signatures are checked: do
+	 * not use it unless the result is acceptable, and discard it if this throws. A
+	 * message that is not signed gives a result with no signature. Neither stream is
+	 * closed.
+	 * @param decrypt the keys and policy for decrypting
+	 * @param verify the public keys and policy for the signatures
+	 * @param in the message
+	 * @param out where the signed content is written
+	 * @return one result per signature
+	 * @throws NoMatchingKeyException if no supplied key is a recipient of the message
+	 * @throws com.example.commons.crypto.PinRequiredException if a passphrase is wrong
+	 * @throws IntegrityException if the message was altered or is corrupt
+	 * @throws CryptoException if the input is not an encrypted message, or is refused by
+	 * a policy
+	 */
+	public VerifyResult decryptAndVerify(DecryptRequest decrypt, VerifyRequest verify, InputStream in,
+			OutputStream out) {
+		Opened opened = open(decrypt, in);
+		try {
+			VerifyResult result = PgpVerifier.verifyPackets(verify, new JcaPGPObjectFactory(opened.clear()), out);
+			checkIntegrity(opened.encrypted());
+			return result;
+		}
+		catch (IOException | PGPException | RuntimeException ex) {
+			throw corrupt(ex);
+		}
+	}
+
+	/**
+	 * An encrypted message whose session key has been recovered, and its decrypted
+	 * packets.
+	 */
+	private record Opened(PGPPublicKeyEncryptedData encrypted, InputStream clear) {
+	}
+
+	private static Opened open(DecryptRequest request, InputStream in) {
 		try {
 			PGPEncryptedDataList list = encryptedDataList(new JcaPGPObjectFactory(PGPUtil.getDecoderStream(in)));
-			encrypted = null;
-			factory = null;
+			PGPPublicKeyEncryptedData encrypted = null;
+			PublicKeyDataDecryptorFactory factory = null;
 			for (Iterator<?> it = list.getEncryptedDataObjects(); it.hasNext() && encrypted == null;) {
 				if (it.next() instanceof PGPPublicKeyEncryptedData candidate) {
 					PGPPrivateKey privateKey = request.keys().privateKey(candidate.getKeyID());
@@ -80,7 +127,7 @@ public final class PgpDecryptor {
 				throw new NoMatchingKeyException("The message is not encrypted for the supplied keys");
 			}
 			enforcePolicy(request, encrypted, factory);
-			clear = encrypted.getDataStream(factory);
+			return new Opened(encrypted, encrypted.getDataStream(factory));
 		}
 		catch (IOException | PGPException | RuntimeException ex) {
 			if (ex instanceof CryptoException cryptoException) {
@@ -88,18 +135,22 @@ public final class PgpDecryptor {
 			}
 			throw new CryptoException("Cannot read the OpenPGP message", ex);
 		}
-		try {
-			copyLiteralData(new JcaPGPObjectFactory(clear), out);
-			if (encrypted.isIntegrityProtected() && !encrypted.verify()) {
-				throw new IntegrityException("The message failed its integrity check");
-			}
+	}
+
+	private static void checkIntegrity(PGPPublicKeyEncryptedData encrypted) throws IOException, PGPException {
+		if (encrypted.isIntegrityProtected() && !encrypted.verify()) {
+			throw new IntegrityException("The message failed its integrity check");
 		}
-		catch (IOException | PGPException | RuntimeException ex) {
-			if (ex instanceof CryptoException cryptoException) {
-				throw cryptoException;
-			}
-			throw new IntegrityException("The message is corrupt or was altered", ex);
+	}
+
+	/**
+	 * A failure while reading decrypted data means the message is corrupt or was altered.
+	 */
+	private static CryptoException corrupt(Exception ex) {
+		if (ex instanceof CryptoException cryptoException) {
+			return cryptoException;
 		}
+		return new IntegrityException("The message is corrupt or was altered", ex);
 	}
 
 	/**
