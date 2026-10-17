@@ -103,7 +103,9 @@ Read these before relying on it.
   `allowPkcs1v15KeyTransport()` on the handle. A key is visible only if the token also holds a
   certificate for it. It was tested on SoftHSM2 and NSS, not on a real HSM.
 - **Not included.** Key generation, key ring management, timestamps, certificate chain validation.
-  For OpenPGP, messages that use the newer AEAD packets (RFC 9580) and legacy PGP 2.x formats.
+  For OpenPGP, writing messages with AEAD packets (it writes the widely supported AES-256 with a
+  modification detection code), and legacy PGP 2.x formats. Reading AEAD messages (OCB, in both
+  the LibrePGP and the RFC 9580 style) works, tested only with messages made by Bouncy Castle.
 - **Memory.** Cleartext OpenPGP signatures read the whole text into memory. Everything else streams.
 
 ## Keys on a token

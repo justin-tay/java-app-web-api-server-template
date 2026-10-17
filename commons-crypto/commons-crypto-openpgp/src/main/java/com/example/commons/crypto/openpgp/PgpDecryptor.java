@@ -207,6 +207,9 @@ public final class PgpDecryptor {
 	}
 
 	private static void checkIntegrity(PGPEncryptedData encrypted) throws IOException, PGPException {
+		// The LibrePGP style of AEAD packets has no separate check: each chunk and the
+		// final
+		// tag are checked as the data is read.
 		if (encrypted.isIntegrityProtected() && !encrypted.verify()) {
 			throw new IntegrityException("The message failed its integrity check");
 		}
@@ -273,7 +276,9 @@ public final class PgpDecryptor {
 		if (request.legacyCompatibility()) {
 			return;
 		}
-		if (!encrypted.isIntegrityProtected()) {
+		// Authenticated encryption in the packets (AEAD) protects the data as well as a
+		// modification detection code does.
+		if (!encrypted.isIntegrityProtected() && !encrypted.isAEAD()) {
 			throw new CryptoException(
 					"The message is not integrity protected; " + "enable legacy compatibility to accept it");
 		}

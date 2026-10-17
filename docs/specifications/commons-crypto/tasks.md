@@ -137,3 +137,8 @@ is independently testable and ordered by its dependencies.
   - Password messages for CMS, with an iteration cap on reading, interoperability with OpenSSL's
     password recipient in both directions, and trying every recipient entry for the key.
   - _Requirements: R4.4_
+
+- [x] 23. Reading OpenPGP messages with AEAD packets
+  - OCB messages in both styles are decrypted and altered ones fail; tested with Bouncy Castle
+    messages only, since the GnuPG in the test image does not write them.
+  - _Requirements: R8.1_
