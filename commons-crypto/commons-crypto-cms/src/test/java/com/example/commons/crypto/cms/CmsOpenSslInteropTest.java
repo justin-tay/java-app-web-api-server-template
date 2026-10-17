@@ -179,4 +179,31 @@ class CmsOpenSslInteropTest {
 		}
 	}
 
+	@Test
+	void openSslDecryptsAPasswordMessageWeEncrypt() throws Exception {
+		ByteArrayOutputStream message = new ByteArrayOutputStream();
+		CmsEncryptor.create()
+			.encrypt(EncryptRequest.builder().password("correct horse".toCharArray()).build(),
+					new ByteArrayInputStream(DATA), message);
+		Path file = file("password.cms", message.toByteArray());
+
+		ExternalTool.Result result = run(null, "openssl", "cms", "-decrypt", "-binary", "-inform", "DER", "-in",
+				file.toString(), "-pwri_password", "correct horse");
+
+		assertThat(result.output()).isEqualTo(DATA);
+	}
+
+	@Test
+	void weReadAPasswordMessageOpenSslEncryptsOnlyWithLegacyCompatibility() throws Exception {
+		ExternalTool.Result encrypted = run(null, "openssl", "cms", "-encrypt", "-binary", "-aes-256-cbc", "-in",
+				file("data.bin", DATA).toString(), "-pwri_password", "correct horse", "-outform", "DER");
+
+		ByteArrayOutputStream plain = new ByteArrayOutputStream();
+		CmsDecryptor.create()
+			.decrypt(DecryptRequest.builder().password("correct horse".toCharArray()).legacyCompatibility(true).build(),
+					new ByteArrayInputStream(encrypted.output()), plain);
+
+		assertThat(plain.toByteArray()).isEqualTo(DATA);
+	}
+
 }

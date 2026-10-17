@@ -132,3 +132,8 @@ is independently testable and ordered by its dependencies.
   - Passphrase messages, hidden (wildcard) recipients, keys in several armored blocks, and the
     padded RSA cipher in the token adapter for encrypted session keys that lost a leading zero.
   - _Requirements: R4.3, R4.4, R5.1_
+
+- [x] 22. CMS password recipients
+  - Password messages for CMS, with an iteration cap on reading, interoperability with OpenSSL's
+    password recipient in both directions, and trying every recipient entry for the key.
+  - _Requirements: R4.4_

@@ -13,6 +13,8 @@ public final class DecryptRequest {
 
 	private final X509Certificate certificate;
 
+	private final char[] password;
+
 	private final boolean legacyCompatibility;
 
 	private final long maxOutputBytes;
@@ -20,6 +22,7 @@ public final class DecryptRequest {
 	private DecryptRequest(Builder builder) {
 		this.key = builder.key;
 		this.certificate = builder.certificate;
+		this.password = (builder.password != null) ? builder.password.clone() : null;
 		this.legacyCompatibility = builder.legacyCompatibility;
 		this.maxOutputBytes = builder.maxOutputBytes;
 	}
@@ -28,8 +31,20 @@ public final class DecryptRequest {
 		return new Builder();
 	}
 
+	/**
+	 * The key, or null if the request has only a password.
+	 * @return the key
+	 */
 	public PrivateKeyHandle key() {
 		return this.key;
+	}
+
+	/**
+	 * The password for messages that were encrypted to a password, or null.
+	 * @return a copy of the password
+	 */
+	public char[] password() {
+		return (this.password != null) ? this.password.clone() : null;
 	}
 
 	/**
@@ -66,6 +81,8 @@ public final class DecryptRequest {
 
 		private X509Certificate certificate;
 
+		private char[] password;
+
 		private boolean legacyCompatibility;
 
 		private long maxOutputBytes = Long.MAX_VALUE;
@@ -76,6 +93,17 @@ public final class DecryptRequest {
 		public Builder key(PrivateKeyHandle key, X509Certificate certificate) {
 			this.key = key;
 			this.certificate = certificate;
+			return this;
+		}
+
+		/**
+		 * Lets the request open messages that were encrypted to a password. It may be
+		 * used with or without a key.
+		 * @param password the password, which is copied
+		 * @return this builder
+		 */
+		public Builder password(char[] password) {
+			this.password = password.clone();
 			return this;
 		}
 
@@ -100,11 +128,12 @@ public final class DecryptRequest {
 		/**
 		 * Builds the request.
 		 * @return the request
-		 * @throws IllegalStateException if no key was given
+		 * @throws IllegalStateException if neither a key with its certificate nor a
+		 * password was given
 		 */
 		public DecryptRequest build() {
-			if (this.key == null || this.certificate == null) {
-				throw new IllegalStateException("A key and its certificate are required");
+			if (this.password == null && (this.key == null || this.certificate == null)) {
+				throw new IllegalStateException("A key and its certificate, or a password, are required");
 			}
 			return new DecryptRequest(this);
 		}

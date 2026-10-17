@@ -52,6 +52,12 @@ OpenPGP messages can also be encrypted to a passphrase, alone or together with r
 A message that hides its recipient (a wildcard key ID, from `gpg --throw-keyids`) is tried with
 every key that can decrypt.
 
+CMS messages can be encrypted to a password too (a CMS password recipient, PBKDF2 with 600000
+iterations and the AES-256 CBC key wrap of RFC 3211), alone or with certificates:
+`EncryptRequest.builder().password(chars)` and `DecryptRequest.builder().password(chars)`. A reader
+refuses a message that asks for more than 5 million iterations. A CMS decrypt tries every
+recipient entry for the key until one unwraps.
+
 ```java
 try (PrivateKeyHandle key = KeyStores.pkcs12(path, password, "alias")) {
     Cms.sign(in, out, key, certificate);

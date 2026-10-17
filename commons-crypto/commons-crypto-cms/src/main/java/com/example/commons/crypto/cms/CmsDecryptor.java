@@ -4,6 +4,7 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.math.BigInteger;
 import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.PublicKey;
@@ -20,15 +21,21 @@ import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.IntegrityException;
 import com.example.commons.crypto.NoMatchingKeyException;
+import com.example.commons.crypto.PinRequiredException;
 import com.example.commons.crypto.VerifyResult;
 import com.example.commons.crypto.pkcs11.Pkcs11PrivateKeyHandle;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.cms.CMSObjectIdentifiers;
+import org.bouncycastle.asn1.pkcs.PBKDF2Params;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.cms.CMSAuthEnvelopedDataParser;
 import org.bouncycastle.cms.CMSEnvelopedDataParser;
 import org.bouncycastle.cms.CMSException;
+import org.bouncycastle.cms.PasswordRecipient;
+import org.bouncycastle.cms.PasswordRecipientId;
+import org.bouncycastle.cms.PasswordRecipientInformation;
 import org.bouncycastle.cms.Recipient;
 import org.bouncycastle.cms.RecipientId;
 import org.bouncycastle.cms.RecipientInformation;
@@ -40,6 +47,9 @@ import org.bouncycastle.cms.jcajce.JceKeyAgreeRecipientId;
 import org.bouncycastle.cms.jcajce.JceKeyTransAuthEnvelopedRecipient;
 import org.bouncycastle.cms.jcajce.JceKeyTransEnvelopedRecipient;
 import org.bouncycastle.cms.jcajce.JceKeyTransRecipientId;
+import org.bouncycastle.cms.jcajce.JcePasswordAuthEnvelopedRecipient;
+import org.bouncycastle.cms.jcajce.JcePasswordEnvelopedRecipient;
+import org.bouncycastle.cms.jcajce.JcePasswordRecipient;
 
 /**
  * Decrypts CMS messages made by {@link CmsEncryptor}, as DER or PEM. The data is
@@ -47,6 +57,8 @@ import org.bouncycastle.cms.jcajce.JceKeyTransRecipientId;
  * throws {@link IntegrityException}, discard what was written to the output stream.
  */
 public final class CmsDecryptor {
+
+	private static final int MAX_PASSWORD_ITERATIONS = 5_000_000;
 
 	private static final int PREFIX_LENGTH = 32;
 
@@ -123,8 +135,7 @@ public final class CmsDecryptor {
 			ASN1ObjectIdentifier contentType = contentType(message);
 			if (CMSObjectIdentifiers.authEnvelopedData.equals(contentType)) {
 				CMSAuthEnvelopedDataParser parser = new CMSAuthEnvelopedDataParser(message);
-				RecipientInformation recipient = select(request, parser.getRecipientInfos());
-				return recipient.getContentStream(keyRecipient(request, true)).getContentStream();
+				return recipientStream(request, parser.getRecipientInfos(), true);
 			}
 			if (PKCSObjectIdentifiers.envelopedData.equals(contentType)) {
 				if (!request.legacyCompatibility()) {
@@ -132,8 +143,7 @@ public final class CmsDecryptor {
 							+ "enable legacy compatibility to accept it");
 				}
 				CMSEnvelopedDataParser parser = new CMSEnvelopedDataParser(message);
-				RecipientInformation recipient = select(request, parser.getRecipientInfos());
-				return recipient.getContentStream(keyRecipient(request, false)).getContentStream();
+				return recipientStream(request, parser.getRecipientInfos(), false);
 			}
 			throw new CryptoException("The input is not an encrypted CMS message");
 		}
@@ -185,21 +195,79 @@ public final class CmsDecryptor {
 		return recipient;
 	}
 
-	private RecipientInformation select(DecryptRequest request, RecipientInformationStore store) {
-		boolean rsa = request.certificate().getPublicKey().getAlgorithm().equals("RSA");
-		RecipientId id = rsa ? new JceKeyTransRecipientId(request.certificate())
-				: new JceKeyAgreeRecipientId(request.certificate());
-		Collection<RecipientInformation> matches = store.getRecipients(id);
-		if (matches.isEmpty()) {
-			throw new NoMatchingKeyException("The message is not encrypted for the supplied key");
+	/**
+	 * The decrypted content, opened with the request's key if the message has a recipient
+	 * for it, and otherwise with its password. Every recipient entry for the key is tried
+	 * until one unwraps.
+	 */
+	private static InputStream recipientStream(DecryptRequest request, RecipientInformationStore store,
+			boolean authenticated) throws CMSException, IOException {
+		CMSException failure = null;
+		if (request.key() != null) {
+			boolean rsa = request.certificate().getPublicKey().getAlgorithm().equals("RSA");
+			RecipientId id = rsa ? new JceKeyTransRecipientId(request.certificate())
+					: new JceKeyAgreeRecipientId(request.certificate());
+			for (RecipientInformation recipient : store.getRecipients(id)) {
+				if (PKCSObjectIdentifiers.rsaEncryption.equals(recipient.getKeyEncryptionAlgorithm().getAlgorithm())
+						&& !request.legacyCompatibility() && !request.key().pkcs1v15KeyTransportAllowed()) {
+					throw new CryptoException("The message uses PKCS#1 v1.5 key transport; enable legacy "
+							+ "compatibility, or allow it on a token key handle, to accept it");
+				}
+				try {
+					return recipient.getContentStream(keyRecipient(request, authenticated)).getContentStream();
+				}
+				catch (CMSException ex) {
+					failure = ex;
+				}
+			}
 		}
-		RecipientInformation recipient = matches.iterator().next();
-		if (PKCSObjectIdentifiers.rsaEncryption.equals(recipient.getKeyEncryptionAlgorithm().getAlgorithm())
-				&& !request.legacyCompatibility() && !request.key().pkcs1v15KeyTransportAllowed()) {
-			throw new CryptoException("The message uses PKCS#1 v1.5 key transport; enable legacy compatibility, "
-					+ "or allow it on a token key handle, to accept it");
+		char[] password = request.password();
+		if (password != null) {
+			try {
+				for (RecipientInformation recipient : store.getRecipients(new PasswordRecipientId())) {
+					checkIterations((PasswordRecipientInformation) recipient);
+					try {
+						return recipient.getContentStream(passwordRecipient(password, authenticated))
+							.getContentStream();
+					}
+					catch (CMSException ex) {
+						throw new PinRequiredException("The password is wrong", ex);
+					}
+				}
+			}
+			finally {
+				Arrays.fill(password, ' ');
+			}
 		}
+		if (failure != null) {
+			throw failure;
+		}
+		throw new NoMatchingKeyException("The message is not encrypted for the supplied key or password");
+	}
+
+	private static Recipient passwordRecipient(char[] password, boolean authenticated) {
+		JcePasswordRecipient recipient = authenticated ? new JcePasswordAuthEnvelopedRecipient(password)
+				: new JcePasswordEnvelopedRecipient(password);
+		recipient.setPasswordConversionScheme(PasswordRecipient.PKCS5_SCHEME2_UTF8);
+		recipient.setProvider(BouncyCastle.provider());
 		return recipient;
+	}
+
+	/** A sender could set a count that makes opening the message take forever. */
+	private static void checkIterations(PasswordRecipientInformation recipient) {
+		AlgorithmIdentifier derivation = recipient.getKeyDerivationAlgorithm();
+		if (PKCSObjectIdentifiers.id_PBKDF2.equals(derivation.getAlgorithm())) {
+			BigInteger iterations = PBKDF2Params.getInstance(derivation.getParameters()).getIterationCount();
+			if (iterations.compareTo(BigInteger.valueOf(MAX_PASSWORD_ITERATIONS)) > 0) {
+				throw new CryptoException("The message asks for " + iterations
+						+ " password key derivation iterations, which is more than the " + MAX_PASSWORD_ITERATIONS
+						+ " this library accepts");
+			}
+		}
+		else {
+			throw new CryptoException("The password key derivation function " + derivation.getAlgorithm()
+					+ " is not supported; only PBKDF2 is");
+		}
 	}
 
 	private static InputStream peekable(InputStream in) {

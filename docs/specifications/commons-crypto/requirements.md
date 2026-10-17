@@ -100,6 +100,11 @@ so that the library does not hide how the format works.
    An OpenPGP encrypt request SHALL also accept a passphrase, alone or with recipients, and an
    OpenPGP decrypt request SHALL accept a passphrase for such messages. A wrong passphrase SHALL
    throw `PinRequiredException`.
+   A CMS encrypt request SHALL likewise accept a password (a password recipient, PBKDF2-HMAC-SHA256
+   and AES-256 CBC key wrap), a CMS decrypt request SHALL accept one, and a CMS decrypt request
+   SHALL refuse a message whose password key derivation asks for more than 5 million iterations.
+   WHEN a message has several recipient entries for the supplied key, THEN the CMS decrypt request
+   SHALL try each until one unwraps.
 5. WHEN a private key is on a token for OpenPGP, THEN the caller SHALL supply the
    public keys and the library SHALL find the one that matches the token key by having the
    token sign a test value and verifying it with each candidate, at construction, and fail
