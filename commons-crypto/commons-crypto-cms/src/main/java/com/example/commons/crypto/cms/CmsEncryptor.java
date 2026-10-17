@@ -58,7 +58,7 @@ public final class CmsEncryptor {
 					CMSAlgorithm.AES256_GCM)
 				.setProvider(CmsProviders.BC)
 				.build();
-			OutputStream target = request.armored() ? new ArmorOutputStream(out) : new Unclosable(out);
+			OutputStream target = request.armored() ? new ArmorOutputStream(out) : new UnclosableOutputStream(out);
 			try (OutputStream encrypted = generator.open(target, encryptor)) {
 				in.transferTo(encrypted);
 			}
@@ -94,25 +94,6 @@ public final class CmsEncryptor {
 		return new AlgorithmIdentifier(PKCSObjectIdentifiers.id_RSAES_OAEP,
 				new RSAESOAEPparams(sha256, new AlgorithmIdentifier(PKCSObjectIdentifiers.id_mgf1, sha256),
 						new AlgorithmIdentifier(PKCSObjectIdentifiers.id_pSpecified, new DEROctetString(new byte[0]))));
-	}
-
-	/** Passes writes through and leaves the wrapped stream open when closed. */
-	private static final class Unclosable extends java.io.FilterOutputStream {
-
-		Unclosable(OutputStream out) {
-			super(out);
-		}
-
-		@Override
-		public void write(byte[] b, int off, int len) throws IOException {
-			this.out.write(b, off, len);
-		}
-
-		@Override
-		public void close() throws IOException {
-			flush();
-		}
-
 	}
 
 }

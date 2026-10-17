@@ -41,7 +41,7 @@ is independently testable and ordered by its dependencies.
     armor, legacy refusal.
   - _Requirements: R2, R4, R7, R8_
 
-- [ ] 6. CMS sign and verify
+- [x] 6. CMS sign and verify
   - Embedded and detached modes, multiple signers, verification result without chain
     validation.
   - _Requirements: R2, R3, R6_
