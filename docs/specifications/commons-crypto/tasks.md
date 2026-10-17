@@ -36,7 +36,7 @@ is independently testable and ordered by its dependencies.
   - Completion: tests against SoftHSM2 including a wrong PIN with no retry.
   - _Requirements: R5_
 
-- [ ] 5. CMS encrypt and decrypt
+- [x] 5. CMS encrypt and decrypt
   - Requests, recipient selection, authenticated content encryption by default, streaming,
     armor, legacy refusal.
   - _Requirements: R2, R4, R7, R8_
