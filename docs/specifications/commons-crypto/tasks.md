@@ -148,3 +148,8 @@ is independently testable and ordered by its dependencies.
     locked token reported as locked, and uniform errors for a bad PKCS#1 v1.5 padding in both
     formats.
   - _Requirements: R5.7_
+
+- [x] 25. ECS log events
+  - `CryptoLog` in the core module writes one event per operation through SLF4J, wired into every
+    public operation of both formats and the token login; documented in the event reference.
+  - _Requirements: R9b.1, R9b.2, R9b.3_

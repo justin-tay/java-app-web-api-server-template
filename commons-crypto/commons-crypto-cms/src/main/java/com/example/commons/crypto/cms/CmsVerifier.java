@@ -14,6 +14,7 @@ import java.util.Set;
 
 import com.example.commons.crypto.Streams;
 import com.example.commons.crypto.BouncyCastle;
+import com.example.commons.crypto.CryptoLog;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.SignatureResult;
 import com.example.commons.crypto.SignatureStatus;
@@ -68,6 +69,10 @@ public final class CmsVerifier {
 	 * is refused by the policy
 	 */
 	public VerifyResult verify(VerifyRequest request, InputStream message, OutputStream content) {
+		return CryptoLog.call("verify", "cms", () -> verifyLogged(request, message, content));
+	}
+
+	VerifyResult verifyLogged(VerifyRequest request, InputStream message, OutputStream content) {
 		try (InputStream in = ArmorInputStream.dearmorIfNeeded(message)) {
 			CMSSignedDataParser parser = new CMSSignedDataParser(digestCalculatorProvider(), in);
 			CMSTypedStream signedContent = parser.getSignedContent();
@@ -95,6 +100,10 @@ public final class CmsVerifier {
 	 * @throws CryptoException if the signature cannot be read or is refused by the policy
 	 */
 	public VerifyResult verifyDetached(VerifyRequest request, InputStream data, InputStream signature) {
+		return CryptoLog.call("verify_detached", "cms", () -> verifyDetachedLogged(request, data, signature));
+	}
+
+	private VerifyResult verifyDetachedLogged(VerifyRequest request, InputStream data, InputStream signature) {
 		try (InputStream signatureStream = ArmorInputStream.dearmorIfNeeded(signature)) {
 			CMSSignedDataParser parser = new CMSSignedDataParser(digestCalculatorProvider(), new CMSTypedStream(data),
 					signatureStream);

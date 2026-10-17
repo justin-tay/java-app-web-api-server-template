@@ -14,6 +14,7 @@ import java.util.List;
 import com.example.commons.crypto.TokenFailures;
 import com.example.commons.crypto.Streams;
 import com.example.commons.crypto.BouncyCastle;
+import com.example.commons.crypto.CryptoLog;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.SignatureMode;
 import org.bouncycastle.cert.jcajce.JcaCertStore;
@@ -50,6 +51,10 @@ public final class CmsSigner {
 	 * @throws CryptoException if a key type is not supported or signing fails
 	 */
 	public void sign(SignRequest request, InputStream in, OutputStream out) {
+		CryptoLog.run("sign", "cms", () -> signLogged(request, in, out));
+	}
+
+	private void signLogged(SignRequest request, InputStream in, OutputStream out) {
 		try {
 			CMSSignedDataStreamGenerator generator = new CMSSignedDataStreamGenerator();
 			List<X509Certificate> certificates = new ArrayList<>();

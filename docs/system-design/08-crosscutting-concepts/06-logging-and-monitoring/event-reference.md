@@ -555,6 +555,27 @@ logged here; the request, input validation, and `authorize_access` events record
 | `role.id`, `role.name`, `role.permissions` | Role refusals | The existing role, or only `role.name` when creating one. | Project extension |
 | `role.changes.name` | `update_role`, when a rename was requested | The refused new name. | Project extension |
 
+## Cryptographic operations
+
+Written by the optional `commons-crypto` library through SLF4J, so they appear only where that library is
+used. The library adds no logging implementation; the application's ECS formatter writes them.
+
+### Cryptographic operation: `encrypt`, `decrypt`, `sign`, `sign_and_encrypt`, `decrypt_and_verify`, `verify`, `verify_detached`, `open_token`
+
+Generated once for each call of an operation of the library. A success is logged at `DEBUG`, since a
+library is called often; a failure at `WARN`. Nothing from the data, a key, a PIN or a passphrase is
+logged, and neither is the message or the stack trace of an exception.
+
+| Field | Value or presence | Meaning | ECS alignment |
+| --- | --- | --- | --- |
+| `event.category` | `["process"]` | A cryptographic operation. ECS has no cryptography category. | ECS Event field |
+| `event.type` | `["info"]` on success, `["error"]` on failure | Outcome class. | ECS Event field |
+| `event.action` | The operation | Stable operation identifier. | ECS field; project-defined action |
+| `event.outcome` | `success` or `failure` | `verify` and `verify_detached` (and `decrypt_and_verify`) are a failure when a signature is invalid or from an unknown signer. | ECS Event field |
+| `event.reason` | Failures | `integrity_check_failed`, `no_matching_key`, `pin_required`, `token_unavailable`, `signature_not_valid`, or `failed`. | ECS Event field |
+| `error.type` | Failures that threw | Class name of the exception. | ECS Error field |
+| `crypto.format` | Every event | `openpgp`, `cms` or `pkcs11`. | Project extension |
+
 ## Passkeys
 
 Present only when passkeys are enabled ([ADR 0024](../../../adr/0024-passkey-login-bound-to-local-user.md)).

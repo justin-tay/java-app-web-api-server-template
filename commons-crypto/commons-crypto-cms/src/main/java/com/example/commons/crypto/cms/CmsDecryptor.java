@@ -18,6 +18,7 @@ import com.example.commons.crypto.TokenUnavailableException;
 import com.example.commons.crypto.TokenFailures;
 import com.example.commons.crypto.Streams;
 import com.example.commons.crypto.BouncyCastle;
+import com.example.commons.crypto.CryptoLog;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.IntegrityException;
 import com.example.commons.crypto.NoMatchingKeyException;
@@ -81,6 +82,10 @@ public final class CmsDecryptor {
 	 * policy
 	 */
 	public void decrypt(DecryptRequest request, InputStream in, OutputStream out) {
+		CryptoLog.run("decrypt", "cms", () -> decryptLogged(request, in, out));
+	}
+
+	private void decryptLogged(DecryptRequest request, InputStream in, OutputStream out) {
 		try (InputStream content = open(request, in)) {
 			content.transferTo(Streams.output(out, request.maxOutputBytes()));
 		}
@@ -110,8 +115,13 @@ public final class CmsDecryptor {
 	 */
 	public VerifyResult decryptAndVerify(DecryptRequest decrypt, VerifyRequest verify, InputStream in,
 			OutputStream out) {
+		return CryptoLog.call("decrypt_and_verify", "cms", () -> decryptAndVerifyLogged(decrypt, verify, in, out));
+	}
+
+	private VerifyResult decryptAndVerifyLogged(DecryptRequest decrypt, VerifyRequest verify, InputStream in,
+			OutputStream out) {
 		try (InputStream content = open(decrypt, in)) {
-			return CmsVerifier.create().verify(verify, content, Streams.output(out, decrypt.maxOutputBytes()));
+			return CmsVerifier.create().verifyLogged(verify, content, Streams.output(out, decrypt.maxOutputBytes()));
 		}
 		catch (IOException ex) {
 			throw failure(ex);
@@ -239,7 +249,7 @@ public final class CmsDecryptor {
 				}
 			}
 			finally {
-				Arrays.fill(password, ' ');
+				Arrays.fill(password, '\0');
 			}
 		}
 		if (failure != null) {

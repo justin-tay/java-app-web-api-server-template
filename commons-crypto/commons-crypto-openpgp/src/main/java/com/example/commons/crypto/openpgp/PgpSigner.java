@@ -12,6 +12,7 @@ import java.util.List;
 import com.example.commons.crypto.TokenFailures;
 import com.example.commons.crypto.Streams;
 import com.example.commons.crypto.BouncyCastle;
+import com.example.commons.crypto.CryptoLog;
 import com.example.commons.crypto.CryptoException;
 import org.bouncycastle.bcpg.ArmoredOutputStream;
 import org.bouncycastle.bcpg.BCPGOutputStream;
@@ -52,6 +53,10 @@ public final class PgpSigner {
 	 * @throws CryptoException if a signer has no signing key or signing fails
 	 */
 	public void sign(SignRequest request, InputStream in, OutputStream out) {
+		CryptoLog.run("sign", "openpgp", () -> signLogged(request, in, out));
+	}
+
+	private void signLogged(SignRequest request, InputStream in, OutputStream out) {
 		try {
 			int signatureType = (request.form() == SignRequest.Form.CLEARTEXT) ? PGPSignature.CANONICAL_TEXT_DOCUMENT
 					: PGPSignature.BINARY_DOCUMENT;

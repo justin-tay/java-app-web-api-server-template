@@ -236,6 +236,15 @@ adopters do not weaken their security by accident.
    `IntegrityException`, `TokenUnavailableException` and `PinRequiredException`.
 3. An exception message SHALL NOT contain a PIN, key material or message content.
 
+### R9b: Logging
+
+1. The library SHALL log through SLF4J only, SHALL NOT bring in a logging implementation, and SHALL
+   write one ECS event for each call of an operation, with the fields in the template's logging event
+   reference.
+2. A success SHALL be logged at `DEBUG` and a failure at `WARN`.
+3. A log event SHALL NOT contain data, key material, a PIN, a passphrase, or the message or stack
+   trace of an exception.
+
 ### R10: Testing
 
 1. Unit tests SHALL run with `mvn test` using software keys only and no external tools.

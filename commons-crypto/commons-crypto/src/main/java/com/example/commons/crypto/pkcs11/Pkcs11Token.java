@@ -19,6 +19,7 @@ import javax.security.auth.login.FailedLoginException;
 import javax.security.auth.login.LoginException;
 
 import com.example.commons.crypto.CryptoException;
+import com.example.commons.crypto.CryptoLog;
 import com.example.commons.crypto.PinRequiredException;
 import com.example.commons.crypto.PinSupplier;
 import com.example.commons.crypto.TokenFailures;
@@ -60,6 +61,10 @@ public final class Pkcs11Token implements AutoCloseable {
 	 * locked
 	 */
 	public static Pkcs11Token open(Pkcs11Config config, PinSupplier pins) {
+		return CryptoLog.call("open_token", "pkcs11", () -> openLogged(config, pins));
+	}
+
+	private static Pkcs11Token openLogged(Pkcs11Config config, PinSupplier pins) {
 		String name = "commons-crypto-" + COUNTER.incrementAndGet();
 		Provider provider = provider(config, name);
 		char[] pin = pins.pin(new TokenInfo(name, config.library()));

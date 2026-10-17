@@ -35,6 +35,8 @@ fields where available and documents its intentional project extensions.
 | Account review action | INFO | `iam` | `user` or `admin`, plus an activity | `create_review_task`, `confirm_review_item`, `edit_review_item_roles`, `remove_review_item`, `confirm_review_population`, `complete_review_task`, `export_review_report` | [Event reference](event-reference.md#account-review-action-create_review_task-confirm_review_item-edit_review_item_roles-remove_review_item-confirm_review_population-complete_review_task-export_review_report) |
 | Settings changed | INFO | `configuration` | `change` | `update_setting` | [Event reference](event-reference.md#settings-changed-update_setting) |
 | Change refused | WARN | As the refused change | As the refused change | As the refused change | [Event reference](event-reference.md#change-refused) |
+| Cryptographic operation done | DEBUG | `process` | `info` | `encrypt`, `decrypt`, `sign`, `sign_and_encrypt`, `decrypt_and_verify`, `verify`, `verify_detached`, `open_token` | [Event reference](event-reference.md#cryptographic-operation-encrypt-decrypt-sign-sign_and_encrypt-decrypt_and_verify-verify-verify_detached-open_token) |
+| Cryptographic operation failed | WARN | `process` | `error` | As the operation | [Event reference](event-reference.md#cryptographic-operation-encrypt-decrypt-sign-sign_and_encrypt-decrypt_and_verify-verify-verify_detached-open_token) |
 | Unexpected request failure | ERROR | `web` | `error` | `process_request` | [Event reference](event-reference.md#request-processing-failed-process_request) |
 | Application starting | INFO | `process` | `start` | `start_application` | [Event reference](event-reference.md#application-starting-start_application) |
 | Application started | INFO | `process` | `start` | `start_application` | [Event reference](event-reference.md#application-started-start_application) |
@@ -103,6 +105,7 @@ fields where available and documents its intentional project extensions.
 | `passkey.label` | `keyword` | The label a user gave a passkey, on the passkey registration, removal, and refused-login events. The credential itself is never logged. |
 | `session.revoked_count` | `long` | Number of sessions a `revoke_sessions` event ended. |
 | `settings.changed` | `keyword[]` | Names of the settings an `update_setting` event changed. Their old and new values are kept in the audit trail row only. |
+| `crypto.format` | `keyword` | The format a `commons-crypto` operation worked on: `openpgp`, `cms` or `pkcs11`. |
 | `session.bound_client_ip` | `keyword` | The client IP a session was previously bound to, on the `update_session` event logged for a client IP anomaly. A plain string field, unlike ECS's typed `client.ip`, since it is a project extension the ECS formatter does not recognize by name. See [ADR 0026](../../../adr/0026-session-bound-to-user-agent-and-client-ip.md). |
 
 ## Correlation and lifecycle semantics

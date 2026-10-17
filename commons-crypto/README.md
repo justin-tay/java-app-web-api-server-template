@@ -109,6 +109,15 @@ Read these before relying on it.
   the LibrePGP and the RFC 9580 style) works, tested only with messages made by Bouncy Castle.
 - **Memory.** Cleartext OpenPGP signatures read the whole text into memory. Everything else streams.
 
+## Logging
+
+The library logs through SLF4J and adds no logging implementation. Each operation writes one event
+with ECS fields (`event.category`, `event.type`, `event.action`, `event.outcome`, `event.reason`,
+`error.type`, `crypto.format`): `DEBUG` for a success, `WARN` for a failure. Nothing from the data,
+a key, a PIN or a passphrase is logged, and neither is an exception message or stack trace. The
+fields are listed in the template's logging
+[event reference](../docs/system-design/08-crosscutting-concepts/06-logging-and-monitoring/event-reference.md).
+
 ## Keys on a token
 
 ```java

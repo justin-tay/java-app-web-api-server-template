@@ -12,6 +12,7 @@ import java.util.Set;
 
 import com.example.commons.crypto.Streams;
 import com.example.commons.crypto.BouncyCastle;
+import com.example.commons.crypto.CryptoLog;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.SignatureResult;
 import com.example.commons.crypto.SignatureStatus;
@@ -63,6 +64,10 @@ public final class PgpVerifier {
 	 * refused by the policy
 	 */
 	public VerifyResult verify(VerifyRequest request, InputStream message, OutputStream unlimited) {
+		return CryptoLog.call("verify", "openpgp", () -> verifyLogged(request, message, unlimited));
+	}
+
+	private VerifyResult verifyLogged(VerifyRequest request, InputStream message, OutputStream unlimited) {
 		OutputStream content = Streams.output(unlimited, request.maxOutputBytes());
 		try {
 			InputStream decoded = PGPUtil.getDecoderStream(message);
@@ -89,6 +94,10 @@ public final class PgpVerifier {
 	 * @throws CryptoException if the signature cannot be read or is refused by the policy
 	 */
 	public VerifyResult verifyDetached(VerifyRequest request, InputStream data, InputStream signature) {
+		return CryptoLog.call("verify_detached", "openpgp", () -> verifyDetachedLogged(request, data, signature));
+	}
+
+	private VerifyResult verifyDetachedLogged(VerifyRequest request, InputStream data, InputStream signature) {
 		try {
 			Object object = new JcaPGPObjectFactory(PGPUtil.getDecoderStream(signature)).nextObject();
 			if (!(object instanceof PGPSignatureList signatures)) {

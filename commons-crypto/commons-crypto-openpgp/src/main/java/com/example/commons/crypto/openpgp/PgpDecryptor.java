@@ -12,6 +12,7 @@ import com.example.commons.crypto.TokenUnavailableException;
 import com.example.commons.crypto.TokenFailures;
 import com.example.commons.crypto.Streams;
 import com.example.commons.crypto.BouncyCastle;
+import com.example.commons.crypto.CryptoLog;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.IntegrityException;
 import com.example.commons.crypto.NoMatchingKeyException;
@@ -72,6 +73,10 @@ public final class PgpDecryptor {
 	 * the policy
 	 */
 	public void decrypt(DecryptRequest request, InputStream in, OutputStream out) {
+		CryptoLog.run("decrypt", "openpgp", () -> decryptLogged(request, in, out));
+	}
+
+	private void decryptLogged(DecryptRequest request, InputStream in, OutputStream out) {
 		Opened opened = open(request, in);
 		try {
 			copyLiteralData(new JcaPGPObjectFactory(opened.clear()), Streams.output(out, request.maxOutputBytes()), 0);
@@ -101,6 +106,11 @@ public final class PgpDecryptor {
 	 * a policy
 	 */
 	public VerifyResult decryptAndVerify(DecryptRequest decrypt, VerifyRequest verify, InputStream in,
+			OutputStream out) {
+		return CryptoLog.call("decrypt_and_verify", "openpgp", () -> decryptAndVerifyLogged(decrypt, verify, in, out));
+	}
+
+	private VerifyResult decryptAndVerifyLogged(DecryptRequest decrypt, VerifyRequest verify, InputStream in,
 			OutputStream out) {
 		Opened opened = open(decrypt, in);
 		try {
