@@ -3,12 +3,16 @@ package com.example.commons.crypto.openpgp;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.security.Provider;
 import java.util.Iterator;
+import java.util.Optional;
 import java.util.Set;
 
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.IntegrityException;
 import com.example.commons.crypto.NoMatchingKeyException;
+import com.example.commons.crypto.PrivateKeyHandle;
+import org.bouncycastle.bcpg.PublicKeyAlgorithmTags;
 import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags;
 import org.bouncycastle.openpgp.PGPCompressedData;
 import org.bouncycastle.openpgp.PGPEncryptedDataList;
@@ -68,9 +72,7 @@ public final class PgpDecryptor {
 					PGPPrivateKey privateKey = request.keys().privateKey(candidate.getKeyID());
 					if (privateKey != null) {
 						encrypted = candidate;
-						factory = new JcePublicKeyDataDecryptorFactoryBuilder().setProvider(PgpProviders.BC)
-							.setContentProvider(PgpProviders.BC)
-							.build(privateKey);
+						factory = decryptorFactory(request, candidate, privateKey);
 					}
 				}
 			}
@@ -98,6 +100,28 @@ public final class PgpDecryptor {
 			}
 			throw new IntegrityException("The message is corrupt or was altered", ex);
 		}
+	}
+
+	/**
+	 * The factory that unwraps the session key. A software key is used through Bouncy
+	 * Castle. An RSA token key is used through the token's provider. An elliptic curve
+	 * token key is used with no provider forced, because Bouncy Castle asks for a key
+	 * agreement with the key derivation built in, which the library's adapter provider
+	 * offers for token keys.
+	 */
+	private static PublicKeyDataDecryptorFactory decryptorFactory(DecryptRequest request,
+			PGPPublicKeyEncryptedData encrypted, PGPPrivateKey privateKey) {
+		JcePublicKeyDataDecryptorFactoryBuilder builder = new JcePublicKeyDataDecryptorFactoryBuilder();
+		Optional<Provider> token = request.keys().token().flatMap(PrivateKeyHandle::provider);
+		// setProvider resets the content provider, so the content provider is set after
+		// it.
+		if (token.isEmpty()) {
+			builder.setProvider(PgpProviders.BC);
+		}
+		else if (encrypted.getAlgorithm() != PublicKeyAlgorithmTags.ECDH) {
+			builder.setProvider(token.get());
+		}
+		return builder.setContentProvider(PgpProviders.BC).build(privateKey);
 	}
 
 	private static PGPEncryptedDataList encryptedDataList(JcaPGPObjectFactory factory) throws IOException {

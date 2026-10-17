@@ -83,20 +83,20 @@ is independently testable and ordered by its dependencies.
     on a token; see the design's ECDH adapter spike.
   - _Requirements: R5.7_
 
-- [ ] 14. ECDH adapter provider
+- [x] 14. ECDH adapter provider
   - Turn the spike's `TokenEcdh` into the `pkcs11` package adapter: names, key acceptance,
     raw agreement on the token, concatenation KDF and X9.63 KDF in software.
   - Completion: tests compare its KDF output with Bouncy Castle's for each digest and key
     wrap size, and CMS and OpenPGP ECDH decrypt pass on SoftHSM2.
   - _Requirements: R5.8_
 
-- [ ] 15. Placeholder certificate for token keys
+- [x] 15. Placeholder certificate for token keys
   - The SunPKCS11 configuration with the derived secret key attributes is built by
-    `Pkcs11Config` (done in task 4). Add a helper that writes a placeholder certificate for a
-    key that has none.
-  - _Requirements: R5.9, R5.10_
+    `Pkcs11Config`. SunPKCS11 lists a private key only if the token also holds a certificate
+    for it, and cannot address a key that has none, so a Java helper cannot add one. The
+    procedure is documented in the design (token keys without a certificate) instead.
 
-- [ ] 16. Token RSA decrypt policy
+- [x] 16. Token RSA decrypt policy
   - `allowPkcs1v15KeyTransport()` on the key handle, and the clear error for CMS OAEP
     through a provider without OAEP.
   - _Requirements: R5.11, R8_

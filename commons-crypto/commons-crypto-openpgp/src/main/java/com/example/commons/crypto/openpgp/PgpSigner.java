@@ -151,8 +151,8 @@ public final class PgpSigner {
 			this.hash = (algorithm == PublicKeyAlgorithmTags.RSA_GENERAL
 					|| algorithm == PublicKeyAlgorithmTags.RSA_SIGN) ? HashAlgorithmTags.SHA256
 							: HashAlgorithmTags.SHA512;
-			this.generator = new PGPSignatureGenerator(
-					new JcaPGPContentSignerBuilder(algorithm, this.hash).setProvider(PgpProviders.BC), key.publicKey());
+			this.generator = new PGPSignatureGenerator(new JcaPGPContentSignerBuilder(algorithm, this.hash)
+				.setProvider(key.provider().orElse(PgpProviders.BC)), key.publicKey());
 			this.generator.init(signatureType, key.privateKey());
 		}
 

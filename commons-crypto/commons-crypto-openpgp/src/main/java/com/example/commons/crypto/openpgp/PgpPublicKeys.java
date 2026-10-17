@@ -82,6 +82,15 @@ public final class PgpPublicKeys {
 		return keys;
 	}
 
+	/** Every key in every ring: primary keys and subkeys. */
+	List<PGPPublicKey> allKeys() {
+		List<PGPPublicKey> keys = new ArrayList<>();
+		for (Iterator<PGPPublicKeyRing> rings = this.rings.getKeyRings(); rings.hasNext();) {
+			rings.next().getPublicKeys().forEachRemaining(keys::add);
+		}
+		return keys;
+	}
+
 	/**
 	 * The key with the given ID in any of the rings, or null if there is none.
 	 */
