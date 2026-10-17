@@ -4,9 +4,14 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.security.PrivateKey;
 import java.security.Provider;
+import java.security.PublicKey;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Optional;
+
+import javax.crypto.NoSuchPaddingException;
 
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.IntegrityException;
@@ -14,6 +19,7 @@ import com.example.commons.crypto.NoMatchingKeyException;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.cms.CMSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.cms.CMSAuthEnvelopedDataParser;
 import org.bouncycastle.cms.CMSEnvelopedDataParser;
 import org.bouncycastle.cms.CMSException;
@@ -23,6 +29,7 @@ import org.bouncycastle.cms.RecipientInformation;
 import org.bouncycastle.cms.RecipientInformationStore;
 import org.bouncycastle.cms.jcajce.JceKeyAgreeAuthEnvelopedRecipient;
 import org.bouncycastle.cms.jcajce.JceKeyAgreeEnvelopedRecipient;
+import org.bouncycastle.cms.jcajce.JceKeyAgreeRecipient;
 import org.bouncycastle.cms.jcajce.JceKeyAgreeRecipientId;
 import org.bouncycastle.cms.jcajce.JceKeyTransAuthEnvelopedRecipient;
 import org.bouncycastle.cms.jcajce.JceKeyTransEnvelopedRecipient;
@@ -77,14 +84,7 @@ public final class CmsDecryptor {
 			throws IOException, CMSException {
 		CMSAuthEnvelopedDataParser parser = new CMSAuthEnvelopedDataParser(message);
 		RecipientInformation recipient = select(request, parser.getRecipientInfos());
-		Provider provider = request.key().provider().orElse(CmsProviders.BC);
-		boolean rsa = request.certificate().getPublicKey().getAlgorithm().equals("RSA");
-		Recipient keyRecipient = rsa
-				? new JceKeyTransAuthEnvelopedRecipient(request.key().key()).setProvider(provider)
-					.setContentProvider(CmsProviders.BC)
-				: new JceKeyAgreeAuthEnvelopedRecipient(request.key().key()).setProvider(provider)
-					.setContentProvider(CmsProviders.BC);
-		copy(recipient, keyRecipient, out);
+		copy(recipient, keyRecipient(request, true), out);
 	}
 
 	private void decryptLegacy(DecryptRequest request, InputStream message, OutputStream out)
@@ -95,14 +95,37 @@ public final class CmsDecryptor {
 		}
 		CMSEnvelopedDataParser parser = new CMSEnvelopedDataParser(message);
 		RecipientInformation recipient = select(request, parser.getRecipientInfos());
-		Provider provider = request.key().provider().orElse(CmsProviders.BC);
-		boolean rsa = request.certificate().getPublicKey().getAlgorithm().equals("RSA");
-		Recipient keyRecipient = rsa
-				? new JceKeyTransEnvelopedRecipient(request.key().key()).setProvider(provider)
-					.setContentProvider(CmsProviders.BC)
-				: new JceKeyAgreeEnvelopedRecipient(request.key().key()).setProvider(provider)
-					.setContentProvider(CmsProviders.BC);
-		copy(recipient, keyRecipient, out);
+		copy(recipient, keyRecipient(request, false), out);
+	}
+
+	/**
+	 * The recipient that unwraps the content key with the request's key. A token key is
+	 * used through the token's provider for RSA. For an EC token key no provider is
+	 * forced: the key has no encoding, so Bouncy Castle is told its algorithm, and the
+	 * agreement is found by key through the library's adapter provider.
+	 */
+	private static Recipient keyRecipient(DecryptRequest request, boolean authenticated) {
+		PrivateKey key = request.key().key();
+		Optional<Provider> token = request.key().provider();
+		PublicKey publicKey = request.certificate().getPublicKey();
+		if ("RSA".equals(publicKey.getAlgorithm())) {
+			Provider provider = token.orElse(CmsProviders.BC);
+			return authenticated
+					? new JceKeyTransAuthEnvelopedRecipient(key).setProvider(provider)
+						.setContentProvider(CmsProviders.BC)
+					: new JceKeyTransEnvelopedRecipient(key).setProvider(provider).setContentProvider(CmsProviders.BC);
+		}
+		JceKeyAgreeRecipient recipient = authenticated ? new JceKeyAgreeAuthEnvelopedRecipient(key)
+				: new JceKeyAgreeEnvelopedRecipient(key);
+		if (token.isPresent()) {
+			recipient.setPrivateKeyAlgorithmIdentifier(
+					SubjectPublicKeyInfo.getInstance(publicKey.getEncoded()).getAlgorithm());
+		}
+		else {
+			recipient.setProvider(CmsProviders.BC);
+		}
+		recipient.setContentProvider(CmsProviders.BC);
+		return recipient;
 	}
 
 	private static void copy(RecipientInformation recipient, Recipient keyRecipient, OutputStream out)
@@ -122,9 +145,9 @@ public final class CmsDecryptor {
 		}
 		RecipientInformation recipient = matches.iterator().next();
 		if (PKCSObjectIdentifiers.rsaEncryption.equals(recipient.getKeyEncryptionAlgorithm().getAlgorithm())
-				&& !request.legacyCompatibility()) {
-			throw new CryptoException(
-					"The message uses PKCS#1 v1.5 key transport; " + "enable legacy compatibility to accept it");
+				&& !request.legacyCompatibility() && !request.key().pkcs1v15KeyTransportAllowed()) {
+			throw new CryptoException("The message uses PKCS#1 v1.5 key transport; enable legacy compatibility, "
+					+ "or allow it on a token key handle, to accept it");
 		}
 		return recipient;
 	}
@@ -161,6 +184,11 @@ public final class CmsDecryptor {
 
 	private static CryptoException failure(Exception ex) {
 		for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+			if (cause instanceof NoSuchPaddingException && String.valueOf(cause.getMessage()).contains("OAEP")) {
+				return new CryptoException("The message needs RSA OAEP, which the provider of the key does not "
+						+ "offer (SunPKCS11 has none); use a provider that supports OAEP, or allow PKCS#1 v1.5 "
+						+ "on the token key handle if the sender can use it", ex);
+			}
 			String name = cause.getClass().getName();
 			String message = String.valueOf(cause.getMessage()).toLowerCase(java.util.Locale.ROOT);
 			if (name.contains("InvalidCipherText") || name.contains("AEADBadTag") || name.contains("BadPadding")

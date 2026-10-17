@@ -21,7 +21,6 @@ import javax.security.auth.login.LoginException;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.PinRequiredException;
 import com.example.commons.crypto.PinSupplier;
-import com.example.commons.crypto.PrivateKeyHandle;
 import com.example.commons.crypto.TokenInfo;
 import com.example.commons.crypto.TokenUnavailableException;
 
@@ -60,6 +59,7 @@ public final class Pkcs11Token implements AutoCloseable {
 	 * locked
 	 */
 	public static Pkcs11Token open(Pkcs11Config config, PinSupplier pins) {
+		TokenEcdhProvider.register();
 		String name = "commons-crypto-" + COUNTER.incrementAndGet();
 		Provider provider = provider(config, name);
 		char[] pin = pins.pin(new TokenInfo(name, config.library()));
@@ -69,6 +69,7 @@ public final class Pkcs11Token implements AutoCloseable {
 		try {
 			KeyStore keyStore = KeyStore.getInstance("PKCS11", provider);
 			keyStore.load(null, pin);
+			TokenEcdhProvider.tokenOpened(provider);
 			return new Pkcs11Token(provider, keyStore);
 		}
 		catch (IOException | GeneralSecurityException | RuntimeException ex) {
@@ -87,10 +88,10 @@ public final class Pkcs11Token implements AutoCloseable {
 	 * @param alias the alias of the key
 	 * @return a handle that owns the token
 	 */
-	public static PrivateKeyHandle openPrivateKey(Pkcs11Config config, PinSupplier pins, String alias) {
+	public static Pkcs11PrivateKeyHandle openPrivateKey(Pkcs11Config config, PinSupplier pins, String alias) {
 		Pkcs11Token token = open(config, pins);
 		try {
-			return new TokenPrivateKeyHandle(token, token.key(alias), true);
+			return new Pkcs11PrivateKeyHandle(token, token.key(alias), true);
 		}
 		catch (RuntimeException ex) {
 			token.close();
@@ -118,8 +119,8 @@ public final class Pkcs11Token implements AutoCloseable {
 	 * @throws CryptoException if there is no private key with that alias
 	 * @throws IllegalStateException if the token is closed
 	 */
-	public PrivateKeyHandle privateKey(String alias) {
-		return new TokenPrivateKeyHandle(this, key(alias), false);
+	public Pkcs11PrivateKeyHandle privateKey(String alias) {
+		return new Pkcs11PrivateKeyHandle(this, key(alias), false);
 	}
 
 	private PrivateKey key(String alias) {
@@ -204,6 +205,7 @@ public final class Pkcs11Token implements AutoCloseable {
 			return;
 		}
 		this.closed = true;
+		TokenEcdhProvider.tokenClosed(this.provider);
 		if (this.provider instanceof AuthProvider authProvider) {
 			try {
 				authProvider.logout();

@@ -9,7 +9,7 @@ import com.example.commons.crypto.PrivateKeyHandle;
 /**
  * A key on a token. It cannot be used once it or its token is closed.
  */
-final class TokenPrivateKeyHandle implements PrivateKeyHandle {
+public final class Pkcs11PrivateKeyHandle implements PrivateKeyHandle {
 
 	private final Pkcs11Token token;
 
@@ -19,10 +19,29 @@ final class TokenPrivateKeyHandle implements PrivateKeyHandle {
 
 	private volatile boolean closed;
 
-	TokenPrivateKeyHandle(Pkcs11Token token, PrivateKey key, boolean ownsToken) {
+	private volatile boolean pkcs1v15KeyTransportAllowed;
+
+	Pkcs11PrivateKeyHandle(Pkcs11Token token, PrivateKey key, boolean ownsToken) {
 		this.token = token;
 		this.key = key;
 		this.ownsToken = ownsToken;
+	}
+
+	/**
+	 * Allows CMS messages to be decrypted with this key when the content key is wrapped
+	 * with RSA PKCS#1 v1.5. Use it only for an RSA key whose provider cannot do OAEP, and
+	 * only for messages from senders you trust to be unable to mount a padding oracle
+	 * attack.
+	 * @return this handle
+	 */
+	public Pkcs11PrivateKeyHandle allowPkcs1v15KeyTransport() {
+		this.pkcs1v15KeyTransportAllowed = true;
+		return this;
+	}
+
+	@Override
+	public boolean pkcs1v15KeyTransportAllowed() {
+		return this.pkcs1v15KeyTransportAllowed;
 	}
 
 	@Override

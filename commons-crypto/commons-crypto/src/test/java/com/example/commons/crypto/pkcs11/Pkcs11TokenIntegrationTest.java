@@ -65,7 +65,7 @@ class Pkcs11TokenIntegrationTest {
 	@Test
 	void listsTheAliasesOnTheToken() throws Exception {
 		try (Pkcs11Token token = Pkcs11Token.open(config(), (info) -> "1234".toCharArray())) {
-			assertThat(token.aliases()).contains(ALIAS);
+			assertThat(token.aliases()).contains(ALIAS, "ec");
 		}
 	}
 

@@ -26,6 +26,17 @@ public interface PrivateKeyHandle extends AutoCloseable {
 	Optional<Provider> provider();
 
 	/**
+	 * Whether the caller allowed RSA PKCS#1 v1.5 key transport for this key. It is off by
+	 * default, because that scheme is weaker than OAEP; a provider that cannot do OAEP,
+	 * such as SunPKCS11, leaves it as the only way to decrypt CMS messages with an RSA
+	 * token key.
+	 * @return true if the caller allowed it for this key
+	 */
+	default boolean pkcs1v15KeyTransportAllowed() {
+		return false;
+	}
+
+	/**
 	 * Releases what the handle holds. Closing more than once is harmless.
 	 */
 	@Override

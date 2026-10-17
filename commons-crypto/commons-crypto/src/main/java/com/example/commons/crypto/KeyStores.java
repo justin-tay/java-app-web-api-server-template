@@ -10,6 +10,7 @@ import java.security.KeyStore;
 import java.security.PrivateKey;
 
 import com.example.commons.crypto.pkcs11.Pkcs11Config;
+import com.example.commons.crypto.pkcs11.Pkcs11PrivateKeyHandle;
 import com.example.commons.crypto.pkcs11.Pkcs11Token;
 
 /**
@@ -54,7 +55,7 @@ public final class KeyStores {
 	 * @throws PinRequiredException if the PIN is missing or wrong, or the token is locked
 	 * @throws CryptoException if there is no private key with that alias
 	 */
-	public static PrivateKeyHandle pkcs11(Pkcs11Config config, PinSupplier pins, String alias) {
+	public static Pkcs11PrivateKeyHandle pkcs11(Pkcs11Config config, PinSupplier pins, String alias) {
 		return Pkcs11Token.openPrivateKey(config, pins, alias);
 	}
 
