@@ -69,7 +69,7 @@ public final class CmsVerifier {
 	 * is refused by the policy
 	 */
 	public VerifyResult verify(VerifyRequest request, InputStream message, OutputStream content) {
-		return CryptoLog.call("verify", "cms", () -> verifyLogged(request, message, content));
+		return CryptoLog.call("verify_signature", "cms", () -> verifyLogged(request, message, content));
 	}
 
 	VerifyResult verifyLogged(VerifyRequest request, InputStream message, OutputStream content) {
@@ -100,7 +100,7 @@ public final class CmsVerifier {
 	 * @throws CryptoException if the signature cannot be read or is refused by the policy
 	 */
 	public VerifyResult verifyDetached(VerifyRequest request, InputStream data, InputStream signature) {
-		return CryptoLog.call("verify_detached", "cms", () -> verifyDetachedLogged(request, data, signature));
+		return CryptoLog.call("verify_detached_signature", "cms", () -> verifyDetachedLogged(request, data, signature));
 	}
 
 	private VerifyResult verifyDetachedLogged(VerifyRequest request, InputStream data, InputStream signature) {

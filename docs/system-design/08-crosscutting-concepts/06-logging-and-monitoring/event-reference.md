@@ -560,7 +560,7 @@ logged here; the request, input validation, and `authorize_access` events record
 Written by the optional `commons-crypto` library through SLF4J, so they appear only where that library is
 used. The library adds no logging implementation; the application's ECS formatter writes them.
 
-### Cryptographic operation: `encrypt`, `decrypt`, `sign`, `sign_and_encrypt`, `decrypt_and_verify`, `verify`, `verify_detached`, `open_token`
+### Cryptographic operation: `encrypt_message`, `decrypt_message`, `sign_message`, `sign_and_encrypt_message`, `decrypt_and_verify_message`, `verify_signature`, `verify_detached_signature`, `open_token`
 
 Generated once for each call of an operation of the library. A success is logged at `DEBUG`, since a
 library is called often; a failure at `WARN`. Nothing from the data, a key, a PIN or a passphrase is
@@ -571,7 +571,7 @@ logged, and neither is the message or the stack trace of an exception.
 | `event.category` | `["process"]` | A cryptographic operation. ECS has no cryptography category; `process` is the nearest fit for work done by the running application, and its expected types do not include `error`. | ECS Event field |
 | `event.type` | `["info"]` | `info` is an expected ECS type for `process`; success or failure is in `event.outcome`. | ECS Event field |
 | `event.action` | The operation | Stable operation identifier. | ECS field; project-defined action |
-| `event.outcome` | `success` or `failure` | `verify` and `verify_detached` (and `decrypt_and_verify`) are a failure when a signature is invalid or from an unknown signer. | ECS Event field |
+| `event.outcome` | `success` or `failure` | `verify_signature`, `verify_detached_signature` and `decrypt_and_verify_message` are a failure when a signature is invalid or from an unknown signer. | ECS Event field |
 | `event.reason` | Failures | `integrity_check_failed`, `no_matching_key`, `pin_required`, `token_unavailable`, `signature_not_valid`, or `failed`. | ECS Event field |
 | `error.type` | Failures that threw | Class name of the exception. | ECS Error field |
 | `crypto.format` | Every event | `openpgp`, `cms` or `pkcs11`. | Project extension |

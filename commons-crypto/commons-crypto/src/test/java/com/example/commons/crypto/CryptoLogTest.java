@@ -48,7 +48,7 @@ class CryptoLogTest {
 
 	@Test
 	void aSuccessIsADebugEventWithTheEcsFields() {
-		String result = CryptoLog.call("decrypt", "cms", () -> "plain");
+		String result = CryptoLog.call("decrypt_message", "cms", () -> "plain");
 
 		assertThat(result).isEqualTo("plain");
 		assertThat(this.events.list).hasSize(1);
@@ -56,7 +56,7 @@ class CryptoLogTest {
 		assertThat(event.getLevel()).isEqualTo(Level.DEBUG);
 		assertThat(fields(event)).containsEntry("event.category", List.of("process"))
 			.containsEntry("event.type", List.of("info"))
-			.containsEntry("event.action", "decrypt")
+			.containsEntry("event.action", "decrypt_message")
 			.containsEntry("event.outcome", "success")
 			.containsEntry("crypto.format", "cms")
 			.doesNotContainKey("event.reason");
@@ -64,7 +64,7 @@ class CryptoLogTest {
 
 	@Test
 	void aFailureIsAWarningWithAReasonAndTheExceptionTypeButNotItsMessage() {
-		assertThatThrownBy(() -> CryptoLog.run("decrypt", "openpgp", () -> {
+		assertThatThrownBy(() -> CryptoLog.run("decrypt_message", "openpgp", () -> {
 			throw new IntegrityException("secret-looking detail 1234");
 		})).isInstanceOf(IntegrityException.class);
 
@@ -89,7 +89,7 @@ class CryptoLogTest {
 
 	private String reason(RuntimeException failure) {
 		this.events.list.clear();
-		assertThatThrownBy(() -> CryptoLog.run("sign", "cms", () -> {
+		assertThatThrownBy(() -> CryptoLog.run("sign_message", "cms", () -> {
 			throw failure;
 		})).isSameAs(failure);
 		return (String) fields(this.events.list.get(0)).get("event.reason");
@@ -99,7 +99,7 @@ class CryptoLogTest {
 	void aVerifyResultWithAnInvalidSignatureIsAFailure() {
 		VerifyResult result = new VerifyResult(List.of(new SignatureResult("id", SignatureStatus.INVALID, null)));
 
-		assertThat(CryptoLog.call("verify", "openpgp", () -> result)).isSameAs(result);
+		assertThat(CryptoLog.call("verify_signature", "openpgp", () -> result)).isSameAs(result);
 
 		ILoggingEvent event = this.events.list.get(0);
 		assertThat(event.getLevel()).isEqualTo(Level.WARN);

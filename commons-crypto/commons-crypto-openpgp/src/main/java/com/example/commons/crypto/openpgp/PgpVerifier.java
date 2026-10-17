@@ -64,7 +64,7 @@ public final class PgpVerifier {
 	 * refused by the policy
 	 */
 	public VerifyResult verify(VerifyRequest request, InputStream message, OutputStream unlimited) {
-		return CryptoLog.call("verify", "openpgp", () -> verifyLogged(request, message, unlimited));
+		return CryptoLog.call("verify_signature", "openpgp", () -> verifyLogged(request, message, unlimited));
 	}
 
 	private VerifyResult verifyLogged(VerifyRequest request, InputStream message, OutputStream unlimited) {
@@ -94,7 +94,8 @@ public final class PgpVerifier {
 	 * @throws CryptoException if the signature cannot be read or is refused by the policy
 	 */
 	public VerifyResult verifyDetached(VerifyRequest request, InputStream data, InputStream signature) {
-		return CryptoLog.call("verify_detached", "openpgp", () -> verifyDetachedLogged(request, data, signature));
+		return CryptoLog.call("verify_detached_signature", "openpgp",
+				() -> verifyDetachedLogged(request, data, signature));
 	}
 
 	private VerifyResult verifyDetachedLogged(VerifyRequest request, InputStream data, InputStream signature) {

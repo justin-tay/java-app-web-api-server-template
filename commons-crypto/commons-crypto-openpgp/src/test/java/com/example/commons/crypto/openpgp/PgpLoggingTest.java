@@ -55,7 +55,7 @@ class PgpLoggingTest {
 				TestPgpKeys.RSA.secretKeys(TestPgpKeys.PASSPHRASE));
 
 		assertThat(this.events.list).extracting((event) -> field(event, "event.action"))
-			.containsExactly("encrypt", "decrypt");
+			.containsExactly("encrypt_message", "decrypt_message");
 		assertThat(this.events.list).allSatisfy((event) -> {
 			assertThat(field(event, "crypto.format")).isEqualTo("openpgp");
 			assertThat(event.getFormattedMessage()).doesNotContain("secret");

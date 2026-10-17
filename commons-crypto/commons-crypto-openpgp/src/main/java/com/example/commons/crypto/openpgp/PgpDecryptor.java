@@ -73,7 +73,7 @@ public final class PgpDecryptor {
 	 * the policy
 	 */
 	public void decrypt(DecryptRequest request, InputStream in, OutputStream out) {
-		CryptoLog.run("decrypt", "openpgp", () -> decryptLogged(request, in, out));
+		CryptoLog.run("decrypt_message", "openpgp", () -> decryptLogged(request, in, out));
 	}
 
 	private void decryptLogged(DecryptRequest request, InputStream in, OutputStream out) {
@@ -107,7 +107,8 @@ public final class PgpDecryptor {
 	 */
 	public VerifyResult decryptAndVerify(DecryptRequest decrypt, VerifyRequest verify, InputStream in,
 			OutputStream out) {
-		return CryptoLog.call("decrypt_and_verify", "openpgp", () -> decryptAndVerifyLogged(decrypt, verify, in, out));
+		return CryptoLog.call("decrypt_and_verify_message", "openpgp",
+				() -> decryptAndVerifyLogged(decrypt, verify, in, out));
 	}
 
 	private VerifyResult decryptAndVerifyLogged(DecryptRequest decrypt, VerifyRequest verify, InputStream in,

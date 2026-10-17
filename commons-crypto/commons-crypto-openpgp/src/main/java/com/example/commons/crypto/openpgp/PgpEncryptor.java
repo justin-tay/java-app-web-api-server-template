@@ -57,7 +57,7 @@ public final class PgpEncryptor {
 	 * fails
 	 */
 	public void encrypt(EncryptRequest request, InputStream in, OutputStream out) {
-		CryptoLog.run("encrypt", "openpgp", () -> encryptLogged(request, in, out));
+		CryptoLog.run("encrypt_message", "openpgp", () -> encryptLogged(request, in, out));
 	}
 
 	private void encryptLogged(EncryptRequest request, InputStream in, OutputStream out) {
@@ -85,7 +85,7 @@ public final class PgpEncryptor {
 	 * @throws CryptoException if a key may not be used or the operation fails
 	 */
 	public void signAndEncrypt(SignRequest sign, EncryptRequest encrypt, InputStream in, OutputStream out) {
-		CryptoLog.run("sign_and_encrypt", "openpgp", () -> signAndEncryptLogged(sign, encrypt, in, out));
+		CryptoLog.run("sign_and_encrypt_message", "openpgp", () -> signAndEncryptLogged(sign, encrypt, in, out));
 	}
 
 	private void signAndEncryptLogged(SignRequest sign, EncryptRequest encrypt, InputStream in, OutputStream out) {

@@ -82,7 +82,7 @@ public final class CmsDecryptor {
 	 * policy
 	 */
 	public void decrypt(DecryptRequest request, InputStream in, OutputStream out) {
-		CryptoLog.run("decrypt", "cms", () -> decryptLogged(request, in, out));
+		CryptoLog.run("decrypt_message", "cms", () -> decryptLogged(request, in, out));
 	}
 
 	private void decryptLogged(DecryptRequest request, InputStream in, OutputStream out) {
@@ -115,7 +115,8 @@ public final class CmsDecryptor {
 	 */
 	public VerifyResult decryptAndVerify(DecryptRequest decrypt, VerifyRequest verify, InputStream in,
 			OutputStream out) {
-		return CryptoLog.call("decrypt_and_verify", "cms", () -> decryptAndVerifyLogged(decrypt, verify, in, out));
+		return CryptoLog.call("decrypt_and_verify_message", "cms",
+				() -> decryptAndVerifyLogged(decrypt, verify, in, out));
 	}
 
 	private VerifyResult decryptAndVerifyLogged(DecryptRequest decrypt, VerifyRequest verify, InputStream in,

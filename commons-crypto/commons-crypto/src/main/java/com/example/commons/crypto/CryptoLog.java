@@ -25,7 +25,7 @@ public final class CryptoLog {
 
 	/**
 	 * Runs an operation and logs how it ended. The exception it throws is rethrown.
-	 * @param action the operation, such as {@code decrypt}
+	 * @param action the operation, such as {@code decrypt_message}
 	 * @param format {@code openpgp}, {@code cms} or {@code pkcs11}
 	 * @param operation the operation
 	 */
@@ -39,7 +39,7 @@ public final class CryptoLog {
 	/**
 	 * Runs an operation and logs how it ended. A {@link VerifyResult} with a signature
 	 * that is not valid counts as a failure. The exception it throws is rethrown.
-	 * @param action the operation, such as {@code verify}
+	 * @param action the operation, such as {@code verify_signature}
 	 * @param format {@code openpgp}, {@code cms} or {@code pkcs11}
 	 * @param operation the operation
 	 * @param <T> the result type
