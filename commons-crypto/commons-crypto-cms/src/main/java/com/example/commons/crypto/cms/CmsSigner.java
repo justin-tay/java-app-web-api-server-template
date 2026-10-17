@@ -51,7 +51,7 @@ public final class CmsSigner {
 	 * @throws CryptoException if a key type is not supported or signing fails
 	 */
 	public void sign(SignRequest request, InputStream in, OutputStream out) {
-		CryptoLog.run("sign_message", "cms", () -> signLogged(request, in, out));
+		CryptoLog.run("sign_data", "cms", () -> signLogged(request, in, out));
 	}
 
 	private void signLogged(SignRequest request, InputStream in, OutputStream out) {

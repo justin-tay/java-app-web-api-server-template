@@ -58,7 +58,7 @@ class CmsLoggingTest {
 		}
 
 		assertThat(this.events.list).extracting((event) -> field(event, "event.action"))
-			.containsExactly("encrypt_message", "decrypt_message");
+			.containsExactly("encrypt_data", "decrypt_data");
 		assertThat(this.events.list).allSatisfy((event) -> {
 			assertThat(field(event, "crypto.format")).isEqualTo("cms");
 			assertThat(field(event, "event.outcome")).isEqualTo("success");
@@ -104,7 +104,7 @@ class CmsLoggingTest {
 		}
 
 		assertThat(this.events.list).extracting((event) -> field(event, "event.action"))
-			.containsExactly("decrypt_and_verify_message");
+			.containsExactly("decrypt_and_verify_data");
 	}
 
 }

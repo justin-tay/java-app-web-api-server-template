@@ -61,7 +61,7 @@ public final class CmsEncryptor {
 	 * @throws CryptoException if a recipient key is not supported or encryption fails
 	 */
 	public void encrypt(EncryptRequest request, InputStream in, OutputStream out) {
-		CryptoLog.run("encrypt_message", "cms", () -> encryptLogged(request, in, out));
+		CryptoLog.run("encrypt_data", "cms", () -> encryptLogged(request, in, out));
 	}
 
 	private void encryptLogged(EncryptRequest request, InputStream in, OutputStream out) {
@@ -86,7 +86,7 @@ public final class CmsEncryptor {
 	 * @throws CryptoException if a key type is not supported or the operation fails
 	 */
 	public void signAndEncrypt(SignRequest sign, EncryptRequest encrypt, InputStream in, OutputStream out) {
-		CryptoLog.run("sign_and_encrypt_message", "cms", () -> signAndEncryptLogged(sign, encrypt, in, out));
+		CryptoLog.run("sign_and_encrypt_data", "cms", () -> signAndEncryptLogged(sign, encrypt, in, out));
 	}
 
 	private void signAndEncryptLogged(SignRequest sign, EncryptRequest encrypt, InputStream in, OutputStream out) {

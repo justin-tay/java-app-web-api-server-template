@@ -25,7 +25,7 @@ public final class CryptoLog {
 
 	/**
 	 * Runs an operation and logs how it ended. The exception it throws is rethrown.
-	 * @param action the operation, such as {@code decrypt_message}
+	 * @param action the operation, such as {@code decrypt_data}
 	 * @param format {@code openpgp}, {@code cms} or {@code pkcs11}
 	 * @param operation the operation
 	 */

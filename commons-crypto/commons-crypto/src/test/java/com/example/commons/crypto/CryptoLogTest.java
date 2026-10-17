@@ -48,7 +48,7 @@ class CryptoLogTest {
 
 	@Test
 	void aSuccessIsADebugEventWithTheEcsFields() {
-		String result = CryptoLog.call("decrypt_message", "cms", () -> "plain");
+		String result = CryptoLog.call("decrypt_data", "cms", () -> "plain");
 
 		assertThat(result).isEqualTo("plain");
 		assertThat(this.events.list).hasSize(1);
@@ -56,7 +56,7 @@ class CryptoLogTest {
 		assertThat(event.getLevel()).isEqualTo(Level.DEBUG);
 		assertThat(fields(event)).containsEntry("event.category", List.of("process"))
 			.containsEntry("event.type", List.of("info"))
-			.containsEntry("event.action", "decrypt_message")
+			.containsEntry("event.action", "decrypt_data")
 			.containsEntry("event.outcome", "success")
 			.containsEntry("crypto.format", "cms")
 			.doesNotContainKey("event.reason");
@@ -64,7 +64,7 @@ class CryptoLogTest {
 
 	@Test
 	void aFailureIsAWarningWithAReasonAndTheExceptionTypeButNotItsMessage() {
-		assertThatThrownBy(() -> CryptoLog.run("decrypt_message", "openpgp", () -> {
+		assertThatThrownBy(() -> CryptoLog.run("decrypt_data", "openpgp", () -> {
 			throw new IntegrityException("secret-looking detail 1234");
 		})).isInstanceOf(IntegrityException.class);
 
@@ -89,7 +89,7 @@ class CryptoLogTest {
 
 	private String reason(RuntimeException failure) {
 		this.events.list.clear();
-		assertThatThrownBy(() -> CryptoLog.run("sign_message", "cms", () -> {
+		assertThatThrownBy(() -> CryptoLog.run("sign_data", "cms", () -> {
 			throw failure;
 		})).isSameAs(failure);
 		return (String) fields(this.events.list.get(0)).get("event.reason");

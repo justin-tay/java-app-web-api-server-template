@@ -53,7 +53,7 @@ public final class PgpSigner {
 	 * @throws CryptoException if a signer has no signing key or signing fails
 	 */
 	public void sign(SignRequest request, InputStream in, OutputStream out) {
-		CryptoLog.run("sign_message", "openpgp", () -> signLogged(request, in, out));
+		CryptoLog.run("sign_data", "openpgp", () -> signLogged(request, in, out));
 	}
 
 	private void signLogged(SignRequest request, InputStream in, OutputStream out) {
