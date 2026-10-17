@@ -10,6 +10,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import com.example.commons.crypto.CryptoException;
+import com.example.commons.crypto.SignatureStatus;
 import org.bouncycastle.bcpg.sig.KeyFlags;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPublicKey;
@@ -138,8 +139,31 @@ public final class PgpPublicKeys {
 	}
 
 	private static boolean expired(PGPPublicKey key) {
+		return expiredAt(key, Instant.now());
+	}
+
+	private static boolean expiredAt(PGPPublicKey key, Instant time) {
 		long validSeconds = key.getValidSeconds();
-		return validSeconds > 0 && key.getCreationTime().toInstant().plusSeconds(validSeconds).isBefore(Instant.now());
+		return validSeconds > 0 && key.getCreationTime().toInstant().plusSeconds(validSeconds).isBefore(time);
+	}
+
+	/**
+	 * Why the key should not be trusted for a signature made at the given time: revoked
+	 * (the key or its primary key), or expired at that time.
+	 * @return {@code KEY_REVOKED}, {@code KEY_EXPIRED}, or null if there is no reason
+	 */
+	SignatureStatus keyProblem(long keyId, Instant time) {
+		PGPPublicKeyRing ring = this.rings.getPublicKeyRing(keyId);
+		if (ring == null) {
+			return null;
+		}
+		PGPPublicKey key = ring.getPublicKey(keyId);
+		PGPPublicKey primary = ring.getPublicKey();
+		if (key.hasRevocation() || primary.hasRevocation()) {
+			return SignatureStatus.KEY_REVOKED;
+		}
+		Instant at = (time != null) ? time : Instant.now();
+		return (expiredAt(key, at) || expiredAt(primary, at)) ? SignatureStatus.KEY_EXPIRED : null;
 	}
 
 }

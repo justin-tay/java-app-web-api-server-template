@@ -1,7 +1,10 @@
 package com.example.commons.crypto.openpgp;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.example.commons.crypto.SignatureStatus;
 
 /**
  * The public keys to check signatures against and the policy to apply. The library checks
@@ -13,11 +16,14 @@ public final class VerifyRequest {
 
 	private final boolean legacyCompatibility;
 
+	private final boolean checkKeyValidity;
+
 	private final long maxOutputBytes;
 
 	private VerifyRequest(Builder builder) {
 		this.keys = List.copyOf(builder.keys);
 		this.legacyCompatibility = builder.legacyCompatibility;
+		this.checkKeyValidity = builder.checkKeyValidity;
 		this.maxOutputBytes = builder.maxOutputBytes;
 	}
 
@@ -36,6 +42,28 @@ public final class VerifyRequest {
 	 */
 	public boolean legacyCompatibility() {
 		return this.legacyCompatibility;
+	}
+
+	/**
+	 * Whether a signature is reported as {@code KEY_REVOKED} or {@code KEY_EXPIRED} when
+	 * the signing key was revoked, or had expired when it signed. Off by default.
+	 * @return true to check
+	 */
+	public boolean checkKeyValidity() {
+		return this.checkKeyValidity;
+	}
+
+	/**
+	 * Why the key with the given ID is not good for a signature made at the time, or
+	 * null.
+	 */
+	SignatureStatus keyProblem(long keyId, Instant time) {
+		for (PgpPublicKeys candidate : this.keys) {
+			if (candidate.publicKey(keyId) != null) {
+				return candidate.keyProblem(keyId, time);
+			}
+		}
+		return null;
 	}
 
 	/** The key with the given ID in any of the supplied keys, or null. */
@@ -65,6 +93,8 @@ public final class VerifyRequest {
 
 		private boolean legacyCompatibility;
 
+		private boolean checkKeyValidity;
+
 		private long maxOutputBytes = Long.MAX_VALUE;
 
 		private Builder() {
@@ -77,6 +107,19 @@ public final class VerifyRequest {
 
 		public Builder legacyCompatibility(boolean legacyCompatibility) {
 			this.legacyCompatibility = legacyCompatibility;
+			return this;
+		}
+
+		/**
+		 * Reports a signature as revoked or expired when the signing key was revoked, or
+		 * had expired at the time it signed (the signature's own time, or now if it has
+		 * none). Revocation is whatever the supplied key blocks contain; the library does
+		 * not fetch updates.
+		 * @param checkKeyValidity true to check
+		 * @return this builder
+		 */
+		public Builder checkKeyValidity(boolean checkKeyValidity) {
+			this.checkKeyValidity = checkKeyValidity;
 			return this;
 		}
 

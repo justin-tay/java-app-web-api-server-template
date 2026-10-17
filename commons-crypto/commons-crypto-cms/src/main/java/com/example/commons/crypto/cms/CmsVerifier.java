@@ -4,9 +4,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.GeneralSecurityException;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Set;
 
@@ -127,10 +129,13 @@ public final class CmsVerifier {
 			for (X509Certificate certificate : request.certificates()) {
 				X509CertificateHolder holder = new JcaX509CertificateHolder(certificate);
 				if (signer.getSID().match(holder)) {
+					// Built from the public key, so the certificate's dates are only
+					// checked when
+					// the request asks for it.
 					boolean valid = signer
 						.verify(new JcaSimpleSignerInfoVerifierBuilder().setProvider(BouncyCastle.provider())
-							.build(certificate));
-					return valid ? SignatureStatus.VALID : SignatureStatus.INVALID;
+							.build(certificate.getPublicKey()));
+					return valid ? checked(request, signer, certificate) : SignatureStatus.INVALID;
 				}
 			}
 			return SignatureStatus.UNKNOWN_SIGNER;
@@ -141,6 +146,24 @@ public final class CmsVerifier {
 		catch (GeneralSecurityException | OperatorCreationException ex) {
 			throw new CryptoException("Cannot check the signature", ex);
 		}
+	}
+
+	/** A matching signature, held to the checks that the request asks for. */
+	private static SignatureStatus checked(VerifyRequest request, SignerInformation signer, X509Certificate certificate)
+			throws CMSException {
+		if (request.checkCertificateValidity()) {
+			Instant time = signingTime(signer);
+			try {
+				certificate.checkValidity((time != null) ? Date.from(time) : new Date());
+			}
+			catch (CertificateException ex) {
+				return SignatureStatus.KEY_EXPIRED;
+			}
+		}
+		if (request.trustCheck() != null && !request.trustCheck().test(certificate)) {
+			return SignatureStatus.NOT_TRUSTED;
+		}
+		return SignatureStatus.VALID;
 	}
 
 	private static Instant signingTime(SignerInformation signer) {

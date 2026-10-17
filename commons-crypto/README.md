@@ -72,8 +72,15 @@ Streams are never closed by the library.
 Read these before relying on it.
 
 - **Trust is yours.** Verification checks that a signature matches the data and a key you
-  supplied. It does not build a certificate chain, check revocation, or look at the expiry or
-  revocation of the signing key. A `VALID` result is not "trusted".
+  supplied. By default it does not build a certificate chain, check revocation, or look at the
+  expiry or revocation of the signing key, so a `VALID` result is not "trusted". Three opt-in checks
+  turn a matching signature into a different status, which `allValid()` does not accept:
+  `checkKeyValidity(true)` on the OpenPGP `VerifyRequest` gives `KEY_REVOKED` or `KEY_EXPIRED`
+  (expired at the time of the signature) from the key blocks you supply;
+  `checkCertificateValidity(true)` on the CMS `VerifyRequest` gives `KEY_EXPIRED` when the
+  certificate was not valid at the signing time; and `trustCheck(...)` on the CMS `VerifyRequest`
+  hands the decision to you, giving `NOT_TRUSTED` when you say no. Run a PKIX path validation
+  (chain to your roots, revocation lists) inside it. The library never fetches revocation data.
 - **Streaming means unchecked output.** Decrypted or signed content is written before the final
   integrity check. If a call throws, discard what was written. For small messages,
   `Cms.decryptToBytes` and `Pgp.decryptToBytes` return the plain data only after the check passed.

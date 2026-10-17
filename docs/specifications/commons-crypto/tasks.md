@@ -122,3 +122,8 @@ is independently testable and ordered by its dependencies.
     integrity classification, primary key validity, removal of `clear()`, the streaming memory test,
     the ADR, and the README additions.
   - _Requirements: R5.6, R7b.2_
+
+- [x] 20. Adapter without global registration, all-or-nothing decrypt, opt-in verification checks
+  - One ECDH adapter per open token handed to Bouncy Castle by the key handle, `decryptToBytes`,
+    and the key validity, certificate validity and trust check options.
+  - _Requirements: R5.3, R6.4, R6.5, R6.6, R7.2_

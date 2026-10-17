@@ -166,6 +166,16 @@ accidentally ignore a bad signature.
    not be dropped.
 3. The library SHALL check the signature only and SHALL NOT decide whether the signer is
    trusted. The caller decides trust from the result.
+4. WHEN the caller turns on the key validity check on an OpenPGP verify request, THEN a matching
+   signature by a key that is revoked in the supplied key blocks (the key or its primary key), or
+   that had expired at the time of the signature, SHALL be reported as `KEY_REVOKED` or
+   `KEY_EXPIRED`.
+5. WHEN the caller turns on the certificate validity check on a CMS verify request, THEN a matching
+   signature whose certificate was not valid at the signing time SHALL be reported as
+   `KEY_EXPIRED`. Without it the certificate dates SHALL NOT affect the result.
+6. WHEN the caller supplies a trust check on a CMS verify request, THEN a matching signature whose
+   certificate the check rejects SHALL be reported as `NOT_TRUSTED`. The library SHALL NOT fetch
+   revocation data.
 
 ### R7: Streaming and integrity
 

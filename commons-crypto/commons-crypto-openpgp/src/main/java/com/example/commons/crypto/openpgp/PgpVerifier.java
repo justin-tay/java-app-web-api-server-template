@@ -114,7 +114,7 @@ public final class PgpVerifier {
 			}
 			List<SignatureResult> results = new ArrayList<>();
 			for (int i = 0; i < signatures.size(); i++) {
-				results.add(result(signatures.get(i), keys.get(i)));
+				results.add(result(request, signatures.get(i), keys.get(i)));
 			}
 			return new VerifyResult(results);
 		}
@@ -177,8 +177,10 @@ public final class PgpVerifier {
 			}
 			else {
 				boolean valid = matching != null && signature.verify(matching);
-				results.add(new SignatureResult(describe(signature.getKeyID()),
-						valid ? SignatureStatus.VALID : SignatureStatus.INVALID, time));
+				results.add(new SignatureResult(
+						describe(signature.getKeyID()), refine(request,
+								valid ? SignatureStatus.VALID : SignatureStatus.INVALID, signature.getKeyID(), time),
+						time));
 			}
 		}
 		return new VerifyResult(results);
@@ -218,15 +220,29 @@ public final class PgpVerifier {
 				signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(BouncyCastle.provider()), key);
 				signature.update(canonical);
 			}
-			results.add(result(signature, key));
+			results.add(result(request, signature, key));
 		}
 		return new VerifyResult(results);
 	}
 
-	private static SignatureResult result(PGPSignature signature, PGPPublicKey key) throws PGPException {
+	private static SignatureResult result(VerifyRequest request, PGPSignature signature, PGPPublicKey key)
+			throws PGPException {
 		SignatureStatus status = (key == null) ? SignatureStatus.UNKNOWN_SIGNER
 				: signature.verify() ? SignatureStatus.VALID : SignatureStatus.INVALID;
-		return new SignatureResult(describe(signature.getKeyID()), status, time(signature));
+		Instant time = time(signature);
+		return new SignatureResult(describe(signature.getKeyID()), refine(request, status, signature.getKeyID(), time),
+				time);
+	}
+
+	/**
+	 * Turns a valid signature into a key problem, when the request asks for the check.
+	 */
+	private static SignatureStatus refine(VerifyRequest request, SignatureStatus status, long keyId, Instant time) {
+		if (status != SignatureStatus.VALID || !request.checkKeyValidity()) {
+			return status;
+		}
+		SignatureStatus problem = request.keyProblem(keyId, time);
+		return (problem != null) ? problem : status;
 	}
 
 	private static PGPSignature find(PGPSignatureList signatures, long keyId) {

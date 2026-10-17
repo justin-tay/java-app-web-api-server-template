@@ -5,8 +5,9 @@ import java.util.List;
 /**
  * Every signature found in a message, each with its own outcome, so an invalid signature
  * cannot be missed by forgetting a check. {@code VALID} means the signature matches the
- * data and a key the caller supplied. It does not mean the signer is trusted, and a key
- * that was revoked or has expired since still gives {@code VALID}.
+ * data and a key the caller supplied. It does not mean the signer is trusted, and unless
+ * the request asks for the key validity check, a key that was revoked or has expired
+ * still gives {@code VALID}.
  *
  * @param signatures the signatures, in the order they appear in the message
  */

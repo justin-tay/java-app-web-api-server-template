@@ -3,6 +3,7 @@ package com.example.commons.crypto.cms;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * The signer certificates to check signatures against and the policy to apply. The
@@ -15,11 +16,17 @@ public final class VerifyRequest {
 
 	private final boolean legacyCompatibility;
 
+	private final boolean checkCertificateValidity;
+
+	private final Predicate<X509Certificate> trustCheck;
+
 	private final long maxOutputBytes;
 
 	private VerifyRequest(Builder builder) {
 		this.certificates = List.copyOf(builder.certificates);
 		this.legacyCompatibility = builder.legacyCompatibility;
+		this.checkCertificateValidity = builder.checkCertificateValidity;
+		this.trustCheck = builder.trustCheck;
 		this.maxOutputBytes = builder.maxOutputBytes;
 	}
 
@@ -46,6 +53,24 @@ public final class VerifyRequest {
 	}
 
 	/**
+	 * Whether a signature is reported as {@code KEY_EXPIRED} when the signer's
+	 * certificate was not valid at the time it signed. Off by default.
+	 * @return true to check
+	 */
+	public boolean checkCertificateValidity() {
+		return this.checkCertificateValidity;
+	}
+
+	/**
+	 * The caller's own decision on whether a signer's certificate is trusted, or null if
+	 * there is none.
+	 * @return the check
+	 */
+	public Predicate<X509Certificate> trustCheck() {
+		return this.trustCheck;
+	}
+
+	/**
 	 * The most bytes that may be written to the output stream, as a protection against a
 	 * message that is much larger than expected. Writing more fails with a
 	 * {@code CryptoException}, and nothing past the limit is written. There is no limit
@@ -62,6 +87,10 @@ public final class VerifyRequest {
 
 		private boolean legacyCompatibility;
 
+		private boolean checkCertificateValidity;
+
+		private Predicate<X509Certificate> trustCheck;
+
 		private long maxOutputBytes = Long.MAX_VALUE;
 
 		private Builder() {
@@ -74,6 +103,31 @@ public final class VerifyRequest {
 
 		public Builder legacyCompatibility(boolean legacyCompatibility) {
 			this.legacyCompatibility = legacyCompatibility;
+			return this;
+		}
+
+		/**
+		 * Reports a signature as {@code KEY_EXPIRED} when the signer's certificate was
+		 * not valid at the time the signature says it was made (now, if it carries no
+		 * time).
+		 * @param checkCertificateValidity true to check
+		 * @return this builder
+		 */
+		public Builder checkCertificateValidity(boolean checkCertificateValidity) {
+			this.checkCertificateValidity = checkCertificateValidity;
+			return this;
+		}
+
+		/**
+		 * Hands the decision on trust to the caller: it is asked about the certificate of
+		 * every signature that matches, and a {@code false} gives {@code NOT_TRUSTED}.
+		 * Use it to run a certification path validation with the PKIX classes of the JDK,
+		 * which can check a chain to your roots and revocation lists.
+		 * @param trustCheck the check
+		 * @return this builder
+		 */
+		public Builder trustCheck(Predicate<X509Certificate> trustCheck) {
+			this.trustCheck = trustCheck;
 			return this;
 		}
 

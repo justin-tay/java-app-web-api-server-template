@@ -1,5 +1,6 @@
 package com.example.commons.crypto.openpgp;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -23,6 +24,8 @@ import org.bouncycastle.openpgp.PGPPublicKeyRing;
 import org.bouncycastle.openpgp.PGPSecretKeyRing;
 import org.bouncycastle.openpgp.PGPSignature;
 import org.bouncycastle.openpgp.PGPSignatureSubpacketGenerator;
+import org.bouncycastle.openpgp.PGPUtil;
+import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
 import org.bouncycastle.openpgp.operator.PGPDigestCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentSignerBuilder;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPDigestCalculatorProviderBuilder;
@@ -135,26 +138,47 @@ final class TestPgpKeys {
 			PGPPublicKeyRing publicRing = generator.generatePublicKeyRing();
 			PGPSecretKeyRing secretRing = generator.generateSecretKeyRing();
 			if (revokePrimary) {
-				PGPPublicKey masterPublic = publicRing.getPublicKey();
-				PGPPrivateKey masterPrivate = secretRing.getSecretKey()
-					.extractPrivateKey(new JcePBESecretKeyDecryptorBuilder(
-							new JcaPGPDigestCalculatorProviderBuilder().setProvider(BC).build())
-						.setProvider(BC)
-						.build(PASSPHRASE));
-				PGPSignatureGenerator revoker = new PGPSignatureGenerator(
-						new JcaPGPContentSignerBuilder(masterPublic.getAlgorithm(), HashAlgorithmTags.SHA256)
-							.setProvider(BC),
-						masterPublic);
-				revoker.init(PGPSignature.KEY_REVOCATION, masterPrivate);
-				PGPPublicKey revoked = PGPPublicKey.addCertification(masterPublic,
-						revoker.generateCertification(masterPublic));
-				publicRing = PGPPublicKeyRing.insertPublicKey(publicRing, revoked);
+				publicRing = revoke(publicRing, secretRing);
 			}
 			return new TestKey(armor(publicRing.getEncoded()), armor(secretRing.getEncoded()), master.getKeyID(), ids);
 		}
 		catch (Exception ex) {
 			throw new IllegalStateException("Cannot generate the test key " + name, ex);
 		}
+	}
+
+	/**
+	 * The public keys of a test key with its primary key revoked afterwards, as if the
+	 * owner had published a revocation.
+	 */
+	static PgpPublicKeys revokedPublicKeys(TestKey key) {
+		try {
+			PGPPublicKeyRing publicRing = new PGPPublicKeyRing(
+					PGPUtil.getDecoderStream(new ByteArrayInputStream(key.publicArmored().getBytes("US-ASCII"))),
+					new JcaKeyFingerprintCalculator());
+			PGPSecretKeyRing secretRing = new PGPSecretKeyRing(
+					PGPUtil.getDecoderStream(new ByteArrayInputStream(key.secretArmored().getBytes("US-ASCII"))),
+					new JcaKeyFingerprintCalculator());
+			return PgpPublicKeys.fromArmored(armor(revoke(publicRing, secretRing).getEncoded()));
+		}
+		catch (Exception ex) {
+			throw new IllegalStateException("Cannot revoke the test key", ex);
+		}
+	}
+
+	private static PGPPublicKeyRing revoke(PGPPublicKeyRing publicRing, PGPSecretKeyRing secretRing) throws Exception {
+		PGPPublicKey masterPublic = publicRing.getPublicKey();
+		PGPPrivateKey masterPrivate = secretRing.getSecretKey()
+			.extractPrivateKey(new JcePBESecretKeyDecryptorBuilder(
+					new JcaPGPDigestCalculatorProviderBuilder().setProvider(BC).build())
+				.setProvider(BC)
+				.build(PASSPHRASE));
+		PGPSignatureGenerator revoker = new PGPSignatureGenerator(
+				new JcaPGPContentSignerBuilder(masterPublic.getAlgorithm(), HashAlgorithmTags.SHA256).setProvider(BC),
+				masterPublic);
+		revoker.init(PGPSignature.KEY_REVOCATION, masterPrivate);
+		PGPPublicKey revoked = PGPPublicKey.addCertification(masterPublic, revoker.generateCertification(masterPublic));
+		return PGPPublicKeyRing.insertPublicKey(publicRing, revoked);
 	}
 
 	private static String armor(byte[] encoded) throws Exception {
