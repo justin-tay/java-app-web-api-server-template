@@ -1,4 +1,4 @@
-package com.example.commons.crypto.openpgp;
+package com.example.commons.crypto.testsupport;
 
 import java.security.Provider;
 import java.util.ArrayList;
@@ -6,18 +6,19 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * A provider that hands out another provider's services and notes which kinds were asked
- * for, to show that a key handle's own provider is the one that is used.
+ * A provider that hands out another provider's services and notes which kinds were asked for, to
+ * show that a key handle's own provider is the one that is used.
  */
-final class RecordingProvider extends Provider {
+public final class RecordingProvider extends Provider {
 
 	private static final long serialVersionUID = 1L;
 
 	private final transient Provider delegate;
 
-	final List<String> requests = Collections.synchronizedList(new ArrayList<>());
+	/** The types of the services that were asked for, such as KeyAgreement. */
+	public final List<String> requests = Collections.synchronizedList(new ArrayList<>());
 
-	RecordingProvider(Provider delegate) {
+	public RecordingProvider(Provider delegate) {
 		super("recording", "1", "records what is asked of " + delegate.getName());
 		this.delegate = delegate;
 	}

@@ -15,6 +15,8 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Optional;
 
+import com.example.commons.crypto.TokenUnavailableException;
+import com.example.commons.crypto.TokenFailures;
 import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.PinRequiredException;
@@ -143,6 +145,10 @@ public final class PgpSecretKeys implements AutoCloseable {
 			return verifier.verify(signature);
 		}
 		catch (GeneralSecurityException | PGPException | RuntimeException ex) {
+			Optional<TokenUnavailableException> gone = TokenFailures.unavailable(ex);
+			if (gone.isPresent()) {
+				throw gone.get();
+			}
 			return false;
 		}
 	}
@@ -156,15 +162,6 @@ public final class PgpSecretKeys implements AutoCloseable {
 	public void close() {
 		this.closed = true;
 		Arrays.fill(this.passphrase, '\0');
-	}
-
-	/**
-	 * Same as {@link #close()}.
-	 * @deprecated use {@link #close()}, so that try-with-resources can do it
-	 */
-	@Deprecated
-	public void clear() {
-		close();
 	}
 
 	void ensureOpen() {

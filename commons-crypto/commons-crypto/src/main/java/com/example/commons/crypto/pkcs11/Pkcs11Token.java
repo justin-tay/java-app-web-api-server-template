@@ -21,6 +21,7 @@ import javax.security.auth.login.LoginException;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.PinRequiredException;
 import com.example.commons.crypto.PinSupplier;
+import com.example.commons.crypto.TokenFailures;
 import com.example.commons.crypto.TokenInfo;
 import com.example.commons.crypto.TokenUnavailableException;
 
@@ -33,9 +34,6 @@ import com.example.commons.crypto.TokenUnavailableException;
 public final class Pkcs11Token implements AutoCloseable {
 
 	private static final AtomicInteger COUNTER = new AtomicInteger();
-
-	private static final List<String> UNAVAILABLE = List.of("CKR_TOKEN_NOT_PRESENT", "CKR_DEVICE_REMOVED",
-			"CKR_SLOT_ID_INVALID", "CKR_DEVICE_ERROR", "CKR_TOKEN_NOT_RECOGNIZED");
 
 	private final Provider provider;
 
@@ -227,15 +225,7 @@ public final class Pkcs11Token implements AutoCloseable {
 
 	/** Maps a token failure to the unavailable exception when the token is gone. */
 	static CryptoException failure(String message, Exception ex) {
-		for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
-			String text = String.valueOf(cause.getMessage());
-			for (String code : UNAVAILABLE) {
-				if (text.contains(code)) {
-					return new TokenUnavailableException("The token is not available", ex);
-				}
-			}
-		}
-		return new CryptoException(message, ex);
+		return TokenFailures.translate(ex, message);
 	}
 
 }

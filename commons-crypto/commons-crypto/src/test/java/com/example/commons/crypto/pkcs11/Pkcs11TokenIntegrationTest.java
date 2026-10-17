@@ -1,5 +1,6 @@
 package com.example.commons.crypto.pkcs11;
 
+import com.example.commons.crypto.testsupport.TestToken;
 import java.nio.file.Path;
 import java.security.PrivateKey;
 import java.security.Signature;
@@ -137,6 +138,15 @@ class Pkcs11TokenIntegrationTest {
 		}
 		finally {
 			executor.shutdownNow();
+		}
+	}
+
+	@Test
+	void thePinArrayIsClearedOnceTheLoginIsDone() {
+		char[] pin = TestToken.pin();
+
+		try (Pkcs11Token token = Pkcs11Token.open(TestToken.config(), (info) -> pin)) {
+			assertThat(pin).containsOnly('\0');
 		}
 	}
 

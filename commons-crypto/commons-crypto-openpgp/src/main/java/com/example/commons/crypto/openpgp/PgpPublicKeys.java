@@ -72,7 +72,13 @@ public final class PgpPublicKeys {
 	List<PGPPublicKey> encryptionKeys() {
 		List<PGPPublicKey> keys = new ArrayList<>();
 		for (Iterator<PGPPublicKeyRing> rings = this.rings.getKeyRings(); rings.hasNext();) {
-			for (Iterator<PGPPublicKey> candidates = rings.next().getPublicKeys(); candidates.hasNext();) {
+			PGPPublicKeyRing ring = rings.next();
+			PGPPublicKey primary = ring.getPublicKey();
+			if (primary.hasRevocation() || expired(primary)) {
+				// The subkeys hang on the primary key, so they go with it.
+				continue;
+			}
+			for (Iterator<PGPPublicKey> candidates = ring.getPublicKeys(); candidates.hasNext();) {
 				PGPPublicKey key = candidates.next();
 				if (canEncrypt(key) && !key.hasRevocation() && !expired(key)) {
 					keys.add(key);

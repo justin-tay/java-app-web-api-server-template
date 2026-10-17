@@ -11,6 +11,8 @@ import java.security.PublicKey;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.ECPublicKey;
 
+import com.example.commons.crypto.TokenFailures;
+import com.example.commons.crypto.Streams;
 import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.SignatureMode;
@@ -80,7 +82,10 @@ public final class CmsEncryptor {
 			CmsSigner.create().sign(sign.withoutArmor(), in, encrypted);
 		}
 		catch (IOException | CMSException | GeneralSecurityException ex) {
-			throw new CryptoException("Cannot sign and encrypt the message", ex);
+			throw TokenFailures.translate(ex, "Cannot sign and encrypt the message");
+		}
+		catch (RuntimeException ex) {
+			throw TokenFailures.translate(ex);
 		}
 	}
 
@@ -97,7 +102,7 @@ public final class CmsEncryptor {
 		OutputAEADEncryptor encryptor = (OutputAEADEncryptor) new JceCMSContentEncryptorBuilder(CMSAlgorithm.AES256_GCM)
 			.setProvider(BouncyCastle.provider())
 			.build();
-		OutputStream target = request.armored() ? new ArmorOutputStream(out) : new UnclosableOutputStream(out);
+		OutputStream target = request.armored() ? new ArmorOutputStream(out) : Streams.unclosable(out);
 		OutputStream encrypted = generator.open(target, encryptor);
 		return new FilterOutputStream(encrypted) {
 			@Override

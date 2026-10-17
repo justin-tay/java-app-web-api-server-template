@@ -419,6 +419,28 @@ A review of the security-sensitive code led to these, each with a test:
   line with the library leaving trust to the caller; the documentation says so. The CMS decryptor
   tries only the first recipient entry that matches the key.
 
+### Review follow-up
+
+A code review against the repository standards and this specification led to these changes, each with
+a test:
+
+- The output limit exists for CMS as well as OpenPGP. A failure of the caller's output stream is
+  reported as that, not as a corrupt message. Both are done by `Streams.output`, shared in the
+  core module together with `Streams.unclosable`, which replaces a copy in each format module.
+- A token that goes away during signing, decryption or pairing gives a `TokenUnavailableException`
+  in both formats. `TokenFailures` recognises it anywhere in a cause chain, and was tested with a
+  provider that fails the way a removed token does (`FailingProvider`); no real removal was tried.
+- The CMS integrity classification no longer takes any message containing "mac" for an integrity
+  failure.
+- An OpenPGP ring whose primary key is revoked or expired is not used for encryption.
+- The deprecated `PgpSecretKeys.clear()` was removed.
+- Streaming is shown not to buffer: 192 MiB is signed, encrypted, decrypted and verified in a JVM
+  with a 96 MiB heap, for each format.
+- The test helpers and key fixtures that were copied into each module are one shared source
+  directory (`commons-crypto/src/test-support`), added to each module's tests by the build.
+- [ADR 0041](../../adr/0041-commons-crypto-openpgp-and-cms-libraries.md) records the decision to
+  build the library.
+
 ## Open risks
 
 1. `CKM_RSA_PKCS` availability on the target HSMs for OpenPGP.

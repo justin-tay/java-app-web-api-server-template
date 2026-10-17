@@ -116,3 +116,9 @@ is independently testable and ordered by its dependencies.
   - Result: all token tests pass on both; the OpenPGP signer no longer asks the token's provider
     for digests.
   - _Requirements: R5_
+
+- [x] 19. Review follow-up
+  - CMS output limit, token failures during operations, the shared stream helpers and test support, the
+    integrity classification, primary key validity, removal of `clear()`, the streaming memory test,
+    the ADR, and the README additions.
+  - _Requirements: R5.6, R7b.2_

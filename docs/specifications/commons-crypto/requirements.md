@@ -75,8 +75,9 @@ simple request-and-stream API, so that I can use them without learning Bouncy Ca
 signatures, so that I can fit the format my consumers expect.
 
 1. A sign request SHALL carry a `SignatureMode` of `EMBEDDED` or `DETACHED`.
-2. The OpenPGP request SHALL also accept `CLEARTEXT`. The CMS request SHALL NOT accept
-   it.
+2. The OpenPGP request SHALL also be able to produce a cleartext signature, selected with
+   `cleartext()` on its builder because `SignatureMode` has only `EMBEDDED` and `DETACHED`.
+   The CMS request SHALL NOT offer it.
 3. WHEN a detached signature is verified, THEN the caller SHALL pass the signature as a
    second stream and the data as the first.
 4. WHEN armor is requested, THEN the output SHALL be ASCII armor for OpenPGP and PEM or
@@ -88,7 +89,8 @@ signatures, so that I can fit the format my consumers expect.
 so that the library does not hide how the format works.
 
 1. An OpenPGP encrypt request SHALL take public keys as recipients and SHALL encrypt to
-   every encryption-capable subkey of each.
+   every encryption-capable subkey of each that is neither revoked nor expired, in a ring whose
+   primary key is neither revoked nor expired.
 2. A CMS encrypt request SHALL take X.509 certificates as recipients.
 3. An OpenPGP decrypt request SHALL choose the secret key by the key ID in the message.
    A CMS decrypt request SHALL choose it by the recipient identifier in the message.
@@ -145,7 +147,12 @@ does not disturb mine and I can put a key behind my own.
    a handle is not one of the library's own token handles, THEN its provider SHALL be used for
    signing, RSA decryption and EC key agreement.
 3. The only provider the library registers JVM-wide SHALL be the ECDH adapter, once, when a token
-   is first opened, and it SHALL act only for EC private keys that cannot be extracted.
+   is first opened. Its key agreements SHALL act only for EC private keys that cannot be extracted.
+   Its two key factory names (`ECDH` and `1.2.840.10045.2.1`), which Bouncy Castle looks up and the
+   JDK lacks, SHALL hand every key to the JDK's EC key factory, so they change nothing for a key
+   that is not on a token.
+4. WHEN a token goes away while a key on it is used, THEN the operation SHALL throw a
+   `TokenUnavailableException`, whichever operation it was.
 
 ### R6: Verification results
 
@@ -179,9 +186,9 @@ the library can read input I do not control.
 
 1. WHEN OpenPGP compressed data is nested more than 4 layers deep, THEN the library SHALL refuse
    it with a `CryptoException`.
-2. WHEN the caller sets `maxOutputBytes` on a decrypt or verify request and more output would be
-   written, THEN the library SHALL stop before writing past the limit and throw a
-   `CryptoException`.
+2. WHEN the caller sets `maxOutputBytes` on a decrypt or verify request, in either format, and
+   more output would be written, THEN the library SHALL stop before writing past the limit and
+   throw a `CryptoException`.
 3. WHEN a line of an armored CMS message is longer than 1024 bytes, THEN the library SHALL refuse
    it with a `CryptoException`.
 4. A `PgpSecretKeys` SHALL be closeable, closing it SHALL overwrite the passphrase copy it holds,

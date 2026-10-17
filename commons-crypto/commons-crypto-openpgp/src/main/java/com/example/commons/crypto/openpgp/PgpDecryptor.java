@@ -4,8 +4,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Iterator;
+import java.util.Optional;
 import java.util.Set;
 
+import com.example.commons.crypto.TokenUnavailableException;
+import com.example.commons.crypto.TokenFailures;
+import com.example.commons.crypto.Streams;
 import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.IntegrityException;
@@ -63,7 +67,7 @@ public final class PgpDecryptor {
 	public void decrypt(DecryptRequest request, InputStream in, OutputStream out) {
 		Opened opened = open(request, in);
 		try {
-			copyLiteralData(new JcaPGPObjectFactory(opened.clear()), PgpLimits.limit(out, request.maxOutputBytes()), 0);
+			copyLiteralData(new JcaPGPObjectFactory(opened.clear()), Streams.output(out, request.maxOutputBytes()), 0);
 			checkIntegrity(opened.encrypted());
 		}
 		catch (IOException | PGPException | RuntimeException ex) {
@@ -94,7 +98,7 @@ public final class PgpDecryptor {
 		Opened opened = open(decrypt, in);
 		try {
 			VerifyResult result = PgpVerifier.verifyPackets(verify, new JcaPGPObjectFactory(opened.clear()),
-					PgpLimits.limit(out, decrypt.maxOutputBytes()));
+					Streams.output(out, decrypt.maxOutputBytes()));
 			checkIntegrity(opened.encrypted());
 			return result;
 		}
@@ -132,6 +136,10 @@ public final class PgpDecryptor {
 			return new Opened(encrypted, encrypted.getDataStream(factory));
 		}
 		catch (IOException | PGPException | RuntimeException ex) {
+			Optional<TokenUnavailableException> gone = TokenFailures.unavailable(ex);
+			if (gone.isPresent()) {
+				throw gone.get();
+			}
 			if (ex instanceof CryptoException cryptoException) {
 				throw cryptoException;
 			}
@@ -149,6 +157,10 @@ public final class PgpDecryptor {
 	 * A failure while reading decrypted data means the message is corrupt or was altered.
 	 */
 	private static CryptoException corrupt(Exception ex) {
+		Optional<TokenUnavailableException> gone = TokenFailures.unavailable(ex);
+		if (gone.isPresent()) {
+			return gone.get();
+		}
 		if (ex instanceof CryptoException cryptoException) {
 			return cryptoException;
 		}

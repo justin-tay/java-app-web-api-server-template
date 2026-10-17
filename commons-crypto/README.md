@@ -102,8 +102,16 @@ try (Pkcs11Token token = Pkcs11Token.open(config, (info) -> pin())) {
 
 - The PIN is asked for once and never retried, because a wrong PIN counts against the token's
   limit. A `char[]` is returned and cleared after the login.
-- A key is listed only if the token also holds a certificate for it. See the specification for
-  how to add a placeholder certificate to an OpenPGP key.
+- A key is listed only if the token also holds a certificate for it. An OpenPGP-only key has none, so
+  give it a placeholder: read its public key from the token, build any certificate around that
+  public key (signed by a throwaway key; the signature is never checked), and store it with the key's
+  ID:
+
+  ```bash
+  pkcs11-tool --module "$MODULE" --login --read-object --type pubkey --id 01 -o public.der
+  # build cert.der around public.der, then:
+  pkcs11-tool --module "$MODULE" --login --write-object cert.der --type cert --id 01 --label alias
+  ```
 - An OpenPGP token key is paired with its public keys: `PgpSecretKeys.token(key, publicKeys)`. The
   token key must be allowed to sign, so that the pairing can be checked.
 - RSA and EC P-256 keys are supported. SunPKCS11 has no RSA OAEP, so CMS messages for an RSA token
@@ -145,9 +153,9 @@ try (Pkcs11Token token = Pkcs11Token.open(config, (info) -> pin())) {
 ## Limits
 
 - Compressed OpenPGP data may be nested at most 4 layers deep.
-- `DecryptRequest` and `VerifyRequest` take `maxOutputBytes(long)`, which stops a message that
-  expands a great deal (a decompression bomb) by failing once that much has been written. There is
-  no limit unless you set one.
+- The `DecryptRequest` and `VerifyRequest` of both formats take `maxOutputBytes(long)`, which stops a
+  message that is much larger than expected (a decompression bomb, for example) by failing before
+  more than that much is written. There is no limit unless you set one.
 - A line of an armored CMS message may be at most 1024 bytes.
 - Cleartext OpenPGP signatures read the whole text into memory.
 

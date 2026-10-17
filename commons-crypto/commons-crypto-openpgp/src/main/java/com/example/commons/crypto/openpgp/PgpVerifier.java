@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import com.example.commons.crypto.Streams;
 import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.SignatureResult;
@@ -62,7 +63,7 @@ public final class PgpVerifier {
 	 * refused by the policy
 	 */
 	public VerifyResult verify(VerifyRequest request, InputStream message, OutputStream unlimited) {
-		OutputStream content = PgpLimits.limit(unlimited, request.maxOutputBytes());
+		OutputStream content = Streams.output(unlimited, request.maxOutputBytes());
 		try {
 			InputStream decoded = PGPUtil.getDecoderStream(message);
 			if (decoded instanceof ArmoredInputStream armored && armored.isClearText()) {

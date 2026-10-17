@@ -13,6 +13,9 @@ import java.util.Optional;
 
 import javax.crypto.NoSuchPaddingException;
 
+import com.example.commons.crypto.TokenUnavailableException;
+import com.example.commons.crypto.TokenFailures;
+import com.example.commons.crypto.Streams;
 import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.IntegrityException;
@@ -67,10 +70,13 @@ public final class CmsDecryptor {
 	 */
 	public void decrypt(DecryptRequest request, InputStream in, OutputStream out) {
 		try (InputStream content = open(request, in)) {
-			content.transferTo(out);
+			content.transferTo(Streams.output(out, request.maxOutputBytes()));
 		}
 		catch (IOException ex) {
 			throw failure(ex);
+		}
+		catch (RuntimeException ex) {
+			throw TokenFailures.translate(ex);
 		}
 	}
 
@@ -93,7 +99,7 @@ public final class CmsDecryptor {
 	public VerifyResult decryptAndVerify(DecryptRequest decrypt, VerifyRequest verify, InputStream in,
 			OutputStream out) {
 		try (InputStream content = open(decrypt, in)) {
-			return CmsVerifier.create().verify(verify, content, out);
+			return CmsVerifier.create().verify(verify, content, Streams.output(out, decrypt.maxOutputBytes()));
 		}
 		catch (IOException ex) {
 			throw failure(ex);
@@ -102,7 +108,11 @@ public final class CmsDecryptor {
 			// A failure while reading the decrypted stream reaches here wrapped by the
 			// verifier.
 			CryptoException refined = failure(ex);
-			throw (refined instanceof IntegrityException) ? refined : ex;
+			throw (refined instanceof IntegrityException || refined instanceof TokenUnavailableException) ? refined
+					: ex;
+		}
+		catch (RuntimeException ex) {
+			throw TokenFailures.translate(ex);
 		}
 	}
 
@@ -129,6 +139,9 @@ public final class CmsDecryptor {
 		}
 		catch (IOException | CMSException ex) {
 			throw failure(ex);
+		}
+		catch (RuntimeException ex) {
+			throw TokenFailures.translate(ex);
 		}
 	}
 
@@ -219,7 +232,11 @@ public final class CmsDecryptor {
 		}
 	}
 
-	private static CryptoException failure(Exception ex) {
+	static CryptoException failure(Exception ex) {
+		Optional<TokenUnavailableException> gone = TokenFailures.unavailable(ex);
+		if (gone.isPresent()) {
+			return gone.get();
+		}
 		for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
 			if (cause instanceof NoSuchPaddingException && String.valueOf(cause.getMessage()).contains("OAEP")) {
 				return new CryptoException("The message needs RSA OAEP, which the provider of the key does not "
@@ -229,7 +246,8 @@ public final class CmsDecryptor {
 			String name = cause.getClass().getName();
 			String message = String.valueOf(cause.getMessage()).toLowerCase(java.util.Locale.ROOT);
 			if (name.contains("InvalidCipherText") || name.contains("AEADBadTag") || name.contains("BadPadding")
-					|| message.contains("mac") || message.contains("tag mismatch")) {
+					|| message.contains("mac check") || message.contains("mac invalid")
+					|| message.contains("mac verification") || message.contains("tag mismatch")) {
 				return new IntegrityException("The message failed its integrity check", ex);
 			}
 		}

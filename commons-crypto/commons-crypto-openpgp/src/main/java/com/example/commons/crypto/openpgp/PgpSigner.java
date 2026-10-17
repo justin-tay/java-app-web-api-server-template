@@ -9,6 +9,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.example.commons.crypto.TokenFailures;
+import com.example.commons.crypto.Streams;
 import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import org.bouncycastle.bcpg.ArmoredOutputStream;
@@ -54,7 +56,7 @@ public final class PgpSigner {
 			int signatureType = (request.form() == SignRequest.Form.CLEARTEXT) ? PGPSignature.CANONICAL_TEXT_DOCUMENT
 					: PGPSignature.BINARY_DOCUMENT;
 			List<Signing> signings = signings(request, signatureType);
-			OutputStream unclosable = new UnclosableOutputStream(out);
+			OutputStream unclosable = Streams.unclosable(out);
 			OutputStream target = request.armored() ? new ArmoredOutputStream(unclosable) : unclosable;
 			switch (request.form()) {
 				case EMBEDDED -> signEmbedded(signings, in, target);
@@ -64,7 +66,10 @@ public final class PgpSigner {
 			target.close();
 		}
 		catch (IOException | PGPException ex) {
-			throw new CryptoException("Cannot sign the data", ex);
+			throw TokenFailures.translate(ex, "Cannot sign the data");
+		}
+		catch (RuntimeException ex) {
+			throw TokenFailures.translate(ex);
 		}
 	}
 
@@ -81,7 +86,10 @@ public final class PgpSigner {
 			signEmbedded(signings(request, PGPSignature.BINARY_DOCUMENT), in, target);
 		}
 		catch (IOException | PGPException ex) {
-			throw new CryptoException("Cannot sign the data", ex);
+			throw TokenFailures.translate(ex, "Cannot sign the data");
+		}
+		catch (RuntimeException ex) {
+			throw TokenFailures.translate(ex);
 		}
 	}
 

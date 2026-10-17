@@ -8,7 +8,8 @@
 #   SoftHSM2: the aliases k (RSA) and ec
 #   NSS softoken: the aliases rsa and ec, in an NSS database
 #
-# The build happens in a copy so the mounted repository is left untouched.
+# The test keys come from the shared test fixtures. The build happens in a copy so the mounted
+# repository is left untouched.
 set -e
 
 # ---- SoftHSM2
@@ -35,7 +36,7 @@ pkcs11-tool --module "$SOFTHSM2_LIBRARY" --login --pin 1234 --write-object eccer
 
 # ---- NSS softoken, with the test keys of the modules imported from their PKCS#12 files
 NSS_LIBRARY=/usr/lib/x86_64-linux-gnu/libsoftokn3.so
-KEYS=/repo/commons-crypto/commons-crypto-cms/src/test/resources
+KEYS=/repo/commons-crypto/src/test-support/resources
 rm -rf /tmp/nssdb
 mkdir /tmp/nssdb
 echo 1234 > /tmp/nss-password

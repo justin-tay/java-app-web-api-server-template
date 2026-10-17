@@ -1,5 +1,6 @@
 package com.example.commons.crypto.openpgp;
 
+import com.example.commons.crypto.testsupport.RecordingProvider;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;

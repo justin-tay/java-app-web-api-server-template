@@ -11,6 +11,8 @@ import java.security.interfaces.ECPublicKey;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.example.commons.crypto.TokenFailures;
+import com.example.commons.crypto.Streams;
 import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.SignatureMode;
@@ -56,14 +58,17 @@ public final class CmsSigner {
 				certificates.add(signer.certificate());
 			}
 			generator.addCertificates(new JcaCertStore(certificates));
-			OutputStream target = request.armored() ? new ArmorOutputStream(out) : new UnclosableOutputStream(out);
+			OutputStream target = request.armored() ? new ArmorOutputStream(out) : Streams.unclosable(out);
 			try (OutputStream signed = generator.open(target, request.mode() == SignatureMode.EMBEDDED)) {
 				in.transferTo(signed);
 			}
 			target.close();
 		}
 		catch (IOException | CMSException | GeneralSecurityException | OperatorCreationException ex) {
-			throw new CryptoException("Cannot sign the data", ex);
+			throw TokenFailures.translate(ex, "Cannot sign the data");
+		}
+		catch (RuntimeException ex) {
+			throw TokenFailures.translate(ex);
 		}
 	}
 

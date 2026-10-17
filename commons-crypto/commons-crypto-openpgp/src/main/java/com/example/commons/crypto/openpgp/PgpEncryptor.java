@@ -8,6 +8,8 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.example.commons.crypto.TokenFailures;
+import com.example.commons.crypto.Streams;
 import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import org.bouncycastle.bcpg.ArmoredOutputStream;
@@ -76,7 +78,10 @@ public final class PgpEncryptor {
 			PgpSigner.create().signInto(sign, in, encrypted);
 		}
 		catch (IOException | PGPException ex) {
-			throw new CryptoException("Cannot sign and encrypt the message", ex);
+			throw TokenFailures.translate(ex, "Cannot sign and encrypt the message");
+		}
+		catch (RuntimeException ex) {
+			throw TokenFailures.translate(ex);
 		}
 	}
 
@@ -101,8 +106,8 @@ public final class PgpEncryptor {
 		for (PGPPublicKey key : keys) {
 			generator.addMethod(new JcePublicKeyKeyEncryptionMethodGenerator(key).setProvider(BouncyCastle.provider()));
 		}
-		OutputStream target = request.armored() ? new ArmoredOutputStream(new UnclosableOutputStream(out))
-				: new UnclosableOutputStream(out);
+		OutputStream target = request.armored() ? new ArmoredOutputStream(Streams.unclosable(out))
+				: Streams.unclosable(out);
 		OutputStream encrypted = generator.open(target, new byte[BUFFER_SIZE]);
 		return new FilterOutputStream(encrypted) {
 			@Override

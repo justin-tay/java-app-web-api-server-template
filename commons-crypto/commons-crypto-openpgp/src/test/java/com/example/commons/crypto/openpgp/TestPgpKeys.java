@@ -13,6 +13,10 @@ import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags;
 import org.bouncycastle.bcpg.sig.Features;
 import org.bouncycastle.bcpg.sig.KeyFlags;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.openpgp.PGPPrivateKey;
+import org.bouncycastle.openpgp.PGPPublicKey;
+import org.bouncycastle.openpgp.PGPSignatureGenerator;
+import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder;
 import org.bouncycastle.openpgp.PGPKeyPair;
 import org.bouncycastle.openpgp.PGPKeyRingGenerator;
 import org.bouncycastle.openpgp.PGPPublicKeyRing;
@@ -40,6 +44,17 @@ final class TestPgpKeys {
 	static final TestKey EC = generate("ec", true, 1);
 
 	static final TestKey TWO_SUBKEYS = generate("two", false, 2);
+
+	private static final Date TEN_DAYS_AGO = new Date(System.currentTimeMillis() - 10L * 86_400_000L);
+
+	/** The primary key expired nine days ago, so the whole ring is past its time. */
+	static final TestKey EXPIRED_PRIMARY = generate("expired-primary", false, 1, TEN_DAYS_AGO, 86_400, 0, false);
+
+	/** The first encryption subkey expired nine days ago; the second is valid. */
+	static final TestKey EXPIRED_FIRST_SUBKEY = generate("expired-subkey", false, 2, TEN_DAYS_AGO, 0, 86_400, false);
+
+	/** The primary key is revoked. */
+	static final TestKey REVOKED_PRIMARY = generate("revoked-primary", true, 1, new Date(), 0, 0, true);
 
 	private TestPgpKeys() {
 	}
@@ -71,8 +86,17 @@ final class TestPgpKeys {
 	}
 
 	private static TestKey generate(String name, boolean ec, int encryptionSubkeys) {
+		return generate(name, ec, encryptionSubkeys, new Date(), 0, 0, false);
+	}
+
+	/**
+	 * A key ring made at the given time, optionally with an expiry on the primary key and
+	 * on the first encryption subkey (in seconds from the creation time, 0 for none), and
+	 * optionally with the primary key revoked.
+	 */
+	private static TestKey generate(String name, boolean ec, int encryptionSubkeys, Date now, long primaryValidSeconds,
+			long firstSubkeyValidSeconds, boolean revokePrimary) {
 		try {
-			Date now = new Date();
 			PGPKeyPair master = new JcaPGPKeyPair(
 					ec ? PublicKeyAlgorithmTags.ECDSA : PublicKeyAlgorithmTags.RSA_GENERAL, generateKeyPair(ec), now);
 			PGPDigestCalculator checksum = new JcaPGPDigestCalculatorProviderBuilder().setProvider(BC)
@@ -80,6 +104,9 @@ final class TestPgpKeys {
 				.get(HashAlgorithmTags.SHA1);
 			PGPSignatureSubpacketGenerator masterFlags = new PGPSignatureSubpacketGenerator();
 			masterFlags.setKeyFlags(false, KeyFlags.CERTIFY_OTHER | KeyFlags.SIGN_DATA);
+			if (primaryValidSeconds > 0) {
+				masterFlags.setKeyExpirationTime(false, primaryValidSeconds);
+			}
 			// Without preferences GnuPG falls back to SHA-1 when it signs for these keys.
 			masterFlags.setPreferredHashAlgorithms(false,
 					new int[] { HashAlgorithmTags.SHA512, HashAlgorithmTags.SHA384, HashAlgorithmTags.SHA256 });
@@ -99,11 +126,30 @@ final class TestPgpKeys {
 						now);
 				PGPSignatureSubpacketGenerator flags = new PGPSignatureSubpacketGenerator();
 				flags.setKeyFlags(false, KeyFlags.ENCRYPT_COMMS | KeyFlags.ENCRYPT_STORAGE);
+				if (i == 0 && firstSubkeyValidSeconds > 0) {
+					flags.setKeyExpirationTime(false, firstSubkeyValidSeconds);
+				}
 				generator.addSubKey(subkey, flags.generate(), null);
 				ids[i] = subkey.getKeyID();
 			}
 			PGPPublicKeyRing publicRing = generator.generatePublicKeyRing();
 			PGPSecretKeyRing secretRing = generator.generateSecretKeyRing();
+			if (revokePrimary) {
+				PGPPublicKey masterPublic = publicRing.getPublicKey();
+				PGPPrivateKey masterPrivate = secretRing.getSecretKey()
+					.extractPrivateKey(new JcePBESecretKeyDecryptorBuilder(
+							new JcaPGPDigestCalculatorProviderBuilder().setProvider(BC).build())
+						.setProvider(BC)
+						.build(PASSPHRASE));
+				PGPSignatureGenerator revoker = new PGPSignatureGenerator(
+						new JcaPGPContentSignerBuilder(masterPublic.getAlgorithm(), HashAlgorithmTags.SHA256)
+							.setProvider(BC),
+						masterPublic);
+				revoker.init(PGPSignature.KEY_REVOCATION, masterPrivate);
+				PGPPublicKey revoked = PGPPublicKey.addCertification(masterPublic,
+						revoker.generateCertification(masterPublic));
+				publicRing = PGPPublicKeyRing.insertPublicKey(publicRing, revoked);
+			}
 			return new TestKey(armor(publicRing.getEncoded()), armor(secretRing.getEncoded()), master.getKeyID(), ids);
 		}
 		catch (Exception ex) {

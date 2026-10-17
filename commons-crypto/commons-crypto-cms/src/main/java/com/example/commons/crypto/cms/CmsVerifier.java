@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import com.example.commons.crypto.Streams;
 import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.SignatureResult;
@@ -73,7 +74,7 @@ public final class CmsVerifier {
 						+ "so verify it against the data with verifyDetached");
 			}
 			try (InputStream stream = signedContent.getContentStream()) {
-				stream.transferTo(content);
+				stream.transferTo(Streams.output(content, request.maxOutputBytes()));
 			}
 			return check(request, parser);
 		}
