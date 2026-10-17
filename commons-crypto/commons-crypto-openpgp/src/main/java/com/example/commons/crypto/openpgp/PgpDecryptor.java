@@ -80,7 +80,10 @@ public final class PgpDecryptor {
 			enforcePolicy(request, encrypted, factory);
 			clear = encrypted.getDataStream(factory);
 		}
-		catch (IOException | PGPException ex) {
+		catch (IOException | PGPException | RuntimeException ex) {
+			if (ex instanceof CryptoException cryptoException) {
+				throw cryptoException;
+			}
 			throw new CryptoException("Cannot read the OpenPGP message", ex);
 		}
 		try {

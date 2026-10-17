@@ -51,7 +51,7 @@ is independently testable and ordered by its dependencies.
     handling, armor, legacy refusal.
   - _Requirements: R2, R4, R7, R8_
 
-- [ ] 8. OpenPGP sign and verify
+- [x] 8. OpenPGP sign and verify
   - Embedded, detached and cleartext modes, multiple signers, unknown signers in the
     result.
   - _Requirements: R2, R3, R6_

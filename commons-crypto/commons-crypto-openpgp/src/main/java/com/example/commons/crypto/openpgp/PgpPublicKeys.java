@@ -82,6 +82,23 @@ public final class PgpPublicKeys {
 		return keys;
 	}
 
+	/**
+	 * The key with the given ID in any of the rings, or null if there is none.
+	 */
+	PGPPublicKey publicKey(long keyId) {
+		return this.rings.getPublicKey(keyId);
+	}
+
+	/**
+	 * Whether the key may sign data: its key flags allow it, or it has none and so is
+	 * assumed to; and it is neither revoked nor expired.
+	 */
+	static boolean canSign(PGPPublicKey key) {
+		int flags = keyFlags(key);
+		boolean allowed = (flags == 0) ? key.isMasterKey() : (flags & KeyFlags.SIGN_DATA) != 0;
+		return allowed && !key.hasRevocation() && !expired(key);
+	}
+
 	private static boolean canEncrypt(PGPPublicKey key) {
 		if (!key.isEncryptionKey()) {
 			return false;

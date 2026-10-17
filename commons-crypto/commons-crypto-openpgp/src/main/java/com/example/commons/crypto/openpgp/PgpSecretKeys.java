@@ -4,12 +4,15 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
 
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.PinRequiredException;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPPrivateKey;
+import org.bouncycastle.openpgp.PGPPublicKey;
 import org.bouncycastle.openpgp.PGPSecretKey;
+import org.bouncycastle.openpgp.PGPSecretKeyRing;
 import org.bouncycastle.openpgp.PGPSecretKeyRingCollection;
 import org.bouncycastle.openpgp.PGPUtil;
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
@@ -72,6 +75,28 @@ public final class PgpSecretKeys {
 	 */
 	public void clear() {
 		java.util.Arrays.fill(this.passphrase, '\0');
+	}
+
+	/**
+	 * Picks the first key that may sign (a primary key or subkey, by its key flags) and
+	 * unlocks it.
+	 * @throws CryptoException if no key may sign
+	 * @throws PinRequiredException if the passphrase is wrong
+	 */
+	SigningKey signingKey() {
+		for (Iterator<PGPSecretKeyRing> rings = this.rings.getKeyRings(); rings.hasNext();) {
+			for (Iterator<PGPSecretKey> keys = rings.next().getSecretKeys(); keys.hasNext();) {
+				PGPSecretKey key = keys.next();
+				if (key.isSigningKey() && PgpPublicKeys.canSign(key.getPublicKey())) {
+					return new SigningKey(key.getPublicKey(), privateKey(key.getKeyID()));
+				}
+			}
+		}
+		throw new CryptoException("The OpenPGP keys have no usable signing key");
+	}
+
+	/** A signing key with its public half, for the key ID and algorithm. */
+	record SigningKey(PGPPublicKey publicKey, PGPPrivateKey privateKey) {
 	}
 
 	/**
