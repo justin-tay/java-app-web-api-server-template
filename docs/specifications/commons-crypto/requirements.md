@@ -176,6 +176,8 @@ a message turns out to be corrupt, so that I handle failures correctly.
    `IntegrityException` or a signature exception after the stream ends.
 2. The documentation SHALL state that output written before the exception SHALL be
    discarded by the caller.
+   The `Cms` and `Pgp` shortcuts SHALL also offer `decryptToBytes` with a size limit, which
+   returns the plain data only after the whole message passed its integrity check.
 3. WHEN a message is not integrity-protected (an OpenPGP packet without modification
    detection, CMS `EnvelopedData` with an unauthenticated cipher), THEN decrypt SHALL
    refuse it unless legacy compatibility is set.

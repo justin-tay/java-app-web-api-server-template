@@ -75,8 +75,8 @@ Read these before relying on it.
   supplied. It does not build a certificate chain, check revocation, or look at the expiry or
   revocation of the signing key. A `VALID` result is not "trusted".
 - **Streaming means unchecked output.** Decrypted or signed content is written before the final
-  integrity check. If a call throws, discard what was written. Write to a temporary file or buffer if
-  you need all-or-nothing.
+  integrity check. If a call throws, discard what was written. For small messages,
+  `Cms.decryptToBytes` and `Pgp.decryptToBytes` return the plain data only after the check passed.
 - **Old formats are refused.** Messages without integrity protection, weak ciphers, SHA-1
   signatures and RSA PKCS#1 v1.5 key transport are rejected unless you set `legacyCompatibility(true)`
   on the decrypt or verify request. Anything the library writes is modern.
@@ -163,7 +163,8 @@ try (Pkcs11Token token = Pkcs11Token.open(config, (info) -> pin())) {
 Everything streams. A signature or an integrity tag is at the end of the data, so decrypted or
 signed content is written before it is known to be intact. If a call throws
 `IntegrityException`, discard what was written to the output stream. To release data only after the
-check, write to a temporary file or buffer and move it on success.
+check, use `decryptToBytes` (`Cms` or `Pgp`, with a size limit that bounds the memory) for small
+messages, or write to a temporary file and move it on success.
 
 All exceptions are unchecked and extend `CryptoException`: `NoMatchingKeyException`,
 `IntegrityException`, `PinRequiredException` and `TokenUnavailableException`. Messages never contain

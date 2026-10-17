@@ -5,11 +5,14 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
 
+import com.example.commons.crypto.CryptoException;
+import com.example.commons.crypto.IntegrityException;
 import com.example.commons.crypto.PrivateKeyHandle;
 import com.example.commons.crypto.VerifyResult;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CmsShortcutsTest {
 
@@ -56,6 +59,35 @@ class CmsShortcutsTest {
 				new ByteArrayInputStream(signature.toByteArray()), certificate);
 
 		assertThat(result.allValid()).isTrue();
+	}
+
+	@Test
+	void decryptsToBytesAndReturnsNothingForAnAlteredMessage() throws Exception {
+		X509Certificate certificate = TestKeys.certificate("rsa");
+		ByteArrayOutputStream encrypted = new ByteArrayOutputStream();
+		Cms.encrypt(new ByteArrayInputStream(DATA), encrypted, certificate);
+		byte[] message = encrypted.toByteArray();
+
+		try (PrivateKeyHandle key = TestKeys.handle("rsa")) {
+			assertThat(Cms.decryptToBytes(new ByteArrayInputStream(message), key, certificate, 1024)).isEqualTo(DATA);
+
+			message[message.length - 10] ^= 1;
+			assertThatThrownBy(() -> Cms.decryptToBytes(new ByteArrayInputStream(message), key, certificate, 1024))
+				.isInstanceOf(IntegrityException.class);
+		}
+	}
+
+	@Test
+	void decryptsToBytesOnlyUpToTheLimit() throws Exception {
+		X509Certificate certificate = TestKeys.certificate("rsa");
+		ByteArrayOutputStream encrypted = new ByteArrayOutputStream();
+		Cms.encrypt(new ByteArrayInputStream(DATA), encrypted, certificate);
+
+		try (PrivateKeyHandle key = TestKeys.handle("rsa")) {
+			assertThatThrownBy(() -> Cms.decryptToBytes(new ByteArrayInputStream(encrypted.toByteArray()), key,
+					certificate, DATA.length - 1))
+				.isInstanceOf(CryptoException.class);
+		}
 	}
 
 }

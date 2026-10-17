@@ -1,5 +1,6 @@
 package com.example.commons.crypto.cms;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.cert.X509Certificate;
@@ -41,6 +42,24 @@ public final class Cms {
 	 */
 	public static void decrypt(InputStream in, OutputStream out, PrivateKeyHandle key, X509Certificate certificate) {
 		CmsDecryptor.create().decrypt(DecryptRequest.builder().key(key, certificate).build(), in, out);
+	}
+
+	/**
+	 * Decrypts a message into memory. Unlike {@link #decrypt}, nothing is returned unless
+	 * the whole message passed its integrity check, so no unauthenticated data can be
+	 * used by mistake.
+	 * @param in the message
+	 * @param key the recipient's key
+	 * @param certificate the certificate of the key
+	 * @param maxBytes the most plain data to accept, which bounds the memory used
+	 * @return the plain data
+	 */
+	public static byte[] decryptToBytes(InputStream in, PrivateKeyHandle key, X509Certificate certificate,
+			long maxBytes) {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		CmsDecryptor.create()
+			.decrypt(DecryptRequest.builder().key(key, certificate).maxOutputBytes(maxBytes).build(), in, out);
+		return out.toByteArray();
 	}
 
 	/**

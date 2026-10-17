@@ -4,10 +4,12 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 
+import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.VerifyResult;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PgpShortcutsTest {
 
@@ -47,6 +49,30 @@ class PgpShortcutsTest {
 				new ByteArrayInputStream(signature.toByteArray()), TestPgpKeys.RSA.publicKeys());
 
 		assertThat(result.allValid()).isTrue();
+	}
+
+	@Test
+	void decryptsToBytesAndReturnsNothingForAnAlteredMessage() {
+		ByteArrayOutputStream encrypted = new ByteArrayOutputStream();
+		Pgp.encrypt(new ByteArrayInputStream(DATA), encrypted, TestPgpKeys.RSA.publicKeys());
+		byte[] message = encrypted.toByteArray();
+		PgpSecretKeys keys = TestPgpKeys.RSA.secretKeys(TestPgpKeys.PASSPHRASE);
+
+		assertThat(Pgp.decryptToBytes(new ByteArrayInputStream(message), keys, 1024)).isEqualTo(DATA);
+
+		message[message.length - 10] ^= 1;
+		assertThatThrownBy(() -> Pgp.decryptToBytes(new ByteArrayInputStream(message), keys, 1024))
+			.isInstanceOf(CryptoException.class);
+	}
+
+	@Test
+	void decryptsToBytesOnlyUpToTheLimit() {
+		ByteArrayOutputStream encrypted = new ByteArrayOutputStream();
+		Pgp.encrypt(new ByteArrayInputStream(DATA), encrypted, TestPgpKeys.RSA.publicKeys());
+
+		assertThatThrownBy(() -> Pgp.decryptToBytes(new ByteArrayInputStream(encrypted.toByteArray()),
+				TestPgpKeys.RSA.secretKeys(TestPgpKeys.PASSPHRASE), DATA.length - 1))
+			.isInstanceOf(CryptoException.class);
 	}
 
 }

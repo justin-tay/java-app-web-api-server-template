@@ -1,5 +1,6 @@
 package com.example.commons.crypto.openpgp;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 
@@ -35,6 +36,21 @@ public final class Pgp {
 	 */
 	public static void decrypt(InputStream in, OutputStream out, PgpSecretKeys keys) {
 		PgpDecryptor.create().decrypt(DecryptRequest.builder().keys(keys).build(), in, out);
+	}
+
+	/**
+	 * Decrypts a message into memory. Unlike {@link #decrypt}, nothing is returned unless
+	 * the whole message passed its integrity check, so no unauthenticated data can be
+	 * used by mistake.
+	 * @param in the message
+	 * @param keys the recipient's secret keys
+	 * @param maxBytes the most plain data to accept, which bounds the memory used
+	 * @return the plain data
+	 */
+	public static byte[] decryptToBytes(InputStream in, PgpSecretKeys keys, long maxBytes) {
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		PgpDecryptor.create().decrypt(DecryptRequest.builder().keys(keys).maxOutputBytes(maxBytes).build(), in, out);
+		return out.toByteArray();
 	}
 
 	/**
