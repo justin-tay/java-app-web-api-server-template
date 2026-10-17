@@ -1,5 +1,6 @@
 package com.example.commons.crypto.cms;
 
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -11,6 +12,7 @@ import java.security.cert.X509Certificate;
 import java.security.interfaces.ECPublicKey;
 
 import com.example.commons.crypto.CryptoException;
+import com.example.commons.crypto.SignatureMode;
 import org.bouncycastle.asn1.DERNull;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
@@ -49,24 +51,69 @@ public final class CmsEncryptor {
 	 * @throws CryptoException if a recipient key is not supported or encryption fails
 	 */
 	public void encrypt(EncryptRequest request, InputStream in, OutputStream out) {
-		try {
-			CMSAuthEnvelopedDataStreamGenerator generator = new CMSAuthEnvelopedDataStreamGenerator();
-			for (CmsRecipient recipient : request.recipients()) {
-				generator.addRecipientInfoGenerator(recipientInfoGenerator(recipient.certificate()));
-			}
-			OutputAEADEncryptor encryptor = (OutputAEADEncryptor) new JceCMSContentEncryptorBuilder(
-					CMSAlgorithm.AES256_GCM)
-				.setProvider(CmsProviders.BC)
-				.build();
-			OutputStream target = request.armored() ? new ArmorOutputStream(out) : new UnclosableOutputStream(out);
-			try (OutputStream encrypted = generator.open(target, encryptor)) {
-				in.transferTo(encrypted);
-			}
-			target.close();
+		try (OutputStream encrypted = open(request, out)) {
+			in.transferTo(encrypted);
 		}
 		catch (IOException | CMSException | GeneralSecurityException ex) {
 			throw new CryptoException("Cannot encrypt the message", ex);
 		}
+	}
+
+	/**
+	 * Signs everything read from {@code in} and encrypts the signed message for the
+	 * recipients: the signature is made first and is inside the encryption, so it is not
+	 * visible to anyone who cannot decrypt. The signature is embedded and DER; the output
+	 * format is the encrypt request's. Neither stream is closed.
+	 * @param sign the signers
+	 * @param encrypt the recipients and output format
+	 * @param in the data to sign and encrypt
+	 * @param out where the message is written
+	 * @throws IllegalArgumentException if the signature is not embedded
+	 * @throws CryptoException if a key type is not supported or the operation fails
+	 */
+	public void signAndEncrypt(SignRequest sign, EncryptRequest encrypt, InputStream in, OutputStream out) {
+		if (sign.mode() != SignatureMode.EMBEDDED) {
+			throw new IllegalArgumentException("Signing and encrypting needs an embedded signature");
+		}
+		try (OutputStream encrypted = open(encrypt, out)) {
+			CmsSigner.create().sign(sign.withoutArmor(), in, encrypted);
+		}
+		catch (IOException | CMSException | GeneralSecurityException ex) {
+			throw new CryptoException("Cannot sign and encrypt the message", ex);
+		}
+	}
+
+	/**
+	 * Opens the message and returns the stream to write the content to; closing it ends
+	 * the message.
+	 */
+	private static OutputStream open(EncryptRequest request, OutputStream out)
+			throws IOException, CMSException, GeneralSecurityException {
+		CMSAuthEnvelopedDataStreamGenerator generator = new CMSAuthEnvelopedDataStreamGenerator();
+		for (CmsRecipient recipient : request.recipients()) {
+			generator.addRecipientInfoGenerator(recipientInfoGenerator(recipient.certificate()));
+		}
+		OutputAEADEncryptor encryptor = (OutputAEADEncryptor) new JceCMSContentEncryptorBuilder(CMSAlgorithm.AES256_GCM)
+			.setProvider(CmsProviders.BC)
+			.build();
+		OutputStream target = request.armored() ? new ArmorOutputStream(out) : new UnclosableOutputStream(out);
+		OutputStream encrypted = generator.open(target, encryptor);
+		return new FilterOutputStream(encrypted) {
+			@Override
+			public void write(byte[] b, int off, int len) throws IOException {
+				this.out.write(b, off, len);
+			}
+
+			@Override
+			public void close() throws IOException {
+				try {
+					this.out.close();
+				}
+				finally {
+					target.close();
+				}
+			}
+		};
 	}
 
 	private static RecipientInfoGenerator recipientInfoGenerator(X509Certificate certificate)

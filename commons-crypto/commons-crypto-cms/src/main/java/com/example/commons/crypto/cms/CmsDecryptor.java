@@ -16,6 +16,7 @@ import javax.crypto.NoSuchPaddingException;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.IntegrityException;
 import com.example.commons.crypto.NoMatchingKeyException;
+import com.example.commons.crypto.VerifyResult;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.cms.CMSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
@@ -63,39 +64,70 @@ public final class CmsDecryptor {
 	 * policy
 	 */
 	public void decrypt(DecryptRequest request, InputStream in, OutputStream out) {
-		try (InputStream message = peekable(ArmorInputStream.dearmorIfNeeded(in))) {
-			ASN1ObjectIdentifier contentType = contentType(message);
-			if (CMSObjectIdentifiers.authEnvelopedData.equals(contentType)) {
-				decryptAuthenticated(request, message, out);
-			}
-			else if (PKCSObjectIdentifiers.envelopedData.equals(contentType)) {
-				decryptLegacy(request, message, out);
-			}
-			else {
-				throw new CryptoException("The input is not an encrypted CMS message");
-			}
+		try (InputStream content = open(request, in)) {
+			content.transferTo(out);
 		}
-		catch (IOException | CMSException ex) {
+		catch (IOException ex) {
 			throw failure(ex);
 		}
 	}
 
-	private void decryptAuthenticated(DecryptRequest request, InputStream message, OutputStream out)
-			throws IOException, CMSException {
-		CMSAuthEnvelopedDataParser parser = new CMSAuthEnvelopedDataParser(message);
-		RecipientInformation recipient = select(request, parser.getRecipientInfos());
-		copy(recipient, keyRecipient(request, true), out);
+	/**
+	 * Decrypts a message that was signed and then encrypted, writes the signed content to
+	 * {@code out}, and checks the signatures inside it. The data is streamed, so the
+	 * content is written before the integrity check and the signatures are checked: do
+	 * not use it unless the result is acceptable, and discard it if this throws. Neither
+	 * stream is closed.
+	 * @param decrypt the key and policy for decrypting
+	 * @param verify the signer certificates and policy for the signatures
+	 * @param in the message, DER or PEM
+	 * @param out where the signed content is written
+	 * @return one result per signature
+	 * @throws NoMatchingKeyException if the key is not one of the message's recipients
+	 * @throws IntegrityException if the message was altered
+	 * @throws CryptoException if the message is not an encrypted signed message, or is
+	 * refused by a policy
+	 */
+	public VerifyResult decryptAndVerify(DecryptRequest decrypt, VerifyRequest verify, InputStream in,
+			OutputStream out) {
+		try (InputStream content = open(decrypt, in)) {
+			return CmsVerifier.create().verify(verify, content, out);
+		}
+		catch (IOException ex) {
+			throw failure(ex);
+		}
+		catch (CryptoException ex) {
+			// A failure while reading the decrypted stream reaches here wrapped by the
+			// verifier.
+			CryptoException refined = failure(ex);
+			throw (refined instanceof IntegrityException) ? refined : ex;
+		}
 	}
 
-	private void decryptLegacy(DecryptRequest request, InputStream message, OutputStream out)
-			throws IOException, CMSException {
-		if (!request.legacyCompatibility()) {
-			throw new CryptoException("The message is not integrity protected (CMS EnvelopedData); "
-					+ "enable legacy compatibility to accept it");
+	/** Opens the message and returns the stream of its decrypted content. */
+	private InputStream open(DecryptRequest request, InputStream in) {
+		try {
+			InputStream message = peekable(ArmorInputStream.dearmorIfNeeded(in));
+			ASN1ObjectIdentifier contentType = contentType(message);
+			if (CMSObjectIdentifiers.authEnvelopedData.equals(contentType)) {
+				CMSAuthEnvelopedDataParser parser = new CMSAuthEnvelopedDataParser(message);
+				RecipientInformation recipient = select(request, parser.getRecipientInfos());
+				return recipient.getContentStream(keyRecipient(request, true)).getContentStream();
+			}
+			if (PKCSObjectIdentifiers.envelopedData.equals(contentType)) {
+				if (!request.legacyCompatibility()) {
+					throw new CryptoException("The message is not integrity protected (CMS EnvelopedData); "
+							+ "enable legacy compatibility to accept it");
+				}
+				CMSEnvelopedDataParser parser = new CMSEnvelopedDataParser(message);
+				RecipientInformation recipient = select(request, parser.getRecipientInfos());
+				return recipient.getContentStream(keyRecipient(request, false)).getContentStream();
+			}
+			throw new CryptoException("The input is not an encrypted CMS message");
 		}
-		CMSEnvelopedDataParser parser = new CMSEnvelopedDataParser(message);
-		RecipientInformation recipient = select(request, parser.getRecipientInfos());
-		copy(recipient, keyRecipient(request, false), out);
+		catch (IOException | CMSException ex) {
+			throw failure(ex);
+		}
 	}
 
 	/**
@@ -126,13 +158,6 @@ public final class CmsDecryptor {
 		}
 		recipient.setContentProvider(CmsProviders.BC);
 		return recipient;
-	}
-
-	private static void copy(RecipientInformation recipient, Recipient keyRecipient, OutputStream out)
-			throws IOException, CMSException {
-		try (InputStream content = recipient.getContentStream(keyRecipient).getContentStream()) {
-			content.transferTo(out);
-		}
 	}
 
 	private RecipientInformation select(DecryptRequest request, RecipientInformationStore store) {

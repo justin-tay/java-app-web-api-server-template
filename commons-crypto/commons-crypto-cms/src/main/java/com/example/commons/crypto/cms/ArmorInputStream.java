@@ -2,6 +2,7 @@ package com.example.commons.crypto.cms;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -25,7 +26,12 @@ final class ArmorInputStream {
 	 * @throws IOException if the input cannot be read
 	 */
 	static InputStream dearmorIfNeeded(InputStream in) throws IOException {
-		BufferedInputStream buffered = new BufferedInputStream(in, 8192);
+		// The caller's stream is left open: closing what is returned does not close it.
+		BufferedInputStream buffered = new BufferedInputStream(new FilterInputStream(in) {
+			@Override
+			public void close() {
+			}
+		}, 8192);
 		buffered.mark(BEGIN.length);
 		byte[] start = buffered.readNBytes(BEGIN.length);
 		buffered.reset();

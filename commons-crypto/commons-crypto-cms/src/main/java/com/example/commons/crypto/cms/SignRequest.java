@@ -37,6 +37,15 @@ public final class SignRequest {
 	}
 
 	/**
+	 * The same request with the output in DER, for a signature that is itself encrypted.
+	 */
+	SignRequest withoutArmor() {
+		Builder copy = builder().mode(this.mode).armored(false);
+		this.signers.forEach((signer) -> copy.signer(signer.key(), signer.certificate()));
+		return copy.build();
+	}
+
+	/**
 	 * Whether the output is PEM (base64 between BEGIN CMS and END CMS lines) instead of
 	 * DER.
 	 * @return true for PEM
