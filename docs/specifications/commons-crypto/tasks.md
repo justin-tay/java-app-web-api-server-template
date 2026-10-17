@@ -24,10 +24,11 @@ is independently testable and ordered by its dependencies.
     dependency-check profile has not been run on them.
   - _Requirements: R1, R10_
 
-- [ ] 3. Core API (`commons-crypto-core`)
+- [x] 3. Core API (`commons-crypto-core`)
   - `PrivateKeyHandle`, `KeyStores` for PKCS#12 and Java key stores, `SignatureMode`,
     `CryptoException` and its subtypes, and the result types.
   - _Requirements: R5, R6, R9_
+  - `PinSupplier` and `TokenInfo` move to task 4 with the PKCS#11 key source.
 
 - [ ] 4. PKCS#11 key source
   - Token loading, the `PinSupplier` callback, thread safety, close, and
