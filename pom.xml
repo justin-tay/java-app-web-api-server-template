@@ -20,6 +20,9 @@
 		<module>commons-audit</module>
 		<module>commons-accounts</module>
 		<module>commons-aws</module>
+		<module>commons-crypto-core</module>
+		<module>commons-crypto-cms</module>
+		<module>commons-crypto-openpgp</module>
 		<module>app-web-api-server</module>
 	</modules>
 	<properties>
@@ -29,6 +32,9 @@
 		<!-- OpenPDF 2.0.x is the last line built for Java 17; 2.1 and later need Java 21. -->
 		<openpdf.version>2.0.5</openpdf.version>
 		<poi.version>5.5.1</poi.version>
+		<!-- Spring Boot does not manage Bouncy Castle. Every Bouncy Castle artifact is kept on
+			one version. -->
+		<bouncycastle.version>1.86</bouncycastle.version>
 		<dependency-check-maven.version>13.0.0</dependency-check-maven.version>
 		<!-- Only app-* modules have a main class; each one sets this back to false so
 			spring-boot:run can be invoked from the root with -pl and -am. -->
@@ -55,6 +61,41 @@
 				<groupId>com.example</groupId>
 				<artifactId>commons-aws</artifactId>
 				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.example</groupId>
+				<artifactId>commons-crypto-core</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.example</groupId>
+				<artifactId>commons-crypto-cms</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.example</groupId>
+				<artifactId>commons-crypto-openpgp</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.bouncycastle</groupId>
+				<artifactId>bcprov-jdk18on</artifactId>
+				<version>${bouncycastle.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.bouncycastle</groupId>
+				<artifactId>bcpkix-jdk18on</artifactId>
+				<version>${bouncycastle.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.bouncycastle</groupId>
+				<artifactId>bcpg-jdk18on</artifactId>
+				<version>${bouncycastle.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.bouncycastle</groupId>
+				<artifactId>bcutil-jdk18on</artifactId>
+				<version>${bouncycastle.version}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
