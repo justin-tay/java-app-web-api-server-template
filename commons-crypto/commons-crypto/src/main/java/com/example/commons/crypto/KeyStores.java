@@ -9,6 +9,9 @@ import java.security.Key;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 
+import com.example.commons.crypto.pkcs11.Pkcs11Config;
+import com.example.commons.crypto.pkcs11.Pkcs11Token;
+
 /**
  * Loads private keys into {@link PrivateKeyHandle}s. The passwords are used for the call
  * and not kept; clearing the array afterwards is up to the caller.
@@ -37,6 +40,22 @@ public final class KeyStores {
 			throw new CryptoException("Cannot load the PKCS#12 key store " + file.getFileName(), ex);
 		}
 		return keyStore(keyStore, alias, password);
+	}
+
+	/**
+	 * Logs in to a PKCS#11 token and returns one of its keys. The key stays on the token;
+	 * closing the handle logs out.
+	 * @param config where the token is
+	 * @param pins supplies the PIN, asked for once and never retried
+	 * @param alias the alias of the key
+	 * @return a handle for the key that owns the login
+	 * @throws TokenUnavailableException if the module cannot be loaded or the token is
+	 * absent
+	 * @throws PinRequiredException if the PIN is missing or wrong, or the token is locked
+	 * @throws CryptoException if there is no private key with that alias
+	 */
+	public static PrivateKeyHandle pkcs11(Pkcs11Config config, PinSupplier pins, String alias) {
+		return Pkcs11Token.openPrivateKey(config, pins, alias);
 	}
 
 	/**

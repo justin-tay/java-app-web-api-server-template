@@ -30,7 +30,7 @@ is independently testable and ordered by its dependencies.
   - _Requirements: R5, R6, R9_
   - `PinSupplier` and `TokenInfo` move to task 4 with the PKCS#11 key source.
 
-- [ ] 4. PKCS#11 key source
+- [x] 4. PKCS#11 key source
   - Token loading, the `PinSupplier` callback, thread safety, close, and
     `TokenUnavailableException` and `PinRequiredException` mapping.
   - Completion: tests against SoftHSM2 including a wrong PIN with no retry.
@@ -90,9 +90,10 @@ is independently testable and ordered by its dependencies.
     wrap size, and CMS and OpenPGP ECDH decrypt pass on SoftHSM2.
   - _Requirements: R5.8_
 
-- [ ] 15. Token provider configuration and placeholder certificate
-  - Build the SunPKCS11 configuration with the derived secret key attributes, and add a
-    helper that writes a placeholder certificate for a key without one.
+- [ ] 15. Placeholder certificate for token keys
+  - The SunPKCS11 configuration with the derived secret key attributes is built by
+    `Pkcs11Config` (done in task 4). Add a helper that writes a placeholder certificate for a
+    key that has none.
   - _Requirements: R5.9, R5.10_
 
 - [ ] 16. Token RSA decrypt policy

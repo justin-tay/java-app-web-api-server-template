@@ -285,6 +285,15 @@ CryptoException (unchecked)
 - Unit tests use software keys and run in `mvn test`.
 - A profile runs SoftHSM2 in a container for PKCS#11 and GnuPG and OpenSSL for
   interoperability in both directions, for every signature mode.
+- The PKCS#11 tests need a native module in the JVM's process, so they run inside a container
+  that holds both the JVM and SoftHSM2. They skip themselves unless `SOFTHSM2_LIBRARY` is set.
+  `commons-crypto/commons-crypto/src/test/docker/pkcs11/` has the Dockerfile and
+  `run-tests.sh`, which sets up a token with a key under the alias `k` and the PIN `1234`:
+
+  ```bash
+  docker build -t commons-crypto-pkcs11-test commons-crypto/commons-crypto/src/test/docker/pkcs11
+  docker run --rm -v "$PWD:/repo:ro" -v "$HOME/.m2:/root/.m2" commons-crypto-pkcs11-test     sh /repo/commons-crypto/commons-crypto/src/test/docker/pkcs11/run-tests.sh
+  ```
 - Each format module's tests run with only its own Bouncy Castle artifacts on the
   classpath, which the module dependencies enforce without a separate variant.
 
