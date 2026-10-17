@@ -37,10 +37,12 @@ flowchart TB
 | `commons-crypto-cms` | `com.example.commons.crypto.cms` (CmsEncryptor, CmsDecryptor, CmsSigner, CmsVerifier, Cms) | `commons-crypto`, `bcpkix` |
 | `commons-crypto-openpgp` | `com.example.commons.crypto.openpgp` (PgpEncryptor, PgpDecryptor, PgpSigner, PgpVerifier, Pgp) | `commons-crypto`, `bcpg` |
 
-The three modules sit under a `commons-crypto-parent` aggregator (`commons-crypto-parent/pom.xml`), which
+The three modules sit in the `commons-crypto` directory under an aggregator whose artifact is
+`commons-crypto-parent` (`commons-crypto/pom.xml`), which
 is itself a module of `commons-parent` beside `commons`, `commons-audit`, `commons-accounts`
 and `commons-aws`. The aggregator holds the Bouncy Castle version and its dependency
-management, so the root `pom.xml` only lists `commons-crypto-parent` and the three module versions.
+management, so the root `pom.xml` only lists the `commons-crypto` directory and the three module
+versions. The shared module is `commons-crypto/commons-crypto`.
 Every module is named after the package it owns. The root package exists only in `commons-crypto`, so no package is split across jars.
 
 There is no common `Encryptor` interface across formats. The formats differ in how

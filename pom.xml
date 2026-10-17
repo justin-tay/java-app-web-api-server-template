@@ -20,7 +20,7 @@
 		<module>commons-audit</module>
 		<module>commons-accounts</module>
 		<module>commons-aws</module>
-		<module>commons-crypto-parent</module>
+		<module>commons-crypto</module>
 		<module>app-web-api-server</module>
 	</modules>
 	<properties>
