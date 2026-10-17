@@ -30,6 +30,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CmsSignVerifyTest {
 
+	/**
+	 * Text that is not a message. Random bytes would sometimes happen to parse as a valid
+	 * packet.
+	 */
+	private static final byte[] NOT_A_MESSAGE = "This is only text, and no encrypted or signed message. ".repeat(4)
+		.getBytes(StandardCharsets.UTF_8);
+
 	private static final BouncyCastleProvider BC = new BouncyCastleProvider();
 
 	private static final byte[] TEXT = "The quick brown fox jumps over the lazy dog. ".repeat(40)
@@ -186,9 +193,9 @@ class CmsSignVerifyTest {
 
 	@Test
 	void garbageIsACryptoException() {
-		assertThatThrownBy(() -> verifyEmbedded(randomBytes(200), new ByteArrayOutputStream(), "rsa"))
+		assertThatThrownBy(() -> verifyEmbedded(NOT_A_MESSAGE, new ByteArrayOutputStream(), "rsa"))
 			.isInstanceOf(CryptoException.class);
-		assertThatThrownBy(() -> verifyDetached(TEXT, randomBytes(200), "rsa")).isInstanceOf(CryptoException.class);
+		assertThatThrownBy(() -> verifyDetached(TEXT, NOT_A_MESSAGE, "rsa")).isInstanceOf(CryptoException.class);
 	}
 
 	@Test

@@ -345,6 +345,12 @@ CryptoException (unchecked)
 - Unit tests use software keys and run in `mvn test`.
 - A profile runs SoftHSM2 in a container for PKCS#11 and GnuPG and OpenSSL for
   interoperability in both directions, for every signature mode.
+- The interoperability tests run `gpg` and `openssl` and are skipped unless `INTEROP_TOOLS` is
+  `true`, which the container script sets. They use the test keys of each module and cover both
+  directions: our output read by the tool and the tool's output read by us. OpenPGP against GnuPG:
+  encryption, and embedded, detached and cleartext signatures, binary and armored, for RSA and EC
+  keys, plus sign-and-encrypt. CMS against OpenSSL: embedded and detached signatures in DER and
+  PEM for RSA and EC keys, encryption in both directions.
 - The PKCS#11 tests need a native module in the JVM's process, so they run inside a container
   that holds both the JVM and SoftHSM2. They skip themselves unless `SOFTHSM2_LIBRARY` is set.
   `commons-crypto/commons-crypto/src/test/docker/pkcs11/` has the Dockerfile and
@@ -357,6 +363,22 @@ CryptoException (unchecked)
   ```
 - Each format module's tests run with only its own Bouncy Castle artifacts on the
   classpath, which the module dependencies enforce without a separate variant.
+
+### Interoperability results
+
+Run in the container image (Ubuntu 24.04: GnuPG 2.4.4, OpenSSL 3.0.13):
+
+- **GnuPG** verifies and decrypts everything we write, and we read everything GnuPG writes
+  (encrypt, sign, detach-sign, clearsign, and sign-and-encrypt), for RSA and P-256 keys. GnuPG
+  compresses what it writes and the decryptor and verifier handle that.
+- **OpenSSL** verifies our embedded and detached signatures (DER and PEM, RSA and EC). It also
+  decrypts our `AuthEnvelopedData` messages (AES-256-GCM with RSA OAEP, and with ECDH), so
+  the default CMS output is readable by OpenSSL 3.0 and newer.
+- OpenSSL's own encryption is `EnvelopedData` with AES-CBC, which is not authenticated, so we
+  refuse it unless legacy compatibility is set. With it set, we read RSA PKCS#1 v1.5, RSA OAEP and
+  ECDH recipients from OpenSSL.
+- When GnuPG signs for a key whose self-signature has no preferred hash algorithms it falls back
+  to SHA-1, which we refuse by default. Real keys carry preferences; the test keys now do too.
 
 ## Open risks
 

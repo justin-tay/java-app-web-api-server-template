@@ -32,6 +32,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PgpSignVerifyTest {
 
+	/**
+	 * Text that is not a message. Random bytes would sometimes happen to parse as a valid
+	 * packet.
+	 */
+	private static final byte[] NOT_A_MESSAGE = "This is only text, and no encrypted or signed message. ".repeat(4)
+		.getBytes(StandardCharsets.UTF_8);
+
 	private static final BouncyCastleProvider BC = new BouncyCastleProvider();
 
 	private static final byte[] TEXT = "The quick brown fox jumps over the lazy dog. ".repeat(40)
@@ -236,9 +243,9 @@ class PgpSignVerifyTest {
 
 	@Test
 	void garbageIsACryptoException() {
-		assertThatThrownBy(() -> verify(randomBytes(200), new ByteArrayOutputStream(), TestPgpKeys.RSA))
+		assertThatThrownBy(() -> verify(NOT_A_MESSAGE, new ByteArrayOutputStream(), TestPgpKeys.RSA))
 			.isInstanceOf(CryptoException.class);
-		assertThatThrownBy(() -> verifyDetached(TEXT, randomBytes(200), TestPgpKeys.RSA))
+		assertThatThrownBy(() -> verifyDetached(TEXT, NOT_A_MESSAGE, TestPgpKeys.RSA))
 			.isInstanceOf(CryptoException.class);
 	}
 

@@ -2,7 +2,8 @@
 # Runs inside the container made from the Dockerfile in this directory, with the repository
 # mounted at /repo and the Maven cache at /root/.m2. It sets up a SoftHSM2 token that holds an
 # RSA key and its certificate under the alias k and an EC P-256 key and its certificate under
-# the alias ec, with the PIN 1234, then runs the tests that use
+# the alias ec, with the PIN 1234, and turns on the interoperability tests that run gpg and
+# openssl, then runs the tests that use
 # it. The build happens in a copy so the mounted repository is left untouched.
 set -e
 
@@ -10,6 +11,8 @@ export SOFTHSM2_CONF=/tmp/softhsm2.conf
 mkdir -p /tmp/tokens
 echo "directories.tokendir = /tmp/tokens" > "$SOFTHSM2_CONF"
 export SOFTHSM2_LIBRARY=/usr/lib/softhsm/libsofthsm2.so
+# Turns on the tests that run gpg and openssl.
+export INTEROP_TOOLS=true
 
 softhsm2-util --init-token --free --label test --pin 1234 --so-pin 5678 > /dev/null
 
@@ -35,6 +38,10 @@ cd /tmp/build
 status=0
 mvn -B -pl commons-crypto -amd verify "$@" > /tmp/mvn.log 2>&1 || status=$?
 grep -E "Tests run:|BUILD|ERROR|FAIL" /tmp/mvn.log || true
+# What the tests recorded about the installed tools, for example whether OpenSSL reads AuthEnvelopedData.
+cat /tmp/interop-findings.txt 2> /dev/null || true
+openssl version
+gpg --version | head -1
 if [ "$status" -ne 0 ]; then
   for report in $(grep -l -E "FAILURE|ERROR" $(find /tmp/build -path '*surefire-reports/*.txt') | head -3); do
     echo "== $report"

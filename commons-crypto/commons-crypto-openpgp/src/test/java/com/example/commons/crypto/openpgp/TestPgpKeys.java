@@ -10,6 +10,7 @@ import org.bouncycastle.bcpg.ArmoredOutputStream;
 import org.bouncycastle.bcpg.HashAlgorithmTags;
 import org.bouncycastle.bcpg.PublicKeyAlgorithmTags;
 import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags;
+import org.bouncycastle.bcpg.sig.Features;
 import org.bouncycastle.bcpg.sig.KeyFlags;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openpgp.PGPKeyPair;
@@ -79,6 +80,12 @@ final class TestPgpKeys {
 				.get(HashAlgorithmTags.SHA1);
 			PGPSignatureSubpacketGenerator masterFlags = new PGPSignatureSubpacketGenerator();
 			masterFlags.setKeyFlags(false, KeyFlags.CERTIFY_OTHER | KeyFlags.SIGN_DATA);
+			// Without preferences GnuPG falls back to SHA-1 when it signs for these keys.
+			masterFlags.setPreferredHashAlgorithms(false,
+					new int[] { HashAlgorithmTags.SHA512, HashAlgorithmTags.SHA384, HashAlgorithmTags.SHA256 });
+			masterFlags.setPreferredSymmetricAlgorithms(false, new int[] { SymmetricKeyAlgorithmTags.AES_256,
+					SymmetricKeyAlgorithmTags.AES_192, SymmetricKeyAlgorithmTags.AES_128 });
+			masterFlags.setFeature(false, Features.FEATURE_MODIFICATION_DETECTION);
 			PGPKeyRingGenerator generator = new PGPKeyRingGenerator(PGPSignature.POSITIVE_CERTIFICATION, master,
 					"Test " + name + " <" + name + "@example.com>", checksum, masterFlags.generate(), null,
 					new JcaPGPContentSignerBuilder(master.getPublicKey().getAlgorithm(), HashAlgorithmTags.SHA256)

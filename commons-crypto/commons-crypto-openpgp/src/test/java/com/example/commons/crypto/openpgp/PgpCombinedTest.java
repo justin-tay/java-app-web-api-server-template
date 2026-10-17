@@ -24,6 +24,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PgpCombinedTest {
 
+	/**
+	 * Text that is not a message. Random bytes would sometimes happen to parse as a valid
+	 * packet.
+	 */
+	private static final byte[] NOT_A_MESSAGE = "This is only text, and no encrypted or signed message. ".repeat(4)
+		.getBytes(StandardCharsets.UTF_8);
+
 	private final PgpEncryptor encryptor = PgpEncryptor.create();
 
 	private final PgpDecryptor decryptor = PgpDecryptor.create();
@@ -190,7 +197,7 @@ class PgpCombinedTest {
 	@Test
 	void garbageIsACryptoException() {
 		assertThatThrownBy(
-				() -> decryptAndVerify(randomBytes(200), new ByteArrayOutputStream(), TestPgpKeys.RSA, TestPgpKeys.RSA))
+				() -> decryptAndVerify(NOT_A_MESSAGE, new ByteArrayOutputStream(), TestPgpKeys.RSA, TestPgpKeys.RSA))
 			.isInstanceOf(CryptoException.class);
 	}
 

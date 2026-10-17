@@ -28,6 +28,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CmsEncryptDecryptTest {
 
+	/**
+	 * Text that is not a message. Random bytes would sometimes happen to parse as a valid
+	 * packet.
+	 */
+	private static final byte[] NOT_A_MESSAGE = "This is only text, and no encrypted or signed message. ".repeat(4)
+		.getBytes(StandardCharsets.UTF_8);
+
 	private static final BouncyCastleProvider BC = new BouncyCastleProvider();
 
 	private final CmsEncryptor encryptor = CmsEncryptor.create();
@@ -177,7 +184,7 @@ class CmsEncryptDecryptTest {
 	@Test
 	void garbageIsACryptoException() throws Exception {
 		try (PrivateKeyHandle key = TestKeys.handle("rsa")) {
-			assertThatThrownBy(() -> decrypt(randomBytes(200), key, TestKeys.certificate("rsa"), false))
+			assertThatThrownBy(() -> decrypt(NOT_A_MESSAGE, key, TestKeys.certificate("rsa"), false))
 				.isInstanceOf(CryptoException.class);
 		}
 	}

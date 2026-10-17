@@ -61,7 +61,7 @@ is independently testable and ordered by its dependencies.
     both formats.
   - _Requirements: R2_
 
-- [ ] 10. Interoperability tests
+- [x] 10. Interoperability tests
   - GnuPG and OpenSSL in both directions for every signature mode, behind the
     integration-test profile.
   - _Requirements: R10_
