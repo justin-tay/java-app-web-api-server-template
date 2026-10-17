@@ -20,7 +20,7 @@
 		<module>commons-audit</module>
 		<module>commons-accounts</module>
 		<module>commons-aws</module>
-		<module>commons-crypto</module>
+		<module>commons-crypto-parent</module>
 		<module>app-web-api-server</module>
 	</modules>
 	<properties>
@@ -59,7 +59,7 @@
 			</dependency>
 			<dependency>
 				<groupId>com.example</groupId>
-				<artifactId>commons-crypto-core</artifactId>
+				<artifactId>commons-crypto</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 			<dependency>

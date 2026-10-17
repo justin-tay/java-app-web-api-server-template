@@ -2,11 +2,11 @@
 
 ## Overview
 
-`commons-crypto` is a set of Java modules that sign, verify, encrypt and decrypt data in
+The `commons-crypto` modules are Java modules that sign, verify, encrypt and decrypt data in
 two formats, OpenPGP and CMS (RFC 5652), with a small API built on `InputStream` and
 `OutputStream`. Private keys may be software keys or keys held on a hardware token
-through PKCS#11. The modules sit beside the other `commons-*` modules under
-`commons-parent`.
+through PKCS#11. They sit beside the other `commons-*` modules under `commons-parent`, grouped under
+`commons-crypto-parent`.
 
 It is a library, not an application. Applications decide which keys to trust and where
 data goes; the library performs the cryptographic operations and reports what it found.
@@ -34,19 +34,21 @@ data goes; the library performs the cryptographic operations and reports what it
 **User story:** As a developer, I want to use OpenPGP or CMS without pulling in the
 other format's dependencies, so that my application stays small.
 
-1. The library SHALL be three Maven modules under `com.example`: `commons-crypto-core`
-   (shared key, token and result API, root package `com.example.commons.crypto`, plus the
-   `pkcs11` subpackage), `commons-crypto-cms` (package `com.example.commons.crypto.cms`)
-   and `commons-crypto-openpgp` (package `com.example.commons.crypto.openpgp`).
-2. `commons-crypto-cms` and `commons-crypto-openpgp` SHALL depend on `commons-crypto-core`
+1. The library SHALL be three Maven modules under `com.example`, each named after the
+   package it owns: `commons-crypto` (shared key, token and result API, package
+   `com.example.commons.crypto` plus the `pkcs11` subpackage), `commons-crypto-cms` (package
+   `com.example.commons.crypto.cms`) and `commons-crypto-openpgp` (package
+   `com.example.commons.crypto.openpgp`), grouped under the aggregator
+   `commons-crypto-parent`.
+2. `commons-crypto-cms` and `commons-crypto-openpgp` SHALL depend on `commons-crypto`
    and SHALL NOT depend on each other.
-3. `commons-crypto-core` SHALL depend on `bcprov` only. `commons-crypto-cms` SHALL add
+3. `commons-crypto` SHALL depend on `bcprov` only. `commons-crypto-cms` SHALL add
    `bcpkix` and `commons-crypto-openpgp` SHALL add `bcpg`, so a consumer's dependencies
    follow the format it uses.
 4. Bouncy Castle SHALL be used at its latest release at the time of implementation (1.86
    when this specification was written), with all Bouncy Castle artifacts on one version.
 5. The modules SHALL target Java 17, SHALL NOT depend on Spring, and SHALL declare the
-   `Automatic-Module-Name` values `com.example.commons.crypto.core`,
+   `Automatic-Module-Name` values `com.example.commons.crypto`,
    `com.example.commons.crypto.cms` and `com.example.commons.crypto.openpgp`.
 
 ### R2: Operations

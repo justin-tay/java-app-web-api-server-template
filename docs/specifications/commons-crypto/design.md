@@ -33,20 +33,20 @@ flowchart TB
 
 | Module | Packages | Depends on |
 | --- | --- | --- |
-| `commons-crypto-core` | `com.example.commons.crypto` (PrivateKeyHandle, KeyStores, PinSupplier, SignatureMode, CryptoException and subtypes, shared option types), `...crypto.pkcs11` (token loading, login, provider configuration, ECDH adapter provider) | `bcprov` |
-| `commons-crypto-cms` | `com.example.commons.crypto.cms` (CmsEncryptor, CmsDecryptor, CmsSigner, CmsVerifier, Cms) | core, `bcpkix` |
-| `commons-crypto-openpgp` | `com.example.commons.crypto.openpgp` (PgpEncryptor, PgpDecryptor, PgpSigner, PgpVerifier, Pgp) | core, `bcpg` |
+| `commons-crypto` | `com.example.commons.crypto` (PrivateKeyHandle, KeyStores, PinSupplier, SignatureMode, CryptoException and subtypes, shared option types), `...crypto.pkcs11` (token loading, login, provider configuration, ECDH adapter provider) | `bcprov` |
+| `commons-crypto-cms` | `com.example.commons.crypto.cms` (CmsEncryptor, CmsDecryptor, CmsSigner, CmsVerifier, Cms) | `commons-crypto`, `bcpkix` |
+| `commons-crypto-openpgp` | `com.example.commons.crypto.openpgp` (PgpEncryptor, PgpDecryptor, PgpSigner, PgpVerifier, Pgp) | `commons-crypto`, `bcpg` |
 
-The three modules sit under a `commons-crypto` aggregator (`commons-crypto/pom.xml`), which
+The three modules sit under a `commons-crypto-parent` aggregator (`commons-crypto-parent/pom.xml`), which
 is itself a module of `commons-parent` beside `commons`, `commons-audit`, `commons-accounts`
 and `commons-aws`. The aggregator holds the Bouncy Castle version and its dependency
-management, so the root `pom.xml` only lists `commons-crypto` and the three module versions.
-The root package exists only in the core module, so no package is split across jars.
+management, so the root `pom.xml` only lists `commons-crypto-parent` and the three module versions.
+Every module is named after the package it owns. The root package exists only in `commons-crypto`, so no package is split across jars.
 
 There is no common `Encryptor` interface across formats. The formats differ in how
 recipients are named, how keys are chosen on decrypt and how trust works, so a shared
 type would hide real differences. Only the private operation and token access are
-shared, and they live in the core module.
+shared, and they live in the `commons-crypto` module.
 
 ## Key handles
 

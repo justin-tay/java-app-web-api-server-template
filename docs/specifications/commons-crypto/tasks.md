@@ -16,15 +16,15 @@ is independently testable and ordered by its dependencies.
   - _Requirements: R5_
 
 - [x] 2. Modules and build
-  - Add `commons-crypto-core`, `commons-crypto-cms` and `commons-crypto-openpgp` to the root
-    `pom.xml` and `commons-parent` dependency management, with Java 17, the
+  - Add `commons-crypto-parent` with `commons-crypto`, `commons-crypto-cms` and
+    `commons-crypto-openpgp` to the root `pom.xml` and `commons-parent` dependency management, with Java 17, the
     `Automatic-Module-Name` values, Bouncy Castle 1.86 on one version, and the
     integration-test profile.
   - Completion: the modules build under the repository's format and coverage checks. The
     dependency-check profile has not been run on them.
   - _Requirements: R1, R10_
 
-- [x] 3. Core API (`commons-crypto-core`)
+- [x] 3. Core API (`commons-crypto`)
   - `PrivateKeyHandle`, `KeyStores` for PKCS#12 and Java key stores, `SignatureMode`,
     `CryptoException` and its subtypes, and the result types.
   - _Requirements: R5, R6, R9_

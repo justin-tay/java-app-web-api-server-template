@@ -5,11 +5,11 @@
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>com.example</groupId>
-		<artifactId>commons-crypto</artifactId>
+		<artifactId>commons-crypto-parent</artifactId>
 		<version>0.0.1-SNAPSHOT</version>
 	</parent>
-	<artifactId>commons-crypto-core</artifactId>
-	<name>commons-crypto-core</name>
+	<artifactId>commons-crypto</artifactId>
+	<name>commons-crypto</name>
 	<description>Shared key, token and result API for the commons-crypto modules, including PKCS#11 hardware key support</description>
 	<dependencies>
 		<dependency>
@@ -35,7 +35,7 @@
 				<configuration>
 					<archive>
 						<manifestEntries>
-							<Automatic-Module-Name>com.example.commons.crypto.core</Automatic-Module-Name>
+							<Automatic-Module-Name>com.example.commons.crypto</Automatic-Module-Name>
 						</manifestEntries>
 					</archive>
 				</configuration>
