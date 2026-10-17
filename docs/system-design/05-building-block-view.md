@@ -58,7 +58,11 @@ and that an application's own features can record theirs in
 ([ADR 0040](../adr/0040-generic-audit-trail-module.md)). `commons-aws` is the optional AWS integration: it lets
 a resource location, such as a JWKS location, name an AWS Secrets Manager secret
 ([ADR 0020](../adr/0020-jwks-rotation-from-aws-secrets-manager.md)); `commons`
-does not depend on it. `app-web-api-server` is the reference backend and
+does not depend on it. `commons-crypto` is a separate, optional set of libraries
+that nothing else here depends on: it signs, verifies, encrypts and decrypts
+OpenPGP and CMS messages with software keys or keys on a PKCS#11 token
+([the specification](../specifications/commons-crypto/design.md)).
+`app-web-api-server` is the reference backend and
 holds only what is specific to it: its own endpoints, its authorization
 rules, its Liquibase master changelog, and its configuration.
 
@@ -78,6 +82,7 @@ rules, its Liquibase master changelog, and its configuration.
 | `commons` `web.problem` | RFC 9457 error handling for every endpoint, and the exceptions applications throw to produce it | `ProblemDetailsAutoConfiguration`, `ApiResponseEntityExceptionHandler`, `ProblemDetailErrorController`, `ProblemTypes`, `BadRequestException`, `ConflictException`, `ResourceNotFoundException`; `commons.web.problem-details.enabled` | `commons/src/main/java/com/example/commons/web/problem/` |
 | `commons` defaults | Configuration defaults ranked below every application configuration source | `CommonsDefaultsEnvironmentPostProcessor` | `commons/src/main/resources/META-INF/commons-defaults.yaml` |
 | `commons-aws` `secretsmanager` | Resolves `aws-secretsmanager:<secret name or ARN>` resource locations to the secret's `AWSCURRENT` value, read with the AWS SDK's `SecretsManagerClient` | `SecretsManagerResourceAutoConfiguration`, `SecretsManagerProtocolResolver`, `SecretsManagerResource`; the AWS SDK region and credentials chain | `commons-aws/src/main/java/com/example/commons/aws/secretsmanager/` |
+| `commons-crypto` (`commons-crypto`, `commons-crypto-cms`, `commons-crypto-openpgp`) | Streaming OpenPGP and CMS signing, verification, encryption and decryption, with keys in software or on a PKCS#11 token; it checks signatures but leaves trust to the caller | `Pgp`, `Cms` (one-line forms), `PgpEncryptor`, `PgpDecryptor`, `PgpSigner`, `PgpVerifier`, `CmsEncryptor`, `CmsDecryptor`, `CmsSigner`, `CmsVerifier`; `KeyStores`, `Pkcs11Token`, `PrivateKeyHandle` | `commons-crypto/commons-crypto*/src/main/java/com/example/commons/crypto/` |
 | `commons-audit` | The audit trail: records every audited event as a row of `audit_event` and an ECS log event with the same `event.id`, keeps a refused change's row through the rollback of the request that attempted it, and reads the trail back | `AuditTrail` (`record`, `reject`, `find`, `search`), `AuditAction`, `AuditEvent`, `AuditRecord`, `Auditor`; `AuditAutoConfiguration` | `commons-audit/src/main/java/com/example/commons/audit/` |
 | `commons-accounts` | Local account management wiring: registers the model, the authority lookup, and the administration API | `AccountsAutoConfiguration`, `AppUserLocalAuthorityLookup`; `commons.accounts.enabled`, `commons.accounts.admin.enabled` | `commons-accounts/src/main/java/com/example/commons/accounts/` |
 | `commons-accounts` `admin` | Administration REST API for users, roles, and the read-only permissions, and the read-only audit trail | `/admin/users/**`, `/admin/roles/**`, `/admin/permissions/**` (each endpoint gated by the permission it needs, such as `user:create`), `/audit-events` (`audit:read`) | `commons-accounts/src/main/java/com/example/commons/accounts/admin/` |

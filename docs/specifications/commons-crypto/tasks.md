@@ -66,15 +66,18 @@ is independently testable and ordered by its dependencies.
     integration-test profile.
   - _Requirements: R10_
 
-- [ ] 11. Dependency isolation checks
+- [x] 11. Dependency isolation checks
   - A test or enforcer rule that `commons-crypto-cms` has no `bcpg` and
     `commons-crypto-openpgp` has no `bcpkix` on its classpath, and that neither depends on
     the other.
   - _Requirements: R1_
 
-- [ ] 12. Documentation
+- [x] 12. Documentation
   - Javadoc for the failure contract and key handle lifecycle, and a README with the
     one-line shortcuts.
+  - Done: the README is `commons-crypto/README.md`, the Javadoc states the failure contract and
+    the handle lifecycle, and it builds without errors. About 60 "no comment" warnings remain on
+    trivial constructors, builder setters and factory methods.
   - _Requirements: R7_
 
 - [x] 13. Spike: ECC on tokens

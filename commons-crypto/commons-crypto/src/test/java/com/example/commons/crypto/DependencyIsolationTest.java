@@ -7,7 +7,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Checks that the module has only the Bouncy Castle artifacts for its own format on the
- * classpath, so a consumer of one format does not pull in the other.
+ * classpath, and does not depend on the other format's module, so a consumer of one
+ * format does not pull in the other.
  */
 class DependencyIsolationTest {
 
@@ -25,6 +26,18 @@ class DependencyIsolationTest {
 	@Test
 	void doesNotHaveCms() {
 		assertThatThrownBy(() -> Class.forName("org.bouncycastle.cms.CMSSignedData"))
+			.isInstanceOf(ClassNotFoundException.class);
+	}
+
+	@Test
+	void doesNotDependOnTheCmsModule() {
+		assertThatThrownBy(() -> Class.forName("com.example.commons.crypto.cms.Cms"))
+			.isInstanceOf(ClassNotFoundException.class);
+	}
+
+	@Test
+	void doesNotDependOnTheOpenPgpModule() {
+		assertThatThrownBy(() -> Class.forName("com.example.commons.crypto.openpgp.Pgp"))
 			.isInstanceOf(ClassNotFoundException.class);
 	}
 
