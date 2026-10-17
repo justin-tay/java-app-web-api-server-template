@@ -66,7 +66,7 @@ public final class CryptoLog {
 	private static void event(boolean failure, String action, String format, String reason, String errorType) {
 		LoggingEventBuilder log = (failure ? LOGGER.atWarn() : LOGGER.atDebug());
 		log.addKeyValue("event.category", List.of("process"))
-			.addKeyValue("event.type", List.of(failure ? "error" : "info"))
+			.addKeyValue("event.type", List.of("info"))
 			.addKeyValue("event.action", action)
 			.addKeyValue("event.outcome", failure ? "failure" : "success")
 			.addKeyValue("crypto.format", format);

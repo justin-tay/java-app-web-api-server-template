@@ -70,7 +70,7 @@ class CryptoLogTest {
 
 		ILoggingEvent event = this.events.list.get(0);
 		assertThat(event.getLevel()).isEqualTo(Level.WARN);
-		assertThat(fields(event)).containsEntry("event.type", List.of("error"))
+		assertThat(fields(event)).containsEntry("event.type", List.of("info"))
 			.containsEntry("event.outcome", "failure")
 			.containsEntry("event.reason", "integrity_check_failed")
 			.containsEntry("error.type", IntegrityException.class.getName());

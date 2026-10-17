@@ -36,7 +36,7 @@ fields where available and documents its intentional project extensions.
 | Settings changed | INFO | `configuration` | `change` | `update_setting` | [Event reference](event-reference.md#settings-changed-update_setting) |
 | Change refused | WARN | As the refused change | As the refused change | As the refused change | [Event reference](event-reference.md#change-refused) |
 | Cryptographic operation done | DEBUG | `process` | `info` | `encrypt`, `decrypt`, `sign`, `sign_and_encrypt`, `decrypt_and_verify`, `verify`, `verify_detached`, `open_token` | [Event reference](event-reference.md#cryptographic-operation-encrypt-decrypt-sign-sign_and_encrypt-decrypt_and_verify-verify-verify_detached-open_token) |
-| Cryptographic operation failed | WARN | `process` | `error` | As the operation | [Event reference](event-reference.md#cryptographic-operation-encrypt-decrypt-sign-sign_and_encrypt-decrypt_and_verify-verify-verify_detached-open_token) |
+| Cryptographic operation failed | WARN | `process` | `info` | As the operation | [Event reference](event-reference.md#cryptographic-operation-encrypt-decrypt-sign-sign_and_encrypt-decrypt_and_verify-verify-verify_detached-open_token) |
 | Unexpected request failure | ERROR | `web` | `error` | `process_request` | [Event reference](event-reference.md#request-processing-failed-process_request) |
 | Application starting | INFO | `process` | `start` | `start_application` | [Event reference](event-reference.md#application-starting-start_application) |
 | Application started | INFO | `process` | `start` | `start_application` | [Event reference](event-reference.md#application-started-start_application) |

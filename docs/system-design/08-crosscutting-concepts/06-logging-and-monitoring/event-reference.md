@@ -568,8 +568,8 @@ logged, and neither is the message or the stack trace of an exception.
 
 | Field | Value or presence | Meaning | ECS alignment |
 | --- | --- | --- | --- |
-| `event.category` | `["process"]` | A cryptographic operation. ECS has no cryptography category. | ECS Event field |
-| `event.type` | `["info"]` on success, `["error"]` on failure | Outcome class. | ECS Event field |
+| `event.category` | `["process"]` | A cryptographic operation. ECS has no cryptography category; `process` is the nearest fit for work done by the running application, and its expected types do not include `error`. | ECS Event field |
+| `event.type` | `["info"]` | `info` is an expected ECS type for `process`; success or failure is in `event.outcome`. | ECS Event field |
 | `event.action` | The operation | Stable operation identifier. | ECS field; project-defined action |
 | `event.outcome` | `success` or `failure` | `verify` and `verify_detached` (and `decrypt_and_verify`) are a failure when a signature is invalid or from an unknown signer. | ECS Event field |
 | `event.reason` | Failures | `integrity_check_failed`, `no_matching_key`, `pin_required`, `token_unavailable`, `signature_not_valid`, or `failed`. | ECS Event field |
