@@ -42,6 +42,18 @@ final class TokenKeyRings {
 	private TokenKeyRings() {
 	}
 
+	/** The key derivation that RFC 6637 recommends for the size of the curve. */
+	private static PGPKdfParameters kdf(ECPublicKey key) {
+		int bits = key.getParams().getOrder().bitLength();
+		if (bits > 384) {
+			return new PGPKdfParameters(HashAlgorithmTags.SHA512, SymmetricKeyAlgorithmTags.AES_256);
+		}
+		if (bits > 256) {
+			return new PGPKdfParameters(HashAlgorithmTags.SHA384, SymmetricKeyAlgorithmTags.AES_192);
+		}
+		return new PGPKdfParameters(HashAlgorithmTags.SHA256, SymmetricKeyAlgorithmTags.AES_128);
+	}
+
 	static KeyPair softwareKeyPair(boolean ec) throws Exception {
 		KeyPairGenerator generator = KeyPairGenerator.getInstance(ec ? "EC" : "RSA", BC);
 		if (ec) {
@@ -62,8 +74,7 @@ final class TokenKeyRings {
 		boolean encryption = (flags & ENCRYPT) != 0;
 		int algorithm = ec ? (encryption ? PublicKeyAlgorithmTags.ECDH : PublicKeyAlgorithmTags.ECDSA)
 				: PublicKeyAlgorithmTags.RSA_GENERAL;
-		PGPAlgorithmParameters parameters = (ec && encryption)
-				? new PGPKdfParameters(HashAlgorithmTags.SHA256, SymmetricKeyAlgorithmTags.AES_128) : null;
+		PGPAlgorithmParameters parameters = (ec && encryption) ? kdf((ECPublicKey) subkeyPublic) : null;
 		Date now = new Date();
 		PGPPublicKey pgpPublic = new JcaPGPKeyConverter().setProvider(BC)
 			.getPGPPublicKey(algorithm, parameters, subkeyPublic, now);

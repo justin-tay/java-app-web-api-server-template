@@ -265,10 +265,10 @@ Requirements the adapter puts on the surrounding code:
 
 | Key on the token | Format | Result |
 | --- | --- | --- |
-| RSA | OpenPGP | Works (PKCS#1 v1.5 is the only scheme) |
+| RSA (2048, 4096) | OpenPGP | Works (PKCS#1 v1.5 is the only scheme) |
 | RSA | CMS, OAEP recipient | Fails with a clear error through SunPKCS11; works with a vendor provider that has OAEP |
 | RSA | CMS, PKCS#1 v1.5 recipient | Works only after `allowPkcs1v15KeyTransport()` on that key handle |
-| EC P-256 | OpenPGP and CMS | Works through the `TokenEcdh` adapter provider |
+| EC P-256, P-384, P-521 | OpenPGP and CMS | Works through the per-token adapter provider |
 | Ed25519, X25519 | any | Not available through SunPKCS11 |
 
 The library registers the adapter and builds the token provider configuration, so the caller
@@ -453,5 +453,5 @@ a test:
 
 1. `CKM_RSA_PKCS` availability on the target HSMs for OpenPGP.
 2. Bouncy Castle moves quickly (1.86 at the time of writing); the spike should be rerun on upgrades.
-3. The ECDH adapter is only proven on P-256 with SoftHSM2; other curves and real HSMs are untested.
+3. The adapter is proven on P-256, P-384 and P-521 with SoftHSM2 and NSS on JDK 17, 21 and 25; real HSMs and vendor providers are untested, and so is a token that is really removed or locked (SoftHSM2 and NSS cannot lock).
 4. The adapter is a JCE provider; its acceptance on non-OpenJDK builds is unchecked.

@@ -168,7 +168,23 @@ public final class PgpDecryptor {
 			throws IOException, PGPException {
 		if (!encrypted.getKeyIdentifier().isWildcard()) {
 			PGPPrivateKey privateKey = request.keys().privateKey(encrypted.getKeyID());
-			return (privateKey != null) ? openWith(request, encrypted, privateKey) : null;
+			if (privateKey == null) {
+				return null;
+			}
+			try {
+				return openWith(request, encrypted, privateKey);
+			}
+			catch (PGPException ex) {
+				if (TokenFailures.unavailable(ex).isPresent()) {
+					throw ex;
+				}
+				// A session key that does not unwrap (a bad PKCS#1 v1.5 padding for an
+				// RSA key)
+				// must look like any other damage, or a sender could learn from the
+				// difference
+				// whether a guess at the padding was right (Bleichenbacher's attack).
+				throw new IntegrityException("The message failed its integrity check", ex);
+			}
 		}
 		for (PGPPrivateKey privateKey : request.keys().encryptionKeys()) {
 			try {

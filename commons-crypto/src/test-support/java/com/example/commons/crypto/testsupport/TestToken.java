@@ -1,6 +1,8 @@
 package com.example.commons.crypto.testsupport;
 
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
 
 import com.example.commons.crypto.pkcs11.Pkcs11Config;
 
@@ -18,6 +20,18 @@ public final class TestToken {
 	public static final String EC_ALIAS = env("PKCS11_EC_ALIAS", "ec");
 
 	private TestToken() {
+	}
+
+	/**
+	 * The aliases of more keys on the token (bigger RSA keys, other curves), from
+	 * PKCS11_EXTRA_ALIASES as a comma separated list. Empty if the token has none.
+	 */
+	public static List<String> extraAliases() {
+		String value = System.getenv("PKCS11_EXTRA_ALIASES");
+		if (value == null || value.isBlank()) {
+			return List.of();
+		}
+		return Arrays.stream(value.split(",")).map(String::trim).filter((alias) -> !alias.isEmpty()).toList();
 	}
 
 	private static String env(String name, String fallback) {

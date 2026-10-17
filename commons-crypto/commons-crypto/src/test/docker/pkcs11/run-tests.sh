@@ -34,6 +34,24 @@ openssl x509 -in eccert.pem -outform DER -out eccert.der
 pkcs11-tool --module "$SOFTHSM2_LIBRARY" --login --pin 1234 --write-object eckey.der --type privkey --id 02 --label ec --usage-sign --usage-derive > /dev/null
 pkcs11-tool --module "$SOFTHSM2_LIBRARY" --login --pin 1234 --write-object eccert.der --type cert --id 02 --label ec > /dev/null
 
+# More keys: a bigger RSA key and the other NIST curves, each with a certificate.
+extra_key() {
+  name="$1"; id="$2"; shift 2
+  "$@" > "$name.pem"
+  openssl pkcs8 -topk8 -nocrypt -in "$name.pem" -outform DER -out "$name.der"
+  openssl req -x509 -new -key "$name.pem" -subj "/CN=$name" -days 3650 -out "$name-cert.pem" 2> /dev/null
+  openssl x509 -in "$name-cert.pem" -outform DER -out "$name-cert.der"
+  openssl pkcs12 -export -inkey "$name.pem" -in "$name-cert.pem" -name "$name" -out "$name.p12" -passout pass:changeit
+  usage=""
+  case "$name" in ec*) usage="--usage-sign --usage-derive" ;; esac
+  pkcs11-tool --module "$SOFTHSM2_LIBRARY" --login --pin 1234 --write-object "$name.der" --type privkey --id "$id" --label "$name" $usage > /dev/null
+  pkcs11-tool --module "$SOFTHSM2_LIBRARY" --login --pin 1234 --write-object "$name-cert.der" --type cert --id "$id" --label "$name" > /dev/null
+}
+extra_key rsa4096 03 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096
+extra_key ec384 04 openssl ecparam -name secp384r1 -genkey -noout
+extra_key ec521 05 openssl ecparam -name secp521r1 -genkey -noout
+export PKCS11_EXTRA_ALIASES=rsa4096,ec384,ec521
+
 # ---- NSS softoken, with the test keys of the modules imported from their PKCS#12 files
 NSS_LIBRARY=/usr/lib/x86_64-linux-gnu/libsoftokn3.so
 KEYS=/repo/commons-crypto/src/test-support/resources
@@ -43,6 +61,9 @@ echo 1234 > /tmp/nss-password
 certutil -N -d sql:/tmp/nssdb -f /tmp/nss-password
 pk12util -i "$KEYS/rsa.p12" -d sql:/tmp/nssdb -k /tmp/nss-password -W changeit > /dev/null
 pk12util -i "$KEYS/ec.p12" -d sql:/tmp/nssdb -k /tmp/nss-password -W changeit > /dev/null
+for name in rsa4096 ec384 ec521; do
+  pk12util -i "/tmp/$name.p12" -d sql:/tmp/nssdb -k /tmp/nss-password -W changeit > /dev/null
+done
 
 # ---- build in a copy
 rm -rf /tmp/build
@@ -82,7 +103,7 @@ export PKCS11_RSA_ALIAS=rsa
 export PKCS11_EC_ALIAS=ec
 unset INTEROP_TOOLS
 nss_status=0
-mvn -B -pl commons-crypto -amd verify -Dtest='Pkcs11TokenIntegrationTest,CmsTokenIntegrationTest,PgpTokenIntegrationTest' -Dsurefire.failIfNoSpecifiedTests=false "$@" > /tmp/mvn-nss.log 2>&1 || nss_status=$?
+mvn -B -pl commons-crypto -amd verify -Dtest='Pkcs11TokenIntegrationTest,CmsTokenIntegrationTest,PgpTokenIntegrationTest,CmsTokenKeySizesTest,PgpTokenKeySizesTest' -Dsurefire.failIfNoSpecifiedTests=false "$@" > /tmp/mvn-nss.log 2>&1 || nss_status=$?
 report /tmp/mvn-nss.log
 if [ "$nss_status" -ne 0 ]; then failures; status=$nss_status; fi
 

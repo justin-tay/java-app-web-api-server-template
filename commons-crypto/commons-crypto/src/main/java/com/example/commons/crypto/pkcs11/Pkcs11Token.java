@@ -218,7 +218,13 @@ public final class Pkcs11Token implements AutoCloseable {
 		}
 	}
 
-	private static CryptoException loginFailure(Exception ex) {
+	static CryptoException loginFailure(Exception ex) {
+		for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+			if (String.valueOf(cause.getMessage()).contains("CKR_PIN_LOCKED")) {
+				return new PinRequiredException("The token is locked after too many wrong PINs; "
+						+ "it has to be unlocked with the security officer PIN", ex);
+			}
+		}
 		for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
 			if (cause instanceof FailedLoginException) {
 				return new PinRequiredException("The token PIN is wrong or the token is locked", ex);

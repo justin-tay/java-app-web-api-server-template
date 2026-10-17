@@ -142,3 +142,9 @@ is independently testable and ordered by its dependencies.
   - OCB messages in both styles are decrypted and altered ones fail; tested with Bouncy Castle
     messages only, since the GnuPG in the test image does not write them.
   - _Requirements: R8.1_
+
+- [x] 24. More token coverage and the padding oracle
+  - RSA 4096 and P-384 and P-521 on SoftHSM2 and NSS, the test suite on JDK 17, 21 and 25, a
+    locked token reported as locked, and uniform errors for a bad PKCS#1 v1.5 padding in both
+    formats.
+  - _Requirements: R5.7_

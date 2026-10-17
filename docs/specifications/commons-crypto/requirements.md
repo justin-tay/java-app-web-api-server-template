@@ -127,8 +127,8 @@ they cannot be copied.
 6. WHEN the token becomes unavailable, THEN operations SHALL throw
    `TokenUnavailableException` and the caller SHALL create a new handle. The library
    SHALL NOT reconnect by itself.
-7. Version 1 SHALL support, on tokens, RSA keys and EC keys on P-256 for signing and
-   decryption. Ed25519 and X25519 are not available through SunPKCS11 and are out of scope
+7. Version 1 SHALL support, on tokens, RSA keys and EC keys on P-256, P-384 and P-521 for
+   signing and decryption. Ed25519 and X25519 are not available through SunPKCS11 and are out of scope
    for token keys. Software keys SHALL support ECC from the first release.
 8. WHEN an EC token key decrypts (CMS key agreement or OpenPGP ECDH), THEN the library
    SHALL run the raw key agreement on the token and the key derivation in software, through

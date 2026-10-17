@@ -203,6 +203,7 @@ public final class CmsDecryptor {
 	private static InputStream recipientStream(DecryptRequest request, RecipientInformationStore store,
 			boolean authenticated) throws CMSException, IOException {
 		CMSException failure = null;
+		boolean pkcs1Failure = false;
 		if (request.key() != null) {
 			boolean rsa = request.certificate().getPublicKey().getAlgorithm().equals("RSA");
 			RecipientId id = rsa ? new JceKeyTransRecipientId(request.certificate())
@@ -218,6 +219,8 @@ public final class CmsDecryptor {
 				}
 				catch (CMSException ex) {
 					failure = ex;
+					pkcs1Failure = PKCSObjectIdentifiers.rsaEncryption
+						.equals(recipient.getKeyEncryptionAlgorithm().getAlgorithm());
 				}
 			}
 		}
@@ -240,6 +243,13 @@ public final class CmsDecryptor {
 			}
 		}
 		if (failure != null) {
+			if (pkcs1Failure) {
+				// A bad padding must look like any other damage, or a sender could learn
+				// from the
+				// difference whether a guess at the padding was right (Bleichenbacher's
+				// attack).
+				throw new IntegrityException("The message failed its integrity check", failure);
+			}
 			throw failure;
 		}
 		throw new NoMatchingKeyException("The message is not encrypted for the supplied key or password");

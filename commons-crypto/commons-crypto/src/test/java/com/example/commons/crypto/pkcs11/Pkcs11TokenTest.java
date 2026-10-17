@@ -2,6 +2,10 @@ package com.example.commons.crypto.pkcs11;
 
 import java.nio.file.Path;
 
+import javax.security.auth.login.FailedLoginException;
+import javax.security.auth.login.LoginException;
+
+import com.example.commons.crypto.PinRequiredException;
 import com.example.commons.crypto.PinSupplier;
 import com.example.commons.crypto.TokenUnavailableException;
 import org.junit.jupiter.api.Test;
@@ -34,6 +38,34 @@ class Pkcs11TokenTest {
 			return "1234".toCharArray();
 		})).isInstanceOf(TokenUnavailableException.class);
 		assertThat(calls[0]).isZero();
+	}
+
+	/**
+	 * Neither SoftHSM2 nor NSS locks a token after wrong PINs, so the way a login failure
+	 * is told apart is checked with the failures that SunPKCS11 raises.
+	 */
+	@Test
+	void aWrongPinIsAPinProblem() {
+		assertThat(Pkcs11Token.loginFailure(new FailedLoginException("CKR_PIN_INCORRECT")))
+			.isInstanceOf(PinRequiredException.class)
+			.hasMessageContaining("wrong");
+	}
+
+	@Test
+	void aLockedTokenIsReportedAsLockedSoThatNobodyKeepsTrying() {
+		LoginException locked = new LoginException("sun.security.pkcs11.wrapper.PKCS11Exception: CKR_PIN_LOCKED");
+
+		assertThat(Pkcs11Token.loginFailure(new IllegalStateException("login", locked)))
+			.isInstanceOf(PinRequiredException.class)
+			.hasMessageContaining("locked")
+			.hasMessageContaining("security officer");
+	}
+
+	@Test
+	void aTokenThatIsGoneIsNotAPinProblem() {
+		LoginException gone = new LoginException("CKR_DEVICE_REMOVED");
+
+		assertThat(Pkcs11Token.loginFailure(gone)).isInstanceOf(TokenUnavailableException.class);
 	}
 
 }

@@ -98,10 +98,11 @@ Read these before relying on it.
 - **Old formats are refused.** Messages without integrity protection, weak ciphers, SHA-1
   signatures and RSA PKCS#1 v1.5 key transport are rejected unless you set `legacyCompatibility(true)`
   on the decrypt or verify request. Anything the library writes is modern.
-- **Hardware keys are narrower than software keys.** RSA and EC P-256 only. SunPKCS11 has no RSA
+- **Hardware keys are narrower than software keys.** RSA (2048 and 4096 bits tested) and the NIST
+  curves P-256, P-384 and P-521 only. SunPKCS11 has no RSA
   OAEP, so CMS messages for an RSA token key need a provider that has it, or
   `allowPkcs1v15KeyTransport()` on the handle. A key is visible only if the token also holds a
-  certificate for it. It was tested on SoftHSM2 and NSS, not on a real HSM.
+  certificate for it. It was tested on SoftHSM2 and NSS with JDK 17, 21 and 25, not on a real HSM.
 - **Not included.** Key generation, key ring management, timestamps, certificate chain validation.
   For OpenPGP, writing messages with AEAD packets (it writes the widely supported AES-256 with a
   modification detection code), and legacy PGP 2.x formats. Reading AEAD messages (OCB, in both
@@ -133,10 +134,17 @@ try (Pkcs11Token token = Pkcs11Token.open(config, (info) -> pin())) {
   ```
 - An OpenPGP token key is paired with its public keys: `PgpSecretKeys.token(key, publicKeys)`. The
   token key must be allowed to sign, so that the pairing can be checked.
-- RSA and EC P-256 keys are supported. SunPKCS11 has no RSA OAEP, so CMS messages for an RSA token
+- RSA and EC keys on P-256, P-384 and P-521 are supported. SunPKCS11 has no RSA OAEP, so CMS messages for an RSA token
   key fail with an error that says so. If the sender can use PKCS#1 v1.5, call
   `allowPkcs1v15KeyTransport()` on the key handle.
 - If the token is removed, operations fail with `TokenUnavailableException`; open a new token.
+- A wrong PIN is asked for once and never retried. A token that reports its PIN as locked gives a
+  `PinRequiredException` that says so, so that nothing keeps trying; unlock it with the security
+  officer PIN. The wrong PIN and locked cases are only unit tested, since SoftHSM2 and NSS do not
+  lock.
+- The errors for a bad RSA PKCS#1 v1.5 padding (OpenPGP always, CMS when it is allowed) are the
+  same as for any other damage to the message, so a sender cannot use them as a padding oracle.
+  Timing is not equalised.
 - Module-specific SunPKCS11 settings that the library does not set itself go in
   `Pkcs11Config.Builder.extraSettings(...)`, for example `nssArgs` for an NSS database.
 
@@ -195,6 +203,9 @@ a PIN, a key or message content.
 against SoftHSM2 and against an NSS software token) and the interoperability tests (GnuPG and OpenSSL)
 need those tools, so they run in a container and skip themselves otherwise. The token tests take the
 token from `PKCS11_LIBRARY` and related variables, so another token can be pointed at them:
+
+To run them on another JDK, build the image from another base with
+`--build-arg BASE=maven:3.9-eclipse-temurin-21`.
 
 ```bash
 docker build -t commons-crypto-pkcs11-test commons-crypto/commons-crypto/src/test/docker/pkcs11
