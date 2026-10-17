@@ -46,7 +46,7 @@ is independently testable and ordered by its dependencies.
     validation.
   - _Requirements: R2, R3, R6_
 
-- [ ] 7. OpenPGP encrypt and decrypt
+- [x] 7. OpenPGP encrypt and decrypt
   - Subkey selection, key ID matching on decrypt, token key binding, MDC and AEAD
     handling, armor, legacy refusal.
   - _Requirements: R2, R4, R7, R8_

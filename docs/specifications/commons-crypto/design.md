@@ -83,13 +83,19 @@ PgpEncryptor.create().encrypt(
         .build(),
     in, out);
 
-DecryptResult r = PgpDecryptor.create().decrypt(
+PgpDecryptor.create().decrypt(
     DecryptRequest.builder()
         .keys(PgpSecretKeys.token(handle, publicCert))
-        .verifyWith(senderPublicKeys)      // optional
         .build(),
     in, out);
-r.signatures();   // signer, valid or not, signing time, unknown signers included
+
+// Decrypting and verifying in one call reports every signature, unknown signers included
+VerifyResult r = PgpDecryptor.create().decryptAndVerify(
+    DecryptAndVerifyRequest.builder()
+        .keys(PgpSecretKeys.token(handle, publicCert))
+        .verifyWith(senderPublicKeys)
+        .build(),
+    in, out);
 ```
 
 CMS:
