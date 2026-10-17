@@ -110,9 +110,24 @@ they cannot be copied.
 6. WHEN the token becomes unavailable, THEN operations SHALL throw
    `TokenUnavailableException` and the caller SHALL create a new handle. The library
    SHALL NOT reconnect by itself.
-7. Version 1 SHALL support RSA keys on tokens. ECC keys on tokens (ECDH and EdDSA) are
-   deferred until a spike confirms they work. Software keys SHALL support ECC from the
-   first release.
+7. Version 1 SHALL support, on tokens, RSA keys and EC keys on P-256 for signing and
+   decryption. Ed25519 and X25519 are not available through SunPKCS11 and are out of scope
+   for token keys. Software keys SHALL support ECC from the first release.
+8. WHEN an EC token key decrypts (CMS key agreement or OpenPGP ECDH), THEN the library
+   SHALL run the raw key agreement on the token and the key derivation in software, through
+   an adapter provider that the library registers, and the private key SHALL NOT leave the
+   token.
+9. The library SHALL build the token provider configuration itself, including the derived
+   secret key attributes the agreement needs, and SHALL NOT require the caller to supply a
+   provider configuration file.
+10. WHEN a token holds a private key without a certificate, THEN the library SHALL document
+    and support writing a placeholder certificate so the key is listed, because SunPKCS11
+    lists only keys that have a certificate.
+11. WHEN an RSA token key is used through a provider that has no OAEP cipher (SunPKCS11),
+    THEN decrypt of a CMS OAEP recipient SHALL fail with a `CryptoException` that names the
+    cause and the options. A CMS PKCS#1 v1.5 recipient SHALL be accepted only when the
+    caller calls `allowPkcs1v15KeyTransport()` on that key handle, which is an explicit
+    exception to R8.2 for that key and not a global setting.
 
 ### R6: Verification results
 
@@ -168,6 +183,8 @@ adopters do not weaken their security by accident.
 
 ## Constraints and edge cases
 
+- SunPKCS11 has no RSA OAEP cipher on JDK 17, 21 or 25, so CMS OAEP decrypt needs a vendor
+  provider that supports it.
 - OpenPGP RSA uses PKCS#1 v1.5 key transport, so a PGP token key needs the mechanism
   `CKM_RSA_PKCS` enabled. A token that allows only OAEP cannot decrypt OpenPGP messages.
 - CMS verification returns the signer's certificate and does not build or validate the

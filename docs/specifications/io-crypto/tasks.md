@@ -6,11 +6,13 @@ The riskiest piece, a private-key operation on a token, is proven first. Then th
 root package, then CMS, then OpenPGP, then the build checks and documentation. Each task
 is independently testable and ordered by its dependencies.
 
-- [ ] 1. Spike: RSA decrypt and sign with a non-extractable SoftHSM2 key through SunPKCS11
+- [x] 1. Spike: RSA decrypt and sign with a non-extractable SoftHSM2 key through SunPKCS11
   - Decrypt a CMS key-transport recipient with OAEP, and an OpenPGP session key with
     `CKM_RSA_PKCS`, using Bouncy Castle JCE operators bound to the provider.
   - Completion: both decrypt through the token, and the findings are recorded in the
     design's hardware section.
+  - Result: PGP decrypt and sign, and CMS sign and PKCS#1 v1.5 decrypt, work. CMS OAEP does
+    not work through SunPKCS11; see the design's spike findings and the open decision.
   - _Requirements: R5_
 
 - [ ] 2. Repo and build
@@ -68,7 +70,26 @@ is independently testable and ordered by its dependencies.
     one-line shortcuts.
   - _Requirements: R7_
 
-- [ ] 13. Spike (later): ECC on tokens
-  - Confirm raw ECDH and EdDSA through SunPKCS11 and decide whether Bouncy Castle's PGP
-    ECDH can use it.
+- [x] 13. Spike: ECC on tokens
+  - Result: ECDSA works, raw ECDH works with provider attributes, EdDSA and XDH are
+    unavailable in SunPKCS11, and an adapter provider makes CMS and PGP ECDH decrypt work
+    on a token; see the design's ECDH adapter spike.
   - _Requirements: R5.7_
+
+- [ ] 14. ECDH adapter provider
+  - Turn the spike's `TokenEcdh` into the `pkcs11` package adapter: names, key acceptance,
+    raw agreement on the token, concatenation KDF and X9.63 KDF in software.
+  - Completion: tests compare its KDF output with Bouncy Castle's for each digest and key
+    wrap size, and CMS and OpenPGP ECDH decrypt pass on SoftHSM2.
+  - _Requirements: R5.8_
+
+- [ ] 15. Token provider configuration and placeholder certificate
+  - Build the SunPKCS11 configuration with the derived secret key attributes, and add a
+    helper that writes a placeholder certificate for a key without one.
+  - _Requirements: R5.9, R5.10_
+
+- [ ] 16. Token RSA decrypt policy
+  - `allowPkcs1v15KeyTransport()` on the key handle, and the clear error for CMS OAEP
+    through a provider without OAEP.
+  - _Requirements: R5.11, R8_
+

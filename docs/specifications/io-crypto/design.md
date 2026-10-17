@@ -131,6 +131,118 @@ Constraints:
 - The public half of an OpenPGP key is not on the token. The caller supplies it, and the
   handle binding checks it against the token key.
 
+### Spike findings
+
+The spike ran Bouncy Castle 1.80 against SoftHSM2 2.6.1 through SunPKCS11, in containers
+with Temurin 17, 21 and 25. The token key was generated on the token and reported as not
+extractable.
+
+| Operation | Result |
+| --- | --- |
+| CMS sign (SHA256withRSA, detached), token signs, software verifies | Works |
+| CMS `AuthEnvelopedData` (AES-256-GCM) with PKCS#1 v1.5 key transport, unwrap on token | Works, with and without `mustProduceEncodableUnwrappedKey` |
+| CMS key transport with OAEP, unwrap on token | **Fails.** SunPKCS11 registers only `RSA/ECB/PKCS1Padding` and `RSA/ECB/NoPadding` on all three JDKs, although the token offers `CKM_RSA_PKCS_OAEP` |
+| OpenPGP decrypt (PKCS#1 v1.5 session key unwrap on token, MDC verified) | Works through `JcePublicKeyDataDecryptorFactoryBuilder.build(PrivateKey)` |
+| OpenPGP sign on token, software verifies | Works only with a workaround, see below |
+
+Consequences:
+
+1. **OAEP on a token is not available through SunPKCS11.** It fails for SHA-1 and SHA-256
+   alike, and the JDK 25 `P11RSACipher` class contains only `nopadding` and `pkcs1padding`,
+   so the gap is in the JDK, not in the hash choice. Separately, SoftHSM2 2.6.1 supports
+   OAEP only with SHA-1 and MGF1-SHA1; other hashes landed in the SoftHSM2 repository in
+   June 2026 (commit de25233) and are not in a release the spike used. R8 refuses CMS PKCS#1 v1.5 key
+   transport by default, so a CMS token key cannot decrypt under the default policy. The
+   options are a vendor JCA provider that supports OAEP, raw RSA on the token with OAEP
+   decoding in software (a decode attempt in the spike was inconclusive and needs a
+   re-test), a direct PKCS#11 binding, or allowing v1.5 for token keys only. This is an
+   open decision.
+2. **SunPKCS11 lists a private key only if the token also holds a certificate for it.**
+   A key pair generated on a token without a certificate does not appear in the
+   `KeyStore`. OpenPGP keys have no X.509 certificate, so a PGP-only token needs a
+   placeholder certificate written to it (the spike used one signed by a throwaway key),
+   or a lookup that bypasses the key store.
+3. **`JcaPGPKeyConverter.getPGPPrivateKey(pub, privateKey)` fails** with a
+   `ClassCastException` on a token key because it expects `RSAPrivateCrtKey`. The
+   workaround that worked is a `PGPPrivateKey` with dummy secret material plus a
+   `PGPContentSignerBuilder` that calls `JcaPGPContentSignerBuilder.build(type, keyId,
+   privateKey)` with the token key.
+
+### ECC spike findings
+
+The same setup, with a P-256 key generated on the token, on JDK 17 and 25.
+
+| Operation | Result |
+| --- | --- |
+| CMS sign with ECDSA-SHA256, token signs, software verifies | Works |
+| OpenPGP ECDSA sign on token, software verifies | Works with the same custom signer builder as RSA |
+| Raw ECDH on the token through `KeyAgreement` | Works only after configuring the provider so derived secret keys are `CKA_SENSITIVE=false` and `CKA_EXTRACTABLE=true`; the default fails with `CKR_ATTRIBUTE_SENSITIVE`. Only the shared secret leaves the token, never the private key |
+| CMS key agreement (ECDH) decrypt with Bouncy Castle 1.80 | **Fails, in layers.** The recipient needs `setPrivateKeyAlgorithmIdentifier` because the token key has no encoding. Then it needs a provider that offers a key factory by OID, and finally a key agreement with the key derivation built in (`ECDHwithSHA256KDF`), which only the Bouncy Castle provider has. SunPKCS11 offers plain `ECDH` only |
+| OpenPGP ECDH decrypt with Bouncy Castle 1.80 | **Fails, in layers.** `JcaPGPPrivateKey` is the supported carrier for a token key and gets past the "requires PGPPrivateKey" check. Then Bouncy Castle asks for a key agreement named by `RFC6637Utils.getAgreementAlgorithm` (key derivation built in), which SunPKCS11 does not provide |
+| Ed25519 and X25519 through SunPKCS11 | **Not available.** The provider has no EdDSA or XDH services on JDK 17 or 25, although SoftHSM2 generated an Ed25519 key |
+
+Consequences:
+
+1. ECC on a token does not escape the problem. Signing works for RSA and P-256, and the
+   PGP signing workaround is unnecessary: `JcaPGPPrivateKey` passed to
+   `PGPSignatureGenerator.init` works directly. Bouncy Castle expects the key agreement
+   and its key derivation in one `KeyAgreement`, so decryption needs a small adapter. The
+   most promising one is a thin JCA provider in this library that registers the
+   Bouncy Castle algorithm names, does the raw ECDH on the token through SunPKCS11, and
+   applies the key derivation in software. Both formats use it unchanged. The spike built
+   it (about 90 lines) and it works, see the adapter results below.
+2. The provider configuration is part of the contract: ECDH on SunPKCS11 needs the
+   derived-secret attributes set, so `KeyStores.pkcs11` should build the provider
+   configuration itself instead of taking an arbitrary file.
+3. Modern curves (Ed25519, X25519) are out of reach through SunPKCS11 on current JDKs, so
+   v1 token support is RSA and the NIST curves.
+
+### ECDH adapter spike
+
+A small provider, `TokenEcdh`, registered ahead of Bouncy Castle:
+
+- It registers the names Bouncy Castle asks for: `ECCDHwithSHA256CKDF` (and 384, 512) for
+  OpenPGP, and `ECDHwithSHA*KDF` plus the CMS key agreement OIDs for CMS.
+- It accepts only keys that are private, `EC` and non-encodable, so software keys still go
+  to Bouncy Castle.
+- The raw agreement runs on the token (`KeyAgreement` "ECDH" through the token provider);
+  the key derivation runs in software: the concatenation KDF for OpenPGP (RFC 6637) and
+  the X9.63 KDF (`KDF2BytesGenerator`) for CMS. For CMS, Bouncy Castle builds the
+  `ECC-CMS-SharedInfo` and passes it as the user keying material.
+- Results on JDK 17 and 25 with P-256: CMS `AuthEnvelopedData` ECDH decrypt (SHA-1 and SHA-256
+  KDF OIDs) and OpenPGP ECDH decrypt both pass, with the private key on the token. The
+  CMS derivation matches Bouncy Castle's own provider byte for byte, for AES-128 and
+  AES-256 key wrap, with and without user keying material.
+
+Requirements the adapter puts on the surrounding code:
+
+1. The CMS recipient needs `setPrivateKeyAlgorithmIdentifier(id-ecPublicKey, curve)`,
+   because a token key has no encoding.
+2. The OpenPGP decryptor takes the key as `JcaPGPPrivateKey`, not a bare `PrivateKey`.
+3. The token provider configuration must set derived secret keys to non-sensitive and
+   extractable, so the library builds that configuration itself.
+4. Neither `setProvider` nor `setContentProvider` may force the token provider for the
+   recipient; the late-binding lookup selects the adapter by key. Bouncy Castle stays
+   registered for the key factory and content cipher.
+5. A JCE provider must be acceptable to the JDK in use. OpenJDK builds accept unsigned
+   providers; an Oracle JDK build may need this checked.
+6. Not covered: curves other than P-256, cofactor-multiplied agreement (`ECDHC`) on curves
+   with a cofactor above 1, and X25519 (unavailable through SunPKCS11 anyway).
+
+## Token decrypt policy
+
+| Key on the token | Format | Result |
+| --- | --- | --- |
+| RSA | OpenPGP | Works (PKCS#1 v1.5 is the only scheme) |
+| RSA | CMS, OAEP recipient | Fails with a clear error through SunPKCS11; works with a vendor provider that has OAEP |
+| RSA | CMS, PKCS#1 v1.5 recipient | Works only after `allowPkcs1v15KeyTransport()` on that key handle |
+| EC P-256 | OpenPGP and CMS | Works through the `TokenEcdh` adapter provider |
+| Ed25519, X25519 | any | Not available through SunPKCS11 |
+
+The library registers the adapter and builds the token provider configuration, so the caller
+sees only a key handle. The error for an unsupported combination names the key type, the
+format and the way out.
+
 ## Streaming and integrity
 
 All operations stream. Signatures and integrity tags come at the end of the data, so a
@@ -166,6 +278,7 @@ CryptoException (unchecked)
 
 ## Open risks
 
-1. ECC on tokens (deferred spike).
-2. `CKM_RSA_PKCS` availability on the target HSMs for OpenPGP.
-3. The optional-dependency contract in one artifact.
+1. `CKM_RSA_PKCS` availability on the target HSMs for OpenPGP.
+2. The optional-dependency contract in one artifact.
+3. The ECDH adapter is only proven on P-256 with SoftHSM2; other curves and real HSMs are untested.
+4. The adapter is a JCE provider; its acceptance on non-OpenJDK builds is unchecked.
