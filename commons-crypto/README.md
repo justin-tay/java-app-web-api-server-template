@@ -23,12 +23,14 @@ Every operation has a one-line form for the defaults, in `Pgp` and in `Cms`:
 PgpPublicKeys recipient = PgpPublicKeys.fromArmored(recipientAsc);
 Pgp.encrypt(in, out, recipient);
 
-PgpSecretKeys mine = PgpSecretKeys.fromArmored(secretAsc, passphrase);
-Pgp.decrypt(in, out, mine);
+try (PgpSecretKeys mine = PgpSecretKeys.fromArmored(secretAsc, passphrase)) {
+    Pgp.decrypt(in, out, mine);
+}
 
-Pgp.signDetached(data, signatureOut, mine);
 VerifyResult result = Pgp.verifyDetached(data, signatureIn, signerPublicKeys);
 ```
+
+`PgpSecretKeys` is closeable: closing it overwrites the passphrase copy it holds.
 
 ```java
 try (PrivateKeyHandle key = KeyStores.pkcs12(path, password, "alias")) {
@@ -82,7 +84,33 @@ try (Pkcs11Token token = Pkcs11Token.open(config, (info) -> pin())) {
   request accepts them for reading only.
 - Verification reports every signature with a status: `VALID`, `INVALID` or `UNKNOWN_SIGNER`. It
   checks signatures only. It does not build certificate chains or check revocation, and it does not
-  decide whether a signer is trusted: that is for the caller.
+  decide whether a signer is trusted: that is for the caller. A signature by a key that has since been
+  revoked or has expired is still reported `VALID`; check that yourself if it matters.
+
+## Providers
+
+- The library uses its own Bouncy Castle provider instance, created the first time it is needed and
+  shared (`BouncyCastle.provider()`). It is never added to the JDK's provider list, so your
+  application does not need to register Bouncy Castle and its providers are left alone.
+- A key handle says which provider performs the private key operations: `PrivateKeyHandle.provider()`.
+  For a key in software it is empty; for a token it is the token's provider. You can implement
+  `PrivateKeyHandle` yourself to put a key behind any JCA provider, such as a vendor's HSM provider,
+  and that provider is used for signing, for RSA decryption and for EC key agreement. There is no
+  option to choose the provider for ciphers, hashes or verification.
+- The one JVM-wide change: the first time a token is opened through `Pkcs11Token`, the library
+  registers a provider (`CommonsCryptoTokenEcdh`) at the front of the provider list. It offers the
+  key agreement names Bouncy Castle asks for with a key derivation function, which SunPKCS11 lacks,
+  and the EC key factory names Bouncy Castle looks up, handing them to the JDK's. It acts only for EC
+  private keys that cannot be extracted, and only keys on a token you opened.
+
+## Limits
+
+- Compressed OpenPGP data may be nested at most 4 layers deep.
+- `DecryptRequest` and `VerifyRequest` take `maxOutputBytes(long)`, which stops a message that
+  expands a great deal (a decompression bomb) by failing once that much has been written. There is
+  no limit unless you set one.
+- A line of an armored CMS message may be at most 1024 bytes.
+- Cleartext OpenPGP signatures read the whole text into memory.
 
 ## Streaming and failures
 

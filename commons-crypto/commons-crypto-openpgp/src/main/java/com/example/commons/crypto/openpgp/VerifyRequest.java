@@ -13,9 +13,12 @@ public final class VerifyRequest {
 
 	private final boolean legacyCompatibility;
 
+	private final long maxOutputBytes;
+
 	private VerifyRequest(Builder builder) {
 		this.keys = List.copyOf(builder.keys);
 		this.legacyCompatibility = builder.legacyCompatibility;
+		this.maxOutputBytes = builder.maxOutputBytes;
 	}
 
 	public static Builder builder() {
@@ -46,11 +49,23 @@ public final class VerifyRequest {
 		return null;
 	}
 
+	/**
+	 * The most bytes that may be written to the output stream, as a protection against a
+	 * message that expands a great deal. Writing more fails with a
+	 * {@code CryptoException}. There is no limit unless one is set.
+	 * @return the limit, or {@code Long.MAX_VALUE} if there is none
+	 */
+	public long maxOutputBytes() {
+		return this.maxOutputBytes;
+	}
+
 	public static final class Builder {
 
 		private final List<PgpPublicKeys> keys = new ArrayList<>();
 
 		private boolean legacyCompatibility;
+
+		private long maxOutputBytes = Long.MAX_VALUE;
 
 		private Builder() {
 		}
@@ -62,6 +77,19 @@ public final class VerifyRequest {
 
 		public Builder legacyCompatibility(boolean legacyCompatibility) {
 			this.legacyCompatibility = legacyCompatibility;
+			return this;
+		}
+
+		/**
+		 * Limits how much may be written to the output stream.
+		 * @param maxOutputBytes the most bytes to write, which must be positive
+		 * @return this builder
+		 */
+		public Builder maxOutputBytes(long maxOutputBytes) {
+			if (maxOutputBytes <= 0) {
+				throw new IllegalArgumentException("maxOutputBytes must be positive");
+			}
+			this.maxOutputBytes = maxOutputBytes;
 			return this;
 		}
 

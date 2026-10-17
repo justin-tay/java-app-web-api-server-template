@@ -134,6 +134,19 @@ they cannot be copied.
     caller calls `allowPkcs1v15KeyTransport()` on that key handle, which is an explicit
     exception to R8.2 for that key and not a global setting.
 
+### R5b: Providers
+
+**User story:** As an integrator, I want to know which JCA providers the library uses, so that it
+does not disturb mine and I can put a key behind my own.
+
+1. The library SHALL use its own Bouncy Castle provider instance, created lazily and shared, and
+   SHALL NOT add it to the JDK's provider list.
+2. A key handle SHALL be able to name the provider that performs the operations with its key. WHEN
+   a handle is not one of the library's own token handles, THEN its provider SHALL be used for
+   signing, RSA decryption and EC key agreement.
+3. The only provider the library registers JVM-wide SHALL be the ECDH adapter, once, when a token
+   is first opened, and it SHALL act only for EC private keys that cannot be extracted.
+
 ### R6: Verification results
 
 **User story:** As a developer, I want clear verification results, so that I cannot
@@ -158,6 +171,21 @@ a message turns out to be corrupt, so that I handle failures correctly.
 3. WHEN a message is not integrity-protected (an OpenPGP packet without modification
    detection, CMS `EnvelopedData` with an unauthenticated cipher), THEN decrypt SHALL
    refuse it unless legacy compatibility is set.
+
+### R7b: Resource limits
+
+**User story:** As an operator, I want a crafted message not to exhaust memory or time, so that
+the library can read input I do not control.
+
+1. WHEN OpenPGP compressed data is nested more than 4 layers deep, THEN the library SHALL refuse
+   it with a `CryptoException`.
+2. WHEN the caller sets `maxOutputBytes` on a decrypt or verify request and more output would be
+   written, THEN the library SHALL stop before writing past the limit and throw a
+   `CryptoException`.
+3. WHEN a line of an armored CMS message is longer than 1024 bytes, THEN the library SHALL refuse
+   it with a `CryptoException`.
+4. A `PgpSecretKeys` SHALL be closeable, closing it SHALL overwrite the passphrase copy it holds,
+   and closed keys SHALL NOT be usable.
 
 ### R8: Algorithm policy
 

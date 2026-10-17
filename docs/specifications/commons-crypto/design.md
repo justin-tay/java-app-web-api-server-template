@@ -380,6 +380,23 @@ Run in the container image (Ubuntu 24.04: GnuPG 2.4.4, OpenSSL 3.0.13):
 - When GnuPG signs for a key whose self-signature has no preferred hash algorithms it falls back
   to SHA-1, which we refuse by default. Real keys carry preferences; the test keys now do too.
 
+### Hardening
+
+A review of the security-sensitive code led to these, each with a test:
+
+- **Providers.** One shared Bouncy Castle provider lives in the core module
+  (`BouncyCastle.provider()`) instead of one per format module. A key handle that is not a
+  `Pkcs11PrivateKeyHandle` has its own provider used for EC key agreement too, where before the
+  decryptors assumed SunPKCS11. This is covered with a stub provider around Bouncy Castle, not with
+  a vendor provider, so it shows the branch is taken and gives the right result, not that a
+  particular vendor's provider accepts Bouncy Castle's algorithm names.
+- **Limits.** Compression nesting is capped at 4, `maxOutputBytes` is available on decrypt and
+  verify requests, and armored CMS lines are capped at 1024 bytes.
+- **Keys.** `PgpSecretKeys` is `AutoCloseable` and refuses use after closing.
+- **Known and accepted.** Verification does not look at revocation or expiry of the signing key, in
+  line with the library leaving trust to the caller; the documentation says so. The CMS decryptor
+  tries only the first recipient entry that matches the key.
+
 ## Open risks
 
 1. `CKM_RSA_PKCS` availability on the target HSMs for OpenPGP.

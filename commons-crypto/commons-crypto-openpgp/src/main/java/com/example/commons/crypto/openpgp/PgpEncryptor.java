@@ -8,6 +8,7 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import org.bouncycastle.bcpg.ArmoredOutputStream;
 import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags;
@@ -96,9 +97,9 @@ public final class PgpEncryptor {
 		PGPEncryptedDataGenerator generator = new PGPEncryptedDataGenerator(
 				new JcePGPDataEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256).setWithIntegrityPacket(true)
 					.setSecureRandom(RANDOM)
-					.setProvider(PgpProviders.BC));
+					.setProvider(BouncyCastle.provider()));
 		for (PGPPublicKey key : keys) {
-			generator.addMethod(new JcePublicKeyKeyEncryptionMethodGenerator(key).setProvider(PgpProviders.BC));
+			generator.addMethod(new JcePublicKeyKeyEncryptionMethodGenerator(key).setProvider(BouncyCastle.provider()));
 		}
 		OutputStream target = request.armored() ? new ArmoredOutputStream(new UnclosableOutputStream(out))
 				: new UnclosableOutputStream(out);

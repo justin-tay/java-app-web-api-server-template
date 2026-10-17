@@ -11,6 +11,7 @@ import java.security.PublicKey;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.ECPublicKey;
 
+import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.SignatureMode;
 import org.bouncycastle.asn1.DERNull;
@@ -94,7 +95,7 @@ public final class CmsEncryptor {
 			generator.addRecipientInfoGenerator(recipientInfoGenerator(recipient.certificate()));
 		}
 		OutputAEADEncryptor encryptor = (OutputAEADEncryptor) new JceCMSContentEncryptorBuilder(CMSAlgorithm.AES256_GCM)
-			.setProvider(CmsProviders.BC)
+			.setProvider(BouncyCastle.provider())
 			.build();
 		OutputStream target = request.armored() ? new ArmorOutputStream(out) : new UnclosableOutputStream(out);
 		OutputStream encrypted = generator.open(target, encryptor);
@@ -120,18 +121,19 @@ public final class CmsEncryptor {
 			throws GeneralSecurityException {
 		PublicKey publicKey = certificate.getPublicKey();
 		if (publicKey instanceof ECPublicKey ecKey) {
-			KeyPairGenerator generator = KeyPairGenerator.getInstance("EC", CmsProviders.BC);
+			KeyPairGenerator generator = KeyPairGenerator.getInstance("EC", BouncyCastle.provider());
 			generator.initialize(ecKey.getParams());
 			KeyPair ephemeral = generator.generateKeyPair();
 			JceKeyAgreeRecipientInfoGenerator agreement = new JceKeyAgreeRecipientInfoGenerator(
 					CMSAlgorithm.ECDH_SHA256KDF, ephemeral.getPrivate(), ephemeral.getPublic(),
 					CMSAlgorithm.AES256_WRAP)
-				.setProvider(CmsProviders.BC);
+				.setProvider(BouncyCastle.provider());
 			agreement.addRecipient(certificate);
 			return agreement;
 		}
 		if ("RSA".equals(publicKey.getAlgorithm())) {
-			return new JceKeyTransRecipientInfoGenerator(certificate, oaepSha256()).setProvider(CmsProviders.BC);
+			return new JceKeyTransRecipientInfoGenerator(certificate, oaepSha256())
+				.setProvider(BouncyCastle.provider());
 		}
 		throw new CryptoException("Unsupported recipient key type " + publicKey.getAlgorithm());
 	}

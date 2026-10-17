@@ -13,10 +13,12 @@ import java.util.Optional;
 
 import javax.crypto.NoSuchPaddingException;
 
+import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.IntegrityException;
 import com.example.commons.crypto.NoMatchingKeyException;
 import com.example.commons.crypto.VerifyResult;
+import com.example.commons.crypto.pkcs11.Pkcs11PrivateKeyHandle;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.cms.CMSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
@@ -138,25 +140,35 @@ public final class CmsDecryptor {
 	 */
 	private static Recipient keyRecipient(DecryptRequest request, boolean authenticated) {
 		PrivateKey key = request.key().key();
-		Optional<Provider> token = request.key().provider();
+		Optional<Provider> provider = request.key().provider();
+		boolean libraryToken = request.key() instanceof Pkcs11PrivateKeyHandle;
 		PublicKey publicKey = request.certificate().getPublicKey();
 		if ("RSA".equals(publicKey.getAlgorithm())) {
-			Provider provider = token.orElse(CmsProviders.BC);
+			Provider rsaProvider = provider.orElse(BouncyCastle.provider());
 			return authenticated
-					? new JceKeyTransAuthEnvelopedRecipient(key).setProvider(provider)
-						.setContentProvider(CmsProviders.BC)
-					: new JceKeyTransEnvelopedRecipient(key).setProvider(provider).setContentProvider(CmsProviders.BC);
+					? new JceKeyTransAuthEnvelopedRecipient(key).setProvider(rsaProvider)
+						.setContentProvider(BouncyCastle.provider())
+					: new JceKeyTransEnvelopedRecipient(key).setProvider(rsaProvider)
+						.setContentProvider(BouncyCastle.provider());
 		}
 		JceKeyAgreeRecipient recipient = authenticated ? new JceKeyAgreeAuthEnvelopedRecipient(key)
 				: new JceKeyAgreeEnvelopedRecipient(key);
-		if (token.isPresent()) {
+		if (libraryToken || key.getEncoded() == null) {
+			// A key that cannot be extracted has no encoding, so Bouncy Castle is told
+			// its algorithm.
 			recipient.setPrivateKeyAlgorithmIdentifier(
 					SubjectPublicKeyInfo.getInstance(publicKey.getEncoded()).getAlgorithm());
 		}
-		else {
-			recipient.setProvider(CmsProviders.BC);
+		if (!libraryToken) {
+			// The handle's own provider does the key agreement, or Bouncy Castle if it
+			// has none. A
+			// key on one of the library's tokens is used with no provider forced:
+			// SunPKCS11 has no
+			// key agreement with the key derivation built in, which the library's adapter
+			// offers.
+			recipient.setProvider(provider.orElse(BouncyCastle.provider()));
 		}
-		recipient.setContentProvider(CmsProviders.BC);
+		recipient.setContentProvider(BouncyCastle.provider());
 		return recipient;
 	}
 

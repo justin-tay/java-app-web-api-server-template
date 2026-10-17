@@ -11,6 +11,7 @@ import java.security.interfaces.ECPublicKey;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.SignatureMode;
 import org.bouncycastle.cert.jcajce.JcaCertStore;
@@ -68,10 +69,10 @@ public final class CmsSigner {
 
 	private static SignerInfoGenerator signerInfoGenerator(SignRequest.Signer signer)
 			throws OperatorCreationException, GeneralSecurityException {
-		Provider provider = signer.key().provider().orElse(CmsProviders.BC);
+		Provider provider = signer.key().provider().orElse(BouncyCastle.provider());
 		String algorithm = signatureAlgorithm(signer.certificate().getPublicKey());
 		return new JcaSignerInfoGeneratorBuilder(
-				new JcaDigestCalculatorProviderBuilder().setProvider(CmsProviders.BC).build())
+				new JcaDigestCalculatorProviderBuilder().setProvider(BouncyCastle.provider()).build())
 			.build(new JcaContentSignerBuilder(algorithm).setProvider(provider).build(signer.key().key()),
 					signer.certificate());
 	}

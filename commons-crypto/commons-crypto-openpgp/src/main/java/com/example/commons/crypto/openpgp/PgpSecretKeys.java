@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Optional;
 
+import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.PinRequiredException;
 import com.example.commons.crypto.PrivateKeyHandle;
@@ -35,9 +36,9 @@ import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder;
  * OpenPGP secret keys: either held in software, read from armored or binary key rings and
  * unlocked with a passphrase only when a message needs them, or a key on a PKCS#11 token
  * that is paired with its public key. The passphrase of software keys is copied and kept
- * until {@link #clear()} is called.
+ * until {@link #close()} is called.
  */
-public final class PgpSecretKeys {
+public final class PgpSecretKeys implements AutoCloseable {
 
 	private final PGPSecretKeyRingCollection rings;
 
@@ -46,6 +47,8 @@ public final class PgpSecretKeys {
 	private final PrivateKeyHandle tokenKey;
 
 	private final PGPPublicKey tokenPublicKey;
+
+	private volatile boolean closed;
 
 	private PgpSecretKeys(PGPSecretKeyRingCollection rings, char[] passphrase) {
 		this.rings = rings;
@@ -120,7 +123,7 @@ public final class PgpSecretKeys {
 
 	private static boolean matches(PrivateKeyHandle key, PGPPublicKey candidate) {
 		try {
-			PublicKey converted = new JcaPGPKeyConverter().setProvider(PgpProviders.BC).getPublicKey(candidate);
+			PublicKey converted = new JcaPGPKeyConverter().setProvider(BouncyCastle.provider()).getPublicKey(candidate);
 			boolean ec = converted instanceof ECPublicKey;
 			// Bouncy Castle's key can carry the name ECDH, which the JDK's signature does
 			// not accept.
@@ -130,7 +133,7 @@ public final class PgpSecretKeys {
 			String algorithm = ec ? "SHA256withECDSA" : "SHA256withRSA";
 			byte[] challenge = new byte[32];
 			new SecureRandom().nextBytes(challenge);
-			Signature signer = Signature.getInstance(algorithm, key.provider().orElse(PgpProviders.BC));
+			Signature signer = Signature.getInstance(algorithm, key.provider().orElse(BouncyCastle.provider()));
 			signer.initSign(key.key());
 			signer.update(challenge);
 			byte[] signature = signer.sign();
@@ -145,10 +148,29 @@ public final class PgpSecretKeys {
 	}
 
 	/**
-	 * Overwrites the stored passphrase. Software keys cannot be unlocked afterwards.
+	 * Overwrites the stored passphrase and closes these keys: they cannot be used
+	 * afterwards. Closing keys that are on a token does not close the token key handle,
+	 * which the caller owns. Closing more than once is harmless.
 	 */
-	public void clear() {
+	@Override
+	public void close() {
+		this.closed = true;
 		Arrays.fill(this.passphrase, '\0');
+	}
+
+	/**
+	 * Same as {@link #close()}.
+	 * @deprecated use {@link #close()}, so that try-with-resources can do it
+	 */
+	@Deprecated
+	public void clear() {
+		close();
+	}
+
+	void ensureOpen() {
+		if (this.closed) {
+			throw new IllegalStateException("The OpenPGP secret keys are closed");
+		}
 	}
 
 	/**
@@ -165,6 +187,7 @@ public final class PgpSecretKeys {
 	 * @throws PinRequiredException if the passphrase is wrong
 	 */
 	SigningKey signingKey() {
+		ensureOpen();
 		if (this.tokenKey != null) {
 			if (!PgpPublicKeys.canSign(this.tokenPublicKey)) {
 				throw new CryptoException("The OpenPGP key on the token is not allowed to sign");
@@ -195,6 +218,7 @@ public final class PgpSecretKeys {
 	 * @throws PinRequiredException if the passphrase is wrong
 	 */
 	PGPPrivateKey privateKey(long keyId) {
+		ensureOpen();
 		if (this.tokenKey != null) {
 			return (keyId == this.tokenPublicKey.getKeyID())
 					? new JcaPGPPrivateKey(this.tokenPublicKey, this.tokenKey.key()) : null;
@@ -205,8 +229,8 @@ public final class PgpSecretKeys {
 				return null;
 			}
 			return key.extractPrivateKey(new JcePBESecretKeyDecryptorBuilder(
-					new JcaPGPDigestCalculatorProviderBuilder().setProvider(PgpProviders.BC).build())
-				.setProvider(PgpProviders.BC)
+					new JcaPGPDigestCalculatorProviderBuilder().setProvider(BouncyCastle.provider()).build())
+				.setProvider(BouncyCastle.provider())
 				.build(this.passphrase));
 		}
 		catch (PGPException ex) {

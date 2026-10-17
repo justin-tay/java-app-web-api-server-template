@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.SignatureResult;
 import com.example.commons.crypto.SignatureStatus;
@@ -104,7 +105,7 @@ public final class CmsVerifier {
 
 	private static org.bouncycastle.operator.DigestCalculatorProvider digestCalculatorProvider()
 			throws OperatorCreationException {
-		return new JcaDigestCalculatorProviderBuilder().setProvider(CmsProviders.BC).build();
+		return new JcaDigestCalculatorProviderBuilder().setProvider(BouncyCastle.provider()).build();
 	}
 
 	private static VerifyResult check(VerifyRequest request, CMSSignedDataParser parser)
@@ -125,8 +126,9 @@ public final class CmsVerifier {
 			for (X509Certificate certificate : request.certificates()) {
 				X509CertificateHolder holder = new JcaX509CertificateHolder(certificate);
 				if (signer.getSID().match(holder)) {
-					boolean valid = signer.verify(
-							new JcaSimpleSignerInfoVerifierBuilder().setProvider(CmsProviders.BC).build(certificate));
+					boolean valid = signer
+						.verify(new JcaSimpleSignerInfoVerifierBuilder().setProvider(BouncyCastle.provider())
+							.build(certificate));
 					return valid ? SignatureStatus.VALID : SignatureStatus.INVALID;
 				}
 			}

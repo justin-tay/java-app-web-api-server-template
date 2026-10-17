@@ -104,3 +104,8 @@ is independently testable and ordered by its dependencies.
     through a provider without OAEP.
   - _Requirements: R5.11, R8_
 
+- [x] 17. Hardening from the review
+  - A shared Bouncy Castle provider in the core module, the handle's own provider for EC key
+    agreement, compression nesting and output limits, an armor line cap, and closeable OpenPGP
+    secret keys.
+  - _Requirements: R5b, R7b_

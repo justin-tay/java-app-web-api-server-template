@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import org.bouncycastle.bcpg.ArmoredOutputStream;
 import org.bouncycastle.bcpg.BCPGOutputStream;
@@ -174,7 +175,7 @@ public final class PgpSigner {
 					|| algorithm == PublicKeyAlgorithmTags.RSA_SIGN) ? HashAlgorithmTags.SHA256
 							: HashAlgorithmTags.SHA512;
 			this.generator = new PGPSignatureGenerator(new JcaPGPContentSignerBuilder(algorithm, this.hash)
-				.setProvider(key.provider().orElse(PgpProviders.BC)), key.publicKey());
+				.setProvider(key.provider().orElse(BouncyCastle.provider())), key.publicKey());
 			this.generator.init(signatureType, key.privateKey());
 		}
 

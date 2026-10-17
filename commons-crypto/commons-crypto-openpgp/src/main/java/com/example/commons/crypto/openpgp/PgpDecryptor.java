@@ -3,15 +3,15 @@ package com.example.commons.crypto.openpgp;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.security.Provider;
 import java.util.Iterator;
-import java.util.Optional;
 import java.util.Set;
 
+import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.IntegrityException;
 import com.example.commons.crypto.NoMatchingKeyException;
 import com.example.commons.crypto.PrivateKeyHandle;
+import com.example.commons.crypto.pkcs11.Pkcs11PrivateKeyHandle;
 import com.example.commons.crypto.VerifyResult;
 import org.bouncycastle.bcpg.PublicKeyAlgorithmTags;
 import org.bouncycastle.bcpg.SymmetricKeyAlgorithmTags;
@@ -63,7 +63,7 @@ public final class PgpDecryptor {
 	public void decrypt(DecryptRequest request, InputStream in, OutputStream out) {
 		Opened opened = open(request, in);
 		try {
-			copyLiteralData(new JcaPGPObjectFactory(opened.clear()), out);
+			copyLiteralData(new JcaPGPObjectFactory(opened.clear()), PgpLimits.limit(out, request.maxOutputBytes()), 0);
 			checkIntegrity(opened.encrypted());
 		}
 		catch (IOException | PGPException | RuntimeException ex) {
@@ -93,7 +93,8 @@ public final class PgpDecryptor {
 			OutputStream out) {
 		Opened opened = open(decrypt, in);
 		try {
-			VerifyResult result = PgpVerifier.verifyPackets(verify, new JcaPGPObjectFactory(opened.clear()), out);
+			VerifyResult result = PgpVerifier.verifyPackets(verify, new JcaPGPObjectFactory(opened.clear()),
+					PgpLimits.limit(out, decrypt.maxOutputBytes()));
 			checkIntegrity(opened.encrypted());
 			return result;
 		}
@@ -110,6 +111,7 @@ public final class PgpDecryptor {
 	}
 
 	private static Opened open(DecryptRequest request, InputStream in) {
+		request.keys().ensureOpen();
 		try {
 			PGPEncryptedDataList list = encryptedDataList(new JcaPGPObjectFactory(PGPUtil.getDecoderStream(in)));
 			PGPPublicKeyEncryptedData encrypted = null;
@@ -163,16 +165,29 @@ public final class PgpDecryptor {
 	private static PublicKeyDataDecryptorFactory decryptorFactory(DecryptRequest request,
 			PGPPublicKeyEncryptedData encrypted, PGPPrivateKey privateKey) {
 		JcePublicKeyDataDecryptorFactoryBuilder builder = new JcePublicKeyDataDecryptorFactoryBuilder();
-		Optional<Provider> token = request.keys().token().flatMap(PrivateKeyHandle::provider);
+		PrivateKeyHandle handle = request.keys().token().orElse(null);
 		// setProvider resets the content provider, so the content provider is set after
 		// it.
-		if (token.isEmpty()) {
-			builder.setProvider(PgpProviders.BC);
+		if (handle == null) {
+			builder.setProvider(BouncyCastle.provider());
 		}
-		else if (encrypted.getAlgorithm() != PublicKeyAlgorithmTags.ECDH) {
-			builder.setProvider(token.get());
+		else if (handle instanceof Pkcs11PrivateKeyHandle) {
+			// An RSA token key is used through the token's provider. An elliptic curve
+			// one is used
+			// with no provider forced, because Bouncy Castle asks for a key agreement
+			// with the key
+			// derivation built in, which the library's adapter provider offers for token
+			// keys.
+			if (encrypted.getAlgorithm() != PublicKeyAlgorithmTags.ECDH) {
+				handle.provider().ifPresent(builder::setProvider);
+			}
 		}
-		return builder.setContentProvider(PgpProviders.BC).build(privateKey);
+		else {
+			// Any other handle: its own provider does everything, or Bouncy Castle if it
+			// has none.
+			builder.setProvider(handle.provider().orElse(BouncyCastle.provider()));
+		}
+		return builder.setContentProvider(BouncyCastle.provider()).build(privateKey);
 	}
 
 	private static PGPEncryptedDataList encryptedDataList(JcaPGPObjectFactory factory) throws IOException {
@@ -200,11 +215,14 @@ public final class PgpDecryptor {
 		}
 	}
 
-	private static void copyLiteralData(JcaPGPObjectFactory factory, OutputStream out)
+	private static void copyLiteralData(JcaPGPObjectFactory factory, OutputStream out, int nesting)
 			throws IOException, PGPException {
 		for (Object object = factory.nextObject(); object != null; object = factory.nextObject()) {
 			if (object instanceof PGPCompressedData compressed) {
-				copyLiteralData(new JcaPGPObjectFactory(compressed.getDataStream()), out);
+				if (nesting >= PgpLimits.MAX_COMPRESSION_NESTING) {
+					throw PgpLimits.nestedTooDeeply();
+				}
+				copyLiteralData(new JcaPGPObjectFactory(compressed.getDataStream()), out, nesting + 1);
 			}
 			else if (object instanceof PGPLiteralData literal) {
 				try (InputStream data = literal.getInputStream()) {

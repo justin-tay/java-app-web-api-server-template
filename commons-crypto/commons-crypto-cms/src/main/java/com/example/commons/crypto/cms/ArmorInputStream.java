@@ -14,6 +14,12 @@ import java.util.Base64;
  */
 final class ArmorInputStream {
 
+	/**
+	 * PEM lines are 64 characters; a longer line is not armor and could be used to
+	 * exhaust memory.
+	 */
+	private static final int MAX_LINE = 1024;
+
 	private static final byte[] BEGIN = "-----BEGIN".getBytes(StandardCharsets.US_ASCII);
 
 	private ArmorInputStream() {
@@ -44,8 +50,12 @@ final class ArmorInputStream {
 
 	private static void skipLine(InputStream in) throws IOException {
 		int next;
+		int length = 0;
 		do {
 			next = in.read();
+			if (++length > MAX_LINE) {
+				throw new IOException("The armored message has a line longer than " + MAX_LINE + " bytes");
+			}
 		}
 		while (next != -1 && next != '\n');
 	}
@@ -83,6 +93,9 @@ final class ArmorInputStream {
 				return false;
 			}
 			while (next != -1 && next != '\n') {
+				if (bytes.size() >= MAX_LINE) {
+					throw new IOException("The armored message has a line longer than " + MAX_LINE + " bytes");
+				}
 				bytes.write(next);
 				next = this.in.read();
 			}

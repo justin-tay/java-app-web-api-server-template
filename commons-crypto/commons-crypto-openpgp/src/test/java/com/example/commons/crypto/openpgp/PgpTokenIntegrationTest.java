@@ -54,7 +54,7 @@ class PgpTokenIntegrationTest {
 
 	private static final BouncyCastleProvider BC = new BouncyCastleProvider();
 
-	private static final int ENCRYPT = KeyFlags.ENCRYPT_COMMS | KeyFlags.ENCRYPT_STORAGE;
+	private static final int ENCRYPT = TokenKeyRings.ENCRYPT;
 
 	private static final byte[] DATA = "Data for a key that never leaves the token. ".repeat(30)
 		.getBytes(StandardCharsets.UTF_8);
@@ -72,57 +72,8 @@ class PgpTokenIntegrationTest {
 		token.close();
 	}
 
-	private static KeyPair softwareKeyPair(boolean ec) throws Exception {
-		KeyPairGenerator generator = KeyPairGenerator.getInstance(ec ? "EC" : "RSA", BC);
-		if (ec) {
-			generator.initialize(new ECGenParameterSpec("secp256r1"));
-		}
-		else {
-			generator.initialize(2048);
-		}
-		return generator.generateKeyPair();
-	}
-
-	/**
-	 * A key ring whose only subkey is the public key of a token key with the given key
-	 * flags. The primary key is a throwaway software key.
-	 */
 	private static PgpPublicKeys ring(String alias, int flags) throws Exception {
-		PublicKey tokenPublic = token.certificate(alias).getPublicKey();
-		boolean ec = tokenPublic instanceof ECPublicKey;
-		boolean encryption = (flags & ENCRYPT) != 0;
-		int algorithm = ec ? (encryption ? PublicKeyAlgorithmTags.ECDH : PublicKeyAlgorithmTags.ECDSA)
-				: PublicKeyAlgorithmTags.RSA_GENERAL;
-		PGPAlgorithmParameters parameters = (ec && encryption)
-				? new PGPKdfParameters(HashAlgorithmTags.SHA256, SymmetricKeyAlgorithmTags.AES_128) : null;
-		Date now = new Date();
-		PGPPublicKey subkeyPublic = new JcaPGPKeyConverter().setProvider(BC)
-			.getPGPPublicKey(algorithm, parameters, tokenPublic, now);
-		// The ring generator wants a private key for the subkey; it is never used.
-		PGPKeyPair subkey = new PGPKeyPair(subkeyPublic,
-				new JcaPGPKeyPair(algorithm, softwareKeyPair(ec), now).getPrivateKey());
-
-		PGPKeyPair master = new JcaPGPKeyPair(PublicKeyAlgorithmTags.RSA_GENERAL, softwareKeyPair(false), now);
-		PGPDigestCalculator checksum = new JcaPGPDigestCalculatorProviderBuilder().setProvider(BC)
-			.build()
-			.get(HashAlgorithmTags.SHA1);
-		PGPSignatureSubpacketGenerator masterFlags = new PGPSignatureSubpacketGenerator();
-		masterFlags.setKeyFlags(false, KeyFlags.CERTIFY_OTHER);
-		PGPKeyRingGenerator generator = new PGPKeyRingGenerator(PGPSignature.POSITIVE_CERTIFICATION, master,
-				"Token key " + alias + " <token@example.com>", checksum, masterFlags.generate(), null,
-				new JcaPGPContentSignerBuilder(PublicKeyAlgorithmTags.RSA_GENERAL, HashAlgorithmTags.SHA256)
-					.setProvider(BC),
-				new JcePBESecretKeyEncryptorBuilder(SymmetricKeyAlgorithmTags.AES_256, checksum).setProvider(BC)
-					.build("unused".toCharArray()));
-		PGPSignatureSubpacketGenerator subkeyFlags = new PGPSignatureSubpacketGenerator();
-		subkeyFlags.setKeyFlags(false, flags);
-		generator.addSubKey(subkey, subkeyFlags.generate(), null);
-
-		ByteArrayOutputStream armored = new ByteArrayOutputStream();
-		try (ArmoredOutputStream out = new ArmoredOutputStream(armored)) {
-			out.write(generator.generatePublicKeyRing().getEncoded());
-		}
-		return PgpPublicKeys.fromArmored(armored.toString(StandardCharsets.US_ASCII));
+		return TokenKeyRings.ring(token.certificate(alias).getPublicKey(), flags);
 	}
 
 	private static byte[] encrypt(PgpPublicKeys recipient) {

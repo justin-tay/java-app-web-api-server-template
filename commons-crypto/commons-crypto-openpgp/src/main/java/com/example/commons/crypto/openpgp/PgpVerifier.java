@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import com.example.commons.crypto.BouncyCastle;
 import com.example.commons.crypto.CryptoException;
 import com.example.commons.crypto.SignatureResult;
 import com.example.commons.crypto.SignatureStatus;
@@ -60,7 +61,8 @@ public final class PgpVerifier {
 	 * @throws CryptoException if the message cannot be read, has no content, or is
 	 * refused by the policy
 	 */
-	public VerifyResult verify(VerifyRequest request, InputStream message, OutputStream content) {
+	public VerifyResult verify(VerifyRequest request, InputStream message, OutputStream unlimited) {
+		OutputStream content = PgpLimits.limit(unlimited, request.maxOutputBytes());
 		try {
 			InputStream decoded = PGPUtil.getDecoderStream(message);
 			if (decoded instanceof ArmoredInputStream armored && armored.isClearText()) {
@@ -96,7 +98,8 @@ public final class PgpVerifier {
 				checkHash(request, candidate.getHashAlgorithm());
 				PGPPublicKey key = request.find(candidate.getKeyID());
 				if (key != null) {
-					candidate.init(new JcaPGPContentVerifierBuilderProvider().setProvider(PgpProviders.BC), key);
+					candidate.init(new JcaPGPContentVerifierBuilderProvider().setProvider(BouncyCastle.provider()),
+							key);
 				}
 				keys.add(key);
 			}
@@ -128,8 +131,12 @@ public final class PgpVerifier {
 		List<PGPPublicKey> keys = new ArrayList<>();
 		boolean sawContent = false;
 		PGPSignatureList signatures = null;
+		int nesting = 0;
 		for (Object object = factory.nextObject(); object != null; object = factory.nextObject()) {
 			if (object instanceof PGPCompressedData compressed) {
+				if (++nesting > PgpLimits.MAX_COMPRESSION_NESTING) {
+					throw PgpLimits.nestedTooDeeply();
+				}
 				factory = new JcaPGPObjectFactory(compressed.getDataStream());
 			}
 			else if (object instanceof PGPOnePassSignatureList list) {
@@ -137,7 +144,8 @@ public final class PgpVerifier {
 					checkHash(request, signature.getHashAlgorithm());
 					PGPPublicKey key = request.find(signature.getKeyID());
 					if (key != null) {
-						signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(PgpProviders.BC), key);
+						signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(BouncyCastle.provider()),
+								key);
 					}
 					onePass.add(signature);
 					keys.add(key);
@@ -206,7 +214,7 @@ public final class PgpVerifier {
 			checkHash(request, signature.getHashAlgorithm());
 			PGPPublicKey key = request.find(signature.getKeyID());
 			if (key != null) {
-				signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(PgpProviders.BC), key);
+				signature.init(new JcaPGPContentVerifierBuilderProvider().setProvider(BouncyCastle.provider()), key);
 				signature.update(canonical);
 			}
 			results.add(result(signature, key));
