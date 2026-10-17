@@ -49,4 +49,15 @@ class Pkcs11ConfigTest {
 			.isInstanceOf(IllegalArgumentException.class);
 	}
 
+	@Test
+	void extraSettingsAreAddedToTheConfiguration() {
+		Pkcs11Config config = Pkcs11Config.builder()
+			.library(Path.of("lib.so"))
+			.extraSettings("nssArgs=\"configdir='sql:/tmp/db'\"")
+			.build();
+
+		assertThat(config.providerConfiguration("x")).contains("nssArgs=\"configdir='sql:/tmp/db'\"\n")
+			.contains("CKO_SECRET_KEY");
+	}
+
 }

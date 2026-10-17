@@ -28,11 +28,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * CMS with keys on a SoftHSM2 token, which has an RSA key under the alias k and an EC
+ * CMS with keys on a PKCS#11 token, which has an RSA key under the alias k and an EC
  * P-256 key under the alias ec, with the PIN 1234. See src/test/docker/pkcs11 in
- * commons-crypto. Skipped unless SOFTHSM2_LIBRARY is set.
+ * commons-crypto. Skipped unless PKCS11_LIBRARY is set.
  */
-@EnabledIfEnvironmentVariable(named = "SOFTHSM2_LIBRARY", matches = ".+")
+@EnabledIfEnvironmentVariable(named = "PKCS11_LIBRARY", matches = ".+")
 class CmsTokenIntegrationTest {
 
 	private static final BouncyCastleProvider BC = new BouncyCastleProvider();
@@ -44,8 +44,7 @@ class CmsTokenIntegrationTest {
 
 	@BeforeAll
 	static void openToken() {
-		token = Pkcs11Token.open(Pkcs11Config.builder().library(Path.of(System.getenv("SOFTHSM2_LIBRARY"))).build(),
-				(info) -> "1234".toCharArray());
+		token = Pkcs11Token.open(TestToken.config(), (info) -> TestToken.pin());
 	}
 
 	@AfterAll
@@ -89,48 +88,49 @@ class CmsTokenIntegrationTest {
 
 	@Test
 	void signsOnTheTokenWithAnRsaKey() {
-		signsAndVerifies("k");
+		signsAndVerifies(TestToken.RSA_ALIAS);
 	}
 
 	@Test
 	void signsOnTheTokenWithAnEcKey() {
-		signsAndVerifies("ec");
+		signsAndVerifies(TestToken.EC_ALIAS);
 	}
 
 	@Test
 	void decryptsOnTheTokenForAnEcRecipient() {
-		X509Certificate certificate = token.certificate("ec");
+		X509Certificate certificate = token.certificate(TestToken.EC_ALIAS);
 
 		byte[] message = encrypt(certificate);
 
-		assertThat(decrypt(message, token.privateKey("ec"), certificate)).isEqualTo(DATA);
+		assertThat(decrypt(message, token.privateKey(TestToken.EC_ALIAS), certificate)).isEqualTo(DATA);
 	}
 
 	@Test
 	void decryptsOnTheTokenForSeveralEcRecipientsInOneMessage() {
-		X509Certificate certificate = token.certificate("ec");
+		X509Certificate certificate = token.certificate(TestToken.EC_ALIAS);
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		CmsEncryptor.create()
 			.encrypt(EncryptRequest.builder()
-				.recipients(CmsRecipient.certificate(certificate), CmsRecipient.certificate(token.certificate("k")))
+				.recipients(CmsRecipient.certificate(certificate),
+						CmsRecipient.certificate(token.certificate(TestToken.RSA_ALIAS)))
 				.build(), new ByteArrayInputStream(DATA), out);
 
-		assertThat(decrypt(out.toByteArray(), token.privateKey("ec"), certificate)).isEqualTo(DATA);
+		assertThat(decrypt(out.toByteArray(), token.privateKey(TestToken.EC_ALIAS), certificate)).isEqualTo(DATA);
 	}
 
 	@Test
 	void anRsaOaepRecipientFailsClearlyBecauseSunPkcs11HasNoOaep() {
-		X509Certificate certificate = token.certificate("k");
+		X509Certificate certificate = token.certificate(TestToken.RSA_ALIAS);
 		byte[] message = encrypt(certificate);
 
-		assertThatThrownBy(() -> decrypt(message, token.privateKey("k"), certificate))
+		assertThatThrownBy(() -> decrypt(message, token.privateKey(TestToken.RSA_ALIAS), certificate))
 			.isInstanceOf(CryptoException.class)
 			.hasMessageContaining("OAEP");
 	}
 
 	@Test
 	void anRsaPkcs1v15RecipientNeedsTheOptInOnTheTokenKey() throws Exception {
-		X509Certificate certificate = token.certificate("k");
+		X509Certificate certificate = token.certificate(TestToken.RSA_ALIAS);
 		CMSAuthEnvelopedDataGenerator generator = new CMSAuthEnvelopedDataGenerator();
 		generator.addRecipientInfoGenerator(new JceKeyTransRecipientInfoGenerator(certificate).setProvider(BC));
 		byte[] message = generator
@@ -139,10 +139,11 @@ class CmsTokenIntegrationTest {
 						.build())
 			.getEncoded();
 
-		assertThatThrownBy(() -> decrypt(message, token.privateKey("k"), certificate))
+		assertThatThrownBy(() -> decrypt(message, token.privateKey(TestToken.RSA_ALIAS), certificate))
 			.isInstanceOf(CryptoException.class)
 			.hasMessageContaining("PKCS#1 v1.5");
-		assertThat(decrypt(message, token.privateKey("k").allowPkcs1v15KeyTransport(), certificate)).isEqualTo(DATA);
+		assertThat(decrypt(message, token.privateKey(TestToken.RSA_ALIAS).allowPkcs1v15KeyTransport(), certificate))
+			.isEqualTo(DATA);
 	}
 
 }

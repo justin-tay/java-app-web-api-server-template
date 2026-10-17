@@ -174,8 +174,12 @@ public final class PgpSigner {
 			this.hash = (algorithm == PublicKeyAlgorithmTags.RSA_GENERAL
 					|| algorithm == PublicKeyAlgorithmTags.RSA_SIGN) ? HashAlgorithmTags.SHA256
 							: HashAlgorithmTags.SHA512;
+			// The key's provider does the signing; the hash is always computed by Bouncy
+			// Castle, because
+			// not every token's provider offers digests (NSS's does not).
 			this.generator = new PGPSignatureGenerator(new JcaPGPContentSignerBuilder(algorithm, this.hash)
-				.setProvider(key.provider().orElse(BouncyCastle.provider())), key.publicKey());
+				.setProvider(key.provider().orElse(BouncyCastle.provider()))
+				.setDigestProvider(BouncyCastle.provider()), key.publicKey());
 			this.generator.init(signatureType, key.privateKey());
 		}
 

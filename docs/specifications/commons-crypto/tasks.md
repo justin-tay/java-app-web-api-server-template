@@ -109,3 +109,10 @@ is independently testable and ordered by its dependencies.
     agreement, compression nesting and output limits, an armor line cap, and closeable OpenPGP
     secret keys.
   - _Requirements: R5b, R7b_
+
+- [x] 18. A second PKCS#11 implementation
+  - Run the token tests against NSS softoken as well as SoftHSM2; make the tests choose the token from
+    the environment; add `Pkcs11Config.Builder.extraSettings` for module-specific settings.
+  - Result: all token tests pass on both; the OpenPGP signer no longer asks the token's provider
+    for digests.
+  - _Requirements: R5_

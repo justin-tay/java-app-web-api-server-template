@@ -110,6 +110,8 @@ try (Pkcs11Token token = Pkcs11Token.open(config, (info) -> pin())) {
   key fail with an error that says so. If the sender can use PKCS#1 v1.5, call
   `allowPkcs1v15KeyTransport()` on the key handle.
 - If the token is removed, operations fail with `TokenUnavailableException`; open a new token.
+- Module-specific SunPKCS11 settings that the library does not set itself go in
+  `Pkcs11Config.Builder.extraSettings(...)`, for example `nssArgs` for an NSS database.
 
 ## Defaults and policy
 
@@ -162,9 +164,10 @@ a PIN, a key or message content.
 
 ## Tests
 
-`mvn test` runs the unit tests, which need nothing else. The tests that use a hardware token
-(SoftHSM2) and the interoperability tests (GnuPG and OpenSSL) need those tools, so they run in a
-container and skip themselves otherwise:
+`mvn test` runs the unit tests, which need nothing else. The tests that use a PKCS#11 token (run
+against SoftHSM2 and against an NSS software token) and the interoperability tests (GnuPG and OpenSSL)
+need those tools, so they run in a container and skip themselves otherwise. The token tests take the
+token from `PKCS11_LIBRARY` and related variables, so another token can be pointed at them:
 
 ```bash
 docker build -t commons-crypto-pkcs11-test commons-crypto/commons-crypto/src/test/docker/pkcs11

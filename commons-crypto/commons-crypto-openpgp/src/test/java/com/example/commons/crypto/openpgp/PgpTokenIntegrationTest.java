@@ -44,12 +44,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * OpenPGP with keys on a SoftHSM2 token, which has an RSA key under the alias k and an EC
+ * OpenPGP with keys on a PKCS#11 token, which has an RSA key under the alias k and an EC
  * P-256 key under the alias ec, with the PIN 1234. The OpenPGP public keys are built
  * around the token keys' public keys. See src/test/docker/pkcs11 in commons-crypto.
- * Skipped unless SOFTHSM2_LIBRARY is set.
+ * Skipped unless PKCS11_LIBRARY is set.
  */
-@EnabledIfEnvironmentVariable(named = "SOFTHSM2_LIBRARY", matches = ".+")
+@EnabledIfEnvironmentVariable(named = "PKCS11_LIBRARY", matches = ".+")
 class PgpTokenIntegrationTest {
 
 	private static final BouncyCastleProvider BC = new BouncyCastleProvider();
@@ -63,8 +63,7 @@ class PgpTokenIntegrationTest {
 
 	@BeforeAll
 	static void openToken() {
-		token = Pkcs11Token.open(Pkcs11Config.builder().library(Path.of(System.getenv("SOFTHSM2_LIBRARY"))).build(),
-				(info) -> "1234".toCharArray());
+		token = Pkcs11Token.open(TestToken.config(), (info) -> TestToken.pin());
 	}
 
 	@AfterAll
@@ -121,44 +120,47 @@ class PgpTokenIntegrationTest {
 
 	@Test
 	void decryptsOnTheTokenWithAnRsaKey() throws Exception {
-		PgpPublicKeys publicKeys = ring("k", ENCRYPT);
+		PgpPublicKeys publicKeys = ring(TestToken.RSA_ALIAS, ENCRYPT);
 
 		byte[] message = encrypt(publicKeys);
 
-		assertThat(decrypt(message, PgpSecretKeys.token(token.privateKey("k"), publicKeys))).isEqualTo(DATA);
+		assertThat(decrypt(message, PgpSecretKeys.token(token.privateKey(TestToken.RSA_ALIAS), publicKeys)))
+			.isEqualTo(DATA);
 	}
 
 	@Test
 	void decryptsOnTheTokenWithAnEcdhKey() throws Exception {
-		PgpPublicKeys publicKeys = ring("ec", ENCRYPT);
+		PgpPublicKeys publicKeys = ring(TestToken.EC_ALIAS, ENCRYPT);
 
 		byte[] message = encrypt(publicKeys);
 
-		assertThat(decrypt(message, PgpSecretKeys.token(token.privateKey("ec"), publicKeys))).isEqualTo(DATA);
+		assertThat(decrypt(message, PgpSecretKeys.token(token.privateKey(TestToken.EC_ALIAS), publicKeys)))
+			.isEqualTo(DATA);
 	}
 
 	@Test
 	void signsOnTheTokenWithAnRsaKey() throws Exception {
-		signsAndVerifies("k");
+		signsAndVerifies(TestToken.RSA_ALIAS);
 	}
 
 	@Test
 	void signsOnTheTokenWithAnEcdsaKey() throws Exception {
-		signsAndVerifies("ec");
+		signsAndVerifies(TestToken.EC_ALIAS);
 	}
 
 	@Test
 	void publicKeysThatDoNotMatchTheTokenKeyAreRejected() throws Exception {
-		PgpPublicKeys ecKeys = ring("ec", ENCRYPT);
+		PgpPublicKeys ecKeys = ring(TestToken.EC_ALIAS, ENCRYPT);
 
-		assertThatThrownBy(() -> PgpSecretKeys.token(token.privateKey("k"), ecKeys)).isInstanceOf(CryptoException.class)
+		assertThatThrownBy(() -> PgpSecretKeys.token(token.privateKey(TestToken.RSA_ALIAS), ecKeys))
+			.isInstanceOf(CryptoException.class)
 			.hasMessageContaining("matches");
 	}
 
 	@Test
 	void aTokenKeyWhoseFlagsDoNotAllowSigningDoesNotSign() throws Exception {
-		PgpPublicKeys encryptionOnly = ring("k", ENCRYPT);
-		PgpSecretKeys keys = PgpSecretKeys.token(token.privateKey("k"), encryptionOnly);
+		PgpPublicKeys encryptionOnly = ring(TestToken.RSA_ALIAS, ENCRYPT);
+		PgpSecretKeys keys = PgpSecretKeys.token(token.privateKey(TestToken.RSA_ALIAS), encryptionOnly);
 
 		assertThatThrownBy(() -> PgpSigner.create()
 			.sign(SignRequest.builder().signer(keys).build(), new ByteArrayInputStream(DATA),

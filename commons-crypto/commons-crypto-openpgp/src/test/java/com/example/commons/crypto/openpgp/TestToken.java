@@ -1,0 +1,45 @@
+package com.example.commons.crypto.openpgp;
+
+import java.nio.file.Path;
+
+import com.example.commons.crypto.pkcs11.Pkcs11Config;
+
+/**
+ * Which token the token tests use, from the environment, so that the same tests run
+ * against different PKCS#11 implementations. The container script in
+ * src/test/docker/pkcs11 sets it up. The tests are skipped unless PKCS11_LIBRARY is set.
+ */
+final class TestToken {
+
+	/** The alias of an RSA key (with its certificate) on the token. */
+	static final String RSA_ALIAS = env("PKCS11_RSA_ALIAS", "k");
+
+	/** The alias of an EC P-256 key (with its certificate) on the token. */
+	static final String EC_ALIAS = env("PKCS11_EC_ALIAS", "ec");
+
+	private TestToken() {
+	}
+
+	private static String env(String name, String fallback) {
+		String value = System.getenv(name);
+		return (value != null && !value.isBlank()) ? value : fallback;
+	}
+
+	static Pkcs11Config config() {
+		Pkcs11Config.Builder builder = Pkcs11Config.builder().library(Path.of(System.getenv("PKCS11_LIBRARY")));
+		String slotListIndex = System.getenv("PKCS11_SLOT_LIST_INDEX");
+		if (slotListIndex != null && !slotListIndex.isBlank()) {
+			builder.slotListIndex(Integer.parseInt(slotListIndex));
+		}
+		String extra = System.getenv("PKCS11_EXTRA_SETTINGS");
+		if (extra != null && !extra.isBlank()) {
+			builder.extraSettings(extra.replace("\\n", "\n"));
+		}
+		return builder.build();
+	}
+
+	static char[] pin() {
+		return env("PKCS11_PIN", "1234").toCharArray();
+	}
+
+}

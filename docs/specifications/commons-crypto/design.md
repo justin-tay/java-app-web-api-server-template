@@ -352,10 +352,11 @@ CryptoException (unchecked)
   keys, plus sign-and-encrypt. CMS against OpenSSL: embedded and detached signatures in DER and
   PEM for RSA and EC keys, encryption in both directions.
 - The PKCS#11 tests need a native module in the JVM's process, so they run inside a container
-  that holds both the JVM and SoftHSM2. They skip themselves unless `SOFTHSM2_LIBRARY` is set.
+  that holds both the JVM and the token. They skip themselves unless `PKCS11_LIBRARY` is set.
   `commons-crypto/commons-crypto/src/test/docker/pkcs11/` has the Dockerfile and
   `run-tests.sh`, which sets up a token with an RSA key under the alias `k`, an EC key under the
-  alias `ec` and the PIN `1234`, and builds all three modules in a copy of the repository:
+  alias `ec` and the PIN `1234`, builds all three modules in a copy of the repository, and then
+  runs the tests that use a token a second time against an NSS software token (see below):
 
   ```bash
   docker build -t commons-crypto-pkcs11-test commons-crypto/commons-crypto/src/test/docker/pkcs11
@@ -363,6 +364,27 @@ CryptoException (unchecked)
   ```
 - Each format module's tests run with only its own Bouncy Castle artifacts on the
   classpath, which the module dependencies enforce without a separate variant.
+
+### A second token implementation
+
+SoftHSM2 is one implementation, so the tests that use a token also run against NSS's software token
+(`libsoftokn3`, from the `libnss3-tools` package), which SunPKCS11 supports. The test keys of the
+CMS module are imported into an NSS database with `pk12util`, which gives the aliases `rsa` and `ec`.
+The token tests read which token to use from the environment: `PKCS11_LIBRARY`, and optionally
+`PKCS11_SLOT_LIST_INDEX`, `PKCS11_EXTRA_SETTINGS`, `PKCS11_PIN`, `PKCS11_RSA_ALIAS` and
+`PKCS11_EC_ALIAS`.
+
+- NSS needs one setting the library does not make itself, so `Pkcs11Config.Builder.extraSettings`
+  adds module-specific lines to the SunPKCS11 configuration: `nssArgs="configdir='sql:/db' certPrefix=''
+  keyPrefix='' secmod='secmod.db' flags=readWrite"`. Its keys are in the second slot
+  (`slotListIndex=1`).
+- All token tests pass on both tokens: login and PIN handling, signing and key agreement with RSA and EC
+  keys in both formats, the OAEP error, and the PKCS#1 v1.5 opt-in.
+- It found one real difference. OpenPGP signing asked the token's provider for the SHA-256 or SHA-512
+  digest as well as the signature. SoftHSM2's provider offers digests, NSS's does not. The digest is now
+  always computed by Bouncy Castle and only the signature is made on the token.
+- Still untested: any real hardware token, and tokens whose provider differs more, such as a vendor
+  HSM provider.
 
 ### Interoperability results
 

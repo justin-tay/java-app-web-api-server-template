@@ -15,10 +15,13 @@ public final class Pkcs11Config {
 
 	private final Long slot;
 
+	private final String extraSettings;
+
 	private Pkcs11Config(Builder builder) {
 		this.library = builder.library;
 		this.slotListIndex = builder.slotListIndex;
 		this.slot = builder.slot;
+		this.extraSettings = builder.extraSettings;
 	}
 
 	public static Builder builder() {
@@ -44,6 +47,9 @@ public final class Pkcs11Config {
 		else if (this.slotListIndex != null) {
 			text.append("slotListIndex=").append(this.slotListIndex).append('\n');
 		}
+		if (this.extraSettings != null) {
+			text.append(this.extraSettings).append('\n');
+		}
 		// A key agreement derives a secret key on the token and then reads it, which
 		// needs it
 		// to be readable. Only the shared secret becomes readable, never a private key.
@@ -61,6 +67,8 @@ public final class Pkcs11Config {
 		private Integer slotListIndex;
 
 		private Long slot;
+
+		private String extraSettings;
 
 		private Builder() {
 		}
@@ -96,6 +104,20 @@ public final class Pkcs11Config {
 		 */
 		public Builder slot(long slot) {
 			this.slot = slot;
+			return this;
+		}
+
+		/**
+		 * Settings for the module that the library does not set itself, in the format of
+		 * a SunPKCS11 configuration file, one per line: for example {@code nssArgs},
+		 * which an NSS software token needs, or {@code disabledMechanisms}. They are
+		 * added to the configuration the library builds, so they must not repeat
+		 * {@code name}, {@code library}, {@code slot} or {@code slotListIndex}.
+		 * @param extraSettings the settings
+		 * @return this builder
+		 */
+		public Builder extraSettings(String extraSettings) {
+			this.extraSettings = extraSettings;
 			return this;
 		}
 

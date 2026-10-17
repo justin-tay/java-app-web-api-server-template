@@ -22,17 +22,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Uses a SoftHSM2 token that the script src/test/docker/pkcs11/run-tests.sh sets up in a
+ * Uses a PKCS#11 token that the script src/test/docker/pkcs11/run-tests.sh sets up in a
  * container. It holds an RSA key and its certificate under the alias k, and the PIN is
- * 1234. The tests are skipped when SOFTHSM2_LIBRARY is not set.
+ * 1234. The tests are skipped when PKCS11_LIBRARY is not set.
  */
-@EnabledIfEnvironmentVariable(named = "SOFTHSM2_LIBRARY", matches = ".+")
+@EnabledIfEnvironmentVariable(named = "PKCS11_LIBRARY", matches = ".+")
 class Pkcs11TokenIntegrationTest {
 
-	private static final String ALIAS = "k";
+	private static final String ALIAS = TestToken.RSA_ALIAS;
 
 	private static Pkcs11Config config() {
-		return Pkcs11Config.builder().library(Path.of(System.getenv("SOFTHSM2_LIBRARY"))).build();
+		return TestToken.config();
 	}
 
 	private static byte[] sign(PrivateKeyHandle handle, byte[] data) throws Exception {
@@ -52,7 +52,7 @@ class Pkcs11TokenIntegrationTest {
 	@Test
 	void signsOnTheTokenWithTheRightPin() throws Exception {
 		byte[] data = "hello token".getBytes();
-		try (Pkcs11Token token = Pkcs11Token.open(config(), (info) -> "1234".toCharArray())) {
+		try (Pkcs11Token token = Pkcs11Token.open(config(), (info) -> TestToken.pin())) {
 			X509Certificate certificate = token.certificate(ALIAS);
 
 			try (PrivateKeyHandle handle = token.privateKey(ALIAS)) {
@@ -64,15 +64,15 @@ class Pkcs11TokenIntegrationTest {
 
 	@Test
 	void listsTheAliasesOnTheToken() throws Exception {
-		try (Pkcs11Token token = Pkcs11Token.open(config(), (info) -> "1234".toCharArray())) {
-			assertThat(token.aliases()).contains(ALIAS, "ec");
+		try (Pkcs11Token token = Pkcs11Token.open(config(), (info) -> TestToken.pin())) {
+			assertThat(token.aliases()).contains(ALIAS, TestToken.EC_ALIAS);
 		}
 	}
 
 	@Test
 	void theKeyStoresShortcutOwnsTheToken() throws Exception {
 		byte[] data = "shortcut".getBytes();
-		PrivateKeyHandle handle = KeyStores.pkcs11(config(), (info) -> "1234".toCharArray(), ALIAS);
+		PrivateKeyHandle handle = KeyStores.pkcs11(config(), (info) -> TestToken.pin(), ALIAS);
 
 		assertThat(sign(handle, data)).isNotEmpty();
 		PrivateKey key = handle.key();
@@ -100,7 +100,7 @@ class Pkcs11TokenIntegrationTest {
 
 	@Test
 	void anUnknownAliasIsACryptoException() throws Exception {
-		try (Pkcs11Token token = Pkcs11Token.open(config(), (info) -> "1234".toCharArray())) {
+		try (Pkcs11Token token = Pkcs11Token.open(config(), (info) -> TestToken.pin())) {
 			assertThatThrownBy(() -> token.privateKey("missing"))
 				.isInstanceOf(com.example.commons.crypto.CryptoException.class)
 				.hasMessageContaining("missing");
@@ -109,7 +109,7 @@ class Pkcs11TokenIntegrationTest {
 
 	@Test
 	void theKeyIsUnavailableOnceTheTokenIsClosed() throws Exception {
-		Pkcs11Token token = Pkcs11Token.open(config(), (info) -> "1234".toCharArray());
+		Pkcs11Token token = Pkcs11Token.open(config(), (info) -> TestToken.pin());
 		PrivateKeyHandle handle = token.privateKey(ALIAS);
 
 		token.close();
@@ -123,7 +123,7 @@ class Pkcs11TokenIntegrationTest {
 	void severalThreadsCanSignWithOneHandle() throws Exception {
 		byte[] data = "parallel".getBytes();
 		ExecutorService executor = Executors.newFixedThreadPool(8);
-		try (Pkcs11Token token = Pkcs11Token.open(config(), (info) -> "1234".toCharArray());
+		try (Pkcs11Token token = Pkcs11Token.open(config(), (info) -> TestToken.pin());
 				PrivateKeyHandle handle = token.privateKey(ALIAS)) {
 			X509Certificate certificate = token.certificate(ALIAS);
 			List<Future<Boolean>> results = new ArrayList<>();
