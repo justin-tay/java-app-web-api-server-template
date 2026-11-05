@@ -1,0 +1,8 @@
+# Accepted vulnerability findings for the vulnerability-scan workflow. Each entry must name the
+# OSV or CVE id, say why in reason, and carry an ignoreUntil date, after which the finding
+# fails the build again and is reviewed.
+#
+# [[IgnoredVulns]]
+# id = "GHSA-xxxx-xxxx-xxxx"
+# ignoreUntil = 2027-01-31
+# reason = "Not reachable: the application never calls the affected parser."
