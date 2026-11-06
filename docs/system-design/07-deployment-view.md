@@ -74,7 +74,7 @@ push to `main`:
 
 ```mermaid
 flowchart LR
-    Checkout --> SetupJava["Set up Temurin JDK 17"]
+    Checkout --> SetupJava["Set up Temurin JDK 21"]
     SetupJava --> Verify["mvn verify\n(build, test, JaCoCo)"]
     Verify --> Coverage["Summarize coverage\nto job summary"]
     Verify --> FormatCheck["git diff --exit-code\n(formatting drift check)"]

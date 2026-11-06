@@ -47,7 +47,7 @@ other format's dependencies, so that my application stays small.
    follow the format it uses.
 4. Bouncy Castle SHALL be used at its latest release at the time of implementation (1.86
    when this specification was written), with all Bouncy Castle artifacts on one version.
-5. The modules SHALL target Java 17, SHALL NOT depend on Spring, and SHALL declare the
+5. The modules SHALL target Java 21, SHALL NOT depend on Spring, and SHALL declare the
    `Automatic-Module-Name` values `com.example.commons.crypto`,
    `com.example.commons.crypto.cms` and `com.example.commons.crypto.openpgp`.
 

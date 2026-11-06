@@ -271,7 +271,7 @@ Network boundary controls belong to the deployment's network and infrastructure 
 | SC-2 | Commit Signing | Not applicable | Enforcing signed commits is a repository-configuration setting outside the codebase. |
 | SC-3 | Peer Review | Not applicable | Enforcing peer review before merge is a repository branch-protection setting outside the codebase. |
 | SC-4 | Dependency Manifest Version Pinning | Implemented | `pom.xml` pins exact dependency versions (via the Spring Boot parent BOM and explicit `<version>` elements); no version ranges are used. |
-| SC-5 | Build and Release Process | Partial | `build-and-test.yml` provides a consistent, recorded CI build (Maven, JDK 17, coverage report) for every push and pull request, but the repository has no release/publish job producing a versioned, signed artefact. |
+| SC-5 | Build and Release Process | Partial | `build-and-test.yml` provides a consistent, recorded CI build (Maven, JDK 21, coverage report) for every push and pull request, but the repository has no release/publish job producing a versioned, signed artefact. |
 | SC-6 | Dependency Installation during Deployment | Implemented | Maven resolves the exact versions pinned in `pom.xml` on every build; the Maven Wrapper (`mvnw`) additionally pins the build tool's own version. |
 | SC-7 | Software Artefact Signing | Planned | No artefact-signing step (e.g. Cosign, AWS Signer) exists, and the repository has no artefact-publishing pipeline yet. |
 | SC-8 | Software Artefact Signature Verification | Not applicable | With no artefact signing in place (SC-7), there is no signature to verify. |

@@ -14,7 +14,7 @@ Add the one you need. The two format modules do not depend on each other.
 
 ## Add it to your build
 
-It needs Java 17 or later. The format modules bring in `commons-crypto` and the Bouncy Castle
+It needs Java 21 or later. The format modules bring in `commons-crypto` and the Bouncy Castle
 artifact they need (1.86), so one dependency is enough:
 
 ```xml

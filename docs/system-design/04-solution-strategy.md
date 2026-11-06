@@ -5,7 +5,7 @@
 <!-- arc42-generated -->
 | Decision Area | Choice | Rationale |
 | --- | --- | --- |
-| Language / runtime | Java 17, GraalVM native image support | Long-term-support Java baseline; native image reduces cold-start and memory footprint for adopters who need it, without being mandatory. |
+| Language / runtime | Java 21, GraalVM native image support | Long-term-support Java baseline; native image reduces cold-start and memory footprint for adopters who need it, without being mandatory. |
 | Framework | Spring Boot 4.1.1 (Web MVC, Security, Data JPA, Session JDBC, Actuator, Validation) | Mature, widely adopted ecosystem covering every concern this template needs (web, security, persistence, session, observability) without extra glue code. |
 | Persistence | Spring Data JPA over a JDBC relational database, schema owned exclusively by Liquibase | Keeps the runtime account free of DDL privileges and makes schema evolution reviewable and repeatable independent of application deploys ([ADR 0004](../adr/0004-database-schema-management.md)). |
 | Session store | Spring Session JDBC (`spring-boot-starter-session-jdbc`) | Server-side sessions survive application restarts and support horizontal scaling without sticky sessions, at the cost of a database round-trip per request ([ADR 0006](../adr/0006-jdbc-backed-server-side-sessions.md)). |

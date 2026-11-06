@@ -7,7 +7,7 @@ module rather than to one feature.
 ## Build
 
 Maven, via the wrapper (`mvnw`/`mvnw.cmd`), on the `spring-boot-starter-parent`
-4.1.1 BOM, targeting Java 17. There is a single module; no multi-module
+4.1.2 BOM, targeting Java 21. There is a single module; no multi-module
 structure exists to document. A Maven `local` profile adds the H2 dependency
 at `runtime` scope, paired with the Spring `local` profile
 (`application-local.yaml`) that disables TLS and the `Secure` cookie
@@ -63,7 +63,7 @@ artifacts.
 
 `.github/workflows/build-and-test.yml` runs on every pull request and on push
 to `main`, with `concurrency` cancelling a superseded run for the same ref.
-The job: checks out the source, sets up Temurin Java 17 with Maven dependency
+The job: checks out the source, sets up Temurin Java 21 with Maven dependency
 caching, runs `mvnw -B -Dstyle.color=always verify` (compiling, testing, and
 applying/verifying formatting in one invocation), summarizes coverage, and
 enforces formatting via `git diff --exit-code`, all within a 15-minute

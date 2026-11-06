@@ -5,7 +5,7 @@
 <!-- arc42-generated -->
 | Constraint | Description |
 | --- | --- |
-| Java 17 | `pom.xml` pins `java.version` to 17; the codebase uses no preview features. |
+| Java 21 | `pom.xml` pins `java.version` to 21; the codebase uses no preview features. |
 | Spring Boot 4.1.1 | The application inherits from `spring-boot-starter-parent:4.1.1`; framework upgrades follow Spring Boot's own release cadence. |
 | Maven build | The project builds with the Maven Wrapper (`mvnw`/`mvnw.cmd`), not Gradle. |
 | Liquibase-owned schema | `spring.jpa.hibernate.ddl-auto: none` and `spring.session.jdbc.initialize-schema: never`; Liquibase (`db/changelog/db.changelog-master.yaml`) is the only schema owner, per [ADR 0004](../adr/0004-database-schema-management.md); each module ships its schema as a changelog and as plain SQL per database ([ADR 0035](../adr/0035-module-schemas-as-changelog-and-sql.md)). Hibernate never creates or alters tables. |

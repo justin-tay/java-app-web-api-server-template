@@ -12,8 +12,8 @@
 	<name>commons-aws</name>
 	<description>Optional AWS integration for commons, such as reading resources from AWS Secrets Manager</description>
 	<properties>
-		<aws-sdk.version>2.54.3</aws-sdk.version>
-		<testcontainers-floci.version>2.16.1</testcontainers-floci.version>
+		<aws-sdk.version>2.57.10</aws-sdk.version>
+		<testcontainers-floci.version>2.17.0</testcontainers-floci.version>
 	</properties>
 	<dependencyManagement>
 		<dependencies>

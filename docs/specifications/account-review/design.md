@@ -276,7 +276,7 @@ same transaction.
 | `AccountReviewService` | Lists tasks and items, applies decisions and group edits, completes tasks |
 | `ReviewPopulations` | The removed population: live until confirmed, then the frozen list; confirms it once |
 | `ReviewReportModels` | Assembles the report of a task from its items and populations, with the tally by outcome and department |
-| `ReviewReportRenderer` | Interface: renders the report model to PDF, xlsx or csv. The default, `DefaultReviewReportRenderer`, uses OpenPDF 2.0.x for PDF (the last line that runs on Java 17), Apache POI streaming workbooks for xlsx and plain writing for csv |
+| `ReviewReportRenderer` | Interface: renders the report model to PDF, xlsx or csv. The default, `DefaultReviewReportRenderer`, uses OpenPDF 3.0.x for PDF, Apache POI streaming workbooks for xlsx and plain writing for csv |
 | `ReportDocument` | In `com.example.commons.accounts.report`. Reusable PDF base on OpenPDF, using the built-in Helvetica font, so text outside Western European characters is not drawn and an application that needs it supplies its own renderer: page setup, fonts and colours, a title block with key-value metadata, a footer with page numbers and the draft marker, and helpers for summary tiles and tables. `AccountReviewReport` composes sections from it, and later reports can reuse it |
 | `TaskController`, `AccountReviewController`, `SettingsController`, `AuditEventController` | REST endpoints below |
 
